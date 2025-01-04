@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Music, Upload, Disc, BarChart, Settings, Plus, ArrowLeft } from 'lucide-react';
+import MusicUpload from './MusicUpload';
+import { XCircle } from 'lucide-react'; 
+import Modal from '../../modal';
 
-// Local Card Component Implementation
+
 const StudioCard = ({ children, className = '', onClick = () => {} }) => (
   <div 
     onClick={onClick}
@@ -13,9 +16,21 @@ const StudioCard = ({ children, className = '', onClick = () => {} }) => (
 );
 
 const Studio = () => {
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeView, setActiveView] = useState('dashboard');
   const [isAlbumUpload, setIsAlbumUpload] = useState(false);
+  const [modalContent, setModalContent] = useState(null);
   const navigate = useNavigate(); 
+
+  const handleOpenModal = (content) => {
+    setModalContent(content);
+    setIsModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setModalContent(null);
+  };
 
   const DashboardStats = () => (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -53,12 +68,10 @@ const Studio = () => {
 
   const UploadOptions = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-      <StudioCard 
-        className={`cursor-pointer transition-all ${!isAlbumUpload ? 'ring-2 ring-blue-500' : ''}`}
-        onClick={() => {
-          setIsAlbumUpload(false);
-          navigate('/musicupload'); // Navigate to upload music page
-        }}
+      {/* Studio Card */}
+      <StudioCard
+        className={`cursor-pointer transition-all ${!isModalOpen ? 'ring-2 ring-blue-500' : ''}`}
+        onClick={() => handleOpenModal(<MusicUpload />)} // Open modal with MusicUpload component
       >
         <div className="p-6">
           <div className="flex flex-col items-center text-center">
@@ -68,11 +81,11 @@ const Studio = () => {
           </div>
         </div>
       </StudioCard>
-      
+
+      {/* Create Album Card */}
       <StudioCard 
-        className={`cursor-pointer transition-all ${isAlbumUpload ? 'ring-2 ring-blue-500' : ''}`}
+        className={`cursor-pointer transition-all`}
         onClick={() => {
-          setIsAlbumUpload(true);
           navigate('/upload/album'); // Navigate to create album page
         }}
       >
@@ -182,8 +195,13 @@ const Studio = () => {
             </StudioCard>
           )}
         </div>
-      </div>
-    </div>
+        </div>
+
+{/* Modal Component */}
+<Modal isOpen={isModalOpen} onClose={handleCloseModal}>
+  {modalContent}
+</Modal>
+</div>
   );
 };
 

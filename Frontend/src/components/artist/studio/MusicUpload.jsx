@@ -1,18 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Music, Upload, Calendar, Video, Image as ImageIcon, X } from 'lucide-react';
+// Ensure SongUploadService is imported correctly
+// import SongUploadService from './services/SongUploadService';
 
 const MusicUpload = () => {
   const [formData, setFormData] = useState({
     name: '',
     selectedGenres: [],
     releaseDate: '',
-    description: ''
+    description: '',
   });
 
   const [files, setFiles] = useState({
     audio: null,
     cover: null,
-    video: null
+    video: null,
   });
 
   const [dragActive, setDragActive] = useState(false);
@@ -28,88 +30,70 @@ const MusicUpload = () => {
     { id: 8, value: 'r_and_b', label: 'R&B' },
     { id: 9, value: 'country', label: 'Country' },
     { id: 10, value: 'folk', label: 'Folk' },
-    { id: 11, value: 'other', label: 'Other' }
+    { id: 11, value: 'other', label: 'Other' },
   ];
 
   const handleGenreChange = (genreId) => {
-    setFormData(prev => {
+    setFormData((prev) => {
       const newSelectedGenres = prev.selectedGenres.includes(genreId)
-        ? prev.selectedGenres.filter(id => id !== genreId)
+        ? prev.selectedGenres.filter((id) => id !== genreId)
         : [...prev.selectedGenres, genreId];
-
-      return {
-        ...prev,
-        selectedGenres: newSelectedGenres
-      };
+      return { ...prev, selectedGenres: newSelectedGenres };
     });
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleFileChange = (e, type) => {
     const file = e.target.files[0];
     if (file) {
-      setFiles(prev => ({
-        ...prev,
-        [type]: file
-      }));
+      setFiles((prev) => ({ ...prev, [type]: file }));
     }
   };
 
   const handleDragOver = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     setDragActive(true);
   };
 
-  const handleDragLeave = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-  };
+  const handleDragLeave = () => setDragActive(false);
 
   const handleDrop = (e) => {
     e.preventDefault();
-    e.stopPropagation();
     setDragActive(false);
-
-    const audioFile = Array.from(e.dataTransfer.files).find(file =>
+    const audioFile = Array.from(e.dataTransfer.files).find((file) =>
       file.type.startsWith('audio/')
     );
-
     if (audioFile) {
-      setFiles(prev => ({
-        ...prev,
-        audio: audioFile
-      }));
+      setFiles((prev) => ({ ...prev, audio: audioFile }));
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // First validate the files
-    const validation = SongUploadService.validateFiles(files);
-    if (!validation.isValid) {
-      // Handle validation errors
-      console.error('Validation errors:', validation.errors);
+
+    if (!files.audio || !files.cover || !formData.name || formData.selectedGenres.length === 0) {
+      console.error('All required fields must be filled.');
       return;
     }
-    
+
     try {
+      const validation = SongUploadService.validateFiles(files);
+      if (!validation.isValid) {
+        console.error('Validation errors:', validation.errors);
+        return;
+      }
+
       const result = await SongUploadService.uploadSong(formData, files);
       if (result.success) {
-        // Handle successful upload
         console.log('Upload successful:', result.data);
-        // Reset form or redirect
+        // Reset form after successful upload
+        setFormData({ name: '', selectedGenres: [], releaseDate: '', description: '' });
+        setFiles({ audio: null, cover: null, video: null });
       } else {
-        // Handle upload error
         console.error('Upload failed:', result.error);
       }
     } catch (error) {
@@ -117,19 +101,38 @@ const MusicUpload = () => {
     }
   };
 
+  const [modalSize, setModalSize] = useState('max-w-4xl'); // Default size
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 640) {
+        setModalSize('max-w-full'); // Small screens
+      } else if (window.innerWidth < 1024) {
+        setModalSize('max-w-2xl'); // Medium screens
+      } else {
+        setModalSize('max-w-4xl'); // Large screens
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Initial call to set the size
+
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className={`bg-white shadow-lg rounded-lg w-full p-6 ${modalSize} overflow-auto`}>
       <div className="mb-8">
         <h2 className="text-2xl font-bold mb-2">Upload New Track</h2>
         <p className="text-gray-600">Share your music with the world</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Audio Upload Area */}
+        {/* Audio Upload */}
         <div
-          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors
-            ${dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'}
-            ${files.audio ? 'bg-green-50 border-green-500' : ''}`}
+          className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+            dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
+          } ${files.audio ? 'bg-green-50 border-green-500' : ''}`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -156,10 +159,11 @@ const MusicUpload = () => {
 
         {/* Track Name */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
             Track Name
           </label>
           <input
+            id="name"
             type="text"
             name="name"
             value={formData.name}
@@ -169,79 +173,54 @@ const MusicUpload = () => {
           />
         </div>
 
-        {/* Multiple Genre Selection */}
+        {/* Genre Selection */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Genres (Select multiple)
           </label>
-          <div className="mb-2">
-            {formData.selectedGenres.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-3">
-                {formData.selectedGenres.map(genreId => {
-                  const genre = genres.find(g => g.id === genreId);
-                  return (
-                    <span
-                      key={genre.id}
-                      className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm flex items-center"
-                    >
-                      {genre.label}
-                      <button
-                        type="button"
-                        onClick={() => handleGenreChange(genre.id)}
-                        className="ml-2 hover:text-blue-900"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-              {genres.map(genre => (
-                <button
-                  key={genre.id}
-                  type="button"
-                  onClick={() => handleGenreChange(genre.id)}
-                  className={`p-2 rounded-md text-sm text-left transition-colors
-                    ${formData.selectedGenres.includes(genre.id)
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  {genre.label}
-                </button>
-              ))}
-            </div>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {genres.map((genre) => (
+              <button
+                key={genre.id}
+                type="button"
+                onClick={() => handleGenreChange(genre.id)}
+                className={`p-2 rounded-md text-sm text-left transition-colors ${
+                  formData.selectedGenres.includes(genre.id)
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {genre.label}
+              </button>
+            ))}
           </div>
         </div>
 
         {/* Release Date */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="releaseDate" className="block text-sm font-medium text-gray-700 mb-1">
             Release Date
           </label>
           <input
-    type="datetime-local"
-    name="releaseDate"
-    value={formData.releaseDate}
-    onChange={handleInputChange}
-    className="w-full p-2 border rounded-md bg-white"
+            id="releaseDate"
+            type="datetime-local"
+            name="releaseDate"
+            value={formData.releaseDate}
+            onChange={handleInputChange}
+            className="w-full p-2 border rounded-md bg-white"
           />
         </div>
 
-        {/* Cover Photo Upload */}
+        {/* Cover Photo */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Cover Photo
-          </label>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Cover Photo</label>
           <div className="flex items-center space-x-4">
             <div className="w-32 h-32 border rounded-lg overflow-hidden">
               {files.cover ? (
                 <img
                   src={URL.createObjectURL(files.cover)}
                   alt="Cover preview"
-                  className="w-full h-full object-cover bg-black"
+                  className="w-full h-full object-cover"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center bg-gray-50">
@@ -260,10 +239,10 @@ const MusicUpload = () => {
           </div>
         </div>
 
-        {/* Video Upload (Optional) */}
+        {/* Video Upload */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">
-            Music Video(Optional)
+            Music Video (Optional)
           </label>
           <input
             type="file"
