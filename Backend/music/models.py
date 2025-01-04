@@ -1,0 +1,42 @@
+from django.db import models
+from django.core.validators import FileExtensionValidator
+
+class Genre(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+    description = models.TextField(blank=True)
+    
+    def __str__(self):
+        return self.name
+
+class MusicApprovalStatus(models.TextChoices):
+    PENDING = 'pending', 'Pending Review'
+    APPROVED = 'approved', 'Approved'
+    REJECTED = 'rejected', 'Rejected'
+
+class Music(models.Model):
+    artist = models.ForeignKey('artists.artist', on_delete=models.CASCADE, related_name='musical_works')
+    name = models.CharField(max_length=200)
+    cover_photo = models.ImageField(upload_to='music_covers/')
+    audio_file = models.FileField(
+        upload_to='music/',
+        validators=[FileExtensionValidator(allowed_extensions=['mp3', 'wav', 'aac'])]
+    )
+    video_file = models.FileField(
+        upload_to='music_videos/',
+        null=True,
+        blank=True,
+        validators=[FileExtensionValidator(allowed_extensions=['mp4', 'mov'])]
+    )
+    genres = models.ManyToManyField(Genre, related_name='musical_works')
+    duration = models.DurationField(null=True, blank=True)
+    approval_status = models.CharField(
+        max_length=20,
+        choices=MusicApprovalStatus.choices,
+        default=MusicApprovalStatus.PENDING
+    )
+    release_date = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} by {self.artist.user.email}"
