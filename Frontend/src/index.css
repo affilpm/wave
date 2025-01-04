@@ -20,15 +20,14 @@
 html, body {
   margin: 0;
   padding: 0;
-  height: 100%;
-  background-color: transparent; /* Remove any background color */
+  min-height: 100%; /* Use min-height instead of height */
+  background-color: #242424; /* Ensure black background color */
 }
 
 #root {
-  height: 100%; /* Ensure the root element takes full height */
+  min-height: 100%; /* Ensure the root element takes full height */
+  background-color: #242424; /* Reinforce black background */
 }
-
-
 
 /* Component-Level Background Color */
 .component-class {
@@ -41,6 +40,19 @@ html, body {
     color: #213547; /* Text color in light mode */
     background-color: #ffffff; /* Background color in light mode */
   }
+
+  html, body {
+    background-color: #ffffff; /* Ensure light mode background is white */
+  }
+}
+
+/* In your main CSS (e.g., App.css) */
+.settings-page {
+  background-color: #ffffff; /* Allow components to add their own background color */
+}
+
+.component-with-background {
+  background-color: #f0f0f0; /* Example background for a specific component */
 }
   /* a {
     font-weight: 500;
@@ -51,14 +63,7 @@ html, body {
     color: #535bf2;
   }
   
-  body {
-    margin: 0;
-    display: flex;
-    place-items: center;
-    min-width: 320px;
-    min-height: 100vh;
-  }
-  
+
   h1 {
     font-size: 3.2em;
     line-height: 1.1;
@@ -96,3 +101,4 @@ html, body {
     }
   }
    */
+   

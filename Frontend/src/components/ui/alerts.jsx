@@ -1,6 +1,6 @@
 // src/components/ui/alert.jsx
 import * as React from "react";
-import { cn } from "../../lib/utils";
+import { cn } from "../../pages/lib/utils";
 
 const Alert = React.forwardRef(({ className, variant = "default", ...props }, ref) => {
   const baseStyles = "relative w-full rounded-lg border p-4 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground";
