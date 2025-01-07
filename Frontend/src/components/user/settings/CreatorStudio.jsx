@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Music, Star, Plus, Clock, Award } from 'lucide-react';
 import { Alert, AlertDescription } from '../../ui/alerts';
 import api from '../../../api';
+import 'react-toastify/dist/ReactToastify.css'; // Import the styles
+import { ToastContainer, toast } from 'react-toastify';
 
 const VerificationStatus = {
   PENDING: 'pending',
@@ -11,23 +13,17 @@ const VerificationStatus = {
 
 const CreatorStudio = () => {
   const [bio, setBio] = useState('');
-  const [selectedGenres, setSelectedGenres] = useState([]);  // New state for genres
+  const [selectedGenres, setSelectedGenres] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [verificationStatus, setVerificationStatus] = useState(null);
-  const [genres, setGenres] = useState([]); // To store the available genres
+  const [genres, setGenres] = useState([]);
 
   useEffect(() => {
-    checkVerificationStatus(); 
-    fetchGenres(); 
-
-
-    const interval = setInterval(checkVerificationStatus, 10000);
-
-    
-    return () => clearInterval(interval);
-  }, []); 
+    checkVerificationStatus();
+    fetchGenres();
+  }, []);
 
   const checkVerificationStatus = async () => {
     try {
@@ -41,20 +37,33 @@ const CreatorStudio = () => {
       setVerificationStatus(response.data.status);
     } catch (err) {
       console.error('Failed to fetch status:', err);
+      toast.error('Failed to check verification status');
     }
   };
 
   const fetchGenres = async () => {
     try {
-      const response = await api.get('/api/music/genres/'); 
-      setGenres(response.data); 
+      const response = await api.get('/api/music/genres/');
+      setGenres(response.data);
     } catch (err) {
       console.error('Failed to fetch genres:', err);
+      toast.error('Failed to load music genres');
     }
   };
 
   const handleSubmit = async () => {
-    if (!bio.trim() || selectedGenres.length === 0) return;
+    if (!bio.trim()) {
+      toast.warn('Please enter your bio');
+      return;
+    }
+    
+    if (selectedGenres.length === 0) {
+      toast.warn('Please select at least one genre');
+      return;
+    }
+
+    // Show loading toast
+    const loadingToast = toast.loading('Submitting verification request...');
     setIsSubmitting(true);
     setError('');
     setSuccess('');
@@ -63,19 +72,33 @@ const CreatorStudio = () => {
       const token = localStorage.getItem('access_token');
       if (!token) throw new Error('Access token not found');
 
-      const response = await api.post('/api/artists/request_verification/', 
-        { bio, genres: selectedGenres }, 
-        { headers: { Authorization: `Bearer ${token}` }}
-      );
-
+      const response = await api.post('/api/artists/request_verification/', { bio, genres: selectedGenres }, { headers: { Authorization: `Bearer ${token}` } });
+      
       if (response.status === 200) {
+          // Update loading toast to success
+          toast.update(loadingToast, {
+              render: 'Verification request submitted successfully!',
+              type: 'success',
+              isLoading: false,
+              autoClose: 3000
+          });
+      
+        
         setSuccess('Verification request submitted successfully!');
         setBio('');
-        setSelectedGenres([]); 
+        setSelectedGenres([]);
         await checkVerificationStatus();
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to submit request');
+      const errorMessage = err.response?.data?.message || 'Failed to submit request';
+      // Update loading toast to error
+      toast.update(loadingToast, {
+        render: errorMessage,
+        type: 'error',
+        isLoading: false,
+        autoClose: 3
+      });
+      setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -128,7 +151,7 @@ const CreatorStudio = () => {
               {renderStatusBadge()}
             </div>
 
-            {error && (
+            {/* {error && (
               <Alert variant="destructive" className="mb-4">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
@@ -138,7 +161,7 @@ const CreatorStudio = () => {
               <Alert className="mb-4">
                 <AlertDescription>{success}</AlertDescription>
               </Alert>
-            )}
+            )} */}
 
             {!verificationStatus && (
               <>
@@ -220,8 +243,11 @@ const CreatorStudio = () => {
           )}
         </div>
       </section>
+
+      {/* Add ToastContainer to render toasts */}
+      <ToastContainer />
     </div>
   );
 };
 
-export default CreatorStudio; 
+export default CreatorStudio;

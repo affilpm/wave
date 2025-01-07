@@ -16,10 +16,12 @@ class ArtistViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['POST'])
     def request_verification(self, request):
         try:
+            print("Received request to verify artist")  # Log for debugging
             artist, created = Artist.objects.get_or_create(
                 user=request.user,
                 defaults={'bio': request.data.get('bio', '')}
             )
+            print(f"Artist: {artist}, Created: {created}") 
 
             if not created:
                 artist.bio = request.data.get('bio', '')
@@ -35,9 +37,10 @@ class ArtistViewSet(viewsets.ModelViewSet):
             return Response({
                 'message': 'Success',
                 'status': artist.status
-            }, status=201)
+            }, status=200)
 
         except Exception as e:
+            print(f"Error: {str(e)}")
             return Response({'error': str(e)}, status=500)
 
     # Custom action for checking verification status

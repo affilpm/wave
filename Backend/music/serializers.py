@@ -22,7 +22,7 @@ class MusicSerializer(serializers.ModelSerializer):
     def validate_cover_photo(self, value):
         # Check the length of the filename
         file_name, file_extension = os.path.splitext(value.name)
-        if len(file_name) > 100:
+        if len(file_name) > 250:
             raise serializers.ValidationError("Ensure this filename has at most 100 characters.")
         return value
 
@@ -59,3 +59,57 @@ class MusicVerificationSerializer(serializers.ModelSerializer):
             'submitted_date'
         ]
 
+
+
+
+
+
+from rest_framework import serializers
+from .models import Album, AlbumTrack, Music
+
+
+class AlbumTrackSerializer(serializers.ModelSerializer):
+    track_details = MusicSerializer(source='track', read_only=True)
+    
+    class Meta:
+        model = AlbumTrack
+        fields = ['id', 'track', 'track_number', 'track_details']
+        extra_kwargs = {
+            'track': {'write_only': True}
+        }
+
+class AlbumSerializer(serializers.ModelSerializer):
+    tracks = AlbumTrackSerializer(source='albumtrack_set', many=True, required=False)
+    
+    class Meta:
+        model = Album
+        fields = [
+            'id', 'name', 'description', 'cover_photo', 
+            'banner_img', 'release_date', 'status',
+            'tracks', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['created_at', 'updated_at']
+
+    def create(self, validated_data):
+        tracks_data = validated_data.pop('albumtrack_set', [])
+        album = Album.objects.create(**validated_data)
+        
+        for track_data in tracks_data:
+            AlbumTrack.objects.create(album=album, **track_data)
+        
+        return album
+
+    def update(self, instance, validated_data):
+        tracks_data = validated_data.pop('albumtrack_set', [])
+        
+        # Update album fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        
+        # Update tracks
+        instance.albumtrack_set.all().delete()
+        for track_data in tracks_data:
+            AlbumTrack.objects.create(album=instance, **track_data)
+        
+        return instance

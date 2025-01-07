@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useDispatch } from 'react-redux';
 import { Music, Image as ImageIcon } from 'lucide-react';
 import api from '../../../api';
+import { openModal, closeModal } from '../../../slices/modalSlice'; // Import actions
 
 
 const MusicUpload = () => {
@@ -17,7 +19,7 @@ const MusicUpload = () => {
       cover: null,
       video: null,
     });
-  
+  const dispatch = useDispatch()
     const [dragActive, setDragActive] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -122,80 +124,98 @@ const MusicUpload = () => {
     const handleSubmit = async (e) => {
       e.preventDefault();
       setError(null);
-  
+    
+      // Check for missing fields
       if (!files.audio || !files.cover || !formData.name || formData.selectedGenres.length === 0) {
         setError('Please fill in all required fields');
         return;
       }
-  
+    
+      // Frontend validation for cover photo filename length (max 250 characters)
+      const coverFileName = files.cover.name;
+      if (coverFileName.length > 250) {
+        setError('Cover photo filename must not exceed 250 characters.');
+        return;
+      }
+    
+      // Frontend validation for valid image format (jpg, png, jpeg)
+      const allowedImageTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+      if (!allowedImageTypes.includes(files.cover.type)) {
+        setError('Please upload a valid image (jpg, png).');
+        return;
+      }
+    
       setIsLoading(true);
-  
+    
       try {
         const formDataToSubmit = new FormData();
-        
+    
         // Basic fields
         formDataToSubmit.append('name', formData.name);
-        
+    
         // Date handling - ensure proper format for Django
         if (formData.releaseDate) {
           formDataToSubmit.append('release_date', formData.releaseDate);
         }
-        
+    
         // Files - append with explicit content types
         if (files.audio) {
           formDataToSubmit.append('audio_file', files.audio);
         }
-        
+    
         if (files.cover) {
           formDataToSubmit.append('cover_photo', files.cover);
         }
-        
+    
         if (files.video) {
           formDataToSubmit.append('video_file', files.video);
         }
-        
+    
         // Genres - append each one separately without brackets
         formData.selectedGenres.forEach(genreId => {
           formDataToSubmit.append('genres', genreId);
         });
-  
+    
         // Debug logging
         console.log('Submitting form data:');
         for (let [key, value] of formDataToSubmit.entries()) {
           console.log(`${key}: `, value instanceof File ? `File: ${value.name}` : value);
         }
-  
+    
         const response = await api.post('/api/music/music/', formDataToSubmit, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
-          // Add request transformation debugging
-          transformRequest: [(data, headers) => {
-            console.log('Request headers:', headers);
-            return data;
-          }],
         });
-  
+    
         // Reset form on success
-        setFormData({ name: '', selectedGenres: [], releaseDate: '', description: '' });
-        setFiles({ audio: null, cover: null, video: null });
-        
-        alert('Track uploaded successfully!');
-  
+        if (response.status === 201) {
+          setFormData({ name: '', selectedGenres: [], releaseDate: '', description: '' });
+          setFiles({ audio: null, cover: null, video: null });
+          dispatch(closeModal());
+          alert('Track uploaded successfully!');
+        }
+    
       } catch (error) {
+        // Log error details for debugging
         console.error('Upload error details:', {
+          message: error.message,
+          stack: error.stack,
           response: error.response?.data,
           status: error.response?.status,
           statusText: error.response?.statusText
         });
-        
+    
+        // Handle specific error response from backend
         if (error.response?.data) {
           const errorMessage = Object.entries(error.response.data)
             .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
             .join('\n');
           setError(errorMessage);
+        } else if (error.request) {
+          setError('No response received from the server. Please check your network connection.');
         } else {
-          setError('Failed to upload track. Please try again.');
+          setError('An unexpected error occurred. Please try again.');
         }
       } finally {
         setIsLoading(false);
@@ -235,10 +255,10 @@ const MusicUpload = () => {
   
 
   return (
-    <div className={`bg-white shadow-lg rounded-lg w-full p-6 ${modalSize} overflow-auto`}>
+    <div className={`bg-black shadow-lg rounded-lg w-full p-6 ${modalSize} overflow-auto`}>
       <div className="mb-8">
         <h2 className="text-2xl font-bold mb-2">Upload New Track</h2>
-        <p className="text-gray-600">Share your music with the world</p>
+        <p className="text-white">Share your music with the world</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -259,14 +279,14 @@ const MusicUpload = () => {
             className="hidden"
             onChange={(e) => handleFileChange(e, 'audio')}
           />
-          <Music className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+          <Music className="mx-auto h-12 w-12 text-gray-400 mb-4"/>
           {files.audio ? (
             <div className="text-green-600 font-medium">{files.audio.name}</div>
           ) : (
             <>
-              <p className="text-lg mb-2">Drag and drop your audio file here</p>
-              <p className="text-sm text-gray-500">or click to browse</p>
-              <p className="text-xs text-gray-400 mt-2">Supported formats: MP3, WAV, AAC</p>
+              <p className="text-lg mb-2 text-white">Drag and drop your audio file here</p>
+              <p className="text-sm text-white">or click to browse</p>
+              <p className="text-xs text-white mt-2">Supported formats: MP3, WAV, AAC</p>
             </>
           )}
         </div>
@@ -283,7 +303,7 @@ const MusicUpload = () => {
 
         {/* Track Name */}
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="name" className="block text-sm font-medium text-white mb-1">
             Track Name
           </label>
           <input
@@ -292,14 +312,14 @@ const MusicUpload = () => {
             name="name"
             value={formData.name}
             onChange={handleInputChange}
-            className="w-full p-2 border rounded-md bg-white text-black"
+            className="w-full p-2 border rounded-md bg-gray-700 text-black"
             placeholder="Enter track name"
           />
         </div>
 
         {/* Genre Selection */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium  text-white mb-1">
             Genres (Select multiple)
           </label>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
@@ -308,10 +328,10 @@ const MusicUpload = () => {
                 key={genre.id}
                 type="button"
                 onClick={() => handleGenreChange(genre.id)}
-                className={`p-2 rounded-md text-sm text-left transition-colors ${
+                className={`p-2 bg-gray-700 rounded-md text-sm text-left transition-colors ${
                   formData.selectedGenres.includes(genre.id)
                     ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    : 'bg-gray-100 text-white hover:bg-gray-700'
                 }`}
               >
                 {genre.label}
@@ -322,7 +342,7 @@ const MusicUpload = () => {
 
         {/* Release Date */}
         <div>
-          <label htmlFor="releaseDate" className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="releaseDate" className="block text-sm  font-medium text-white mb-1">
             Release Date
           </label>
           <input
@@ -331,13 +351,13 @@ const MusicUpload = () => {
             name="releaseDate"
             value={formData.releaseDate}
             onChange={handleInputChange}
-            className="w-full p-2 border rounded-md bg-white"
+            className="w-full p-2 border rounded-md text-white bg-gray-700"
           />
         </div>
 
         {/* Cover Photo */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Cover Photo</label>
+          <label className="block text-sm font-medium text-white mb-1">Cover Photo</label>
           <div className="flex items-center space-x-4">
           <div className="w-32 h-32 border rounded-lg overflow-hidden">
       {coverPreview ? (
@@ -347,7 +367,7 @@ const MusicUpload = () => {
           className="w-full h-full object-cover"
         />
       ) : (
-        <div className="w-full h-full flex items-center justify-center bg-gray-50">
+        <div className="w-full h-full flex items-center justify-center bg-white">
           <ImageIcon className="h-8 w-8 text-gray-400" />
         </div>
       )}
@@ -368,14 +388,14 @@ const MusicUpload = () => {
 
         {/* Video Upload */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-white mb-1">
             Music Video (Optional)
           </label>
           <input
             type="file"
             accept="video/*"
             onChange={(e) => handleFileChange(e, 'video')}
-            className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 
+            className="text-sm text-white file:mr-4 file:py-2 file:px-4 
                       file:rounded-full file:border-0 file:text-sm file:font-semibold
                       file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           />
