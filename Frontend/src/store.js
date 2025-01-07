@@ -4,17 +4,18 @@ import { persistStore, persistReducer, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, 
 import storage from 'redux-persist/lib/storage';
 import userReducer from './slices/userSlice';
 import adminReducer from './slices/admin/adminSlice'; // Import the admin slice
-
+import modalReducer from './slices/modalSlice'
 // Root reducer
 const rootReducer = combineReducers({
   user: userReducer,
   admin: adminReducer, // Add the admin slice
+  modal: modalReducer,
 });
 
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['user', 'admin'], // Persist both user and admin slices
+  whitelist: ['user', 'admin', ], // Persist both user and admin slices
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

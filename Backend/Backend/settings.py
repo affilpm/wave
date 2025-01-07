@@ -107,8 +107,11 @@ INSTALLED_APPS = [
     'django.contrib.sites',
     'rest_framework.authtoken',
     'music',
+    'channels',
 ]
 AUTH_USER_MODEL = 'users.CustomUser'
+
+ASGI_APPLICATION = 'Backend.asgi.application'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

@@ -1,8 +1,4 @@
-# models.py
-from django.contrib.auth.models import AbstractUser, BaseUserManager
-from django.db import models
 
-# users/models.py
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
 
