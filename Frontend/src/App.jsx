@@ -11,9 +11,9 @@ import AdminDashboard from './components/admin/AdminDashboard';
 import AdminLogout from './components/admin/AdminLogout';
 import GoogleAuth from './components/user/GoogleAuth';
 import ProtectedRoute from './components/admin/ProtectedRoute';
-import Studio from './components/artist/studio/Studio';
 import MusicUpload from './components/artist/studio/MusicUpload';
 import StudioPage from './pages/artist/StudioPage';
+import AlbumCreator from './components/artist/studio/AlbumCreator';
 
 
 export const logout= () => {
@@ -50,6 +50,8 @@ function App() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/studio" element={<StudioPage/>} />
           <Route path="/musicupload" element={<MusicUpload/>} />
+          <Route path="/albumcreator" element={<AlbumCreator/>} />
+
 
 
         </Route>

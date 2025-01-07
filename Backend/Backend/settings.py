@@ -30,21 +30,6 @@ DEBUG = True
 ALLOWED_HOSTS = []
 
 
-# REST_FRAMEWORK = {
-#     'DEFAULT_AUTHENTICATION_CLASSES': [
-#         'rest_framework_simplejwt.authentication.JWTAuthentication',
-#         # 'rest_framework.authentication.SessionAuthentication',
-#         # 'rest_framework.authentication.TokenAuthentication',
-#     ],
-#     'DEFAULT_PERMISSION_CLASSES': [
-#         'rest_framework.permissions.IsAuthenticated',
-#     ],
-# }
-
-
-
-
-
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework_simplejwt.authentication.JWTAuthentication',
@@ -126,22 +111,6 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',  # Make sure this is included
     
 ]
-
-
-# INSTALLED_APPS += ['corsheaders']
-# MIDDLEWARE = ['corsheaders.middleware.CorsMiddleware'] + MIDDLEWARE
-
-# # settings.py
-# CSP_DEFAULT_SRC = ("'self'",)
-# CSP_CONNECT_SRC = ("'self'", "http://localhost:8000", "https://accounts.google.com", "https://*.gstatic.com")
-
-# CSP_CONNECT_SRC = [
-#     "'self'",
-#     "http://localhost:8000",
-#     "https://your-api-base-url.com",
-#     "https://accounts.google.com",
-#     "https://*.gstatic.com",
-# ]
 
 
 # Add these headers to your response
@@ -290,33 +259,6 @@ AUTHENTICATION_BACKENDS = (
 
 
 
-# # Configure AllAuth
-# ACCOUNT_AUTHENTICATION_METHOD = 'email'
-# ACCOUNT_EMAIL_REQUIRED = True
-# ACCOUNT_USERNAME_REQUIRED = False
-# ACCOUNT_EMAIL_VERIFICATION = 'none'
-
-
-
-
-# # Google OAuth
-
-
-
-# SOCIALACCOUNT_PROVIDERS = {
-#     'google': {
-#         'SCOPE': [
-#             'profile',
-#             'email',
-#         ],
-#         'AUTH_PARAMS': {
-#             'access_type': 'online',
-#         },
-#     }
-# }
-
-SITE_ID = 1  #  
-# settings.py
 
 import os
 

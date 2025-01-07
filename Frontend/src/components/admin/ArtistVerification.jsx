@@ -102,7 +102,7 @@ const ArtistVerification = () => {
                 <td className="py-4 px-6">
                   <span
                     className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                      artist.status === 'Pending'
+                      artist.status === 'pending'
                         ? 'bg-yellow-300 text-yellow-900'
                         : artist.status === 'approved'
                         ? 'bg-green-500 text-white'

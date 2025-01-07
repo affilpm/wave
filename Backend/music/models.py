@@ -55,3 +55,53 @@ class Music(models.Model):
             if len(file_name) > 100:
                 self.cover_photo.name = file_name[:100] + file_extension
         super().save(*args, **kwargs)
+        
+        
+        
+# albums/models.py
+from django.db import models
+from django.core.validators import FileExtensionValidator
+
+class AlbumStatus(models.TextChoices):
+    DRAFT = 'draft', 'Draft'
+    PUBLISHED = 'published', 'Published'
+    SCHEDULED = 'scheduled', 'Scheduled'
+
+class Album(models.Model):
+    artist = models.ForeignKey('artists.artist', on_delete=models.CASCADE, related_name='albums')
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    cover_photo = models.ImageField(
+        upload_to='album_covers/',
+        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png'])]
+    )
+    banner_img = models.ImageField(
+        upload_to='album_banners/',
+        validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png'])],
+        null=True,
+        blank=True
+    )
+    tracks = models.ManyToManyField(Music, related_name='albums', through='AlbumTrack')
+    release_date = models.DateTimeField()
+    status = models.CharField(
+        max_length=20,
+        choices=AlbumStatus.choices,
+        default=AlbumStatus.DRAFT
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.name} by {self.artist.user.email}"
+
+class AlbumTrack(models.Model):
+    album = models.ForeignKey(Album, on_delete=models.CASCADE)
+    track = models.ForeignKey(Music, on_delete=models.CASCADE)
+    track_number = models.PositiveIntegerField()
+    
+    class Meta:
+        ordering = ['track_number']
+        unique_together = ['album', 'track_number']        
