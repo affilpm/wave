@@ -5,6 +5,20 @@ import adminApi from '../../adminApi';
 import api from '../../api';
 import { ACCESS_TOKEN } from '../../constants/authConstants';
 
+
+const formatDate = (dateString) => {
+  try {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  } catch (error) {
+    return 'Invalid date';
+  }
+};
+
 const ArtistVerification = () => {
   const [artists, setArtists] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,7 +34,7 @@ const ArtistVerification = () => {
 
     const fetchArtists = async () => {
       try {
-        const response = await api.get('api/artists/list_artists/');
+        const response = await api.get('api/artists/list_artists');
         setArtists(response.data.artists);
       } catch (err) {
         if (err.response?.status === 401) {
@@ -69,7 +83,7 @@ const ArtistVerification = () => {
         <table className="w-full text-white">
           <thead>
             <tr className="bg-blue-700 text-white border-b border-gray-700">
-              <th className="text-left py-4 px-6">Artist</th>
+              <th className="text-left py-4 px-6">Artist Email</th>
               <th className="text-left py-4 px-6">Genre</th>
               <th className="text-left py-4 px-6">Submitted</th>
               <th className="text-left py-4 px-6">Status</th>
@@ -82,9 +96,9 @@ const ArtistVerification = () => {
                 key={artist.id}
                 className="border-b border-gray-700 hover:bg-gray-700/50 transition"
               >
-                <td className="py-4 px-6">{artist.name}</td>
-                <td className="py-4 px-6">{artist.genre}</td>
-                <td className="py-4 px-6">{artist.submitted_at}</td>
+                <td className="py-4 px-6">{artist.email}</td>
+                <td className="py-4 px-6">{artist.genre} </td>
+                <td className="py-4 px-6">{formatDate(artist.submitted_at)}</td>
                 <td className="py-4 px-6">
                   <span
                     className={`px-3 py-1 rounded-full text-sm font-semibold ${
@@ -100,18 +114,22 @@ const ArtistVerification = () => {
                 </td>
                 <td className="py-4 px-6">
                   <div className="flex gap-2">
-                    <button
-                      className="p-2 hover:bg-green-600 rounded-full transition"
-                      onClick={() => handleStatusChange(artist.id, 'approved')}
-                    >
-                      <CheckCircle className="h-6 w-6 text-white" />
-                    </button>
-                    <button
-                      className="p-2 hover:bg-red-600 rounded-full transition"
-                      onClick={() => handleStatusChange(artist.id, 'rejected')}
-                    >
-                      <XCircle className="h-6 w-6 text-white" />
-                    </button>
+                    {artist.status !== 'approved' && (
+                      <button
+                        onClick={() => handleStatusChange(artist.id, 'approved')}
+                        className="p-2 bg-green-600 hover:bg-green-500 rounded-full transition"
+                      >
+                        <CheckCircle className="h-5 w-5 text-white" />
+                      </button>
+                    )}
+                    {artist.status !== 'rejected' && (
+                      <button
+                        onClick={() => handleStatusChange(artist.id, 'rejected')}
+                        className="p-2 bg-red-600 hover:bg-red-500 rounded-full transition"
+                      >
+                        <XCircle className="h-5 w-5 text-white" />
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>

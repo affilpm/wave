@@ -1,6 +1,7 @@
 from django.db import models
 from django.core.validators import FileExtensionValidator
 from django.core.exceptions import ValidationError
+import os
 
 class Genre(models.Model):
     name = models.CharField(max_length=50, unique=True)
@@ -20,8 +21,6 @@ class Music(models.Model):
     cover_photo = models.ImageField(upload_to='music_covers/')
     audio_file = models.FileField(
         upload_to='music/',
-        null=True,
-        blank=True,
         validators=[FileExtensionValidator(allowed_extensions=['mp3', 'wav', 'aac'])]
     )
     video_file = models.FileField(
@@ -50,5 +49,9 @@ class Music(models.Model):
             raise ValidationError("At least one of audio_file or video_file must be provided.")
 
     def save(self, *args, **kwargs):
-        self.clean()  
+        if self.cover_photo:
+            # Truncate filename if it exceeds 100 characters
+            file_name, file_extension = os.path.splitext(self.cover_photo.name)
+            if len(file_name) > 100:
+                self.cover_photo.name = file_name[:100] + file_extension
         super().save(*args, **kwargs)
