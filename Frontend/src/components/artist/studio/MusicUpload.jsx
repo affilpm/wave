@@ -3,7 +3,7 @@ import { useDispatch } from 'react-redux';
 import { Music, Image as ImageIcon } from 'lucide-react';
 import api from '../../../api';
 import { openModal, closeModal } from '../../../slices/modalSlice'; // Import actions
-
+import { debounce } from 'lodash';
 
 const MusicUpload = () => {
 
@@ -19,6 +19,62 @@ const MusicUpload = () => {
       cover: null,
       video: null,
     });
+    const [fileErrors, setFileErrors] = useState({
+      cover: null
+    });
+
+
+  
+    const [nameValidation, setNameValidation] = useState({
+      isChecking: false,
+      error: null
+    });
+  
+    // Create a debounced function to check track name
+    const checkTrackName = debounce(async (name) => {
+      if (!name) {
+        setNameValidation({ isChecking: false, error: null });
+        return;
+      }
+  
+      setNameValidation({ isChecking: true, error: null });
+  
+      try {
+        const response = await api.get(`/api/music/music/check_name/?name=${encodeURIComponent(name)}`);
+        
+        if (response.data.exists) {
+          setNameValidation({
+            isChecking: false,
+            error: 'A track with this name already exists'
+          });
+        } else {
+          setNameValidation({ isChecking: false, error: null });
+        }
+      } catch (error) {
+        setNameValidation({
+          isChecking: false,
+          error: 'Error checking track name'
+        });
+      }
+    }, 500); // 500ms delay
+  
+    const handleInputChange = (e) => {
+      const { name, value } = e.target;
+      setFormData((prev) => ({ ...prev, [name]: value }));
+      
+      // If the name field changes, check for duplicates
+      if (name === 'name') {
+        checkTrackName(value);
+      }
+    };
+  
+    // Cancel debounced function on unmount
+    useEffect(() => {
+      return () => {
+        checkTrackName.cancel();
+      };
+    }, []);
+  
   const dispatch = useDispatch()
     const [dragActive, setDragActive] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
@@ -78,18 +134,55 @@ const MusicUpload = () => {
       });
     };
   
-    const handleInputChange = (e) => {
-      const { name, value } = e.target;
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    };
-  
+
     const handleFileChange = (e, type) => {
       const file = e.target.files[0];
       if (file) {
-        setFiles((prev) => ({ ...prev, [type]: file }));
+        if (type === 'cover') {
+          // Check if it's an image file
+          if (!file.type.startsWith('image/')) {
+            setFileErrors({
+              ...fileErrors,
+              cover: 'Please select an image file'
+            });
+            e.target.value = ''; // Reset input
+            setFiles(prev => ({ ...prev, [type]: null }));
+            return;
+          }
+    
+          // Check for specific image types
+          const allowedImageTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+          if (!allowedImageTypes.includes(file.type)) {
+            setFileErrors({
+              ...fileErrors,
+              cover: 'Only JPG and PNG images are accepted'
+            });
+            e.target.value = ''; // Reset input
+            setFiles(prev => ({ ...prev, [type]: null }));
+            return;
+          }
+    
+          // Check file size
+          if (file.size > 5 * 1024 * 1024) {
+            setFileErrors({
+              ...fileErrors,
+              cover: 'Image must be smaller than 5MB'
+            });
+            e.target.value = ''; // Reset input
+            setFiles(prev => ({ ...prev, [type]: null }));
+            return;
+          }
+    
+          // Clear any previous errors if file is valid
+          setFileErrors({
+            ...fileErrors,
+            cover: null
+          });
+        }
+        
+        setFiles(prev => ({ ...prev, [type]: file }));
       }
     };
-  
     const handleDragOver = (e) => {
       e.preventDefault();
       setDragActive(true);
@@ -255,9 +348,9 @@ const MusicUpload = () => {
   
 
   return (
-    <div className={`bg-black shadow-lg rounded-lg w-full p-6 ${modalSize} overflow-auto`}>
+    <div className={`bg-gray-900 shadow-lg rounded-lg w-full p-6 ${modalSize} overflow-auto`}>
       <div className="mb-8">
-        <h2 className="text-2xl font-bold mb-2">Upload New Track</h2>
+        <h2 className="text-2xl font-bold mb-2 text-white">Upload New Track</h2>
         <p className="text-white">Share your music with the world</p>
       </div>
 
@@ -303,19 +396,34 @@ const MusicUpload = () => {
 
         {/* Track Name */}
         <div>
-          <label htmlFor="name" className="block text-sm font-medium text-white mb-1">
+        <label htmlFor="name" className="block text-sm font-medium text-white mb-1">
             Track Name
           </label>
-          <input
-            id="name"
-            type="text"
-            name="name"
-            value={formData.name}
-            onChange={handleInputChange}
-            className="w-full p-2 border rounded-md bg-gray-700 text-black"
-            placeholder="Enter track name"
-          />
+          <div className="relative">
+            <input
+              id="name"
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              className={`w-full p-2 border rounded-md bg-gray-700 text-white ${
+                nameValidation.error ? 'border-red-500' : ''
+              }`}
+              placeholder="Enter track name"
+            />
+            {nameValidation.isChecking && (
+              <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-400 text-sm">
+                Checking...
+              </span>
+            )}
+          </div>
+          {nameValidation.error && (
+            <p className="mt-1 text-sm text-red-500">
+              {nameValidation.error}
+            </p>
+          )}
         </div>
+
 
         {/* Genre Selection */}
         <div>
@@ -328,10 +436,10 @@ const MusicUpload = () => {
                 key={genre.id}
                 type="button"
                 onClick={() => handleGenreChange(genre.id)}
-                className={`p-2 bg-gray-700 rounded-md text-sm text-left transition-colors ${
+                className={`p-2 rounded-md text-sm text-left transition-colors ${
                   formData.selectedGenres.includes(genre.id)
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-100 text-white hover:bg-gray-700'
+                    ? 'bg-blue-500 text-white '
+                    : 'bg-gray-700 text-white hover:bg-blue'
                 }`}
               >
                 {genre.label}
@@ -355,11 +463,13 @@ const MusicUpload = () => {
           />
         </div>
 
-        {/* Cover Photo */}
-        <div>
-          <label className="block text-sm font-medium text-white mb-1">Cover Photo</label>
-          <div className="flex items-center space-x-4">
-          <div className="w-32 h-32 border rounded-lg overflow-hidden">
+  {/* Cover Photo */}
+<div>
+  <label className="block text-sm font-medium text-white mb-1">
+    Cover Photo (JPG/PNG only)
+  </label>
+  <div className="flex items-center space-x-4">
+    <div className="w-32 h-32 border rounded-lg overflow-hidden">
       {coverPreview ? (
         <img
           src={coverPreview}
@@ -367,21 +477,28 @@ const MusicUpload = () => {
           className="w-full h-full object-cover"
         />
       ) : (
-        <div className="w-full h-full flex items-center justify-center bg-white">
+        <div className="w-full h-full flex items-center justify-center bg-gray-700">
           <ImageIcon className="h-8 w-8 text-gray-400" />
         </div>
       )}
     </div>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={(e) => handleFileChange(e, 'cover')}
-              className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 
-                        file:rounded-full file:border-0 file:text-sm file:font-semibold
-                        file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
-          </div>
-        </div>
+    <div className="flex-1 space-y-2">
+      <input
+        type="file"
+        accept=".jpg,.jpeg,.png"
+        onChange={(e) => handleFileChange(e, 'cover')}
+        className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 
+                  file:rounded-full file:border-0 file:text-sm file:font-semibold
+                  file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+      />
+      {fileErrors.cover ? (
+        <p className="text-red-400 text-sm">{fileErrors.cover}</p>
+      ) : (
+        <p className="text-gray-400 text-sm">Accepted formats: JPG, PNG (max 5MB)</p>
+      )}
+    </div>
+  </div>
+</div>
         
         
         
@@ -415,11 +532,15 @@ const MusicUpload = () => {
         <button
           type="submit"
           className={`w-full py-2 px-4 rounded-md transition-colors ${
-            isLoading 
+            isLoading || !files.audio || !files.cover || !formData.name || 
+            formData.selectedGenres.length === 0 || fileErrors.cover || 
+            nameValidation.isChecking || nameValidation.error
               ? 'bg-gray-400 cursor-not-allowed' 
               : 'bg-blue-600 hover:bg-blue-700 text-white'
           }`}
-          disabled={isLoading || !files.audio || !files.cover || !formData.name || formData.selectedGenres.length === 0}
+          disabled={isLoading || !files.audio || !files.cover || !formData.name || 
+                   formData.selectedGenres.length === 0 || fileErrors.cover ||
+                   nameValidation.isChecking || nameValidation.error}
         >
           {isLoading ? 'Uploading...' : 'Upload Track'}
         </button>
