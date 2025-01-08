@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .models import Genre, Music
 from artists.models import Artist
 from users.serializers import UserSerializer
+from .models import Album, AlbumTrack, Music
 import os
 
 class GenreSerializer(serializers.ModelSerializer):
@@ -16,7 +17,7 @@ class MusicSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'name', 'cover_photo', 'audio_file', 
             'video_file', 'genres', 'release_date',
-            'approval_status', 'duration', 'artist'
+            'approval_status', 'duration', 'artist','is_public'
         ]
 
     def validate_cover_photo(self, value):
@@ -26,12 +27,10 @@ class MusicSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Ensure this filename has at most 100 characters.")
         return value
 
-    def validate(self, data):
-        if not data.get('audio_file') and not data.get('video_file'):
-            raise serializers.ValidationError(
-                "At least one of audio_file or video_file must be provided."
-            )
-        return data
+
+    
+    
+    
     
     
 class ArtistSerializer(serializers.ModelSerializer):
@@ -40,6 +39,9 @@ class ArtistSerializer(serializers.ModelSerializer):
     class Meta:
         model = Artist
         fields = ['id', 'user']
+    
+    
+    
     
     
 class MusicVerificationSerializer(serializers.ModelSerializer):
@@ -64,8 +66,7 @@ class MusicVerificationSerializer(serializers.ModelSerializer):
 
 
 
-from rest_framework import serializers
-from .models import Album, AlbumTrack, Music
+
 
 
 class AlbumTrackSerializer(serializers.ModelSerializer):
@@ -77,6 +78,10 @@ class AlbumTrackSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'track': {'write_only': True}
         }
+
+
+
+
 
 class AlbumSerializer(serializers.ModelSerializer):
     tracks = AlbumTrackSerializer(source='albumtrack_set', many=True, required=False)

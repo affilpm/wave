@@ -9,15 +9,21 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser
 from .models import Music, MusicApprovalStatus
 from .serializers import MusicVerificationSerializer
-
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from .models import Album
 from .serializers import AlbumSerializer
+from mutagen.mp3 import MP3
+from mutagen.wavpack import WavPack
+from mutagen import File
+from .models import AlbumTrack
+from .serializers import AlbumTrackSerializer
+from django.core.exceptions import ValidationError
+from django.db import IntegrityError
+import json
+
+
+
 
 
 class GenreViewSet(viewsets.ReadOnlyModelViewSet):
@@ -26,6 +32,10 @@ class GenreViewSet(viewsets.ReadOnlyModelViewSet):
     
     
 
+
+
+
+##
 
 
 class MusicViewSet(ModelViewSet):
@@ -47,9 +57,27 @@ class MusicViewSet(ModelViewSet):
                 'artist': artist.id
             }
 
+            # Check for duplicate music name
+            if Music.objects.filter(name=music_data['name'], artist=artist).exists():
+                return Response(
+                    {'error': 'Duplicate music name is not allowed for the same artist'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             # Handle file uploads
+            audio_file = None
             if 'audio_file' in request.FILES:
-                music_data['audio_file'] = request.FILES['audio_file']
+                audio_file = request.FILES['audio_file']
+                music_data['audio_file'] = audio_file
+
+            # Extract audio duration if the audio file exists
+            if audio_file:
+                # Get the duration of the audio file using mutagen
+                audio = File(audio_file)
+                if audio is not None:
+                    duration = audio.info.length  # Duration in seconds
+                    music_data['duration'] = duration
+
             if 'cover_photo' in request.FILES:
                 music_data['cover_photo'] = request.FILES['cover_photo']
             if 'video_file' in request.FILES:
@@ -90,6 +118,12 @@ class MusicViewSet(ModelViewSet):
                 headers=headers
             )
 
+        except IntegrityError as e:
+            print(f"IntegrityError: {str(e)}")
+            return Response(
+                {'error': 'Integrity Error', 'details': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         except Exception as e:
             # Handle any unexpected errors
             print(f"Unexpected error: {str(e)}")
@@ -97,18 +131,52 @@ class MusicViewSet(ModelViewSet):
                 {'error': 'An unexpected error occurred', 'details': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+            
+    @action(detail=False, methods=['get'])
+    def check_name(self, request):
+        name = request.query_params.get('name', '').strip()
+        artist = request.user.artist_profile
+        
+        exists = Music.objects.filter(
+            name__iexact=name, 
+            artist=artist
+        ).exists()
+        
+        return Response({
+            'exists': exists
+        })
+                
     def get_queryset(self):
         # Filter music by the logged-in user's artist profile and approved status
-        return Music.objects.filter(artist=self.request.user.artist_profile, approval_status=MusicApprovalStatus.APPROVED)     
+        return Music.objects.filter(
+            approval_status=MusicApprovalStatus.APPROVED,
+            artist__user=self.request.user
+        ).select_related('artist__user').prefetch_related('genres')  
+        
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        # Completely delete the music file and cover photo
+        if instance.audio_file:
+            instance.audio_file.delete(save=False)
+        if instance.video_file:
+            instance.video_file.delete(save=False)
+        if instance.cover_photo:
+            instance.cover_photo.delete(save=False)
+        instance.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
-            
-            
+    @action(detail=True, methods=['POST'])
+    def toggle_visibility(self, request, pk=None):
+        music = self.get_object()
+        music.is_public = not music.is_public
+        music.save()
+        return Response({'is_public': music.is_public})
+    
+      
 
-import json
-from rest_framework.response import Response
-from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.permissions import IsAuthenticated
-from django.db import transaction
+###
+         
+
 class AlbumViewSet(viewsets.ModelViewSet):
     serializer_class = AlbumSerializer
     parser_classes = (MultiPartParser, FormParser)
@@ -153,7 +221,38 @@ class AlbumViewSet(viewsets.ModelViewSet):
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-    
+    @action(detail=False, methods=['get'])
+    def check_album_existence(self, request):
+        try:
+            album_name = request.query_params.get('name', '').strip()
+            
+            if not album_name:
+                return Response({
+                    'exists': False,
+                    'message': 'Album name is required'
+                })
+                
+            artist = request.user.artist_profile
+            
+            exists = Album.objects.filter(
+                name__iexact=album_name, 
+                # artist=artist
+            ).exists()
+            
+            return Response({
+                'exists': exists,
+                'message': 'Album name exists' if exists else 'Album name available'
+            })
+            
+        except Exception as e:
+            return Response(
+                {
+                    'error': str(e),
+                    'message': 'Failed to check album existence'
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
     @action(detail=False, methods=['get'])
     def drafts(self, request):
         drafts = self.get_queryset().filter(status='draft')
@@ -164,13 +263,10 @@ class AlbumViewSet(viewsets.ModelViewSet):
 
 
 
+###3
 
 
-from rest_framework.response import Response
-from rest_framework.decorators import action
-from .models import AlbumTrack
-from .serializers import AlbumTrackSerializer
-from rest_framework.permissions import IsAuthenticated
+
 
 class TrackViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = AlbumTrackSerializer
@@ -199,6 +295,8 @@ class TrackViewSet(viewsets.ReadOnlyModelViewSet):
     
     
     
+    
+##    
     
     
 

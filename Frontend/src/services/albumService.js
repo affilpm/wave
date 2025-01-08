@@ -97,6 +97,19 @@ export const albumService = {
       throw new Error(errorMessage);
     }
   },
+  checkAlbumExists: async (albumName) => {
+    try {
+      if (!albumName.trim()) {
+        return false; // Don't check empty names
+      }
+      const response = await api.get(`/api/music/albums/check_album_existence/?name=${encodeURIComponent(albumName)}`);
+      console.log('Album check response:', response); // Add logging
+      return response.data.exists;
+    } catch (error) {
+      console.error('Album check service error:', error); // Add logging
+      throw new Error(error.response?.data?.message || 'Failed to check album existence');
+    }
+  },
 };
 
 export default albumService;
