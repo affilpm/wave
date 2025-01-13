@@ -11,6 +11,8 @@ urlpatterns = [
     # path('google_signin/', google_signin, name='google_signin'),
     # path('check_user/', views.check_user, name='check_user'),
     path('google_auth/', views.google_auth, name='google_auth'),
+    path('logout/', views.logout, name='logout'),
+    
     # path('user/<int:user_id>/', UserDetailView.as_view(), name='user-detail'),
 ]
     

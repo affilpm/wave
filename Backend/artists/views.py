@@ -92,6 +92,43 @@ class ArtistViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Artist not found'}, status=404)
         
 
+    
+    @action(detail=False, methods=['POST'])
+    def update_profile(self, request):
+        try:
+            artist = Artist.objects.get(user=request.user)
+            
+            # Only allow updates if status is pending or rejected
+            if artist.status not in [ArtistVerificationStatus.PENDING, ArtistVerificationStatus.REJECTED]:
+                return Response(
+                    {'error': 'Cannot update profile when status is approved'},
+                    status=400
+                )
+
+            artist.bio = request.data.get('bio', artist.bio)
+            
+            genres = request.data.get('genres', [])
+            if genres:
+                artist.genres.set(genres)
+            
+            # If status is rejected, set it back to pending when profile is updated
+            if artist.status == ArtistVerificationStatus.REJECTED:
+                artist.status = ArtistVerificationStatus.PENDING
+            
+            artist.save()
+
+            return Response({
+                'message': 'Profile updated successfully',
+                'status': artist.status,
+                'bio': artist.bio,
+                'genres': [genre.id for genre in artist.genres.all()]
+            }, status=200)
+
+        except Artist.DoesNotExist:
+            return Response({'error': 'Artist not found'}, status=404)
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
 
 
 @api_view(['GET'])

@@ -24,7 +24,6 @@ export const logout= () => {
 
 function App() {
   const { isAuthenticated } = useSelector((state) => state.user);
-  const { Admin_isAuthenticated } = useSelector((state) => state.admin);
 
   
   return (

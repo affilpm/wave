@@ -9,6 +9,7 @@ urlpatterns = [
     path('verification_status/', ArtistViewSet.as_view({'get': 'verification_status'}), name='verification_status'),
     path('list_artists/', ArtistViewSet.as_view({'get': 'list_artists'}), name='list_artists'),
     path('<int:pk>/update_status/', ArtistViewSet.as_view({'post': 'update_status'}), name='update_status'),
+    path('update_profile/', ArtistViewSet.as_view({'post': 'update_profile'}), name='update_profile'),
     path('check-artist-status/', views.check_artist_status, name='check-artist-status'),
     
 ]

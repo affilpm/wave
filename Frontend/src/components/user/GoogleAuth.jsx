@@ -117,9 +117,9 @@ const GoogleAuth = () => {
         isAuthenticated: true,
       }));
       // After Google auth success:
-console.log('Access Token:', data.tokens.access);
-console.log('Token from storage:', localStorage.getItem(ACCESS_TOKEN));
-console.log('Auth header:', `Bearer ${localStorage.getItem(ACCESS_TOKEN)}`);
+      console.log('Access Token:', data.tokens.access);
+      console.log('Token from storage:', localStorage.getItem(ACCESS_TOKEN));
+      console.log('Auth header:', `Bearer ${localStorage.getItem(ACCESS_TOKEN)}`);
       // Log the email correctly
       console.log(decodedToken.email);
   

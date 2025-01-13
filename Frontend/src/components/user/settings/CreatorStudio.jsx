@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Music, Star, Plus, Clock, Award } from 'lucide-react';
+import { Music, Star, Plus, Clock, Award, Edit2, Save,  X } from 'lucide-react';
 import { Alert, AlertDescription } from '../../ui/alerts';
 import api from '../../../api';
-import 'react-toastify/dist/ReactToastify.css'; // Import the styles
+import 'react-toastify/dist/ReactToastify.css';
 import { ToastContainer, toast } from 'react-toastify';
 
 const VerificationStatus = {
@@ -19,6 +19,9 @@ const CreatorStudio = () => {
   const [success, setSuccess] = useState('');
   const [verificationStatus, setVerificationStatus] = useState(null);
   const [genres, setGenres] = useState([]);
+  const [isEditing, setIsEditing] = useState(false);
+  const [currentBio, setCurrentBio] = useState('');
+  const [currentGenres, setCurrentGenres] = useState([]);
 
   useEffect(() => {
     checkVerificationStatus();
@@ -35,6 +38,8 @@ const CreatorStudio = () => {
       });
 
       setVerificationStatus(response.data.status);
+      setCurrentBio(response.data.bio || '');
+      setCurrentGenres(response.data.genres || []);
     } catch (err) {
       console.error('Failed to fetch status:', err);
       toast.error('Failed to check verification status');
@@ -51,19 +56,21 @@ const CreatorStudio = () => {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!bio.trim()) {
+  const handleSubmit = async (isUpdate = false) => {
+    const bioToSubmit = isUpdate ? currentBio : bio;
+    const genresToSubmit = isUpdate ? currentGenres : selectedGenres;
+
+    if (!bioToSubmit.trim()) {
       toast.warn('Please enter your bio');
       return;
     }
     
-    if (selectedGenres.length === 0) {
+    if (genresToSubmit.length === 0) {
       toast.warn('Please select at least one genre');
       return;
     }
 
-    // Show loading toast
-    const loadingToast = toast.loading('Submitting verification request...');
+    const loadingToast = toast.loading(isUpdate ? 'Updating profile...' : 'Submitting verification request...');
     setIsSubmitting(true);
     setError('');
     setSuccess('');
@@ -72,37 +79,141 @@ const CreatorStudio = () => {
       const token = localStorage.getItem('access_token');
       if (!token) throw new Error('Access token not found');
 
-      const response = await api.post('/api/artists/request_verification/', { bio, genres: selectedGenres }, { headers: { Authorization: `Bearer ${token}` } });
+      const endpoint = isUpdate ? '/api/artists/update_profile/' : '/api/artists/request_verification/';
+      const response = await api.post(endpoint, 
+        { bio: bioToSubmit, genres: genresToSubmit }, 
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
       
       if (response.status === 200) {
-          // Update loading toast to success
-          toast.update(loadingToast, {
-              render: 'Verification request submitted successfully!',
-              type: 'success',
-              isLoading: false,
-              autoClose: 3000
-          });
-      
+        toast.update(loadingToast, {
+          render: isUpdate ? 'Profile updated successfully!' : 'Verification request submitted successfully!',
+          type: 'success',
+          isLoading: false,
+          autoClose: 3000
+        });
         
-        setSuccess('Verification request submitted successfully!');
-        setBio('');
-        setSelectedGenres([]);
+        if (!isUpdate) {
+          setBio('');
+          setSelectedGenres([]);
+        }
+        setIsEditing(false);
         await checkVerificationStatus();
       }
     } catch (err) {
       const errorMessage = err.response?.data?.message || 'Failed to submit request';
-      // Update loading toast to error
       toast.update(loadingToast, {
         render: errorMessage,
         type: 'error',
         isLoading: false,
-        autoClose: 3
+        autoClose: 3000
       });
       setError(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  const canEdit = verificationStatus === VerificationStatus.PENDING || 
+                 verificationStatus === VerificationStatus.REJECTED;
+
+
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    // Reset to original values
+    setCurrentBio(currentBio);
+    setCurrentGenres(currentGenres);
+  };
+
+               
+
+  const renderForm = (isEditMode = false) => (
+    <>
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-200 mb-2">
+          Tell us about yourself
+        </label>
+        <textarea
+          className="w-full bg-gray-700 text-white rounded-lg p-3 min-h-[100px]"
+          placeholder="Share your musical background, achievements, and aspirations..."
+          value={isEditMode ? currentBio : bio}
+          onChange={(e) => isEditMode ? setCurrentBio(e.target.value) : setBio(e.target.value)}
+        />
+      </div>
+
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-200 mb-2">
+          Select Genres
+        </label>
+        <select
+          multiple
+          className="w-full bg-gray-700 text-white rounded-lg p-3"
+          value={isEditMode ? currentGenres : selectedGenres}
+          onChange={(e) => {
+            const selected = [...e.target.selectedOptions].map(option => option.value);
+            isEditMode ? setCurrentGenres(selected) : setSelectedGenres(selected);
+          }}
+        >
+          {genres.map((genre) => (
+            <option key={genre.id} value={genre.id}>
+              {genre.name}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {isEditMode ? (
+        <div className="flex gap-3">
+          <button
+            className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+            onClick={handleCancelEdit}
+            disabled={isSubmitting}
+          >
+            <X className="h-5 w-5" />
+            Cancel
+          </button>
+          <button
+            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => handleSubmit(isEditMode)}
+            disabled={isSubmitting || !currentBio.trim() || currentGenres.length === 0}
+          >
+            <Save className="h-5 w-5" />
+            {isSubmitting ? 'Saving...' : 'Save Changes'}
+          </button>
+        </div>
+      ) : (
+        <button
+          className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          onClick={() => handleSubmit(isEditMode)}
+          disabled={isSubmitting || !bio.trim() || selectedGenres.length === 0}
+        >
+          <Plus className="h-5 w-5" />
+          {isSubmitting ? 'Submitting...' : 'Request Artist Verification'}
+        </button>
+      )}
+    </>
+  );
+
+  // ... (rest of the component remains the same until the edit button section)
+
+  {verificationStatus && canEdit && (
+    <div className="mt-4">
+      {!isEditing ? (
+        <button
+          onClick={() => setIsEditing(true)}
+          className="flex items-center gap-2 text-blue-400 hover:text-blue-300"
+        >
+          <Edit2 className="h-4 w-4" />
+          Edit Profile
+        </button>
+      ) : (
+        renderForm(true)
+      )}
+    </div>
+  )}
+
+
 
   const renderStatusBadge = () => {
     const statusStyles = {
@@ -151,74 +262,39 @@ const CreatorStudio = () => {
               {renderStatusBadge()}
             </div>
 
-            {/* {error && (
-              <Alert variant="destructive" className="mb-4">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            )}
-
-            {success && (
-              <Alert className="mb-4">
-                <AlertDescription>{success}</AlertDescription>
-              </Alert>
-            )} */}
-
             {!verificationStatus && (
-              <>
-                <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
-                  <div className="flex items-start gap-3">
-                    <Star className="h-5 w-5 text-yellow-400 mt-0.5" />
-                    <div>
-                      <div className="font-semibold mb-1">Artist Benefits</div>
-                      <ul className="text-sm text-gray-300 space-y-1">
-                        <li>• Upload and manage your music</li>
-                        <li>• Access to artist analytics</li>
-                        <li>• Customize your artist profile</li>
-                        <li>• Connect with your audience</li>
-                      </ul>
-                    </div>
+              <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+                <div className="flex items-start gap-3">
+                  <Star className="h-5 w-5 text-yellow-400 mt-0.5" />
+                  <div>
+                    <div className="font-semibold mb-1">Artist Benefits</div>
+                    <ul className="text-sm text-gray-300 space-y-1">
+                      <li>• Upload and manage your music</li>
+                      <li>• Access to artist analytics</li>
+                      <li>• Customize your artist profile</li>
+                      <li>• Connect with your audience</li>
+                    </ul>
                   </div>
                 </div>
+              </div>
+            )}
 
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-200 mb-2">
-                    Tell us about yourself
-                  </label>
-                  <textarea
-                    className="w-full bg-gray-700 text-white rounded-lg p-3 min-h-[100px]"
-                    placeholder="Share your musical background, achievements, and aspirations..."
-                    value={bio}
-                    onChange={(e) => setBio(e.target.value)}
-                  />
-                </div>
+            {!verificationStatus && renderForm(false)}
 
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-200 mb-2">
-                    Select Genres
-                  </label>
-                  <select
-                    multiple
-                    className="w-full bg-gray-700 text-white rounded-lg p-3"
-                    value={selectedGenres}
-                    onChange={(e) => setSelectedGenres([...e.target.selectedOptions].map(option => option.value))}
+            {verificationStatus && canEdit && (
+              <div className="mt-4">
+                {!isEditing ? (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="flex items-center gap-2 text-blue-400 hover:text-blue-300"
                   >
-                    {genres.map((genre) => (
-                      <option key={genre.id} value={genre.id}>
-                        {genre.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <button
-                  className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  onClick={handleSubmit}
-                  disabled={isSubmitting || !bio.trim() || selectedGenres.length === 0}
-                >
-                  <Plus className="h-5 w-5" />
-                  {isSubmitting ? 'Submitting...' : 'Request Artist Verification'}
-                </button>
-              </>
+                    <Edit2 className="h-4 w-4" />
+                    Edit Request
+                  </button>
+                ) : (
+                  renderForm(true)
+                )}
+              </div>
             )}
           </div>
 
@@ -243,8 +319,6 @@ const CreatorStudio = () => {
           )}
         </div>
       </section>
-
-      {/* Add ToastContainer to render toasts */}
       <ToastContainer />
     </div>
   );

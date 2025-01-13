@@ -39,14 +39,15 @@ REST_FRAMEWORK = {
     ],
 }
 
+# Django settings.py
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'AUTH_HEADER_TYPES': ('Bearer',),
-    'AUTH_HEADER_NAME': 'HTTP_AUTHORIZATION',
-    'USER_ID_FIELD': 'id',
-    'USER_ID_CLAIM': 'user_id',
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),  # Increased from 5 minutes
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),     # Increased for better UX
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': True,  # Add this to track user login activity
     'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
+    'TOKEN_BLACKLIST_ENABLED': True,
 }
 
 CORS_ALLOW_HEADERS = [
@@ -92,7 +93,10 @@ INSTALLED_APPS = [
     'django.contrib.sites',
     'rest_framework.authtoken',
     'music',
+    'album',
     'channels',
+    'rest_framework_simplejwt.token_blacklist',
+    
 ]
 AUTH_USER_MODEL = 'users.CustomUser'
 
@@ -264,3 +268,8 @@ import os
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
+
+
+SITE_ID = 1

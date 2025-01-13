@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, XCircle } from 'lucide-react';
-import { musicVerificationService } from '../../services/musicVerificationService';
+import { musicVerificationService } from '../../services/admin/musicVerificationService';
 
 const formatDate = (dateString) => {
   try {

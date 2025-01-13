@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { ArrowLeft, Plus, BarChart, Upload, Settings, Music, Library } from 'lucide-react';
 import DashboardStats from './DashboardStats';
 import UploadOptions from './UploadOptions';
 import RecentActivity from './RecentActivity';
@@ -9,8 +9,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { openModal, closeModal } from '../../../slices/modalSlice';
 import MusicUpload from './MusicUpload';
 import AlbumCreator from './AlbumCreator';
-import { BarChart, Upload, Settings, Music } from 'lucide-react';
 import MusicManagement from './MusicManagement';
+import AlbumManagement from './AlbumManagement';
 
 const Studio = () => {
   const [activeView, setActiveView] = useState('dashboard');
@@ -47,7 +47,8 @@ const Studio = () => {
         {[
           { icon: BarChart, view: 'dashboard', label: 'Dashboard' },
           { icon: Upload, view: 'upload', label: 'Upload' },
-          { icon: Music, view: 'musicCrud', label: 'Music CRUD' }, // New Sidebar Option
+          { icon: Music, view: 'musicCrud', label: 'Music CRUD' },
+          { icon: Library, view: 'albumManagement', label: 'Albums' }, // New Album Management Option
           { icon: Settings, view: 'settings', label: 'Settings' },
         ].map(({ icon: Icon, view, label }) => (
           <button
@@ -58,9 +59,6 @@ const Studio = () => {
             onClick={() => setActiveView(view)}
           >
             <Icon className="h-6 w-6" />
-            {/* <span className="absolute left-full ml-4 bg-gray-800 text-white px-2 py-1 rounded text-sm opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-              {label}
-            </span> */}
           </button>
         ))}
       </div>
@@ -68,6 +66,7 @@ const Studio = () => {
       {/* Main Content */}
       <div className="ml-20 p-8">
         <div className="max-w-7xl mx-auto">
+          {/* Header section remains the same */}
           <div className="flex items-center justify-between mb-8">
             <button
               onClick={() => navigate('/home')}
@@ -83,6 +82,7 @@ const Studio = () => {
             </button>
           </div>
 
+          {/* Content views */}
           {activeView === 'dashboard' && (
             <>
               <DashboardStats />
@@ -92,7 +92,9 @@ const Studio = () => {
 
           {activeView === 'upload' && <UploadOptions />}
 
-          {activeView === 'musicCrud' && <MusicManagement/>}
+          {activeView === 'musicCrud' && <MusicManagement />}
+
+          {activeView === 'albumManagement' && <AlbumManagement />} {/* New Album Management View */}
 
           {activeView === 'settings' && (
             <div className="bg-gray-800 rounded-xl border border-gray-700">
