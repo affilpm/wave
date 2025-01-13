@@ -26,6 +26,8 @@ urlpatterns = [
     path('api/artists/', include('artists.urls')), 
     path('api/admins/', include('admins.urls')), 
     path('api/music/', include('music.urls')), 
+    path('api/album/', include('album.urls')), 
+    
     
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     

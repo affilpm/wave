@@ -38,7 +38,7 @@ const ArtistVerification = () => {
         setArtists(response.data.artists);
       } catch (err) {
         if (err.response?.status === 401) {
-          navigate('/admin_login');
+          navigate('/adminlogin');
         } else {
           setError('Failed to fetch artists');
         }

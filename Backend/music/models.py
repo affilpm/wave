@@ -2,6 +2,8 @@ from django.db import models
 from django.core.validators import FileExtensionValidator
 from django.core.exceptions import ValidationError
 import os
+from django.db import models
+from django.core.validators import FileExtensionValidator
 
 class Genre(models.Model):
     name = models.CharField(max_length=50, unique=True)
@@ -59,9 +61,7 @@ class Music(models.Model):
         
         
         
-# albums/models.py
-from django.db import models
-from django.core.validators import FileExtensionValidator
+
 
 class AlbumStatus(models.TextChoices):
     DRAFT = 'draft', 'Draft'
@@ -72,6 +72,7 @@ class Album(models.Model):
     artist = models.ForeignKey('artists.artist', on_delete=models.CASCADE, related_name='albums')
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
+    is_public = models.BooleanField(default=True, help_text="Whether this album is publicly available")
     cover_photo = models.ImageField(
         upload_to='album_covers/',
         validators=[FileExtensionValidator(allowed_extensions=['jpg', 'jpeg', 'png'])]

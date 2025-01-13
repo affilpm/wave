@@ -9,15 +9,16 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser
 from .models import Music, MusicApprovalStatus
 from .serializers import MusicVerificationSerializer
+from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from .models import Album
-from .serializers import AlbumSerializer
+# from .serializers import AlbumSerializer
 from mutagen.mp3 import MP3
 from mutagen.wavpack import WavPack
 from mutagen import File
 from .models import AlbumTrack
-from .serializers import AlbumTrackSerializer
+# from .serializers import AlbumTrackSerializer
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 import json
@@ -29,6 +30,7 @@ import json
 class GenreViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Genre.objects.all()
     serializer_class = GenreSerializer
+    permission_classes = [IsAuthenticated]
     
     
 
@@ -84,7 +86,7 @@ class MusicViewSet(ModelViewSet):
                 music_data['video_file'] = request.FILES['video_file']
 
             # Handle genres
-            genres = request.data.getlist('genres')
+            genres = request.data.getlist('genres[]')  # Note the '[]' suffix
             if genres:
                 music_data['genres'] = genres
 
@@ -148,10 +150,16 @@ class MusicViewSet(ModelViewSet):
                 
     def get_queryset(self):
         # Filter music by the logged-in user's artist profile and approved status
-        return Music.objects.filter(
+        queryset = Music.objects.filter(
             approval_status=MusicApprovalStatus.APPROVED,
             artist__user=self.request.user
-        ).select_related('artist__user').prefetch_related('genres')  
+        ).select_related('artist__user').prefetch_related('genres')
+
+        # Add genre names to the queryset result
+        for music in queryset:
+            music.genre_names = [genre.name for genre in music.genres.all()]
+        
+        return queryset
         
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -177,120 +185,7 @@ class MusicViewSet(ModelViewSet):
 ###
          
 
-class AlbumViewSet(viewsets.ModelViewSet):
-    serializer_class = AlbumSerializer
-    parser_classes = (MultiPartParser, FormParser)
-    permission_classes = [IsAuthenticated]
-    
-    def get_queryset(self):
-        return Album.objects.filter(artist=self.request.user.artist_profile)
-    
-    @transaction.atomic
-    def create(self, request, *args, **kwargs):
-        try:
-            # Extract tracks data from request
-            tracks_data = []
-            if 'tracks' in request.data:
-                tracks_data = json.loads(request.data['tracks'])
-                del request.data['tracks']
-            
-            # Create serializer with album data
-            serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            
-            # Add artist to validated data
-            serializer.validated_data['artist'] = request.user.artist_profile
-            
-            # Save album
-            album = serializer.save()
-            
-            # Create album tracks
-            for track_data in tracks_data:
-                AlbumTrack.objects.create(
-                    album=album,
-                    track_id=track_data['track'],
-                    track_number=track_data['track_number']
-                )
-            
-            # Return updated album data
-            serializer = self.get_serializer(album)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-            
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-    @action(detail=False, methods=['get'])
-    def check_album_existence(self, request):
-        try:
-            album_name = request.query_params.get('name', '').strip()
-            
-            if not album_name:
-                return Response({
-                    'exists': False,
-                    'message': 'Album name is required'
-                })
-                
-            artist = request.user.artist_profile
-            
-            exists = Album.objects.filter(
-                name__iexact=album_name, 
-                # artist=artist
-            ).exists()
-            
-            return Response({
-                'exists': exists,
-                'message': 'Album name exists' if exists else 'Album name available'
-            })
-            
-        except Exception as e:
-            return Response(
-                {
-                    'error': str(e),
-                    'message': 'Failed to check album existence'
-                },
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-    @action(detail=False, methods=['get'])
-    def drafts(self, request):
-        drafts = self.get_queryset().filter(status='draft')
-        serializer = self.get_serializer(drafts, many=True)
-        return Response(serializer.data)
 
-
-
-
-
-###3
-
-
-
-
-class TrackViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = AlbumTrackSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_queryset(self):
-        """
-        Filter AlbumTrack by the artist associated with the logged-in user.
-        Only tracks belonging to albums created by the logged-in user's artist profile are shown.
-        """
-        user = self.request.user
-        # Filter tracks by the logged-in user's artist profile
-        return AlbumTrack.objects.filter(album__artist=user.artist_profile)
-    @action(detail=False, methods=['get'])
-    def available_tracks(self, request):
-        """
-        Fetch tracks available for the authenticated user.
-        This method returns tracks from albums associated with the user's artist profile.
-        """
-        tracks = self.get_queryset()
-        serializer = self.get_serializer(tracks, many=True)
-        return Response(serializer.data)
-    
-    
     
     
     

@@ -116,18 +116,18 @@ const MusicManagement = () => {
                     <td className="px-4 py-3 text-white">{track.name}</td>
                     {/* <td className="px-4 py-3 text-white">{track.artist_name}</td> */}
                     <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
-                        {Array.isArray(track.genres) && track.genres.map((genre, index) => (
-                          <span
-                            key={index}
-                            className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs flex items-center gap-1"
-                          >
-                            <Tag className="h-3 w-3" />
-                            {genre}
-                          </span>
-                        ))}
-                      </div>
-                    </td>
+  <div className="flex flex-wrap gap-2">
+    {Array.isArray(track.genres) && track.genres.map((genre, index) => (
+      <span
+        key={index}
+        className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs flex items-center gap-1"
+      >
+        <Tag className="h-3 w-3" />
+        {genre.name} {/* Assuming genre has a 'name' property */}
+      </span>
+    ))}
+  </div>
+</td>
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => toggleVisibility(track.id)}
@@ -169,10 +169,10 @@ const MusicManagement = () => {
               <AlertCircle className="h-5 w-5 text-red-500" />
               <span className="text-white">Are you sure you want to delete this track?</span>
             </div>
-            <div className="space-x-2">
+            <div className="space-x-5">
               <button
                 onClick={confirmDelete}
-                className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600"
+                className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 "
               >
                 Delete
               </button>

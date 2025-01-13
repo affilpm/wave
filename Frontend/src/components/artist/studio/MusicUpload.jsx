@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
-import { Music, Image as ImageIcon } from 'lucide-react';
+import { Music, Image as ImageIcon, X as XIcon} from 'lucide-react';
 import api from '../../../api';
 import { openModal, closeModal } from '../../../slices/modalSlice'; // Import actions
 import { debounce } from 'lodash';
@@ -23,7 +23,7 @@ const MusicUpload = () => {
       cover: null
     });
 
-
+    const [isGenreDropdownOpen, setIsGenreDropdownOpen] = useState(false);
   
     const [nameValidation, setNameValidation] = useState({
       isChecking: false,
@@ -88,18 +88,12 @@ const MusicUpload = () => {
         try {
           const response = await api.get('/api/music/genres/');
           setGenres(response.data.map(genre => ({
-            id: genre.id,
-            value: genre.name.toLowerCase().replace(/ /g, '_'),
+            value: genre.id,  // Change this to use value instead of id
             label: genre.name
           })));
         } catch (err) {
           console.error('Error fetching genres:', err);
           setError('Failed to load genres. Please refresh the page.');
-          
-          // If error is due to authentication, it will be handled by the interceptor
-          if (err.response?.status === 401) {
-            return;
-          }
         }
       };
   
@@ -132,6 +126,29 @@ const MusicUpload = () => {
           : [...prev.selectedGenres, genreId];
         return { ...prev, selectedGenres: newSelectedGenres };
       });
+    };
+  
+  
+    const handleGenreSelect = (genreId) => {
+      setFormData(prev => {
+        const updatedGenres = prev.selectedGenres.includes(genreId)
+          ? prev.selectedGenres
+          : [...prev.selectedGenres, genreId];
+        return { ...prev, selectedGenres: updatedGenres };
+      });
+      setIsGenreDropdownOpen(false);
+    };
+  
+    const handleGenreRemove = (genreId) => {
+      setFormData(prev => ({
+        ...prev,
+        selectedGenres: prev.selectedGenres.filter(id => id !== genreId)
+      }));
+    };
+  
+    const getGenreName = (genreId) => {
+      const genre = genres.find(g => g.value === genreId);
+      return genre ? genre.label : '';
     };
   
 
@@ -214,27 +231,16 @@ const MusicUpload = () => {
       });
     };
   
+
+  
+
+  
     const handleSubmit = async (e) => {
       e.preventDefault();
       setError(null);
     
-      // Check for missing fields
       if (!files.audio || !files.cover || !formData.name || formData.selectedGenres.length === 0) {
         setError('Please fill in all required fields');
-        return;
-      }
-    
-      // Frontend validation for cover photo filename length (max 250 characters)
-      const coverFileName = files.cover.name;
-      if (coverFileName.length > 250) {
-        setError('Cover photo filename must not exceed 250 characters.');
-        return;
-      }
-    
-      // Frontend validation for valid image format (jpg, png, jpeg)
-      const allowedImageTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-      if (!allowedImageTypes.includes(files.cover.type)) {
-        setError('Please upload a valid image (jpg, png).');
         return;
       }
     
@@ -242,38 +248,22 @@ const MusicUpload = () => {
     
       try {
         const formDataToSubmit = new FormData();
-    
-        // Basic fields
         formDataToSubmit.append('name', formData.name);
-    
-        // Date handling - ensure proper format for Django
+        
         if (formData.releaseDate) {
           formDataToSubmit.append('release_date', formData.releaseDate);
         }
     
-        // Files - append with explicit content types
-        if (files.audio) {
-          formDataToSubmit.append('audio_file', files.audio);
-        }
+        if (files.audio) formDataToSubmit.append('audio_file', files.audio);
+        if (files.cover) formDataToSubmit.append('cover_photo', files.cover);
+        if (files.video) formDataToSubmit.append('video_file', files.video);
     
-        if (files.cover) {
-          formDataToSubmit.append('cover_photo', files.cover);
-        }
-    
-        if (files.video) {
-          formDataToSubmit.append('video_file', files.video);
-        }
-    
-        // Genres - append each one separately without brackets
+        // Append genres correctly (using genre IDs)
         formData.selectedGenres.forEach(genreId => {
-          formDataToSubmit.append('genres', genreId);
+          if (genreId && genreId !== 'undefined') {  // Add validation
+            formDataToSubmit.append('genres[]', genreId.toString());  // Ensure it's a string
+          }
         });
-    
-        // Debug logging
-        console.log('Submitting form data:');
-        for (let [key, value] of formDataToSubmit.entries()) {
-          console.log(`${key}: `, value instanceof File ? `File: ${value.name}` : value);
-        }
     
         const response = await api.post('/api/music/music/', formDataToSubmit, {
           headers: {
@@ -281,7 +271,6 @@ const MusicUpload = () => {
           },
         });
     
-        // Reset form on success
         if (response.status === 201) {
           setFormData({ name: '', selectedGenres: [], releaseDate: '', description: '' });
           setFiles({ audio: null, cover: null, video: null });
@@ -345,7 +334,18 @@ const MusicUpload = () => {
         </div>
       );
     }
-  
+    const isFormValid = () => {
+      return (
+        files.audio && 
+        files.cover && 
+        formData.name && 
+        formData.selectedGenres.length > 0 &&
+        formData.selectedGenres.every(id => id && id !== 'undefined') &&
+        !fileErrors.cover &&
+        !nameValidation.isChecking &&
+        !nameValidation.error
+      );
+    };
 
   return (
     <div className={`bg-gray-900 shadow-lg rounded-lg w-full p-6 ${modalSize} overflow-auto`}>
@@ -424,27 +424,57 @@ const MusicUpload = () => {
           )}
         </div>
 
-
         {/* Genre Selection */}
-        <div>
-          <label className="block text-sm font-medium  text-white mb-1">
-            Genres (Select multiple)
+        <div className="relative">
+          <label className="block text-sm font-medium text-white mb-1">
+            Select Genres
           </label>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-            {genres.map((genre) => (
-              <button
-                key={genre.id}
-                type="button"
-                onClick={() => handleGenreChange(genre.id)}
-                className={`p-2 rounded-md text-sm text-left transition-colors ${
-                  formData.selectedGenres.includes(genre.id)
-                    ? 'bg-blue-500 text-white '
-                    : 'bg-gray-700 text-white hover:bg-blue'
-                }`}
+          
+          {/* Selected Genres Display */}
+          <div className="flex flex-wrap gap-2 mb-2">
+            {formData.selectedGenres.map(genreId => (
+              <span
+                key={genreId}
+                className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm flex items-center gap-2"
               >
-                {genre.label}
-              </button>
+                {getGenreName(genreId)}
+                <button
+  type="button"
+  onClick={() => handleGenreRemove(genreId)}
+  className="hover:text-red-200"
+>
+  <XIcon size={14} />
+</button>
+              </span>
             ))}
+          </div>
+
+          {/* Genre Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIsGenreDropdownOpen(!isGenreDropdownOpen)}
+              className="w-full p-2 border rounded-md bg-gray-700 text-white text-left"
+            >
+              Select a genre...
+            </button>
+
+            {isGenreDropdownOpen && (
+              <div className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                {genres
+                  .filter(genre => !formData.selectedGenres.includes(genre.value))
+                  .map(genre => (
+                    <button
+                      key={genre.id}
+                      type="button"
+                      onClick={() => handleGenreSelect(genre.value)}
+                      className="w-full px-4 py-2 text-left text-white hover:bg-gray-700"
+                    >
+                      {genre.label}
+                    </button>
+                  ))}
+              </div>
+            )}
           </div>
         </div>
 
@@ -530,20 +560,16 @@ const MusicUpload = () => {
 
         {/* Submit Button */}
         <button
-          type="submit"
-          className={`w-full py-2 px-4 rounded-md transition-colors ${
-            isLoading || !files.audio || !files.cover || !formData.name || 
-            formData.selectedGenres.length === 0 || fileErrors.cover || 
-            nameValidation.isChecking || nameValidation.error
-              ? 'bg-gray-400 cursor-not-allowed' 
-              : 'bg-blue-600 hover:bg-blue-700 text-white'
-          }`}
-          disabled={isLoading || !files.audio || !files.cover || !formData.name || 
-                   formData.selectedGenres.length === 0 || fileErrors.cover ||
-                   nameValidation.isChecking || nameValidation.error}
-        >
-          {isLoading ? 'Uploading...' : 'Upload Track'}
-        </button>
+  type="submit"
+  className={`w-full py-2 px-4 rounded-md transition-colors ${
+    !isFormValid()
+      ? 'bg-gray-400 cursor-not-allowed' 
+      : 'bg-blue-600 hover:bg-blue-700 text-white'
+  }`}
+  disabled={!isFormValid()}
+>
+  {isLoading ? 'Uploading...' : 'Upload Track'}
+</button>
       </form>
     </div>
   );

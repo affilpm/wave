@@ -12,6 +12,7 @@ class GenreSerializer(serializers.ModelSerializer):
         
 
 class MusicSerializer(serializers.ModelSerializer):
+    genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
     class Meta:
         model = Music
         fields = [
@@ -85,15 +86,17 @@ class AlbumTrackSerializer(serializers.ModelSerializer):
 
 class AlbumSerializer(serializers.ModelSerializer):
     tracks = AlbumTrackSerializer(source='albumtrack_set', many=True, required=False)
-    
     class Meta:
         model = Album
         fields = [
             'id', 'name', 'description', 'cover_photo', 
-            'banner_img', 'release_date', 'status',
+            'banner_img', 'release_date', 'status', 'is_public',
             'tracks', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
+    
+    def get_tracks_count(self, obj):
+        return obj.tracks.count()    
 
     def create(self, validated_data):
         tracks_data = validated_data.pop('albumtrack_set', [])
@@ -118,3 +121,4 @@ class AlbumSerializer(serializers.ModelSerializer):
             AlbumTrack.objects.create(album=instance, **track_data)
         
         return instance
+        
