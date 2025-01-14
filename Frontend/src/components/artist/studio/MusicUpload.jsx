@@ -524,7 +524,7 @@ const MusicUpload = () => {
       {fileErrors.cover ? (
         <p className="text-red-400 text-sm">{fileErrors.cover}</p>
       ) : (
-        <p className="text-gray-400 text-sm">Accepted formats: JPG, PNG (max 5MB)</p>
+        <p className="text-gray-400 text-sm">Accepted formats: JPG, PNG, JPEG (max 5MB)</p>
       )}
     </div>
   </div>

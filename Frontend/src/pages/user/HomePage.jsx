@@ -1,4 +1,3 @@
-// HomePage.js
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/user/Sidebar';
@@ -11,36 +10,53 @@ const HomePage = () => {
   const [isSidebarExpanded, setSidebarExpanded] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // Check if the user is authenticated
   useEffect(() => {
-    const access_token = localStorage.getItem('access_token');
+    const access_token = localStorage.getItem("access_token");
     if (!access_token) {
-      navigate('/login');
+      navigate("/login");
     }
   }, [navigate]);
 
   const toggleSidebar = () => setSidebarExpanded(!isSidebarExpanded);
-
-  // Music control functions
   const handlePlayPause = () => setIsPlaying(!isPlaying);
   const handleSkip = () => console.log("Skip to next song");
   const handlePrevious = () => console.log("Go to previous song");
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
-      <Header />
-      <div className="flex flex-1">
-        <Sidebar isSidebarExpanded={isSidebarExpanded} toggleSidebar={toggleSidebar} />
-        <Home /> 
+    <div className="h-screen flex flex-col bg-gray-900 text-white">
+      {/* Main Layout */}
+      <div className="flex-1 flex flex-col">
+        {/* Header */}
+        <Header className="flex-shrink-0 h-16" /> {/* Fixed height for header */}
+
+        {/* Content Area */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Sidebar - Independent scroll */}
+          <div className={`flex-shrink-0 ${isSidebarExpanded ? 'w-64' : 'w-20'} bg-black transition-all`}>
+            <Sidebar
+              isSidebarExpanded={isSidebarExpanded}
+              toggleSidebar={toggleSidebar}
+            />
+          </div>
+
+          {/* Main Content - Independent scroll */}
+          <main className="flex-1 relative">
+            <div className="absolute inset-0 overflow-y-auto">
+              <Home />
+            </div>
+          </main>
+        </div>
       </div>
 
-      {/* Music Player Footer */}
-      <MusicPlayer
-        isPlaying={isPlaying}
-        handlePlayPause={handlePlayPause}
-        handleSkip={handleSkip}
-        handlePrevious={handlePrevious}
-      />
+      {/* Music Player - Fixed at bottom */}
+      <div className="flex-shrink-0">
+        <MusicPlayer
+          isPlaying={isPlaying}
+          handlePlayPause={handlePlayPause}
+          handleSkip={handleSkip}
+          handlePrevious={handlePrevious}
+        />
+      </div>
     </div>
   );
 };

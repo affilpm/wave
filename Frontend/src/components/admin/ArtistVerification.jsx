@@ -134,6 +134,13 @@ const ArtistVerification = () => {
                 </td>
               </tr>
             ))}
+              {artists.length === 0 && (
+              <tr>
+                <td colSpan="5" className="py-8 text-center text-gray-400">
+                  No artists found
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

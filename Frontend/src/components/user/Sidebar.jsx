@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Heart, Search, Plus, ChevronDown, LayoutList } from 'lucide-react';
+import { Search, Plus, Library, Heart } from 'lucide-react';
 
 const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
   const [librarySearchQuery, setLibrarySearchQuery] = useState('');
@@ -28,34 +28,53 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
     }
   ];
 
+  const LibraryIcon = () => (
+    <svg 
+      viewBox="0 0 24 24" 
+      className={`h-6 w-6 ${isSidebarExpanded ? 'mr-2' : ''}`}
+      fill="currentColor"
+    >
+      <path d="M3 22V4c0-.55.45-1 1-1h16c.55 0 1 .45 1 1v18l-9-4.55L3 22Z"/>
+    </svg>
+  );
+
+  const MinimizedLibraryIcon = () => (
+    <svg 
+      viewBox="0 0 24 24" 
+      className="h-6 w-6"
+      fill="currentColor"
+    >
+      <path d="M3 22V4c0-.55.45-1 1-1h16c.55 0 1 .45 1 1v18l-9-4.55L3 22Zm8-12h6v-2h-6v2Zm0 4h6v-2h-6v2Zm0-8h6V4h-6v2Z"/>
+    </svg>
+  );
+
   return (
-    <div className={`bg-black transition-all ${isSidebarExpanded ? "w-64" : "w-20"} p-6`}>
-
-      {/* Main minimize button and Plus button horizontally placed */}
-      <div className="flex items-center justify-between">
-        <button onClick={toggleSidebar} className="p-2 hover:bg-gray-800 rounded-lg flex items-center">
-          {isSidebarExpanded ? (
-            <LayoutList className="h-5 w-5" />
-          ) : (
-            <LayoutList className="h-5 w-5" />
-          )}
-          {isSidebarExpanded && (
-            <span className="text-sm font-semibold ml-2">Your Library</span>
-          )}
-        </button>
-
-        {/* Plus button placed next to the minimize button */}
-        {isSidebarExpanded && (
-          <button className="p-1 hover:bg-gray-800 rounded-full">
-            <Plus className="h-5 w-5 text-gray-400 hover:text-white" />
+    <div className="h-full flex flex-col">
+      <div className="flex-shrink-0 p-6">
+        {/* Library header with dynamic icons */}
+        <div className="flex items-center justify-between">
+          <button 
+            onClick={toggleSidebar} 
+            className="flex items-center p-2 hover:bg-gray-800 rounded-lg text-gray-300 hover:text-white transition-colors"
+          >
+            {isSidebarExpanded ? <LibraryIcon /> : <MinimizedLibraryIcon />}
+            {isSidebarExpanded && (
+              <span className="text-sm font-semibold">Your Library</span>
+            )}
           </button>
-        )}
-      </div>
 
-      <div className="mt-6">
+          {isSidebarExpanded && (
+            <div className="flex items-center gap-2">
+              <button className="p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors">
+                <Plus className="h-5 w-5" />
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Search bar - only shown when expanded */}
         {isSidebarExpanded && (
-          <div className="relative mb-4">
+          <div className="relative mt-4">
             <div className="absolute inset-y-0 left-2 flex items-center">
               <Search className="h-4 w-4 text-gray-400" />
             </div>
@@ -68,9 +87,11 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
             />
           </div>
         )}
+      </div>
 
-        {/* Combined Playlists - only shown when library is expanded */}
-        <div className="mt-4 space-y-2">
+      {/* Scrollable playlist area */}
+      <div className="flex-1 overflow-y-auto px-6">
+        <div className="space-y-2">
           {playlists.map((playlist, index) => (
             <div
               key={index}
