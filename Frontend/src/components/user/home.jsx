@@ -1,77 +1,118 @@
-// Home.js
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { Clock, Heart, Play } from 'lucide-react';
 
 const Home = () => {
-  // Data for artists and playlists
-  const [filteredResults, setFilteredResults] = useState({
-    artists: [
-      { name: "Artist 1", image: "/api/placeholder/40/40", type: "Artist" },
-      { name: "Artist 2", image: "/api/placeholder/40/40", type: "Artist" },
-      { name: "Artist 3", image: "/api/placeholder/40/40", type: "Artist" },
-      { name: "Artist 4", image: "/api/placeholder/40/40", type: "Artist" },
-    ],
-    playlists: [
-      { name: "My Playlist", image: "/api/placeholder/40/40", type: "Playlist", owner: "User1" },
-      { name: "Workout Playlist", image: "/api/placeholder/40/40", type: "Playlist", owner: "User2" },
-      { name: "Chill Playlist", image: "/api/placeholder/40/40", type: "Playlist", owner: "User3" },
-      { name: "Chill Playlist", image: "/api/placeholder/40/40", type: "Playlist", owner: "User3" },
-    ],
-  });
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const recentlyPlayed = [
+    { name: "Liked Songs", image: "/api/placeholder/80/80", type: "Playlist", owner: "You" },
+    { name: "Daily Mix 1", image: "/api/placeholder/80/80", type: "Mix", owner: "Spotify" },
+    { name: "Discover Weekly", image: "/api/placeholder/80/80", type: "Playlist", owner: "Spotify" },
+    { name: "Release Radar", image: "/api/placeholder/80/80", type: "Playlist", owner: "Spotify" },
+    { name: "Your Top 2023", image: "/api/placeholder/80/80", type: "Playlist", owner: "Spotify" },
+    { name: "Chill Vibes", image: "/api/placeholder/80/80", type: "Playlist", owner: "Spotify" }
+  ];
+
+  const featuredAlbums = [
+    { name: "Album 1", artist: "Artist 1", image: "/api/placeholder/200/200", type: "Album" },
+    { name: "Album 2", artist: "Artist 2", image: "/api/placeholder/200/200", type: "Album" },
+    { name: "Album 3", artist: "Artist 3", image: "/api/placeholder/200/200", type: "Album" },
+    { name: "Album 4", artist: "Artist 4", image: "/api/placeholder/200/200", type: "Album" },
+    { name: "Album 5", artist: "Artist 5", image: "/api/placeholder/200/200", type: "Album" }
+  ];
+
+  const topMixes = [
+    { name: "Mix 1", description: "Artist 1, Artist 2, Artist 3", image: "/api/placeholder/200/200" },
+    { name: "Mix 2", description: "Artist 4, Artist 5, Artist 6", image: "/api/placeholder/200/200" },
+    { name: "Mix 3", description: "Artist 7, Artist 8, Artist 9", image: "/api/placeholder/200/200" },
+    { name: "Mix 4", description: "Artist 10, Artist 11, Artist 12", image: "/api/placeholder/200/200" }
+  ];
 
   return (
-    <div className="flex-1 p-8 overflow-y-auto">
-      <h2 className="text-2xl font-bold mb-8">Welcome to your library</h2>
-
-      {/* Featured Artists */}
-      <div>
-        <h3 className="text-xl font-semibold mb-4">Featured Artists</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          {filteredResults.artists.length > 0 ? (
-            filteredResults.artists.map((artist, index) => (
-              <div
-                key={index}
-                className="bg-gradient-to-r from-blue-500 to-purple-600 p-4 rounded-lg shadow-lg hover:shadow-xl transition-all"
+    <div className="flex-1 p-8 overflow-y-auto bg-gradient-to-b from-gray-900 to-black text-white">
+      {/* Recently Played Section */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
+        {recentlyPlayed.map((item, index) => (
+          <div
+            key={index}
+            className="bg-gray-800/50 rounded-md p-4 hover:bg-gray-800 transition-all cursor-pointer group"
+          >
+            <div className="relative">
+              <img
+                src={item.image}
+                alt={item.name}
+                className="w-full aspect-square object-cover rounded-md shadow-lg mb-4"
+              />
+              <button
+                className="absolute bottom-2 right-2 w-10 h-10 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
+                onClick={() => setIsPlaying(!isPlaying)}
               >
-                <img
-                  src={artist.image}
-                  alt={artist.name}
-                  className="w-full h-40 object-cover rounded-md mb-4"
-                />
-                <h4 className="text-lg font-semibold truncate">{artist.name}</h4>
-                <p className="text-sm text-gray-300">{artist.type}</p>
-              </div>
-            ))
-          ) : (
-            <p className="text-gray-400">No artists found.</p>
-          )}
-        </div>
+                <Play className="w-5 h-5 text-black" />
+              </button>
+            </div>
+            <h4 className="font-semibold truncate">{item.name}</h4>
+            <p className="text-sm text-gray-400 truncate">{item.owner}</p>
+          </div>
+        ))}
       </div>
 
-      {/* Featured Playlists */}
-      <div className="mt-8">
-        <h3 className="text-xl font-semibold mb-4">Featured Playlists</h3>
+      {/* Made For You Section */}
+      <section className="mb-8">
+        <h2 className="text-2xl font-bold mb-4">Made For You</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          {filteredResults.playlists.length > 0 ? (
-            filteredResults.playlists.map((playlist, index) => (
-              <div
-                key={index}
-                className="bg-gradient-to-r from-green-500 to-teal-600 p-4 rounded-lg shadow-lg hover:shadow-xl transition-all"
-              >
+          {topMixes.map((mix, index) => (
+            <div
+              key={index}
+              className="bg-gray-800/30 rounded-lg p-4 hover:bg-gray-800/60 transition-all cursor-pointer group"
+            >
+              <div className="relative">
                 <img
-                  src={playlist.image}
-                  alt={playlist.name}
-                  className="w-full h-40 object-cover rounded-md mb-4"
+                  src={mix.image}
+                  alt={mix.name}
+                  className="w-full aspect-square object-cover rounded-md shadow-lg mb-4"
                 />
-                <h4 className="text-lg font-semibold truncate">{playlist.name}</h4>
-                <p className="text-sm text-gray-300">Owner: {playlist.owner}</p>
-                <p className="text-sm text-gray-300">{playlist.type}</p>
+                <button
+                  className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
+                  onClick={() => setIsPlaying(!isPlaying)}
+                >
+                  <Play className="w-6 h-6 text-black" />
+                </button>
               </div>
-            ))
-          ) : (
-            <p className="text-gray-400">No playlists found.</p>
-          )}
+              <h3 className="font-bold mb-1">{mix.name}</h3>
+              <p className="text-sm text-gray-400">{mix.description}</p>
+            </div>
+          ))}
         </div>
-      </div>
+      </section>
+
+      {/* New Releases Section */}
+      <section>
+        <h2 className="text-2xl font-bold mb-4">New Releases</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+          {featuredAlbums.map((album, index) => (
+            <div
+              key={index}
+              className="bg-gray-800/30 rounded-lg p-4 hover:bg-gray-800/60 transition-all cursor-pointer group"
+            >
+              <div className="relative">
+                <img
+                  src={album.image}
+                  alt={album.name}
+                  className="w-full aspect-square object-cover rounded-md shadow-lg mb-4"
+                />
+                <button
+                  className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
+                  onClick={() => setIsPlaying(!isPlaying)}
+                >
+                  <Play className="w-6 h-6 text-black" />
+                </button>
+              </div>
+              <h3 className="font-bold mb-1">{album.name}</h3>
+              <p className="text-sm text-gray-400">New release from {album.artist}</p>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   );
 };

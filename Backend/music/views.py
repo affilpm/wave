@@ -147,18 +147,15 @@ class MusicViewSet(ModelViewSet):
         return Response({
             'exists': exists
         })
-                
+        
+        
     def get_queryset(self):
-        # Filter music by the logged-in user's artist profile and approved status
         queryset = Music.objects.filter(
             approval_status=MusicApprovalStatus.APPROVED,
             artist__user=self.request.user
         ).select_related('artist__user').prefetch_related('genres')
 
-        # Add genre names to the queryset result
-        for music in queryset:
-            music.genre_names = [genre.name for genre in music.genres.all()]
-        
+        print(f"Queryset for user {self.request.user}: {queryset}")
         return queryset
         
     def destroy(self, request, *args, **kwargs):
