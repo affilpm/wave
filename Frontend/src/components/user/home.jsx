@@ -30,6 +30,7 @@ const Home = () => {
 
   return (
     <div className="flex-1 p-8 overflow-y-auto bg-gradient-to-b from-gray-900 to-black text-white">
+      <h2 className="text-2xl font-bold mb-4">Recently played</h2>
       {/* Recently Played Section */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
         {recentlyPlayed.map((item, index) => (
@@ -58,7 +59,7 @@ const Home = () => {
 
       {/* Made For You Section */}
       <section className="mb-8">
-        <h2 className="text-2xl font-bold mb-4">Made For You</h2>
+        <h2 className="text-2xl font-bold mb-4">most played</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
           {topMixes.map((mix, index) => (
             <div

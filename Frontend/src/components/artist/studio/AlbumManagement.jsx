@@ -3,7 +3,10 @@ import { PenSquare, Trash2, Search, AlertCircle, Eye, EyeOff, ToggleLeftIcon } f
 import api from '../../../api';
 import { useNavigate } from 'react-router-dom';
 import Modal from '../../modal';
+import { toast } from 'react-toastify';
 import EditAlbum from './EditAlbum';
+
+
 const AlbumManagement = () => {
     const [albums, setAlbums] = useState([]);
     const [searchTerm, setSearchTerm] = useState('');
@@ -83,13 +86,25 @@ const AlbumManagement = () => {
   const handleDelete = (albumId) => {
     setSelectedAlbumId(albumId);
     setShowDeleteAlert(true);
+
   };
 
   const confirmDelete = async () => {
     try {
       await api.delete(`/api/album/albums/${selectedAlbumId}/`);
       setAlbums(prevAlbums => prevAlbums.filter(album => album.id !== selectedAlbumId));
+      
       setShowDeleteAlert(false);
+      toast.success('Album deleted successfully!', {
+        // position: toast.POSITION.TOP_RIGHT, // Ensure POSITION is accessed like this
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: 'dark',
+      });
     } catch (err) {
       setError('Failed to delete album');
       console.error('Error deleting album:', err);
@@ -165,30 +180,30 @@ const AlbumManagement = () => {
                       </button>
                     </td>
                     <td className="px-4 py-3 text-center">
-  <div className="flex justify-center gap-2">
-    <button
-      onClick={async () => {
-        try {
-          const response = await api.get(`/api/album/albums/${album.id}/`);
-          setSelectedAlbum(response.data);
-          setIsEditModalOpen(true);
-        } catch (err) {
-          setError('Failed to fetch album details');
-          console.error('Error fetching album details:', err);
-        }
-      }}
-      className="p-2 text-gray-400 hover:bg-gray-700 rounded-lg transition-colors"
-    >
-      <PenSquare className="h-4 w-4" />
-    </button>
-    <button
-      onClick={() => handleDelete(album.id)}
-      className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
-    >
-      <Trash2 className="h-4 w-4" />
-    </button>
-  </div>
-</td>
+                        <div className="flex justify-center gap-2">
+                            <button
+                            onClick={async () => {
+                                try {
+                                const response = await api.get(`/api/album/albums/${album.id}/`);
+                                setSelectedAlbum(response.data);
+                                setIsEditModalOpen(true);
+                                } catch (err) {
+                                setError('Failed to fetch album details');
+                                console.error('Error fetching album details:', err);
+                                }
+                            }}
+                            className="p-2 text-gray-400 hover:bg-gray-700 rounded-lg transition-colors"
+                            >
+                            <PenSquare className="h-4 w-4" />
+                            </button>
+                            <button
+                            onClick={() => handleDelete(album.id)}
+                            className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                            >
+                            <Trash2 className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -211,29 +226,35 @@ const AlbumManagement = () => {
       </div>
 
       {showDeleteAlert && (
-        <div className="fixed bottom-4 right-4 w-96 bg-gray-800 border border-red-500/50 rounded-lg shadow-md">
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center space-x-2">
-              <AlertCircle className="h-5 w-5 text-red-500" />
-              <span className="text-white">Are you sure you want to delete this album?</span>
+        <div className="fixed bottom-4 right-4 w-96 bg-gray-800 border border-red-500/50 rounded-lg shadow-lg z-50">
+            <div className="flex flex-col p-4 space-y-4">
+            {/* Alert Header */}
+            <div className="flex items-center space-x-3">
+                <AlertCircle className="h-6 w-6 text-red-500" />
+                <span className="text-white text-sm font-medium">
+                Are you sure you want to delete this album?
+                </span>
             </div>
-            <div className="space-x-2">
-              <button
-                onClick={confirmDelete}
-                className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600"
-              >
-                Delete
-              </button>
-              <button
+
+            {/* Action Buttons */}
+            <div className="flex justify-end space-x-3">
+            <button
                 onClick={() => setShowDeleteAlert(false)}
-                className="px-3 py-1 bg-gray-700 text-white rounded-md hover:bg-gray-600"
-              >
+                className="px-4 py-2 bg-gray-700 text-white rounded-md text-sm font-medium hover:bg-gray-600 transition"
+                >
                 Cancel
-              </button>
+                </button>
+                <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-500 text-white rounded-md text-sm font-medium hover:bg-red-600 transition"
+                >
+                Delete
+                </button>
+
             </div>
-          </div>
+            </div>
         </div>
-      )}
+        )}
             <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}

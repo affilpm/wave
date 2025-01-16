@@ -15,7 +15,9 @@ import MusicUpload from './components/artist/studio/MusicUpload';
 import StudioPage from './pages/artist/StudioPage';
 import AlbumCreator from './components/artist/studio/AlbumCreator';
 import EditAlbum from './components/artist/studio/EditAlbum';
-import { Register, Login } from './components/user/Authentication';
+// import { Register, Login } from './components/user/Authentication';
+import BrowsePage from './components/user/Browse';
+import MultiStepRegister from './components/user/Register';
 
 
 export const logout= () => {
@@ -57,6 +59,8 @@ function App() {
           <Route path="/musicupload" element={<MusicUpload/>} />
           <Route path="/albumcreator" element={<AlbumCreator/>} />
           <Route path="/editalbum/:id" element={<EditAlbum/>} />
+          <Route path="/discover" element={<BrowsePage/>} />
+
 
 
 
@@ -69,8 +73,8 @@ function App() {
 
 
         <Route path="/adminlogin" element={<AdminLogin/>} /> 
-        <Route path="/register" element={<Register/>} /> 
-        <Route path="/logina" element={<Login/>} /> 
+        <Route path="/register" element={<MultiStepRegister/>} /> 
+        {/* <Route path="/logina" element={<Login/>} />  */}
 
 
 

@@ -41,7 +41,7 @@ class Music(models.Model):
     release_date = models.DateTimeField()
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    is_public = models.BooleanField(default=True, help_text="Whether this music is publicly available")
+    is_public = models.BooleanField(default=False, help_text="Whether this music is publicly available")
 
     def __str__(self):
         return f"{self.name} by {self.artist.user.email}"

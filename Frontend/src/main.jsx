@@ -14,7 +14,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <CssBaseline />
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
-      <ToastContainer />
+          <ToastContainer />
           <App />
       </PersistGate>
     </Provider>

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Trash2, Eye, EyeOff, Search, AlertCircle, Tag } from 'lucide-react';
 import api from '../../../api';
+import { toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const MusicManagement = () => {
   const [tracks, setTracks] = useState([]);
@@ -30,6 +32,11 @@ const MusicManagement = () => {
     }
   };
 
+  const statusColors = {
+    pending: "bg-yellow-500/20 text-yellow-500",
+    approved: "bg-green-500/20 text-green-500",
+    rejected: "bg-red-500/20 text-red-500"
+  };
   const handleDelete = (trackId) => {
     setSelectedTrackId(trackId);
     setShowDeleteAlert(true);
@@ -40,6 +47,16 @@ const MusicManagement = () => {
       await api.delete(`/api/music/music/${selectedTrackId}/`);
       setTracks(tracks.filter((track) => track.id !== selectedTrackId));
       setShowDeleteAlert(false);
+      toast.success('Track deleted successfully!', {
+              // position: toast.POSITION.TOP_RIGHT, // Ensure POSITION is accessed like this
+              autoClose: 5000,
+              hideProgressBar: false,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true,
+              progress: undefined,
+              theme: 'dark',
+        });
     } catch (err) {
       setError('Failed to delete track');
       console.error('Delete Error:', err);
@@ -62,6 +79,7 @@ const MusicManagement = () => {
   const filteredTracks = tracks.filter((track) =>
     track?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     track?.artist_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    track?.status?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     track?.genres?.some(genre => 
       typeof genre === 'string' && genre.toLowerCase().includes(searchTerm.toLowerCase())
     )
@@ -106,7 +124,8 @@ const MusicManagement = () => {
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Title</th>
                   {/* <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Artist</th> */}
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Genres</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Status(Private/Public)</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Status</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Approval Status</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Actions</th>
                 </tr>
               </thead>
@@ -116,29 +135,44 @@ const MusicManagement = () => {
                     <td className="px-4 py-3 text-white">{track.name}</td>
                     {/* <td className="px-4 py-3 text-white">{track.artist_name}</td> */}
                     <td className="px-4 py-3">
-  <div className="flex flex-wrap gap-2">
-    {Array.isArray(track.genres) && track.genres.map((genre, index) => (
-      <span
-        key={index}
-        className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs flex items-center gap-1"
-      >
-        <Tag className="h-3 w-3" />
-        {genre} {/* Assuming genre has a 'name' property */}
-      </span>
-    ))}
-  </div>
-</td>
+                    <div className="flex flex-wrap gap-2">
+                        {Array.isArray(track.genres) && track.genres.map((genre, index) => (
+                        <span
+                            key={index}
+                            className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs flex items-center gap-1"
+                        >
+                            <Tag className="h-3 w-3" />
+                            {genre} {/* Assuming genre has a 'name' property */}
+                        </span>
+                        ))}
+                    </div>
+                    </td>
                     <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => toggleVisibility(track.id)}
-                        className={`p-2 rounded-lg ${
-                          track.is_public
-                            ? 'bg-green-500/20 text-green-400'
-                            : 'bg-gray-500/20 text-gray-400'
-                        }`}
-                      >
-                        {track.is_public ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
-                      </button>
+                        <button
+                            onClick={() => {
+                            if (track.approval_status === 'pending' || track.approval_status === 'rejected') {
+                                toast.error('The track needs to be approved by the admin before changing its status to public.', {
+                                position: 'top-right', // Use string for position
+                                autoClose: 3000,
+                                theme: 'dark',
+                                });
+                                return;
+                            }
+                            toggleVisibility(track.id);
+                            }}
+                            className={`p-2 rounded-lg ${
+                            track.is_public
+                                ? 'bg-green-500/20 text-green-400'
+                                : 'bg-gray-500/20 text-gray-400'
+                            }`}
+                        >
+                            {track.is_public ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                        </button>
+                        </td>
+                    <td className="px-4 py-3 text-center">
+                    <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[track.approval_status?.toLowerCase() || 'pending']}`}>
+                        {track.approval_status || 'Pending'}
+                    </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button
@@ -163,29 +197,35 @@ const MusicManagement = () => {
       </div>
 
       {showDeleteAlert && (
-        <div className="fixed bottom-4 right-4 w-96 bg-gray-800 border border-red-500/50 rounded-lg shadow-md">
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center space-x-2">
-              <AlertCircle className="h-5 w-5 text-red-500" />
-              <span className="text-white">Are you sure you want to delete this track?</span>
+        <div className="fixed bottom-4 right-4 w-96 bg-gray-800 border border-red-500/50 rounded-lg shadow-lg z-50">
+            <div className="flex flex-col p-4 space-y-4">
+            {/* Alert Header */}
+            <div className="flex items-center space-x-3">
+                <AlertCircle className="h-6 w-6 text-red-500" />
+                <span className="text-white text-sm font-medium">
+                Are you sure you want to delete this Track?
+                </span>
             </div>
-            <div className="space-x-5">
-              <button
-                onClick={confirmDelete}
-                className="px-3 py-1 bg-red-500 text-white rounded-md hover:bg-red-600 "
-              >
-                Delete
-              </button>
-              <button
+
+            {/* Action Buttons */}
+            <div className="flex justify-end space-x-3">
+            <button
                 onClick={() => setShowDeleteAlert(false)}
-                className="px-3 py-1 bg-gray-700 text-white rounded-md hover:bg-gray-600"
-              >
+                className="px-4 py-2 bg-gray-700 text-white rounded-md text-sm font-medium hover:bg-gray-600 transition"
+                >
                 Cancel
-              </button>
+                </button>
+                <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-500 text-white rounded-md text-sm font-medium hover:bg-red-600 transition"
+                >
+                Delete
+                </button>
+
             </div>
-          </div>
+            </div>
         </div>
-      )}
+        )}
     </div>
   );
 };

@@ -151,7 +151,7 @@ class MusicViewSet(ModelViewSet):
         
     def get_queryset(self):
         queryset = Music.objects.filter(
-            approval_status=MusicApprovalStatus.APPROVED,
+            
             artist__user=self.request.user
         ).select_related('artist__user').prefetch_related('genres')
 

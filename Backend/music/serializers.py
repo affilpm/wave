@@ -12,8 +12,8 @@ class GenreSerializer(serializers.ModelSerializer):
         
 
 class MusicSerializer(serializers.ModelSerializer):
-    # genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
-    genres = serializers.SerializerMethodField()
+    genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
+    # genres = serializers.SerializerMethodField()
 
     class Meta:
         model = Music
