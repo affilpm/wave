@@ -14,6 +14,8 @@ import ProtectedRoute from './components/admin/ProtectedRoute';
 import MusicUpload from './components/artist/studio/MusicUpload';
 import StudioPage from './pages/artist/StudioPage';
 import AlbumCreator from './components/artist/studio/AlbumCreator';
+import EditAlbum from './components/artist/studio/EditAlbum';
+import { Register, Login } from './components/user/Authentication';
 
 
 export const logout= () => {
@@ -30,7 +32,11 @@ function App() {
     <Router>
       <Routes>
 
-        <Route path="/" element={<LandingPage />} />
+        <Route path="/" element={
+            <RedirectIfLoggedIn isAuthenticated={isAuthenticated}>
+              <LandingPage />
+            </RedirectIfLoggedIn>
+          } />
 
 
         <Route
@@ -50,6 +56,8 @@ function App() {
           <Route path="/studio" element={<StudioPage/>} />
           <Route path="/musicupload" element={<MusicUpload/>} />
           <Route path="/albumcreator" element={<AlbumCreator/>} />
+          <Route path="/editalbum/:id" element={<EditAlbum/>} />
+
 
 
 
@@ -60,7 +68,11 @@ function App() {
         
 
 
-        <Route path="/adminlogin" element={<AdminLogin/>} />
+        <Route path="/adminlogin" element={<AdminLogin/>} /> 
+        <Route path="/register" element={<Register/>} /> 
+        <Route path="/logina" element={<Login/>} /> 
+
+
 
         <Route path="/admindashboard" element={
                   <ProtectedRoute> 
