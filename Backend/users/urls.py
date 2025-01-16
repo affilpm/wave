@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views  # Correct import for views from the same app
-# from .views import UserDetailView
+from .views import RegisterView, LoginView, VerifyEmailView
 
 urlpatterns = [
     # path('register/', RegisterView.as_view(), name='register'),
@@ -12,7 +12,9 @@ urlpatterns = [
     # path('check_user/', views.check_user, name='check_user'),
     path('google_auth/', views.google_auth, name='google_auth'),
     path('logout/', views.logout, name='logout'),
-    
+    path('register/', RegisterView.as_view(), name='register'),
+    path('login/', LoginView.as_view(), name='login'),
+    path('verify-email/', VerifyEmailView.as_view(), name='verify-email'),
     # path('user/<int:user_id>/', UserDetailView.as_view(), name='user-detail'),
 ]
     

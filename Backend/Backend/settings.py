@@ -69,7 +69,10 @@ CORS_ALLOWED_ORIGINS = [
 ]
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True  # For development only
+# In your Django settings (settings.py)
 
+CSP_DEFAULT_SRC = ("'self'",)
+CSP_MEDIA_SRC = ("'self'","blob:", "http://localhost:8000")
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -96,8 +99,9 @@ INSTALLED_APPS = [
     'album',
     'channels',
     'rest_framework_simplejwt.token_blacklist',
-    
+    'csp',
 ]
+
 AUTH_USER_MODEL = 'users.CustomUser'
 
 ASGI_APPLICATION = 'Backend.asgi.application'
@@ -113,10 +117,15 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'allauth.account.middleware.AccountMiddleware',  # Add this line
     'django.middleware.common.CommonMiddleware',  # Make sure this is included
+    'csp.middleware.CSPMiddleware',
     
 ]
 
-
+# CSP_DEFAULT_SRC = ["'self'",]  # Default sources
+# CSP_MEDIA_SRC = ["'self'", "blob:", "http://localhost:8000"]  # Media sources
+CSP_SCRIPT_SRC = ["'self'", "'unsafe-inline'"]  # Adjust as needed
+CSP_STYLE_SRC = ["'self'", "'unsafe-inline'"]  # For inline styles if necessary
+CSP_IMG_SRC = ["'self'", "http://localhost:8000", "data:"]  # For images
 # Add these headers to your response
 SECURE_CONTENT_TYPE_NOSNIFF = False
 CROSS_ORIGIN_OPENER_POLICY = 'same-origin'

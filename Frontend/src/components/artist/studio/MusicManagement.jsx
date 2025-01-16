@@ -123,7 +123,7 @@ const MusicManagement = () => {
         className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs flex items-center gap-1"
       >
         <Tag className="h-3 w-3" />
-        {genre.name} {/* Assuming genre has a 'name' property */}
+        {genre} {/* Assuming genre has a 'name' property */}
       </span>
     ))}
   </div>

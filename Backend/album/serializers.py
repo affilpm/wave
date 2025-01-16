@@ -4,14 +4,12 @@ from music.serializers import MusicSerializer
 
 
 class AlbumTrackSerializer(serializers.ModelSerializer):
-    track_details = MusicSerializer(source='track', read_only=True)
+    name = serializers.CharField(source='track.name')  
     
     class Meta:
         model = AlbumTrack
-        fields = ['id', 'track', 'track_number', 'track_details']
-        extra_kwargs = {
-            'track': {'write_only': True}
-        }
+        fields = ['id', 'track', 'track_number', 'name']
+
 
 
 
@@ -23,7 +21,7 @@ class AlbumSerializer(serializers.ModelSerializer):
         model = Album
         fields = [
             'id', 'name', 'description', 'cover_photo', 
-            'banner_img', 'release_date', 'status', 'is_public',
+            'banner_img', 'release_date', 'is_public',
             'tracks', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']

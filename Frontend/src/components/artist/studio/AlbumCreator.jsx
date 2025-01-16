@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Music, Upload, Calendar, AlertCircle, X, ChevronDown, ChevronUp, Search } from 'lucide-react';
+// import { Music, Image as ImageIcon, X as XIcon} from 'lucide-react';
+
 import { useNavigate } from 'react-router-dom';
 import { albumService } from '../../../services/artist/albumService'
 import api from '../../../api';
@@ -20,6 +22,7 @@ const AlbumCreator = () => {
     bannerImg: null,
     releaseDate: '',
     status: 'draft',
+    is_public: false,  // Add this line
   });
   const [selectedTracks, setSelectedTracks] = useState([]);
   const [error, setError] = useState('');
@@ -119,12 +122,16 @@ const AlbumCreator = () => {
 
 
 
+  const [isChecking, setIsChecking] = useState(false); // Loading state
+
   const debouncedCheckAlbum = debounce(async (value) => {
     if (!value.trim()) {
       setAlbumNameError('');
+      setIsChecking(false); // Stop loading when empty
       return;
     }
-    
+
+    setIsChecking(true); // Start loading when checking
     try {
       const exists = await albumService.checkAlbumExists(value);
       if (exists) {
@@ -135,8 +142,11 @@ const AlbumCreator = () => {
     } catch (err) {
       console.error('Album check error:', err);
       setAlbumNameError(`Failed to check album existence: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsChecking(false); // Stop loading after check is complete
     }
   }, 500);
+
 
   const handleInputChange = async (e) => {
     const { name, value } = e.target;
@@ -144,8 +154,8 @@ const AlbumCreator = () => {
       ...prev,
       [name]: value,
     }));
-    setError('');
-  
+    setAlbumNameError(''); // Clear error on change
+
     if (name === 'name') {
       debouncedCheckAlbum(value);
     }
@@ -182,40 +192,69 @@ const AlbumCreator = () => {
     });
   };
 
-  const handleFileChange = (e) => {
-    const { name, files } = e.target;
-    if (files[0]) {
-      const file = files[0];
-      const maxSize = 5 * 1024 * 1024;
-      const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+const [coverPhotoError, setCoverPhotoError] = useState('');
+const [bannerImgError, setBannerImgError] = useState('');
 
+const handleFileChange = (e) => {
+  const { name, files } = e.target;
+  const file = files[0];
+
+  if (file) {
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+
+    // Validate file size and type for cover photo
+    if (name === 'coverPhoto') {
       if (file.size > maxSize) {
-        setError(`${name} must be less than 5MB`);
-        e.target.value = '';
+        setCoverPhotoError('Cover photo must be less than 5MB');
+        e.target.value = ''; // Clear the input field
         return;
       }
 
       if (!allowedTypes.includes(file.type)) {
-        setError(`${name} must be a PNG, JPEG, or JPG file`);
-        e.target.value = '';
+        setCoverPhotoError('Only JPG, JPEG and PNG images are accepted');
+        e.target.value = ''; // Clear the input field
         return;
       }
 
       setAlbumData((prev) => ({
         ...prev,
-        [name]: file,
+        coverPhoto: file,
       }));
-      setError('');
+      setCoverPhotoError(''); // Clear error on successful file selection
     }
-  };
 
-  const handleSubmit = async (e) => {
+    // Validate file size and type for banner image
+    if (name === 'bannerImg') {
+      if (file.size > maxSize) {
+        setBannerImgError('Banner image must be less than 5MB');
+        e.target.value = ''; // Clear the input field
+        return;
+      }
+
+      if (!allowedTypes.includes(file.type)) {
+        setBannerImgError('Only JPG, JPEG and PNG images are accepted');
+        e.target.value = ''; // Clear the input field
+        return;
+      }
+
+      setAlbumData((prev) => ({
+        ...prev,
+        bannerImg: file,
+      }));
+      setBannerImgError(''); // Clear error on successful file selection
+    }
+  }
+};
+
+const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccessMessage('');
     setIsLoading(true);
-
+  
     try {
+      // Validation
       if (!albumData.name?.trim()) {
         throw new Error('Album name is required');
       }
@@ -228,134 +267,159 @@ const AlbumCreator = () => {
       if (!selectedTracks.length) {
         throw new Error('Please select at least one track');
       }
-
+  
       const formattedTracks = selectedTracks.map((track, index) => ({
         track: track.id,
         track_number: index + 1,
       }));
-
+  
+      // Debug log before sending
+      console.log('Submitting album data:', {
+        ...albumData,
+        tracks: formattedTracks
+      });
+  
       const response = await albumService.createAlbum({
         ...albumData,
         tracks: formattedTracks,
       });
-
+  
       setSuccessMessage('Album created successfully!');
       dispatch(closeModal());
     } catch (err) {
+      console.error('Submit error:', err);
       setError(err.message || 'Failed to create album');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const isFormValid =
-    albumData.name.trim() &&
-    albumData.coverPhoto &&
-    albumData.releaseDate &&
-    albumData.description && 
-    selectedTracks.length &&
-    !albumNameError;
+const isFormValid =
+  albumData.name.trim() &&
+  albumData.coverPhoto &&
+  albumData.releaseDate &&
+  albumData.description &&
+  selectedTracks.length &&
+  !albumNameError;
 
-  return (
-    <div className="max-w-4xl mx-auto p-6">
-      <div className="bg-gray-900 rounded-lg border border-black">
-        <div className="p-6 border-b border-gray-700">
-          <h2 className="text-2xl font-bold text-white">Create New Album</h2>
-        </div>
-        <div className="p-6">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="space-y-4">
-              <div>
+return (
+  <div className="max-w-4xl mx-auto p-0">
+    <div className="bg-gray-900 rounded-lg border border-black">
+      <div className="p-6 border-b border-gray-700">
+        <h2 className="text-2xl font-bold text-white">Create New Album</h2>
+      </div>
+      <div className="p-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-4">
+            <div>
                 <label className="block text-sm font-medium mb-2 text-white">
-                  Album Name <span className="text-red-500">*</span>
+                    Album Name <span className="text-red-500">*</span>
                 </label>
+                <div className="relative">
                 <input
-                  type="text"
-                  name="name"
-                  value={albumData.name}
-                  onChange={handleInputChange}
-                  className="w-full p-2 rounded-md border border-gray-600 bg-gray-700 text-white"
-                  required
+                    type="text"
+                    name="name"
+                    value={albumData.name}
+                    onChange={handleInputChange}
+                    className={`w-full p-2 pl-3 pr-12 border rounded-md bg-gray-700 text-white ${
+                    isChecking ? 'border-red-500' : ''
+                    }`}
+                    required
                 />
+                {isChecking && (
+                    <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-blue-400 text-sm">
+                    Checking...
+                    </span>
+                )}
+                </div>
                 {albumNameError && (
-                  <p className="text-xs text-red-400 mt-2">{albumNameError}</p>
+                <p className="text-xs text-red-400 mt-2">{albumNameError}</p>
                 )}
                 <p className="text-xs text-gray-400 mt-2">Enter the name of your album.</p>
-              </div>
+            </div>
 
+            <div>
+              <label className="block text-sm font-medium mb-2 text-white">
+                Description <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                name="description"
+                value={albumData.description}
+                onChange={handleInputChange}
+                className="w-full p-2 rounded-md border border-gray-600 bg-gray-700 text-white h-32"
+                required
+              />
+              <p className="text-xs text-gray-400 mt-2">Provide a short description for your album.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2 text-white">
-                  Description <span className="text-red-500">*</span>
-                </label>
-                <textarea
-                  name="description"
-                  value={albumData.description}
-                  onChange={handleInputChange}
-                  className="w-full p-2 rounded-md border border-gray-600 bg-gray-700 text-white h-32"
-                  required
-                />
-                <p className="text-xs text-gray-400 mt-2">Provide a short description for your album.</p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-white">
-                    Cover Photo <span className="text-red-500">*</span>
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    <Upload className="h-5 w-5 text-gray-400" />
-                    <input
-                      type="file"
-                      name="coverPhoto"
-                      onChange={handleFileChange}
-                      accept=".jpg, .jpeg, .png"
-                      required
-                      className="w-full text-gray-400"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-white">
-                    Banner Image
-                  </label>
-                  <div className="flex items-center space-x-2">
-                    <Upload className="h-5 w-5 text-gray-400" />
-                    <input
-                      type="file"
-                      name="bannerImg"
-                      onChange={handleFileChange}
-                      accept=".jpg, .jpeg, .png"
-                      className="w-full text-gray-400"
-                    />
-                  </div>
-                  <p className="text-xs text-gray-400 mt-2">Only .png, .jpeg, .jpg files are allowed.</p>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2 text-white">
-                  Release Date <span className="text-red-500">*</span>
+                  Cover Photo <span className="text-red-500">*</span>
                 </label>
                 <div className="flex items-center space-x-2">
-                  <Calendar className="h-5 w-5 text-gray-400" />
+                  <Upload className="h-5 w-5 text-gray-400" />
                   <input
-                    type="datetime-local"
-                    name="releaseDate"
-                    value={albumData.releaseDate}
-                    onChange={handleInputChange}
+                    type="file"
+                    name="coverPhoto"
+                    onChange={handleFileChange}
+                    accept=".jpg, .jpeg, .png"
                     required
-                    className="w-full p-2 rounded-md border border-gray-600 bg-gray-700 text-white"
+                    className="w-full text-gray-400"
                   />
                 </div>
-                <p className="text-xs text-gray-400 mt-2">Select the release date and time for your album.</p>
+                {coverPhotoError ? (
+                <p className="text-red-500 text-sm mt-2">{coverPhotoError}</p>
+                ) : (
+                    <p className="text-gray-400 text-sm mt-2">Accepted formats: JPG, PNG, JPEG (max 5MB)</p>
+                )}
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-2 text-white">
-                  Select Tracks <span className="text-red-500">*</span>
+                  Banner Image
                 </label>
-                
+                <div className="flex items-center space-x-2">
+                  <Upload className="h-5 w-5 text-gray-400" />
+                  <input
+                    type="file"
+                    name="bannerImg"
+                    onChange={handleFileChange}
+                    accept=".jpg, .jpeg, .png"
+                    className="w-full text-gray-400"
+                  />
+                </div>
+                {bannerImgError ? (
+                <p className="text-red-500 text-sm mt-2">{bannerImgError}</p>
+                ) : (
+                    <p className="text-gray-400 text-sm mt-2">Accepted formats: JPG, PNG, JPEG (max 5MB)</p>
+                )}
+            </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2 text-white">
+                Release Date <span className="text-red-500">*</span>
+              </label>
+              <div className="flex items-center space-x-2">
+                <Calendar className="h-5 w-5 text-gray-400" />
+                <input
+                  type="datetime-local"
+                  name="releaseDate"
+                  value={albumData.releaseDate}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full p-2 rounded-md border border-gray-600 bg-gray-700 text-white"
+                />
+              </div>
+              <p className="text-xs text-gray-400 mt-2">Select the release date and time for your album.</p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2 text-white">
+                Select Tracks <span className="text-red-500">*</span>
+              </label>
+              
               {/* Selected Tracks Display */}
               <div className="flex flex-wrap gap-2 mb-2">
                 {selectedTracks.map((track) => (
@@ -443,22 +507,34 @@ const AlbumCreator = () => {
                 )}
               </div>
             </div>
-            </div>
+          </div>
 
-            <div className="flex justify-end space-x-4">
-              <button
-                type="submit"
-                disabled={!isFormValid || isLoading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
-              >
-                {isLoading ? 'Saving...' : 'Save'}
-              </button>
-            </div>
-          </form>
-        </div>
+          <div className="flex justify-end space-x-4">
+          <div className="flex items-center space-x-2 mb-4">
+  <label className="relative inline-flex items-center cursor-pointer">
+    <input
+      type="checkbox"
+      className="sr-only peer"
+      checked={albumData.is_public}
+      onChange={(e) => setAlbumData(prev => ({ ...prev, is_public: e.target.checked }))}
+    />
+    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-800 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+    <span className="ml-3 text-sm font-medium text-white">Make Album Public</span>
+  </label>
+</div>
+            <button
+              type="submit"
+              disabled={!isFormValid || isLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
+            >
+              {isLoading ? 'Saving...' : 'Save'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
-  );
+  </div>
+);
 };
 
 export default AlbumCreator;

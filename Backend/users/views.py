@@ -124,3 +124,107 @@ def logout(request):
             {'error': str(e)}, 
             status=status.HTTP_400_BAD_REQUEST
         )
+        
+        
+        
+        
+        
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.contrib.auth import get_user_model
+from .serializers import UserSerializer
+from django.core.exceptions import ValidationError
+from .utils import send_otp_email, generate_otp
+
+User = get_user_model()
+
+class RegisterView(APIView):
+    def post(self, request):
+        serializer = UserSerializer(data=request.data)
+        if serializer.is_valid():
+            # Generate OTP
+            otp = generate_otp()
+            # Save user with additional fields
+            user = serializer.save(
+                is_active=False,  # User won't be active until email is verified
+                password=request.data.get('password')  # This will be hashed by the model
+            )
+            # Store OTP (you might want to use cache or a separate model)
+            user.otp = otp
+            user.save()
+            
+            # Send verification email
+            try:
+                send_otp_email(user.email, otp)
+                return Response({
+                    'message': 'Registration successful. Please check your email for verification.',
+                    'user_id': user.id
+                }, status=status.HTTP_201_CREATED)
+            except Exception as e:
+                user.delete()  # Rollback if email sending fails
+                return Response({
+                    'error': 'Failed to send verification email.'
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class VerifyEmailView(APIView):
+    def post(self, request):
+        user_id = request.data.get('user_id')
+        otp = request.data.get('otp')
+
+        try:
+            user = User.objects.get(id=user_id)
+            if str(user.otp) == str(otp):
+                user.is_active = True
+                user.otp = None  # Clear OTP after verification
+                user.save()
+                
+                # Generate tokens
+                refresh = RefreshToken.for_user(user)
+                return Response({
+                    'message': 'Email verified successfully',
+                    'tokens': {
+                        'refresh': str(refresh),
+                        'access': str(refresh.access_token),
+                    }
+                })
+            return Response({
+                'error': 'Invalid OTP'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        except User.DoesNotExist:
+            return Response({
+                'error': 'User not found'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+class LoginView(APIView):
+    def post(self, request):
+        email = request.data.get('email')
+        password = request.data.get('password')
+        
+        try:
+            user = User.objects.get(email=email)
+            if not user.is_active:
+                return Response({
+                    'error': 'Please verify your email first.'
+                }, status=status.HTTP_400_BAD_REQUEST)
+                
+            if user.check_password(password):
+                refresh = RefreshToken.for_user(user)
+                return Response({
+                    'tokens': {
+                        'refresh': str(refresh),
+                        'access': str(refresh.access_token),
+                    },
+                    'user': UserSerializer(user).data
+                })
+            else:
+                return Response({
+                    'error': 'Invalid credentials'
+                }, status=status.HTTP_400_BAD_REQUEST)
+        except User.DoesNotExist:
+            return Response({
+                'error': 'Invalid credentials'
+            }, status=status.HTTP_400_BAD_REQUEST)        

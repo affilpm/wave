@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
-import { Music, Image as ImageIcon, X as XIcon} from 'lucide-react';
+import { Music, Image as ImageIcon, X, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import api from '../../../api';
 import { openModal, closeModal } from '../../../slices/modalSlice'; // Import actions
 import { debounce } from 'lodash';
-
+import { toast } from 'react-toastify';
 const MusicUpload = () => {
 
     const [formData, setFormData] = useState({
@@ -30,6 +30,13 @@ const MusicUpload = () => {
       error: null
     });
   
+    const dropdownRef = useRef(null);
+    const searchInputRef = useRef(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [focusedGenreIndex, setFocusedGenreIndex] = useState(-1);
+    const [sortOrder, setSortOrder] = useState('asc');
+
+    
     // Create a debounced function to check track name
     const checkTrackName = debounce(async (name) => {
       if (!name) {
@@ -172,7 +179,7 @@ const MusicUpload = () => {
           if (!allowedImageTypes.includes(file.type)) {
             setFileErrors({
               ...fileErrors,
-              cover: 'Only JPG and PNG images are accepted'
+              cover: 'Only JPG, JPEG and PNG images are accepted'
             });
             e.target.value = ''; // Reset input
             setFiles(prev => ({ ...prev, [type]: null }));
@@ -275,7 +282,16 @@ const MusicUpload = () => {
           setFormData({ name: '', selectedGenres: [], releaseDate: '', description: '' });
           setFiles({ audio: null, cover: null, video: null });
           dispatch(closeModal());
-          alert('Track uploaded successfully!');
+          toast.success('Track uploaded successfully!', {
+            position: 'top-right', // You can choose 'top-left', 'top-center', etc.
+            autoClose: 3000, // Duration in milliseconds
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+            progress: undefined,
+            theme: 'dark', // or 'dark'
+          });
         }
     
       } catch (error) {
@@ -347,12 +363,90 @@ const MusicUpload = () => {
       );
     };
 
+
+    // Enhanced keyboard navigation for genre dropdown
+    const handleKeyDown = (e) => {
+      if (!isGenreDropdownOpen) return;
+  
+      const filteredGenres = getFilteredGenres();
+      const genresLength = filteredGenres.length;
+  
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setFocusedGenreIndex(prev => 
+            prev < genresLength - 1 ? prev + 1 : prev
+          );
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setFocusedGenreIndex(prev => prev > 0 ? prev - 1 : prev);
+          break;
+        case 'Enter':
+          e.preventDefault();
+          if (focusedGenreIndex >= 0 && focusedGenreIndex < genresLength) {
+            handleGenreSelect(filteredGenres[focusedGenreIndex].value);
+          }
+          break;
+        case 'Escape':
+          e.preventDefault();
+          setIsGenreDropdownOpen(false);
+          break;
+        default:
+          break;
+      }
+    };
+  
+    // Get filtered and sorted genres
+    const getFilteredGenres = () => {
+      return genres
+        .filter(genre => 
+          !formData.selectedGenres.includes(genre.value) &&
+          genre.label.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+        .sort((a, b) => {
+          const comparison = a.label.localeCompare(b.label);
+          return sortOrder === 'asc' ? comparison : -comparison;
+        });
+    };
+  
+    const toggleSortOrder = () => {
+      setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+    };
+  
+    // Effect for dropdown focus management
+    useEffect(() => {
+      if (!isGenreDropdownOpen) {
+        setFocusedGenreIndex(-1);
+        setSearchQuery('');
+      } else if (searchInputRef.current) {
+        searchInputRef.current.focus();
+      }
+    }, [isGenreDropdownOpen]);
+  
+    // Click outside listener
+    useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+          setIsGenreDropdownOpen(false);
+          setFocusedGenreIndex(-1);
+        }
+      };
+  
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+    
+    
   return (
-    <div className={`bg-gray-900 shadow-lg rounded-lg w-full p-6 ${modalSize} overflow-auto`}>
+    <div className="max-w-4xl mx-auto p-0">
+    <div className="bg-gray-900 rounded-lg border border-black">
+      <div className="p-6 border-b border-black ">
       <div className="mb-8">
         <h2 className="text-2xl font-bold mb-2 text-white">Upload New Track</h2>
         <p className="text-white">Share your music with the world</p>
       </div>
+
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Audio Upload */}
@@ -424,7 +518,7 @@ const MusicUpload = () => {
           )}
         </div>
 
-        {/* Genre Selection */}
+        {/* Enhanced Genre Selection */}
         <div className="relative">
           <label className="block text-sm font-medium text-white mb-1">
             Select Genres
@@ -439,44 +533,85 @@ const MusicUpload = () => {
               >
                 {getGenreName(genreId)}
                 <button
-  type="button"
-  onClick={() => handleGenreRemove(genreId)}
-  className="hover:text-red-200"
->
-  <XIcon size={14} />
-</button>
+                  type="button"
+                  onClick={() => handleGenreRemove(genreId)}
+                  className="hover:text-red-200"
+                >
+                  <X size={14} />
+                </button>
               </span>
             ))}
           </div>
 
           {/* Genre Dropdown */}
-          <div className="relative">
+          <div className="relative" ref={dropdownRef}>
             <button
               type="button"
               onClick={() => setIsGenreDropdownOpen(!isGenreDropdownOpen)}
-              className="w-full p-2 border rounded-md bg-gray-700 text-white text-left"
+              className="w-full p-2 border rounded-md bg-gray-700 text-white text-left flex items-center justify-between"
             >
-              Select a genre...
+              <div className="flex items-center">
+                <Music className="h-5 w-5 mr-2" />
+                <span>Select genres...</span>
+              </div>
+              {isGenreDropdownOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
             </button>
 
             {isGenreDropdownOpen && (
-              <div className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-48 overflow-y-auto">
-                {genres
-                  .filter(genre => !formData.selectedGenres.includes(genre.value))
-                  .map(genre => (
+              <div className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg">
+                {/* Search and Sort Controls */}
+                <div className="p-2 border-b border-gray-700">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <input
+                      ref={searchInputRef}
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder="Search genres..."
+                      className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white text-sm focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={toggleSortOrder}
+                    className="mt-2 px-3 py-1 text-sm text-gray-300 hover:text-white flex items-center gap-1"
+                  >
+                    Sort {sortOrder === 'asc' ? '↑' : '↓'}
+                  </button>
+                </div>
+
+                {/* Genres List */}
+                <div className="max-h-48 overflow-y-auto">
+                  {getFilteredGenres().map((genre, index) => (
                     <button
-                      key={genre.id}
+                      key={genre.value}
                       type="button"
                       onClick={() => handleGenreSelect(genre.value)}
-                      className="w-full px-4 py-2 text-left text-white hover:bg-gray-700"
+                      onMouseEnter={() => setFocusedGenreIndex(index)}
+                      className={`w-full px-4 py-2 text-left text-white hover:bg-gray-700 flex items-center justify-between ${
+                        focusedGenreIndex === index ? 'bg-gray-700' : ''
+                      }`}
                     >
-                      {genre.label}
+                      <div className="flex items-center">
+                        <Music className="h-4 w-4 mr-2" />
+                        {genre.label}
+                      </div>
+                      <span className="text-xs text-gray-400">Click to add</span>
                     </button>
                   ))}
+                  {getFilteredGenres().length === 0 && (
+                    <div className="px-4 py-2 text-gray-400 text-center">
+                      No genres found
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
         </div>
+
 
         {/* Release Date */}
         <div>
@@ -572,6 +707,9 @@ const MusicUpload = () => {
 </button>
       </form>
     </div>
+    </div>
+    </div>
+
   );
 };
 

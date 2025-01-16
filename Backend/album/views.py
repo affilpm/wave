@@ -48,6 +48,10 @@ class AlbumViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         try:
+            # Debug logging
+            print("Received data:", request.data)
+            print("Received files:", request.FILES)
+            
             # Extract tracks data from request
             tracks_data = []
             if 'tracks' in request.data:
@@ -56,7 +60,12 @@ class AlbumViewSet(viewsets.ModelViewSet):
             
             # Create serializer with album data
             serializer = self.get_serializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
+            if not serializer.is_valid():
+                print("Serializer errors:", serializer.errors)
+                return Response({
+                    'error': 'Validation failed',
+                    'details': serializer.errors
+                }, status=status.HTTP_400_BAD_REQUEST)
             
             # Add artist to validated data
             serializer.validated_data['artist'] = request.user.artist_profile
@@ -77,10 +86,14 @@ class AlbumViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
             
         except Exception as e:
+            print("Create album error:", str(e))
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
+            
+            
+            
     @action(detail=False, methods=['get'])
     def check_album_existence(self, request):
         try:
@@ -112,6 +125,65 @@ class AlbumViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
+            
+    
+    @transaction.atomic
+    def update(self, request, *args, **kwargs):
+        try:
+            # Get existing album
+            album = self.get_object()
+
+            # Create a mutable copy of request.data if it's immutable
+            mutable_data = request.data.copy() if hasattr(request.data, 'copy') else request.data
+
+            # Extract tracks data from request
+            tracks_data = None
+            if 'tracks' in mutable_data:
+                try:
+                    tracks_data = json.loads(mutable_data['tracks'])
+                    del mutable_data['tracks']
+                except json.JSONDecodeError:
+                    return Response(
+                        {'error': 'Invalid tracks data format'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+            # Update album data
+            serializer = self.get_serializer(album, data=mutable_data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            updated_album = serializer.save()
+
+            # Only update tracks if tracks_data was provided
+            if tracks_data is not None:
+                # Remove existing tracks
+                AlbumTrack.objects.filter(album=album).delete()
+
+                # Create new tracks
+                album_tracks = []
+                for track_data in tracks_data:
+                    album_tracks.append(
+                        AlbumTrack(
+                            album=updated_album,
+                            track_id=track_data['track'],
+                            track_number=track_data['track_number']
+                        )
+                    )
+                AlbumTrack.objects.bulk_create(album_tracks)
+
+            # Return updated album data
+            serializer = self.get_serializer(updated_album)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            # Rollback will happen automatically if there's an error due to @transaction.atomic
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )     
+
+
+
+        
             
     @action(detail=False, methods=['get'])
     def drafts(self, request):

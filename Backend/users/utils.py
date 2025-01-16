@@ -7,18 +7,18 @@ from smtplib import SMTP_SSL
 from django.core.mail import send_mail
 from django.conf import settings
 
-# def generate_otp():
-#     return random.randint(100000, 999999)
+def generate_otp():
+    return random.randint(100000, 999999)
 
 
-# def send_otp_email(email, otp):
-#     send_mail(
-#         'Your OTP Code',  # Subject
-#         f'Your OTP code is {otp}',  # Message body
-#         'affilpm@gmail.com',  # Sender email
-#         [email],  # Recipient email
-#         fail_silently=False,
-#     )
+def send_otp_email(email, otp):
+    send_mail(
+        'Your OTP Code',  # Subject
+        f'Your OTP code is {otp}',  # Message body
+        'affilpm@gmail.com',  # Sender email
+        [email],  # Recipient email
+        fail_silently=False,
+    )
         
         
 

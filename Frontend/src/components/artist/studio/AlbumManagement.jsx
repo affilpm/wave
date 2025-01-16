@@ -1,34 +1,57 @@
 import React, { useState, useEffect } from 'react';
 import { PenSquare, Trash2, Search, AlertCircle, Eye, EyeOff, ToggleLeftIcon } from 'lucide-react';
 import api from '../../../api';
-
+import { useNavigate } from 'react-router-dom';
+import Modal from '../../modal';
+import EditAlbum from './EditAlbum';
 const AlbumManagement = () => {
-  const [albums, setAlbums] = useState([]);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showDeleteAlert, setShowDeleteAlert] = useState(false);
-  const [selectedAlbumId, setSelectedAlbumId] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  // Fetch albums
-  const fetchAlbums = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get('/api/album/albums');
-      setAlbums(response.data);
-      setError(null);
-    } catch (err) {
-      setError('Failed to fetch albums');
-      console.error('Error fetching albums:', err);
-      setAlbums([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchAlbums();
-  }, []);
+    const [albums, setAlbums] = useState([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [showDeleteAlert, setShowDeleteAlert] = useState(false);
+    const [selectedAlbumId, setSelectedAlbumId] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [selectedAlbum, setSelectedAlbum] = useState(null);
+    // Fetch albums
+    const fetchAlbums = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get('/api/album/albums');
+        setAlbums(response.data);
+        setError(null);
+      } catch (err) {
+        setError('Failed to fetch albums');
+        console.error('Error fetching albums:', err);
+        setAlbums([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+  
+    useEffect(() => {
+      fetchAlbums();
+    }, []);
+  
+    const handleEditAlbum = async (albumId) => {
+      try {
+        const response = await api.get(`/api/album/albums/${albumId}/`);
+        setSelectedAlbum(response.data);
+        setIsEditModalOpen(true);
+      } catch (err) {
+        setError('Failed to fetch album details');
+        console.error('Error fetching album details:', err);
+      }
+    };
+  
+    const handleSaveAlbum = (updatedAlbum) => {
+      setAlbums(prevAlbums =>
+        prevAlbums.map(album =>
+          album.id === updatedAlbum.id ? updatedAlbum : album
+        )
+      );
+    };
+  
 
   // Toggle album visibility
   const handleVisibilityToggle = async (albumId) => {
@@ -73,10 +96,6 @@ const AlbumManagement = () => {
     }
   };
 
-  const handleEditAlbum = (albumId) => {
-    // Navigate to edit page or open modal
-    console.log('Edit album:', albumId);
-  };
 
   const filteredAlbums = albums.filter((album) =>
     album?.name?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -146,26 +165,42 @@ const AlbumManagement = () => {
                       </button>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <div className="flex justify-center gap-2">
-                        <button
-                          onClick={() => handleEditAlbum(album.id)}
-                          className="p-2 text-gray-400 hover:bg-gray-700 rounded-lg transition-colors"
-                        >
-                          <PenSquare className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(album.id)}
-                          className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
+  <div className="flex justify-center gap-2">
+    <button
+      onClick={async () => {
+        try {
+          const response = await api.get(`/api/album/albums/${album.id}/`);
+          setSelectedAlbum(response.data);
+          setIsEditModalOpen(true);
+        } catch (err) {
+          setError('Failed to fetch album details');
+          console.error('Error fetching album details:', err);
+        }
+      }}
+      className="p-2 text-gray-400 hover:bg-gray-700 rounded-lg transition-colors"
+    >
+      <PenSquare className="h-4 w-4" />
+    </button>
+    <button
+      onClick={() => handleDelete(album.id)}
+      className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+    >
+      <Trash2 className="h-4 w-4" />
+    </button>
+  </div>
+</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+
+
+
+
+
+
 
           {filteredAlbums.length === 0 && (
             <div className="text-center py-8 text-gray-400">
@@ -199,6 +234,30 @@ const AlbumManagement = () => {
           </div>
         </div>
       )}
+            <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+      >
+        {selectedAlbum && (
+          <div className="max-h-[80vh] overflow-y-auto">
+            <div className="sticky top-0 bg-gray-900 p-4 border-b border-gray-700">
+              <h2 className="text-xl font-semibold text-white">Edit Album</h2>
+            </div>
+            <EditAlbum
+              album={selectedAlbum}
+              onClose={() => setIsEditModalOpen(false)}
+              onSave={(updatedAlbum) => {
+                setAlbums(prevAlbums =>
+                  prevAlbums.map(album =>
+                    album.id === updatedAlbum.id ? updatedAlbum : album
+                  )
+                );
+                setIsEditModalOpen(false);
+              }}
+            />
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
