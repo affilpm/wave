@@ -6,7 +6,7 @@ from . import views
 
 router = DefaultRouter()
 router.register(r'albums', AlbumViewSet, basename='album')
-router.register(r'tracks', TrackViewSet, basename='tracks')
+# router.register(r'tracks', TrackViewSet, basename='tracks')
 
 
 

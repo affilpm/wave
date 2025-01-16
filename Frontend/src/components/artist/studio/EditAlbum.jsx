@@ -198,6 +198,25 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
     );
   }
 
+
+  const validateAlbumName = async (name, albumId = null) => {
+    try {
+      const params = new URLSearchParams({ name });
+      if (albumId) {
+        params.append('id', albumId);
+      }
+  
+      const response = await fetch(`/api/album/validate_album_name/?${params.toString()}`);
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("Error validating album name:", error);
+      return { exists: false, message: "Error occurred during validation" };
+    }
+  };
+
+  
+
   return (
     <form onSubmit={handleSubmit} className="p-6 space-y-6">
       {error && (

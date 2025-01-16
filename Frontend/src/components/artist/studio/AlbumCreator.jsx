@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Music, Upload, Calendar, AlertCircle, X, ChevronDown, ChevronUp, Search } from 'lucide-react';
 // import { Music, Image as ImageIcon, X as XIcon} from 'lucide-react';
-
+import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 import { albumService } from '../../../services/artist/albumService'
 import api from '../../../api';
@@ -212,6 +212,8 @@ const handleFileChange = (e) => {
       }
 
       if (!allowedTypes.includes(file.type)) {
+        toast.error('Only JPG, JPEG, and PNG images are accepted');
+        
         setCoverPhotoError('Only JPG, JPEG and PNG images are accepted');
         e.target.value = ''; // Clear the input field
         return;
@@ -233,6 +235,8 @@ const handleFileChange = (e) => {
       }
 
       if (!allowedTypes.includes(file.type)) {
+        toast.error('Only JPG, JPEG, and PNG images are accepted');
+        
         setBannerImgError('Only JPG, JPEG and PNG images are accepted');
         e.target.value = ''; // Clear the input field
         return;
@@ -285,6 +289,17 @@ const handleSubmit = async (e) => {
       });
   
       setSuccessMessage('Album created successfully!');
+      toast.success('Album created successfully!', {
+        position: 'top-right',
+        autoClose: 3000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: 'dark',
+      });
+    
       dispatch(closeModal());
     } catch (err) {
       console.error('Submit error:', err);

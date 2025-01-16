@@ -5,6 +5,7 @@ import api from '../../../api';
 import { openModal, closeModal } from '../../../slices/modalSlice'; // Import actions
 import { debounce } from 'lodash';
 import { toast } from 'react-toastify';
+
 const MusicUpload = () => {
 
     const [formData, setFormData] = useState({
@@ -67,13 +68,31 @@ const MusicUpload = () => {
   
     const handleInputChange = (e) => {
       const { name, value } = e.target;
+      const trimmedValue = value.trim(); // Remove leading and trailing spaces
+    
+      // Update form data with the trimmed value
       setFormData((prev) => ({ ...prev, [name]: value }));
-      
-      // If the name field changes, check for duplicates
+    
+      // If the name field changes, check for duplicates and validate the input
       if (name === 'name') {
-        checkTrackName(value);
+        // Check if the value contains only whitespaces
+        if (trimmedValue === "") {
+          setNameValidation({
+            isChecking: false,
+          });
+        } else {
+          checkTrackName(value); // Check for duplicates or other validation
+          setNameValidation({
+            error: "", // Clear error when valid input
+            isChecking: false,
+          });
+        }
       }
     };
+
+
+
+    
   
     // Cancel debounced function on unmount
     useEffect(() => {
@@ -159,69 +178,145 @@ const MusicUpload = () => {
     };
   
 
+
     const handleFileChange = (e, type) => {
       const file = e.target.files[0];
       if (file) {
         if (type === 'cover') {
-          // Check if it's an image file
+          // Validate image file
           if (!file.type.startsWith('image/')) {
-            setFileErrors({
-              ...fileErrors,
-              cover: 'Please select an image file'
-            });
+            setFileErrors((prev) => ({
+              ...prev,
+              cover: 'Please select an image file',
+            }));
+            toast.error('Please select a valid image file');
             e.target.value = ''; // Reset input
-            setFiles(prev => ({ ...prev, [type]: null }));
+            setFiles((prev) => ({ ...prev, [type]: null }));
             return;
           }
     
-          // Check for specific image types
           const allowedImageTypes = ['image/jpeg', 'image/png', 'image/jpg'];
           if (!allowedImageTypes.includes(file.type)) {
-            setFileErrors({
-              ...fileErrors,
-              cover: 'Only JPG, JPEG and PNG images are accepted'
-            });
+            setFileErrors((prev) => ({
+              ...prev,
+              cover: 'Only JPG, JPEG, and PNG images are accepted',
+            }));
+            toast.error('Only JPG, JPEG, and PNG images are accepted');
             e.target.value = ''; // Reset input
-            setFiles(prev => ({ ...prev, [type]: null }));
+            setFiles((prev) => ({ ...prev, [type]: null }));
             return;
           }
     
-          // Check file size
           if (file.size > 5 * 1024 * 1024) {
-            setFileErrors({
-              ...fileErrors,
-              cover: 'Image must be smaller than 5MB'
-            });
+            setFileErrors((prev) => ({
+              ...prev,
+              cover: 'Image must be smaller than 5MB',
+            }));
+            toast.error('Image must be smaller than 5MB');
             e.target.value = ''; // Reset input
-            setFiles(prev => ({ ...prev, [type]: null }));
+            setFiles((prev) => ({ ...prev, [type]: null }));
             return;
           }
     
-          // Clear any previous errors if file is valid
-          setFileErrors({
-            ...fileErrors,
-            cover: null
-          });
+          // Clear errors for valid cover file
+          setFileErrors((prev) => ({
+            ...prev,
+            cover: null,
+          }));
+        } else if (type === 'audio') {
+          // Validate audio file
+          if (!file.type.startsWith('audio/')) {
+            setFileErrors((prev) => ({
+              ...prev,
+              audio: 'Please select an audio file',
+            }));
+            toast.error('Please select a valid audio file');
+            e.target.value = ''; // Reset input
+            setFiles((prev) => ({ ...prev, [type]: null }));
+            return;
+          }
+    
+          const allowedAudioTypes = ['audio/mpeg', 'audio/wav', 'audio/aac'];
+          if (!allowedAudioTypes.includes(file.type)) {
+            setFileErrors((prev) => ({
+              ...prev,
+              audio: 'Only MP3, WAV, and AAC files are accepted',
+            }));
+            toast.error('Only MP3, WAV, and AAC files are accepted');
+            e.target.value = ''; // Reset input
+            setFiles((prev) => ({ ...prev, [type]: null }));
+            return;
+          }
+    
+          if (file.size > 10 * 1024 * 1024) {
+            setFileErrors((prev) => ({
+              ...prev,
+              audio: 'Audio file must be smaller than 10MB',
+            }));
+            toast.error('Audio file must be smaller than 10MB');
+            e.target.value = ''; // Reset input
+            setFiles((prev) => ({ ...prev, [type]: null }));
+            return;
+          }
+    
+          // Clear errors for valid audio file
+          setFileErrors((prev) => ({
+            ...prev,
+            audio: null,
+          }));
         }
-        
-        setFiles(prev => ({ ...prev, [type]: file }));
+    
+        // Set valid file
+        setFiles((prev) => ({ ...prev, [type]: file }));
       }
     };
+    
     const handleDragOver = (e) => {
       e.preventDefault();
       setDragActive(true);
     };
-  
+    
     const handleDragLeave = () => setDragActive(false);
-  
+    
     const handleDrop = (e) => {
       e.preventDefault();
       setDragActive(false);
-      const audioFile = Array.from(e.dataTransfer.files).find((file) =>
-        file.type.startsWith('audio/')
-      );
-      if (audioFile) {
-        setFiles((prev) => ({ ...prev, audio: audioFile }));
+    
+      const file = Array.from(e.dataTransfer.files)[0];
+      if (file) {
+        if (file.type.startsWith('audio/')) {
+          const allowedAudioTypes = ['audio/mpeg', 'audio/wav', 'audio/aac'];
+          if (!allowedAudioTypes.includes(file.type)) {
+            setFileErrors((prev) => ({
+              ...prev,
+              audio: 'Only MP3, WAV, and AAC files are accepted',
+            }));
+            toast.error('Only MP3, WAV, and AAC files are accepted');
+            return;
+          }
+    
+          if (file.size > 10 * 1024 * 1024) {
+            setFileErrors((prev) => ({
+              ...prev,
+              audio: 'Audio file must be smaller than 10MB',
+            }));
+            toast.error('Audio file must be smaller than 10MB');
+            return;
+          }
+    
+          // Clear errors for valid drag-and-drop audio file
+          setFileErrors((prev) => ({
+            ...prev,
+            audio: null,
+          }));
+          setFiles((prev) => ({ ...prev, audio: file }));
+        } else {
+          setFileErrors((prev) => ({
+            ...prev,
+            audio: 'Please select a valid audio file',
+          }));
+          toast.error('Please select a valid audio file');
+        }
       }
     };
   
@@ -355,6 +450,7 @@ const MusicUpload = () => {
         files.audio && 
         files.cover && 
         formData.name && 
+        formData.name.trim() !== "" && 
         formData.selectedGenres.length > 0 &&
         formData.selectedGenres.every(id => id && id !== 'undefined') &&
         !fileErrors.cover &&
@@ -488,6 +584,9 @@ const MusicUpload = () => {
   </div>
 )}
 
+
+
+
         {/* Track Name */}
         <div>
         <label htmlFor="name" className="block text-sm font-medium text-white mb-1">
@@ -503,6 +602,7 @@ const MusicUpload = () => {
               className={`w-full p-2 border rounded-md bg-gray-700 text-white ${
                 nameValidation.error ? 'border-red-500' : ''
               }`}
+              required
               placeholder="Enter track name"
             />
             {nameValidation.isChecking && (

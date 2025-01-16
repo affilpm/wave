@@ -27,6 +27,17 @@ class AlbumViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(artist=self.request.user.artist)
         
+    def destroy(self, request, *args, **kwargs):
+        """
+        Completely delete the album, including any related files or associated data.
+        """
+        album = self.get_object()  # Get the album object to be deleted
+        # Optional: You can add logic to delete related files or data here
+        album.delete()  # Deletes the album from the database
+
+        # Return a success response
+        return Response({"detail": "Album deleted successfully."}, status=status.HTTP_204_NO_CONTENT)    
+        
     @action(detail=True, methods=['patch'])
     def update_is_public(self, request, pk=None):
         try:
@@ -125,6 +136,42 @@ class AlbumViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
+            
+    @action(detail=False, methods=['get'])
+    def validate_album_name(request):
+        """
+        Endpoint to check if an album name already exists.
+        """
+        try:
+            album_name = request.query_params.get('name', '').strip()
+            album_id = request.query_params.get('id', None)  # Optional for editing scenarios
+
+            if not album_name:
+                return Response({
+                    'exists': False,
+                    'message': 'Album name is required'
+                }, status=status.HTTP_400_BAD_REQUEST)
+
+            # Filter albums with the same name but exclude the current album being edited
+            query = Album.objects.filter(name__iexact=album_name)
+            if album_id:
+                query = query.exclude(id=album_id)
+
+            exists = query.exists()
+
+            return Response({
+                'exists': exists,
+                'message': 'Album name exists' if exists else 'Album name available'
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response(
+                {
+                    'error': str(e),
+                    'message': 'Failed to validate album name'
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )        
             
     
     @transaction.atomic
