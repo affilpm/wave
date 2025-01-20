@@ -125,7 +125,7 @@ const MusicManagement = () => {
                   {/* <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Artist</th> */}
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Genres</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Status</th>
-                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Approval Status</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Admin Approval Status</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Actions</th>
                 </tr>
               </thead>

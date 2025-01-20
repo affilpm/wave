@@ -31,12 +31,20 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
         setAlbum(initialAlbum);
         setAvailableTracks(tracksResponse.data);
 
+        // Update image previews with full URLs
         if (initialAlbum.cover_photo) {
-          setCoverPreview(initialAlbum.cover_photo);
+          // Handle both full URLs and relative paths
+          const coverUrl = initialAlbum.cover_photo.startsWith('http') 
+            ? initialAlbum.cover_photo 
+            : `${import.meta.env.VITE_API_URL}${initialAlbum.cover_photo}`;
+          setCoverPreview(coverUrl);
         }
 
         if (initialAlbum.banner_img) {
-          setBannerPreview(initialAlbum.banner_img);
+          const bannerUrl = initialAlbum.banner_img.startsWith('http')
+            ? initialAlbum.banner_img
+            : `${import.meta.env.VITE_API_URL}${initialAlbum.banner_img}`;
+          setBannerPreview(bannerUrl);
         }
       } catch (err) {
         setError('Failed to fetch album details: ' + (err.response?.data?.error || err.message));
@@ -48,6 +56,8 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
 
     fetchData();
   }, [initialAlbum]);
+
+
 
   const getChangedData = () => {
     if (!originalAlbum) return { changes: new FormData(), hasChanges: false };
@@ -199,21 +209,23 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
   }
 
 
-  const validateAlbumName = async (name, albumId = null) => {
+  const validateAlbumName = async (name) => {
     try {
-      const params = new URLSearchParams({ name });
-      if (albumId) {
-        params.append('id', albumId);
-      }
-  
-      const response = await fetch(`/api/album/validate_album_name/?${params.toString()}`);
-      const data = await response.json();
-      return data;
+      const response = await api.get('/api/album/validate_album_name/', {
+        params: {
+          name,
+          id: album.id
+        }
+      });
+      return response.data;
     } catch (error) {
       console.error("Error validating album name:", error);
       return { exists: false, message: "Error occurred during validation" };
     }
   };
+
+
+
 
   
 

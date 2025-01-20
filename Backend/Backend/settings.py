@@ -71,8 +71,13 @@ CORS_ALLOWED_ORIGINS = [
 CORS_ALLOW_ALL_ORIGINS = True  # For development only
 # In your Django settings (settings.py)
 
-CSP_DEFAULT_SRC = ("'self'",)
-CSP_MEDIA_SRC = ("'self'","blob:", "http://localhost:8000")
+# CSP_DEFAULT_SRC = ("'self'",)
+# CSP_MEDIA_SRC = ("'self'","blob:", "http://localhost:8000")
+# # CSP_DEFAULT_SRC = ["'self'",]  # Default sources
+# # CSP_MEDIA_SRC = ["'self'", "blob:", "http://localhost:8000"]  # Media sources
+# CSP_SCRIPT_SRC = ["'self'", "'unsafe-inline'"]  # Adjust as needed
+# CSP_STYLE_SRC = ["'self'", "'unsafe-inline'"]  # For inline styles if necessary
+# CSP_IMG_SRC = ["'self'", "http://localhost:8000", "data:"]  # For images
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -99,7 +104,9 @@ INSTALLED_APPS = [
     'album',
     'channels',
     'rest_framework_simplejwt.token_blacklist',
-    'csp',
+    'playlist',
+    # 'csp',
+    # 'django_csp', 
 ]
 
 AUTH_USER_MODEL = 'users.CustomUser'
@@ -121,11 +128,7 @@ MIDDLEWARE = [
     
 ]
 
-# CSP_DEFAULT_SRC = ["'self'",]  # Default sources
-# CSP_MEDIA_SRC = ["'self'", "blob:", "http://localhost:8000"]  # Media sources
-CSP_SCRIPT_SRC = ["'self'", "'unsafe-inline'"]  # Adjust as needed
-CSP_STYLE_SRC = ["'self'", "'unsafe-inline'"]  # For inline styles if necessary
-CSP_IMG_SRC = ["'self'", "http://localhost:8000", "data:"]  # For images
+
 # Add these headers to your response
 SECURE_CONTENT_TYPE_NOSNIFF = False
 CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
@@ -282,3 +285,15 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 
 SITE_ID = 1
+
+
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION': 'redis://127.0.0.1:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
+}

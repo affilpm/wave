@@ -92,7 +92,7 @@ class Album(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
+    duration = models.PositiveIntegerField(default=0, help_text="Total duration of the album in seconds")
     class Meta:
         ordering = ['-created_at']
 

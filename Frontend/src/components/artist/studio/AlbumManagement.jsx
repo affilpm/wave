@@ -36,24 +36,24 @@ const AlbumManagement = () => {
       fetchAlbums();
     }, []);
   
-    const handleEditAlbum = async (albumId) => {
-      try {
-        const response = await api.get(`/api/album/albums/${albumId}/`);
-        setSelectedAlbum(response.data);
-        setIsEditModalOpen(true);
-      } catch (err) {
-        setError('Failed to fetch album details');
-        console.error('Error fetching album details:', err);
-      }
-    };
+    // const handleEditAlbum = async (albumId) => {
+    //   try {
+    //     const response = await api.get(`/api/album/albums/${albumId}/`);
+    //     setSelectedAlbum(response.data);
+    //     setIsEditModalOpen(true);
+    //   } catch (err) {
+    //     setError('Failed to fetch album details');
+    //     console.error('Error fetching album details:', err);
+    //   }
+    // };
   
-    const handleSaveAlbum = (updatedAlbum) => {
-      setAlbums(prevAlbums =>
-        prevAlbums.map(album =>
-          album.id === updatedAlbum.id ? updatedAlbum : album
-        )
-      );
-    };
+    // const handleSaveAlbum = (updatedAlbum) => {
+    //   setAlbums(prevAlbums =>
+    //     prevAlbums.map(album =>
+    //       album.id === updatedAlbum.id ? updatedAlbum : album
+    //     )
+    //   );
+    // };
   
 
   // Toggle album visibility
@@ -213,10 +213,6 @@ const AlbumManagement = () => {
 
 
 
-
-
-
-
           {filteredAlbums.length === 0 && (
             <div className="text-center py-8 text-gray-400">
               {loading ? 'Loading albums...' : 'No albums found matching your search.'}
@@ -255,7 +251,7 @@ const AlbumManagement = () => {
             </div>
         </div>
         )}
-            <Modal
+        <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
       >

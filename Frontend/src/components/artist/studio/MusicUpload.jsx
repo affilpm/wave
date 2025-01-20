@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
-import { Music, Image as ImageIcon, X, ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Music, Image as ImageIcon, X, ChevronDown, ChevronUp, Search,  Edit2 } from 'lucide-react';
 import api from '../../../api';
 import { openModal, closeModal } from '../../../slices/modalSlice'; // Import actions
 import { debounce } from 'lodash';
+// import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import { toast } from 'react-toastify';
+import Cropper from 'react-easy-crop';
 
 const MusicUpload = () => {
 
@@ -37,7 +39,13 @@ const MusicUpload = () => {
     const [focusedGenreIndex, setFocusedGenreIndex] = useState(-1);
     const [sortOrder, setSortOrder] = useState('asc');
 
-    
+
+    const [showCropper, setShowCropper] = useState(false);
+    const [originalImage, setOriginalImage] = useState(null);
+    const imageRef = useRef(null);
+
+
+
     // Create a debounced function to check track name
     const checkTrackName = debounce(async (name) => {
       if (!name) {
@@ -179,6 +187,30 @@ const MusicUpload = () => {
   
 
 
+
+
+
+    function centerAspectCrop(mediaWidth, mediaHeight) {
+      return centerCrop(
+        makeAspectCrop(
+          {
+            unit: '%',
+            width: 90,
+          },
+          1,
+          mediaWidth,
+          mediaHeight
+        ),
+        mediaWidth,
+        mediaHeight
+      );
+    }
+
+    
+
+
+    const [imageInputKey, setImageInputKey] = useState(Date.now());
+
     const handleFileChange = (e, type) => {
       const file = e.target.files[0];
       if (file) {
@@ -190,11 +222,10 @@ const MusicUpload = () => {
               cover: 'Please select an image file',
             }));
             toast.error('Please select a valid image file');
-            e.target.value = ''; // Reset input
-            setFiles((prev) => ({ ...prev, [type]: null }));
+            resetImageInput();
             return;
           }
-    
+  
           const allowedImageTypes = ['image/jpeg', 'image/png', 'image/jpg'];
           if (!allowedImageTypes.includes(file.type)) {
             setFileErrors((prev) => ({
@@ -202,27 +233,48 @@ const MusicUpload = () => {
               cover: 'Only JPG, JPEG, and PNG images are accepted',
             }));
             toast.error('Only JPG, JPEG, and PNG images are accepted');
-            e.target.value = ''; // Reset input
-            setFiles((prev) => ({ ...prev, [type]: null }));
+            resetImageInput();
             return;
           }
-    
+  
           if (file.size > 5 * 1024 * 1024) {
             setFileErrors((prev) => ({
               ...prev,
               cover: 'Image must be smaller than 5MB',
             }));
             toast.error('Image must be smaller than 5MB');
-            e.target.value = ''; // Reset input
-            setFiles((prev) => ({ ...prev, [type]: null }));
+            resetImageInput();
             return;
           }
-    
+  
           // Clear errors for valid cover file
           setFileErrors((prev) => ({
             ...prev,
             cover: null,
           }));
+  
+          // Check image dimensions before deciding to show cropper
+          const reader = new FileReader();
+          reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+              // Only show cropper if image is larger than 500x500
+              if (img.width > 500 || img.height > 500) {
+                setOriginalImage(reader.result);
+                setShowCropper(true);
+                setZoom(1);
+                setCrop({ x: 0, y: 0 });
+              } else {
+                // If image is small enough, use it directly
+                setCoverPreview(reader.result);
+                setFiles((prev) => ({ ...prev, cover: file }));
+                setShowCropper(false);
+              }
+            };
+            img.src = reader.result;
+          };
+          reader.readAsDataURL(file);
+          setImageInputKey((prevKey) => prevKey + 1);
         } else if (type === 'audio') {
           // Validate audio file
           if (!file.type.startsWith('audio/')) {
@@ -264,13 +316,104 @@ const MusicUpload = () => {
             ...prev,
             audio: null,
           }));
-        }
+                // Create URL for the image
+          const reader = new FileReader();
+          reader.onload = () => {
+            // Create an image element to check dimensions
+            const img = new Image();
+            img.onload = () => {
+              setOriginalImage(reader.result);
+              if (img.width > 512 || img.height > 512) {
+                setShowCropper(true);
+              } else {
+                setCoverPreview(reader.result);
+                setShowCropper(false);
+              }
+            };
+            img.src = reader.result;
+          };
+          reader.readAsDataURL(file);
+
+            }
     
         // Set valid file
         setFiles((prev) => ({ ...prev, [type]: file }));
       }
     };
     
+
+    const resetImageInput = () => {
+      setImageInputKey(Date.now()); // Force input reset
+      setFiles(prev => ({ ...prev, cover: null }));
+      setCoverPreview(null);
+      setOriginalImage(null);
+      setShowCropper(false);
+    };
+  
+
+
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+    
+ 
+    const onCropComplete = (_, croppedAreaPixels) => {
+      setCroppedAreaPixels(croppedAreaPixels);
+    };
+  
+    const handleCropSave = async () => {
+      if (!croppedAreaPixels || !originalImage) return;
+  
+      try {
+        const canvas = document.createElement('canvas');
+        const image = new Image();
+        image.src = originalImage;
+  
+        await new Promise((resolve) => {
+          image.onload = resolve;
+        });
+  
+        // Set fixed output dimensions
+        canvas.width = 500;  // Fixed width
+        canvas.height = 500; // Fixed height for 1:1 aspect ratio
+  
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(
+          image,
+          croppedAreaPixels.x,
+          croppedAreaPixels.y,
+          croppedAreaPixels.width,
+          croppedAreaPixels.height,
+          0,
+          0,
+          canvas.width,
+          canvas.height
+        );
+  
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const croppedFile = new File([blob], 'cropped-cover.jpg', {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            });
+  
+            const previewUrl = URL.createObjectURL(blob);
+            setCoverPreview(previewUrl);
+            setFiles((prev) => ({ ...prev, cover: croppedFile }));
+            setShowCropper(false);
+          }
+        }, 'image/jpeg', 0.95);
+      } catch (error) {
+        console.error('Error cropping image:', error);
+        toast.error('Failed to crop image. Please try again.');
+      }
+    };
+  
+
+
+    
+
+
     const handleDragOver = (e) => {
       e.preventDefault();
       setDragActive(true);
@@ -728,44 +871,112 @@ const MusicUpload = () => {
           />
         </div>
 
-  {/* Cover Photo */}
+
+
+
+
+
+{/* Cover Photo Section */}
 <div>
   <label className="block text-sm font-medium text-white mb-1">
     Cover Photo (JPG/PNG only)
   </label>
   <div className="flex items-center space-x-4">
-    <div className="w-32 h-32 border rounded-lg overflow-hidden">
+    <div className="relative w-32 h-32 border rounded-lg overflow-hidden bg-gray-700">
       {coverPreview ? (
-        <img
-          src={coverPreview}
-          alt="Cover preview"
-          className="w-full h-full object-cover"
-        />
+        <div className="relative group">
+          <img
+            src={coverPreview}
+            alt="Cover preview"
+            className="w-full h-full object-cover"
+          />
+        </div>
       ) : (
-        <div className="w-full h-full flex items-center justify-center bg-gray-700">
+        <div className="w-full h-full flex items-center justify-center">
           <ImageIcon className="h-8 w-8 text-gray-400" />
         </div>
       )}
     </div>
+
     <div className="flex-1 space-y-2">
       <input
+        key={imageInputKey}
         type="file"
         accept=".jpg,.jpeg,.png"
         onChange={(e) => handleFileChange(e, 'cover')}
-        className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 
-                  file:rounded-full file:border-0 file:text-sm file:font-semibold
-                  file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-      />
+        className={`text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 
+          file:rounded-full file:border-0 file:text-sm file:font-semibold
+          file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100
+          ${coverPreview ? 'file:bg-green-50 file:text-green-700 hover:file:bg-green-100' : ''}`}
+  title={coverPreview ? 'Change file' : 'Upload image'}
+/>
       {fileErrors.cover ? (
         <p className="text-red-400 text-sm">{fileErrors.cover}</p>
       ) : (
-        <p className="text-gray-400 text-sm">Accepted formats: JPG, PNG, JPEG (max 5MB)</p>
+        <p className="text-gray-400 text-sm">
+          {coverPreview ? 'Change image - ' : 'Upload image - '}
+          Accepted formats: JPG, PNG, JPEG (max 5MB)
+        </p>
       )}
     </div>
   </div>
 </div>
-        
-        
+
+      {/* Image Cropper Modal */}
+      {showCropper && originalImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
+          <div className="bg-gray-800 p-6 rounded-lg max-w-3xl w-full">
+            <h3 className="text-lg font-medium text-white mb-4">Crop Cover Image</h3>
+            <p className="text-sm text-gray-300 mb-4">
+              Your image is larger than 500x500 pixels. Please select the area you want to use for your cover photo.
+            </p>
+            
+            <div className="relative w-full h-[60vh] bg-black rounded-lg overflow-hidden">
+              <Cropper
+                image={originalImage}
+                crop={crop}
+                zoom={zoom}
+                aspect={1}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={onCropComplete}
+                cropShape="rect"
+                showGrid={true}
+                classes={{
+                  containerClassName: 'rounded-lg'
+                }}
+              />
+            </div>
+
+            <div className="mt-4 flex flex-col space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-white text-sm">Zoom</label>
+                <span className="text-gray-400 text-sm">{Math.round(zoom * 100)}%</span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={3}
+                step={0.1}
+                value={zoom}
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                className="w-full accent-blue-500"
+              />
+            </div>
+
+            <div className="mt-6 flex justify-end space-x-3">
+
+              <button
+                type="button"
+                onClick={handleCropSave}
+                className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Apply Crop
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         
 
         {/* Video Upload */}

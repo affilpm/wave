@@ -17,8 +17,8 @@ import AlbumCreator from './components/artist/studio/AlbumCreator';
 import EditAlbum from './components/artist/studio/EditAlbum';
 // import { Register, Login } from './components/user/Authentication';
 import BrowsePage from './components/user/Browse';
-import MultiStepRegister from './components/user/Register';
-
+import MultiStepRegister from './components/user/register/MultiStepRegister';
+import LoginPage from './components/user/login/Login';
 
 export const logout= () => {
   // Completely clear all data from localStorage
@@ -45,7 +45,7 @@ function App() {
           path="/login"
           element={
             <RedirectIfLoggedIn isAuthenticated={isAuthenticated}>
-              <GoogleAuth/>
+              <LoginPage/>
             </RedirectIfLoggedIn>
           }
         />
@@ -74,7 +74,6 @@ function App() {
 
         <Route path="/adminlogin" element={<AdminLogin/>} /> 
         <Route path="/register" element={<MultiStepRegister/>} /> 
-        {/* <Route path="/logina" element={<Login/>} />  */}
 
 
 
