@@ -67,7 +67,7 @@ class Api {
     localStorage.clear()
     delete this.api.defaults.headers.common.Authorization;
     // Implement your logout logic here (e.g., redirect)
-    window.location.href = '/login';
+    // window.location.href = '/login';
   }
 
   setupInterceptors() {

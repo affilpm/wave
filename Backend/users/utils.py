@@ -12,13 +12,19 @@ def generate_otp():
 
 
 def send_otp_email(email, otp):
-    send_mail(
-        'Your OTP Code',  # Subject
-        f'Your OTP code is {otp}',  # Message body
-        'affilpm@gmail.com',  # Sender email
-        [email],  # Recipient email
-        fail_silently=False,
-    )
+    subject = 'Your Login OTP'
+    message = f'Your OTP for login is: {otp}. This OTP will expire in 30 seconds.'
+    try:
+        send_mail(
+            subject,
+            message,
+            settings.EMAIL_HOST_USER,  # Sender email
+            [email],  # Recipient email
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        raise
         
         
 
