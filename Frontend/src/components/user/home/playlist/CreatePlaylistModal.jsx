@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Music, Upload, Globe, Lock } from 'lucide-react';
-import api from '../../../api';
+import api from '../../../../api';
 
 const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
   const [newPlaylistName, setNewPlaylistName] = useState('');

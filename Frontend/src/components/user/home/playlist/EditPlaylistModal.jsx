@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Music, Upload } from 'lucide-react';
-import api from '../../../api';
+import api from '../../../../api';
 
 const EditPlaylistModal = ({ isOpen, onClose, onEditPlaylist, playlist }) => {
   const [playlistName, setPlaylistName] = useState('');

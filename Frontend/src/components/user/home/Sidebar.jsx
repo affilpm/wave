@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import { Search, Plus, Library, Heart, Music, ChevronLeft } from 'lucide-react';
-import CreatePlaylistModal from './CreatePlaylistModal';
+import CreatePlaylistModal from './playlist/CreatePlaylistModal';
 import api from '../../../api';
 
 const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {

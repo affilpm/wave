@@ -1,119 +1,102 @@
-import React, { useState } from 'react';
-import { Clock, Heart, Play } from 'lucide-react';
+// Home.js
+import React, { useState, useEffect } from "react";
+import MusicSection from "./MusicSection";
+import PlaylistSection from "./PlaylistSection";
+import api from "../../../api";
 
 const Home = () => {
   const [isPlaying, setIsPlaying] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const [musicData, setMusicData] = useState([]);
+  const [playlistData, setPlaylistData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const recentlyPlayed = [
-    { name: "Liked Songs", image: "/api/placeholder/80/80", type: "Playlist", owner: "You" },
-    { name: "Daily Mix 1", image: "/api/placeholder/80/80", type: "Mix", owner: "Spotify" },
-    { name: "Discover Weekly", image: "/api/placeholder/80/80", type: "Playlist", owner: "Spotify" },
-    { name: "Release Radar", image: "/api/placeholder/80/80", type: "Playlist", owner: "Spotify" },
-    { name: "Your Top 2023", image: "/api/placeholder/80/80", type: "Playlist", owner: "Spotify" },
-    { name: "Chill Vibes", image: "/api/placeholder/80/80", type: "Playlist", owner: "Spotify" }
-  ];
+  useEffect(() => {
+    // Fetch music data and playlists from the backend
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const musicResponse = await api.get("/api/home/music/");
+        setMusicData(musicResponse.data);
+
+        const playlistResponse = await api.get("/api/home/playlist/");
+        setPlaylistData(playlistResponse.data);
+
+        console.log(musicResponse.data, playlistResponse.data);
+      } catch (err) {
+        setError("Failed to load data.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   const featuredAlbums = [
     { name: "Album 1", artist: "Artist 1", image: "/api/placeholder/200/200", type: "Album" },
     { name: "Album 2", artist: "Artist 2", image: "/api/placeholder/200/200", type: "Album" },
-    { name: "Album 3", artist: "Artist 3", image: "/api/placeholder/200/200", type: "Album" },
-    { name: "Album 4", artist: "Artist 4", image: "/api/placeholder/200/200", type: "Album" },
-    { name: "Album 5", artist: "Artist 5", image: "/api/placeholder/200/200", type: "Album" }
+    { name: "Album 2", artist: "Artist 2", image: "/api/placeholder/200/200", type: "Album" },
+    { name: "Album 2", artist: "Artist 2", image: "/api/placeholder/200/200", type: "Album" },
   ];
 
   const topMixes = [
-    { name: "Mix 1", description: "Artist 1, Artist 2, Artist 3", image: "/api/placeholder/200/200" },
-    { name: "Mix 2", description: "Artist 4, Artist 5, Artist 6", image: "/api/placeholder/200/200" },
-    { name: "Mix 3", description: "Artist 7, Artist 8, Artist 9", image: "/api/placeholder/200/200" },
-    { name: "Mix 4", description: "Artist 10, Artist 11, Artist 12", image: "/api/placeholder/200/200" }
+    { name: "Mix 1", description: "Artist 1, Artist 2, Artist 3", image: "/api/placeholder/200/200", type: "Mix" },
+    { name: "Mix 2", description: "Artist 4, Artist 5, Artist 6", image: "/api/placeholder/200/200", type: "Mix" },
+    { name: "Mix 2", description: "Artist 4, Artist 5, Artist 6", image: "/api/placeholder/200/200", type: "Mix" },
+    { name: "Mix 2", description: "Artist 4, Artist 5, Artist 6", image: "/api/placeholder/200/200", type: "Mix" },
   ];
+
+  const handleFilterChange = (type) => {
+    setFilter(type);
+  };
+
+  const filteredItems = (items) =>
+    filter === "all" ? items : items.filter((item) => item.type === filter);
 
   return (
     <div className="flex-1 p-8 overflow-y-auto bg-gradient-to-b from-gray-900 to-black text-white">
-      <h2 className="text-2xl font-bold mb-4">Recently played</h2>
-      {/* Recently Played Section */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-8">
-        {recentlyPlayed.map((item, index) => (
-          <div
-            key={index}
-            className="bg-gray-800/50 rounded-md p-4 hover:bg-gray-800 transition-all cursor-pointer group"
+      {/* Filter Section */}
+      <div className="mb-6 flex gap-4">
+        {["all", "musicData", "album", "mix", "playlist"].map((type) => (
+          <button
+            key={type}
+            className={`px-4 py-2 rounded-full text-sm font-semibold ${
+              filter === type ? "bg-green-500 text-black" : "bg-gray-800 text-white"
+            } hover:bg-green-400 hover:text-black transition-all`}
+            onClick={() => handleFilterChange(type)}
           >
-            <div className="relative">
-              <img
-                src={item.image}
-                alt={item.name}
-                className="w-full aspect-square object-cover rounded-md shadow-lg mb-4"
-              />
-              <button
-                className="absolute bottom-2 right-2 w-10 h-10 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
-                onClick={() => setIsPlaying(!isPlaying)}
-              >
-                <Play className="w-5 h-5 text-black" />
-              </button>
-            </div>
-            <h4 className="font-semibold truncate">{item.name}</h4>
-            <p className="text-sm text-gray-400 truncate">{item.owner}</p>
-          </div>
+            {type.charAt(0).toUpperCase() + type.slice(1)}
+          </button>
         ))}
       </div>
 
-      {/* Made For You Section */}
-      <section className="mb-8">
-        <h2 className="text-2xl font-bold mb-4">most played</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          {topMixes.map((mix, index) => (
-            <div
-              key={index}
-              className="bg-gray-800/30 rounded-lg p-4 hover:bg-gray-800/60 transition-all cursor-pointer group"
-            >
-              <div className="relative">
-                <img
-                  src={mix.image}
-                  alt={mix.name}
-                  className="w-full aspect-square object-cover rounded-md shadow-lg mb-4"
-                />
-                <button
-                  className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
-                  onClick={() => setIsPlaying(!isPlaying)}
-                >
-                  <Play className="w-6 h-6 text-black" />
-                </button>
-              </div>
-              <h3 className="font-bold mb-1">{mix.name}</h3>
-              <p className="text-sm text-gray-400">{mix.description}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* New Releases Section */}
-      <section>
-        <h2 className="text-2xl font-bold mb-4">New Releases</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-          {featuredAlbums.map((album, index) => (
-            <div
-              key={index}
-              className="bg-gray-800/30 rounded-lg p-4 hover:bg-gray-800/60 transition-all cursor-pointer group"
-            >
-              <div className="relative">
-                <img
-                  src={album.image}
-                  alt={album.name}
-                  className="w-full aspect-square object-cover rounded-md shadow-lg mb-4"
-                />
-                <button
-                  className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
-                  onClick={() => setIsPlaying(!isPlaying)}
-                >
-                  <Play className="w-6 h-6 text-black" />
-                </button>
-              </div>
-              <h3 className="font-bold mb-1">{album.name}</h3>
-              <p className="text-sm text-gray-400">New release from {album.artist}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      {/* Sections */}
+      {filteredItems(musicData).length > 0 && (
+        <MusicSection
+          title="Music"
+          items={filteredItems(musicData)}
+          isPlaying={isPlaying}
+          setIsPlaying={setIsPlaying}
+        />
+      )}
+      {filteredItems(playlistData).length > 0 && (
+        <PlaylistSection
+          title="Playlists"
+          items={filteredItems(playlistData)}
+          isPlaying={isPlaying}
+          setIsPlaying={setIsPlaying}
+        />
+      )}
+      {filteredItems(featuredAlbums).length > 0 && (
+        <MusicSection
+          title="Album"
+          items={filteredItems(featuredAlbums)}
+          isPlaying={isPlaying}
+          setIsPlaying={setIsPlaying}
+        />
+      )}
     </div>
   );
 };

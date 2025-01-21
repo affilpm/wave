@@ -6,7 +6,8 @@ import { openModal, closeModal } from '../../../slices/modalSlice'; // Import ac
 import { debounce } from 'lodash';
 // import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import { toast } from 'react-toastify';
-import Cropper from 'react-easy-crop';
+import ImageCropper from '../../ImageCropper';
+
 
 const MusicUpload = () => {
 
@@ -42,9 +43,16 @@ const MusicUpload = () => {
 
     const [showCropper, setShowCropper] = useState(false);
     const [originalImage, setOriginalImage] = useState(null);
-    const imageRef = useRef(null);
-
-
+    const dispatch = useDispatch()
+    const [dragActive, setDragActive] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+    const [error, setError] = useState(null);
+    const [genres, setGenres] = useState([]);
+    const [imageInputKey, setImageInputKey] = useState(Date.now());
+    const [coverPreview, setCoverPreview] = useState(null);
+    const [crop, setCrop] = useState({ x: 0, y: 0 });
+    const [zoom, setZoom] = useState(1);
+    const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
     // Create a debounced function to check track name
     const checkTrackName = debounce(async (name) => {
@@ -109,12 +117,8 @@ const MusicUpload = () => {
       };
     }, []);
   
-  const dispatch = useDispatch()
-    const [dragActive, setDragActive] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [genres, setGenres] = useState([]);
-    const [modalSize, setModalSize] = useState('max-w-4xl');
+
+
   
     // Fetch genres from backend with authenticated request
     useEffect(() => {
@@ -134,33 +138,9 @@ const MusicUpload = () => {
       fetchGenres();
     }, []);
   
-    // Keep existing resize effect
-    useEffect(() => {
-      const handleResize = () => {
-        if (window.innerWidth < 640) {
-          setModalSize('max-w-full');
-        } else if (window.innerWidth < 1024) {
-          setModalSize('max-w-2xl');
-        } else {
-          setModalSize('max-w-4xl');
-        }
-      };
+
   
-      window.addEventListener('resize', handleResize);
-      handleResize();
-  
-      return () => window.removeEventListener('resize', handleResize);
-    }, []);
-  
-    // Keep existing handlers
-    const handleGenreChange = (genreId) => {
-      setFormData((prev) => {
-        const newSelectedGenres = prev.selectedGenres.includes(genreId)
-          ? prev.selectedGenres.filter((id) => id !== genreId)
-          : [...prev.selectedGenres, genreId];
-        return { ...prev, selectedGenres: newSelectedGenres };
-      });
-    };
+
   
   
     const handleGenreSelect = (genreId) => {
@@ -189,27 +169,9 @@ const MusicUpload = () => {
 
 
 
-
-    function centerAspectCrop(mediaWidth, mediaHeight) {
-      return centerCrop(
-        makeAspectCrop(
-          {
-            unit: '%',
-            width: 90,
-          },
-          1,
-          mediaWidth,
-          mediaHeight
-        ),
-        mediaWidth,
-        mediaHeight
-      );
-    }
-
     
 
 
-    const [imageInputKey, setImageInputKey] = useState(Date.now());
 
     const handleFileChange = (e, type) => {
       const file = e.target.files[0];
@@ -352,14 +314,10 @@ const MusicUpload = () => {
   
 
 
-    const [crop, setCrop] = useState({ x: 0, y: 0 });
-    const [zoom, setZoom] = useState(1);
-    const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+
     
  
-    const onCropComplete = (_, croppedAreaPixels) => {
-      setCroppedAreaPixels(croppedAreaPixels);
-    };
+  
   
     const handleCropSave = async () => {
       if (!croppedAreaPixels || !originalImage) return;
@@ -463,20 +421,6 @@ const MusicUpload = () => {
       }
     };
   
-    const getFilePreview = (file) => {
-      return file ? `data:${file.type};base64,${convertToBase64(file)}` : null;
-    };
-  
-    const convertToBase64 = (file) => {
-      return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = error => reject(error);
-      });
-    };
-  
-
   
 
   
@@ -570,7 +514,6 @@ const MusicUpload = () => {
     };
   
     // Update the cover photo preview section
-    const [coverPreview, setCoverPreview] = useState(null);
   
     useEffect(() => {
       if (files.cover) {
@@ -924,59 +867,13 @@ const MusicUpload = () => {
 
       {/* Image Cropper Modal */}
       {showCropper && originalImage && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4 z-50">
-          <div className="bg-gray-800 p-6 rounded-lg max-w-3xl w-full">
-            <h3 className="text-lg font-medium text-white mb-4">Crop Cover Image</h3>
-            <p className="text-sm text-gray-300 mb-4">
-              Your image is larger than 500x500 pixels. Please select the area you want to use for your cover photo.
-            </p>
-            
-            <div className="relative w-full h-[60vh] bg-black rounded-lg overflow-hidden">
-              <Cropper
-                image={originalImage}
-                crop={crop}
-                zoom={zoom}
-                aspect={1}
-                onCropChange={setCrop}
-                onZoomChange={setZoom}
-                onCropComplete={onCropComplete}
-                cropShape="rect"
-                showGrid={true}
-                classes={{
-                  containerClassName: 'rounded-lg'
-                }}
-              />
-            </div>
+      <ImageCropper
+        image={originalImage}
+        onCropComplete={setCroppedAreaPixels}
+        onCropSave={handleCropSave}
 
-            <div className="mt-4 flex flex-col space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-white text-sm">Zoom</label>
-                <span className="text-gray-400 text-sm">{Math.round(zoom * 100)}%</span>
-              </div>
-              <input
-                type="range"
-                min={1}
-                max={3}
-                step={0.1}
-                value={zoom}
-                onChange={(e) => setZoom(parseFloat(e.target.value))}
-                className="w-full accent-blue-500"
-              />
-            </div>
-
-            <div className="mt-6 flex justify-end space-x-3">
-
-              <button
-                type="button"
-                onClick={handleCropSave}
-                className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Apply Crop
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      />
+    )}
         
 
         {/* Video Upload */}
