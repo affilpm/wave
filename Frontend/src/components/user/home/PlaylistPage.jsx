@@ -4,19 +4,27 @@ import { formatDuration } from '../../../utils/formatters';
 import api from '../../../api';
 import PlaylistMenuModal from './PlaylistMenuModal';
 import { useNavigate } from 'react-router-dom';
-
+import EditPlaylistModal from './EditPlaylistModal';
 import { useParams } from 'react-router-dom';
+
 const PlaylistPage = () => {
   const [playlist, setPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const { playlistId } = useParams();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  // const handleEdit = () => {
+  //   // Implement edit functionality
+  //   console.log('Edit playlist:', playlist.id);
+  // };
   const handleEdit = () => {
-    // Implement edit functionality
-    console.log('Edit playlist:', playlist.id);
+    setIsEditModalOpen(true);
   };
-  
+
+  const handleEditPlaylist = (updatedPlaylist) => {
+    setPlaylist(updatedPlaylist);
+  };
   const navigate = useNavigate();
   const handleTogglePrivacy = async () => {
     try {
@@ -111,14 +119,14 @@ const PlaylistPage = () => {
         <button className="text-gray-400 hover:text-white transition-colors">
           <Share2 className="h-6 w-6" />
         </button>
-        <button className="text-gray-400 hover:text-white transition-colors">
-        <PlaylistMenuModal 
-  playlist={playlist}
-  onEdit={handleEdit}
-  onTogglePrivacy={handleTogglePrivacy}
-  onDelete={handleDelete}
-/>
-        </button>
+        <div className="text-gray-400 hover:text-white transition-colors">
+          <PlaylistMenuModal 
+            playlist={playlist}
+            onEdit={handleEdit}
+            onTogglePrivacy={handleTogglePrivacy}
+            onDelete={handleDelete}
+          />
+        </div>
       </div>
 
       {/* Track List */}
@@ -176,6 +184,12 @@ const PlaylistPage = () => {
           </tbody>
         </table>
       </div>
+      <EditPlaylistModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onEditPlaylist={handleEditPlaylist}
+        playlist={playlist}
+      />
     </div>
   );
 };
