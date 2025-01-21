@@ -19,7 +19,7 @@ import BrowsePage from './components/user/home/Browse';
 import MultiStepRegister from './components/user/register/MultiStepRegister';
 import LoginPage from './components/user/login/Login';
 import Home from './components/user/home/Home';
-import PlaylistPage from './components/user/home/PlaylistPage'; 
+import PlaylistPage from './components/user/home/playlist/PlaylistPage'; 
 
 export const logout= () => {
   // Completely clear all data from localStorage

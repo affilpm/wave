@@ -19,9 +19,13 @@ class Playlist(models.Model):
     duration = models.PositiveIntegerField(default=0, help_text="Total duration of the playlist in seconds")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+
+
 
     class Meta:
         ordering = ['-created_at']
+        
 
     def __str__(self):
         return f"Playlist: {self.name} by {self.created_by.email}"

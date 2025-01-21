@@ -4,22 +4,45 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Prefetch
-from .models import Playlist, PlaylistTrack
+from .models import Playlist, PlaylistTrack, Music
 from .serializers import PlaylistSerializer, PlaylistTrackSerializer
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from django.core.files.base import ContentFile
+from django.db.models import Q
+import logging
+from music.serializers import MusicSerializer
+logger = logging.getLogger(__name__)
 
 
+
+class MusicService(viewsets.ModelViewSet):
+    serializer_class = MusicSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        queryset = Music.objects.filter(is_public=True)
+        search = self.request.query_params.get('search', None)
+        
+        if search:
+            queryset = queryset.filter(name__istartswith=search)
+            
+        return queryset.select_related('artist')
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
 class PlaylistViewSet(viewsets.ModelViewSet):
     serializer_class = PlaylistSerializer
     permission_classes = [IsAuthenticated]
     
+    def get_queryset(self):
+        # Fetch playlists created by the authenticated user
+        return Playlist.objects.filter(created_by=self.request.user)
+    
+
+    
     def create(self, request, *args, **kwargs):
         try:
-            # Log the incoming data for debugging
-            
-            # Create a mutable copy of the data
             data = request.data.copy()
             
             # Handle is_public conversion
@@ -37,11 +60,8 @@ class PlaylistViewSet(viewsets.ModelViewSet):
                     },
                     status=status.HTTP_400_BAD_REQUEST
                 )
-
-            # Set the created_by field
-            serializer.validated_data['created_by'] = request.user
             
-            # Create the playlist
+            serializer.validated_data['created_by'] = request.user
             playlist = serializer.save()
             
             return Response(
@@ -50,7 +70,7 @@ class PlaylistViewSet(viewsets.ModelViewSet):
             )
             
         except Exception as e:
-            
+            logger.error(f"Error creating playlist: {str(e)}")
             return Response(
                 {
                     'error': 'Failed to create playlist',
@@ -58,15 +78,11 @@ class PlaylistViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST
             )
-
-    def get_queryset(self):
-        return Playlist.objects.filter(created_by=self.request.user)
     
     @action(detail=True, methods=['post'])
     def add_tracks(self, request, pk=None):
         playlist = self.get_object()
         
-        # Check if user owns the playlist
         if playlist.created_by != request.user:
             return Response(
                 {'error': 'You do not have permission to modify this playlist'},
@@ -77,7 +93,6 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         created_tracks = []
         
         try:
-            # Get the highest track number
             last_track = PlaylistTrack.objects.filter(playlist=playlist).order_by('-track_number').first()
             next_track_number = (last_track.track_number + 1) if last_track else 1
             
@@ -90,21 +105,14 @@ class PlaylistViewSet(viewsets.ModelViewSet):
                 )
                 created_tracks.append(track)
                 next_track_number += 1
-                
-            # Update playlist duration
-            total_duration = sum(track.music.duration for track in created_tracks)
-            playlist.duration += total_duration
-            playlist.save()
             
             serializer = PlaylistTrackSerializer(created_tracks, many=True)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
-            
         except Exception as e:
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
     @action(detail=True, methods=['post'])
     def remove_tracks(self, request, pk=None):
         playlist = self.get_object()
@@ -118,18 +126,23 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         track_ids = request.data.get('track_ids', [])
         
         try:
-            # Get tracks to remove
             tracks_to_remove = PlaylistTrack.objects.filter(
                 playlist=playlist,
                 id__in=track_ids
             )
             
-            # Update playlist duration
-            duration_reduction = sum(track.music.duration for track in tracks_to_remove)
-            playlist.duration -= duration_reduction
-            playlist.save()
+            # Convert duration to seconds before subtraction
+            duration_reduction = sum(
+                track.music.duration.total_seconds() 
+                for track in tracks_to_remove 
+                if track.music.duration
+            )
             
-            # Remove tracks
+            # Update playlist duration
+            if playlist.duration:
+                playlist.duration = max(0, playlist.duration - int(duration_reduction))
+                playlist.save()
+            
             tracks_to_remove.delete()
             
             # Reorder remaining tracks
@@ -141,6 +154,7 @@ class PlaylistViewSet(viewsets.ModelViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
             
         except Exception as e:
+            logger.error(f"Error removing tracks: {str(e)}")
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST

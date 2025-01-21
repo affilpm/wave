@@ -44,6 +44,7 @@
     "react-image-crop": "^11.0.7",
     "react-redux": "^9.2.0",
     "react-router-dom": "^7.0.2",
+    "react-select": "^5.9.0",
     "react-toastify": "^11.0.2",
     "redux": "^5.0.1",
     "redux-persist": "^6.0.0",

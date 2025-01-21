@@ -35,7 +35,14 @@ class MusicSerializer(serializers.ModelSerializer):
         return value
 
 
+# In your view
+from rest_framework import generics
+
+class PublicMusicListView(generics.ListAPIView):
+    serializer_class = MusicSerializer
     
+    def get_queryset(self):
+        return Music.objects.filter(is_public=True)    
     
 
     
