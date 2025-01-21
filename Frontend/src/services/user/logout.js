@@ -22,7 +22,7 @@ export const logout = async () => {
         console.error('Error during logout:', err);
     } finally {
         localStorage.clear();
-        window.location.href = '/login';
+        // window.location.href = '/landingpage';
     }
 };
 

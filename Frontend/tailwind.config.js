@@ -1,24 +1,31 @@
 /** @type {import('tailwindcss').Config} */
 const plugin = require('tailwindcss/plugin');
-export default {
+
+module.exports = {
   content: [
     "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",  // This will include all JS/TS files in src
+    "./src/**/*.{js,ts,jsx,tsx}",
+    "./node_modules/@shadcn/ui/**/*.js",
   ],
   theme: {
-    extend: {
-      scrollbar: {
-        DEFAULT: {
-          '::-webkit-scrollbar': { width: '8px' },
-          '::-webkit-scrollbar-thumb': { background: '#888', borderRadius: '4px' },
-          '::-webkit-scrollbar-thumb:hover': { background: '#555' },
-        },
-      },
-    },
+    extend: {},
   },
   plugins: [
+    // Custom scrollbar utilities
     plugin(function ({ addUtilities }) {
       addUtilities({
+        '.scrollbar-default': {
+          '&::-webkit-scrollbar': {
+            width: '8px',
+          },
+          '&::-webkit-scrollbar-thumb': {
+            background: '#888',
+            borderRadius: '4px',
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            background: '#555',
+          },
+        },
         '.scrollbar-hidden': {
           '&::-webkit-scrollbar': {
             display: 'none',
@@ -29,4 +36,4 @@ export default {
       });
     }),
   ],
-}
+};

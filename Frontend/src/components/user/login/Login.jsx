@@ -179,7 +179,7 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
       localStorage.setItem('accessToken', response.data.tokens.access);
       localStorage.setItem('refreshToken', response.data.tokens.refresh);
       api.defaults.headers.common['Authorization'] = `Bearer ${response.data.tokens.access}`;
-      window.location.href = '/dashboard';
+      window.location.href = '/home';
     } catch (err) {
       if (err.response?.data?.error?.includes('expired')) {
         setError('OTP has expired. Please request a new one.');

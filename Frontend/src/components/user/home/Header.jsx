@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ChevronLeft, ChevronRight, Home, Compass } from 'lucide-react';
 import { useSelector } from 'react-redux';
-import { useArtistStatus } from '../../hooks/useArtistStatus';
+import { useArtistStatus } from '../../../hooks/useArtistStatus';
 
 const Header = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -43,7 +43,7 @@ const Header = () => {
         {/* Home Button */}
         <button
           className="flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/home')}
         >
           <Home className="h-6 w-6" />
           <span className="text-base font-medium">Home</span>
