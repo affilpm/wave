@@ -15,10 +15,11 @@ import MusicUpload from './components/artist/studio/MusicUpload';
 import StudioPage from './pages/artist/StudioPage';
 import AlbumCreator from './components/artist/studio/AlbumCreator';
 import EditAlbum from './components/artist/studio/EditAlbum';
-// import { Register, Login } from './components/user/Authentication';
-import BrowsePage from './components/user/Browse';
+import BrowsePage from './components/user/home/Browse';
 import MultiStepRegister from './components/user/register/MultiStepRegister';
 import LoginPage from './components/user/login/Login';
+import Home from './components/user/home/Home';
+import PlaylistPage from './components/user/home/PlaylistPage'; 
 
 export const logout= () => {
   // Completely clear all data from localStorage
@@ -34,7 +35,7 @@ function App() {
     <Router>
       <Routes>
 
-        <Route path="/" element={
+        <Route path="/landingpage" element={
             <RedirectIfLoggedIn isAuthenticated={isAuthenticated}>
               <LandingPage />
             </RedirectIfLoggedIn>
@@ -53,7 +54,7 @@ function App() {
         <Route path="/logout" element={<Logout/>} />
 
         <Route element={<PrivateRoute isAuthenticated={isAuthenticated} />}>
-          <Route path="/home" element={<HomePage />} />
+
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/studio" element={<StudioPage/>} />
           <Route path="/musicupload" element={<MusicUpload/>} />
@@ -61,9 +62,15 @@ function App() {
           <Route path="/editalbum/:id" element={<EditAlbum/>} />
           <Route path="/discover" element={<BrowsePage/>} />
 
+          <Route path="/" element={<HomePage />}>
+              <Route path="/home" element={<Home/>} />
+              <Route path="/playlist/:playlistId" element={<PlaylistPage/>} />
 
 
 
+
+
+          </Route>
 
         </Route>
 

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import Sidebar from '../../components/user/Sidebar';
-import Header from '../../components/user/Header';
-import MusicPlayer from '../../components/user/MusicPlayer';
-import Home from '../../components/user/home';
+import Sidebar from '../../components/user/home/Sidebar';
+import Header from '../../components/user/home/Header';
+import MusicPlayer from '../../components/user/home/MusicPlayer';
 
+
+import { useNavigate, Routes, Route, Outlet } from 'react-router-dom';
 const HomePage = () => {
   const navigate = useNavigate();
   const [isSidebarExpanded, setSidebarExpanded] = useState(true);
@@ -42,7 +42,7 @@ const HomePage = () => {
         {/* Main Content - Added padding at bottom for music player */}
         <main className="flex-1 overflow-y-auto">
           <div className="h-full pb-24"> {/* Added padding-bottom for music player space */}
-            <Home />
+          <Outlet /> 
           </div>
         </main>
       </div>
