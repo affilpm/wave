@@ -1,8 +1,8 @@
-// MusicSection.js
+// PlaylistSection.js
 import React from "react";
 import { Play } from "lucide-react";
 
-const MusicSection = ({ title, items, isPlaying, setIsPlaying }) => {
+const AlbumSection = ({ title, items, isPlaying, setIsPlaying }) => {
   return (
     <section className="mb-8">
       <h2 className="text-2xl font-bold mb-4">{title}</h2>
@@ -26,7 +26,7 @@ const MusicSection = ({ title, items, isPlaying, setIsPlaying }) => {
               </button>
             </div>
             <h3 className="font-bold mb-1">{item.name}</h3>
-            {item.owner && <p className="text-sm text-gray-400">{item.owner}</p>}
+            {item.created_by && <p className="text-sm text-gray-400">{item.created_by}</p>}
             {item.description && <p className="text-sm text-gray-400">{item.description}</p>}
             {item.artist && (
               <p className="text-sm text-gray-400">{item.artist}</p>
@@ -38,4 +38,4 @@ const MusicSection = ({ title, items, isPlaying, setIsPlaying }) => {
   );
 };
 
-export default MusicSection;
+export default AlbumSection;

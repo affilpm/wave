@@ -3,12 +3,15 @@ import React, { useState, useEffect } from "react";
 import MusicSection from "./MusicSection";
 import PlaylistSection from "./PlaylistSection";
 import api from "../../../api";
+import AlbumSection from "./AlbumSection";
 
 const Home = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [filter, setFilter] = useState("all");
-  const [musicData, setMusicData] = useState([]);
+  const [musiclistData, setMusiclistData] = useState([]);
   const [playlistData, setPlaylistData] = useState([]);
+  const [AlbumlistData, setAlbumlistData] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -17,13 +20,18 @@ const Home = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const musicResponse = await api.get("/api/home/music/");
-        setMusicData(musicResponse.data);
+        const musiclistResponse = await api.get("/api/home/musiclist/");
+        setMusiclistData(musiclistResponse.data);
 
         const playlistResponse = await api.get("/api/home/playlist/");
         setPlaylistData(playlistResponse.data);
 
-        console.log(musicResponse.data, playlistResponse.data);
+        const AlbumlistResponse = await api.get("/api/home/albumlist/");
+        setAlbumlistData(AlbumlistResponse.data);
+
+        console.log('e',playlistResponse.data);
+        console.log('fddf',AlbumlistResponse.data);
+
       } catch (err) {
         setError("Failed to load data.");
       } finally {
@@ -73,10 +81,10 @@ const Home = () => {
       </div>
 
       {/* Sections */}
-      {filteredItems(musicData).length > 0 && (
+      {filteredItems(musiclistData).length > 0 && (
         <MusicSection
           title="Music"
-          items={filteredItems(musicData)}
+          items={filteredItems(musiclistData)}
           isPlaying={isPlaying}
           setIsPlaying={setIsPlaying}
         />
@@ -89,10 +97,10 @@ const Home = () => {
           setIsPlaying={setIsPlaying}
         />
       )}
-      {filteredItems(featuredAlbums).length > 0 && (
-        <MusicSection
+      {filteredItems(AlbumlistData).length > 0 && (
+        <AlbumSection
           title="Album"
-          items={filteredItems(featuredAlbums)}
+          items={filteredItems(AlbumlistData)}
           isPlaying={isPlaying}
           setIsPlaying={setIsPlaying}
         />

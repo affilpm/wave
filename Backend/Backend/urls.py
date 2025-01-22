@@ -29,6 +29,8 @@ urlpatterns = [
     path('api/album/', include('album.urls')), 
     path('api/playlist/', include('playlist.urls')), 
     path('api/home/', include('home.urls')), 
+    path('api/library/', include('library.urls')), 
+    
     
     
     
