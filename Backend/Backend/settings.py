@@ -106,6 +106,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'playlist',
     'home',
+    'library',
     # 'csp',
     # 'django_csp', 
 ]
