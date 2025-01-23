@@ -30,6 +30,8 @@ urlpatterns = [
     path('api/playlist/', include('playlist.urls')), 
     path('api/home/', include('home.urls')), 
     path('api/library/', include('library.urls')), 
+    path('api/premium/', include('premium.urls')), 
+    
     
     
     

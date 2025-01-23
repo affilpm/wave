@@ -79,6 +79,8 @@ class PlaylistViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
     
+
+
     @action(detail=True, methods=['post'])
     def add_tracks(self, request, pk=None):
         playlist = self.get_object()
@@ -91,13 +93,20 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         
         tracks_data = request.data.get('tracks', [])
         created_tracks = []
-        
+        already_existing_tracks = []
+
         try:
             last_track = PlaylistTrack.objects.filter(playlist=playlist).order_by('-track_number').first()
             next_track_number = (last_track.track_number + 1) if last_track else 1
             
             for track_data in tracks_data:
                 music_id = track_data.get('music')
+                
+                # Check if the track already exists in the playlist
+                if PlaylistTrack.objects.filter(playlist=playlist, music_id=music_id).exists():
+                    already_existing_tracks.append(music_id)
+                    continue  # Skip this track
+                
                 track = PlaylistTrack.objects.create(
                     playlist=playlist,
                     music_id=music_id,
@@ -105,9 +114,16 @@ class PlaylistViewSet(viewsets.ModelViewSet):
                 )
                 created_tracks.append(track)
                 next_track_number += 1
-            
+
+            if already_existing_tracks:
+                return Response(
+                    {'error': f'Track already exist in the playlist.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             serializer = PlaylistTrackSerializer(created_tracks, many=True)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+
         except Exception as e:
             return Response(
                 {'error': str(e)},

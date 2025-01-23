@@ -6,7 +6,7 @@ import UploadOptions from './UploadOptions';
 import RecentActivity from './RecentActivity';
 import Modal from '../../modal';
 import { useDispatch, useSelector } from 'react-redux';
-import { openModal, closeModal } from '../../../slices/modalSlice';
+import { openModal, closeModal } from '../../../slices/artist/modalSlice';
 import MusicUpload from './MusicUpload';
 import AlbumCreator from './AlbumCreator';
 import MusicManagement from './MusicManagement';

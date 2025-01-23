@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import { Music, Image as ImageIcon, X, ChevronDown, ChevronUp, Search,  Edit2 } from 'lucide-react';
 import api from '../../../api';
-import { openModal, closeModal } from '../../../slices/modalSlice'; // Import actions
+import { openModal, closeModal } from '../../../slices/artist/modalSlice'; // Import actions
 import { debounce } from 'lodash';
 // import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import { toast } from 'react-toastify';
@@ -800,19 +800,21 @@ const MusicUpload = () => {
 
 
         {/* Release Date */}
-        <div>
-          <label htmlFor="releaseDate" className="block text-sm  font-medium text-white mb-1">
-            Release Date
-          </label>
-          <input
-            id="releaseDate"
-            type="datetime-local"
-            name="releaseDate"
-            value={formData.releaseDate}
-            onChange={handleInputChange}
-            className="w-full p-2 border rounded-md text-white bg-gray-700"
-          />
-        </div>
+{/* Release Date */}
+<div>
+  <label htmlFor="releaseDate" className="block text-sm font-medium text-white mb-1">
+    Release Date
+  </label>
+  <input
+    id="releaseDate"
+    type="datetime-local"
+    name="releaseDate"
+    value={formData.releaseDate}
+    onChange={handleInputChange}
+    className="w-full p-2 border rounded-md text-white bg-gray-700"
+    max={new Date().toISOString().slice(0, 16)} // Restrict to current date and time
+  />
+</div>
 
 
 

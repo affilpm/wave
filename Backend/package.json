@@ -3,6 +3,7 @@
     "axios": "^1.7.9",
     "dotenv": "^16.4.7",
     "jwt-decode": "^4.0.0",
+    "razorpay": "^2.9.5",
     "react-google-login": "^5.2.2"
   }
 }

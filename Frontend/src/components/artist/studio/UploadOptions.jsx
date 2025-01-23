@@ -4,7 +4,7 @@ import StudioCard from './StudioCard';
 import MusicUpload from './MusicUpload';
 import AlbumCreator from './AlbumCreator';
 import { useDispatch, useSelector } from 'react-redux';
-import { openModal } from '../../../slices/modalSlice';
+import { openModal } from '../../../slices/artist/modalSlice';
 
 const UploadOptions = () => {
   const dispatch = useDispatch();
