@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { clearUserData } from '../../slices/userSlice';
+import { clearUserData } from '../../slices/user/userSlice';
 import { useSelector, useDispatch } from 'react-redux';
 import { adminLogout } from '../../services/admin/adminLogout';
 

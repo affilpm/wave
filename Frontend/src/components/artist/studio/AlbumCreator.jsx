@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { albumService } from '../../../services/artist/albumService'
 import api from '../../../api';
 import { useDispatch } from 'react-redux';
-import { openModal, closeModal } from '../../../slices/modalSlice';
+import { openModal, closeModal } from '../../../slices/artist/modalSlice';
 import { debounce } from 'lodash';
 
 const AlbumCreator = () => {
@@ -425,6 +425,7 @@ return (
                   onChange={handleInputChange}
                   required
                   className="w-full p-2 rounded-md border border-gray-600 bg-gray-700 text-white"
+                  max={new Date().toISOString().slice(0, 16)} // Restrict to current date and time
                 />
               </div>
               <p className="text-xs text-gray-400 mt-2">Select the release date and time for your album.</p>

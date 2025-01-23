@@ -107,6 +107,7 @@ INSTALLED_APPS = [
     'playlist',
     'home',
     'library',
+    'premium',
     # 'csp',
     # 'django_csp', 
 ]
@@ -169,7 +170,7 @@ WSGI_APPLICATION = 'Backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'w',  # Replace with your database name
+        'NAME': 'wave',  # Replace with your database name
         'USER': 'postgres',  # Replace with your PostgreSQL username
         'PASSWORD': '1234',  # Replace with your PostgreSQL password
         'HOST': 'localhost',  # Set to your PostgreSQL host, e.g., 'localhost' or an IP address

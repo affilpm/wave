@@ -2,14 +2,17 @@
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import { persistStore, persistReducer, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER } from 'redux-persist';
 import storage from 'redux-persist/lib/storage';
-import userReducer from './slices/userSlice';
+import userReducer from './slices/user/userSlice';
 import adminReducer from './slices/admin/adminSlice'; // Import the admin slice
-import modalReducer from './slices/modalSlice'
+import modalReducer from './slices/artist/modalSlice'
+import playlistReducer from './slices/user/playlistSlice';
+
 // Root reducer
 const rootReducer = combineReducers({
   user: userReducer,
   admin: adminReducer, // Add the admin slice
   modal: modalReducer,
+  playlists: playlistReducer,
 });
 
 const persistConfig = {

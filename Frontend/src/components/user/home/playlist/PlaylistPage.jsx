@@ -98,13 +98,13 @@ const PlaylistPage = () => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="m-6 p-4 bg-red-900/20 border border-red-500 text-red-500 rounded-lg">
-        {error}
-      </div>
-    );
-  }
+  // if (error) {
+  //   return (
+  //     <div className="m-6 p-4 bg-red-900/20 border border-red-500 text-red-500 rounded-lg">
+  //       {error}
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 via-black to-black text-white">

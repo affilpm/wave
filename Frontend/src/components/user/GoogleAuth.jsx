@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useDispatch } from 'react-redux';
-import { setUserData } from '../../slices/userSlice';
+import { setUserData } from '../../slices/user/userSlice';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api';
 import { ACCESS_TOKEN, REFRESH_TOKEN, GOOGLE_CLIENT_ID } from '../../constants/authConstants';

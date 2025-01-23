@@ -15,12 +15,13 @@ import MusicUpload from './components/artist/studio/MusicUpload';
 import StudioPage from './pages/artist/StudioPage';
 import AlbumCreator from './components/artist/studio/AlbumCreator';
 import EditAlbum from './components/artist/studio/EditAlbum';
-import BrowsePage from './components/user/home/Browse';
+import BrowsePage from './components/user/home/dashboard/Browse';
 import MultiStepRegister from './components/user/register/MultiStepRegister';
 import LoginPage from './components/user/login/Login';
-import Home from './components/user/home/Home';
+import Dashboard from './components/user/home/dashboard/Dashboard';
 import PlaylistPage from './components/user/home/playlist/PlaylistPage'; 
-
+import { Navigate } from 'react-router-dom';
+import Premium from './components/user/Premium';
 export const logout= () => {
   // Completely clear all data from localStorage
   localStorage.clear();
@@ -61,9 +62,11 @@ function App() {
           <Route path="/albumcreator" element={<AlbumCreator/>} />
           <Route path="/editalbum/:id" element={<EditAlbum/>} />
           <Route path="/discover" element={<BrowsePage/>} />
+          <Route path="/premium" element={<Premium/>} />
+
 
           <Route path="/" element={<HomePage />}>
-              <Route path="/home" element={<Home/>} />
+              <Route path="/home" element={<Dashboard/>} />
               <Route path="/playlist/:playlistId" element={<PlaylistPage/>} />
 
 
@@ -71,6 +74,7 @@ function App() {
 
 
           </Route>
+          <Route path="/" element={<Navigate to="/home" />} />
 
         </Route>
 
