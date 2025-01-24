@@ -1,10 +1,12 @@
 import React, {useState} from "react";
 import { Search, Plus, Library, Heart, Music, ChevronLeft, MoreVertical, Share2, Delete, Edit } from 'lucide-react';
-import api
+import api from "../../../../api";
+import SavedPlaylistSectionMenuModal from "./SavedPlaylistSectionMenuModal";
 
-from "../../../../api";
+
 const SavedPlaylistSection = ({ playlists, isSidebarExpanded, setLibraryPlaylists }) => {
     const [activeMenu, setActiveMenu] = useState(null);
+  
     const handleMenuAction = async (e, action, playlist) => {
       e.stopPropagation();
       setActiveMenu(null);
@@ -20,7 +22,7 @@ const SavedPlaylistSection = ({ playlists, isSidebarExpanded, setLibraryPlaylist
         }
       }
     };
-
+  
     const handleMenuClick = (e, playlistId) => {
       e.stopPropagation();
       setActiveMenu(activeMenu === playlistId ? null : playlistId);
@@ -72,27 +74,19 @@ const SavedPlaylistSection = ({ playlists, isSidebarExpanded, setLibraryPlaylist
                     >
                       <MoreVertical className="h-5 w-5 text-gray-400" />
                     </button>
-                    {activeMenu === playlist.id && (
-                      <div className="absolute right-0 top-12 w-48 bg-gray-800 rounded-md shadow-lg z-50">
-                        <div className="py-1">
-                          <button
-                            onClick={(e) => handleMenuAction(e, 'delete', playlist)}
-                            className="flex items-center w-full px-4 py-2 text-sm text-red-400 hover:bg-gray-700"
-                          >
-                            <Delete className="h-4 w-4 mr-3" />
-                            Remove from library
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </>
                 )}
               </div>
+              <SavedPlaylistSectionMenuModal
+                activeMenu={activeMenu} 
+                playlist={playlist} 
+                handleMenuAction={handleMenuAction} 
+              />
             </div>
           ))}
         </div>
       </>
     );
-};
-
-export default SavedPlaylistSection;
+  };
+  
+  export default SavedPlaylistSection;
