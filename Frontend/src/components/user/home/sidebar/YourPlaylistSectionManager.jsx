@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import PlaylistMenuModal from '../playlist/PlaylistMenuModal';
+import YourPlaylistSectionMenuModal from './YourPlaylistSectionMenuModal';
 import EditPlaylistModal from '../playlist/EditPlaylistModal';
 import api from '../../../../api';
 
-const PlaylistManager = ({ playlist, onPlaylistUpdate, onPlaylistDelete }) => {
+const YourPlaylistSectionManager = ({ playlist, onPlaylistUpdate, onPlaylistDelete }) => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   const handleTogglePrivacy = async () => {
@@ -39,7 +39,7 @@ const PlaylistManager = ({ playlist, onPlaylistUpdate, onPlaylistDelete }) => {
 
   return (
     <>
-      <PlaylistMenuModal 
+      <YourPlaylistSectionMenuModal 
         playlist={playlist}
         onEdit={() => setIsEditModalOpen(true)}
         onTogglePrivacy={handleTogglePrivacy}
@@ -56,4 +56,4 @@ const PlaylistManager = ({ playlist, onPlaylistUpdate, onPlaylistDelete }) => {
   );
 };
 
-export default PlaylistManager;
+export default YourPlaylistSectionManager;
