@@ -20,8 +20,10 @@ import MultiStepRegister from './components/user/register/MultiStepRegister';
 import LoginPage from './components/user/login/Login';
 import Dashboard from './components/user/home/dashboard/Dashboard';
 import PlaylistPage from './components/user/home/playlist/PlaylistPage'; 
-import { Navigate } from 'react-router-dom';
 import Premium from './components/user/Premium';
+
+
+import { Navigate } from 'react-router-dom';
 export const logout= () => {
   // Completely clear all data from localStorage
   localStorage.clear();
