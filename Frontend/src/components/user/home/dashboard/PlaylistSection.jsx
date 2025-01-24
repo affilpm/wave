@@ -1,7 +1,7 @@
 // PlaylistSection.js
 import React from "react";
 import { Play } from "lucide-react";
-import PlaylistMenu from "./PlaylistMenu";
+import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
 
 const PlaylistSection = ({ title, items, isPlaying, setIsPlaying }) => {
   const handlePlaylistAddSuccess = (playlistId) => {
@@ -18,7 +18,7 @@ const PlaylistSection = ({ title, items, isPlaying, setIsPlaying }) => {
             key={item.id} // Changed from index to item.id for better React key handling
             className="bg-gray-800/30 rounded-lg p-4 hover:bg-gray-800/60 transition-all cursor-pointer group relative"
           >
-            <PlaylistMenu 
+            <PlaylistSectionMenuModal
               playlist={{
                 id: item.id,
                 name: item.name,

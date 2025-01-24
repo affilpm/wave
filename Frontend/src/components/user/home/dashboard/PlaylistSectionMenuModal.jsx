@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { MoreVertical, Library } from 'lucide-react';
 import api from "../../../../api";
 
-const PlaylistMenu = ({ playlist, onSuccess }) => {
+const PlaylistSectionMenuModal = ({ playlist, onSuccess }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [error, setError] = useState(null);
@@ -130,4 +130,4 @@ const PlaylistMenu = ({ playlist, onSuccess }) => {
   );
 };
 
-export default PlaylistMenu;
+export default PlaylistSectionMenuModal;
