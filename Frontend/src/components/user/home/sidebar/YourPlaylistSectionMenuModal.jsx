@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { MoreHorizontal, Pencil, Globe, Lock, Trash2,MoreVertical } from 'lucide-react';
+import { Pencil, Globe, Lock, Trash2, MoreVertical } from 'lucide-react';
 
 const YourPlaylistSectionMenuModal = ({ playlist, onEdit, onTogglePrivacy, onDelete }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -33,7 +33,7 @@ const YourPlaylistSectionMenuModal = ({ playlist, onEdit, onTogglePrivacy, onDel
       <button
         ref={triggerRef}
         onClick={() => setIsOpen(!isOpen)}
-        className="playlist-manager-button text-gray-400 hover:text-white transition-colors p-2 rounded-full hover:bg-neutral-800"
+        className="p-1 rounded-full hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
         aria-label="More options"
       >
         <MoreVertical className="h-5 w-5 text-gray-400" />
@@ -41,9 +41,7 @@ const YourPlaylistSectionMenuModal = ({ playlist, onEdit, onTogglePrivacy, onDel
 
       {/* Menu Modal */}
       {isOpen && (
-        <div
-          className="absolute right-0 top-10 w-48 bg-gray-800 rounded-md shadow-lg z-50"
-        >
+        <div className="absolute right-0 top-12 w-48 bg-gray-800 rounded-md shadow-lg z-50">
           <div className="py-1">
             {/* Edit Option */}
             <button
