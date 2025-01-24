@@ -116,7 +116,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
     navigate('/home');
   };
 
-  const PlaylistSection = ({ 
+  const YourPlaylistSection = ({ 
     title, 
     playlists, 
     isSidebarExpanded, 
@@ -194,7 +194,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
   );
 
   // LibrarySection component
-  const LibrarySection = ({ playlists, isSidebarExpanded }) => {
+  const SavedPlaylistSection = ({ playlists, isSidebarExpanded }) => {
     const [activeMenu, setActiveMenu] = useState(null);
     const handleMenuAction = async (e, action, playlist) => {
       e.stopPropagation();
@@ -219,7 +219,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
     return (
       <>
         {isSidebarExpanded && (
-          <h3 className="px-2 py-3 text-sm font-semibold text-gray-400">Library</h3>
+          <h3 className="px-2 py-3 text-sm font-semibold text-gray-400">Saved Playlists</h3>
         )}
         <div className={`space-y-1 ${isSidebarExpanded ? 'text-base' : 'text-xs'}`}>
           {playlists.map((playlist) => (
@@ -360,7 +360,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
           <div className="text-red-400 text-center py-4">{error}</div>
         ) : (
           <>
-            <PlaylistSection 
+            <YourPlaylistSection 
               title="Your Playlists" 
               playlists={filteredOwnPlaylists}
               isSidebarExpanded={isSidebarExpanded}
@@ -369,7 +369,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
               onPlaylistDelete={handlePlaylistDelete}
             />
             {filteredLibraryPlaylists.length > 0 && (
-              <LibrarySection 
+              <SavedPlaylistSection
                 playlists={filteredLibraryPlaylists}
                 isSidebarExpanded={isSidebarExpanded}
               />

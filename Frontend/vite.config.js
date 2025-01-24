@@ -21,8 +21,7 @@ export default defineConfig({
         media-src 'self' blob: http://localhost:8000;
         font-src 'self' data:;
       `.replace(/\s+/g, ' ').trim(),
-      'Cross-Origin-Opener-Policy': 'unsafe-none',
-      'Cross-Origin-Embedder-Policy': 'unsafe-none',
+      // Keep other headers as they are
     },
   },
   optimizeDeps: {
