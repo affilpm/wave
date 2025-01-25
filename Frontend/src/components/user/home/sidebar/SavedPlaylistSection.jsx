@@ -81,6 +81,7 @@ const SavedPlaylistSection = ({ playlists, isSidebarExpanded, setLibraryPlaylist
                 activeMenu={activeMenu} 
                 playlist={playlist} 
                 handleMenuAction={handleMenuAction} 
+
               />
             </div>
           ))}

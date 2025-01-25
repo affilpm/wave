@@ -15,7 +15,7 @@ const LandingPage = () => {
         </div>
         <div className="space-x-4">
           {/* Custom Button */}
-          <button onClick={()=> navigate('/login')} className="text-white hover:text-purple-400 border border-white px-6 py-2 rounded-md">
+          <button onClick={()=> navigate('/register')} className="text-white hover:text-purple-400 border border-white px-6 py-2 rounded-md">
             Sign Up
           </button>
           <button onClick={()=> navigate('/login')} className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-md">
@@ -38,7 +38,7 @@ const LandingPage = () => {
             </p>
             <div className="space-x-4">
               {/* Custom Button */}
-              <button onClick={()=> navigate('/login')} className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-6 text-lg rounded-md">
+              <button onClick={()=> navigate('/register')} className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-6 text-lg rounded-md">
                 Get Started Free
               </button>
               <button  className="text-white border-white hover:bg-white/10 px-8 py-6 text-lg rounded-md">

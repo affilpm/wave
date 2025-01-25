@@ -16,12 +16,12 @@ export default defineConfig({
         script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://*.gstatic.com;
         style-src 'self' 'unsafe-inline' https://accounts.google.com https://*.gstatic.com;
         frame-src 'self' https://accounts.google.com https://*.gstatic.com;
-        connect-src 'self' http://localhost:8000 https://accounts.google.com https://*.gstatic.com;
+        frame-ancestors 'self' https://accounts.google.com https://*.gstatic.com;
+        connect-src 'self' http://localhost:8000 http://localhost:5173 https://accounts.google.com https://*.gstatic.com;
         img-src 'self' http://localhost:8000 https: data: blob:;
         media-src 'self' blob: http://localhost:8000;
         font-src 'self' data:;
       `.replace(/\s+/g, ' ').trim(),
-      // Keep other headers as they are
     },
   },
   optimizeDeps: {

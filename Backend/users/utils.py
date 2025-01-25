@@ -13,7 +13,7 @@ def generate_otp():
 
 def send_otp_email(email, otp):
     subject = 'Your Login OTP'
-    message = f'Your OTP for login is: {otp}. This OTP will expire in 30 seconds.'
+    message = f'Your OTP for login is: {otp}. This OTP will expire in 60 seconds.'
     try:
         send_mail(
             subject,
