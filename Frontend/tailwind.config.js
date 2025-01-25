@@ -1,4 +1,6 @@
-/** @type {import('tailwindcss').Config} */
+// import('tailwindcss').Config
+// import('tailwindcss/plugin').Plugin
+// imp
 const plugin = require('tailwindcss/plugin');
 
 module.exports = {

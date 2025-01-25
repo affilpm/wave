@@ -15,7 +15,6 @@ import MusicUpload from './components/artist/studio/MusicUpload';
 import StudioPage from './pages/artist/StudioPage';
 import AlbumCreator from './components/artist/studio/AlbumCreator';
 import EditAlbum from './components/artist/studio/EditAlbum';
-import BrowsePage from './components/user/home/dashboard/Browse';
 import MultiStepRegister from './components/user/register/MultiStepRegister';
 import LoginPage from './components/user/login/Login';
 import Dashboard from './components/user/home/dashboard/Dashboard';
@@ -63,7 +62,6 @@ function App() {
           <Route path="/musicupload" element={<MusicUpload/>} />
           <Route path="/albumcreator" element={<AlbumCreator/>} />
           <Route path="/editalbum/:id" element={<EditAlbum/>} />
-          <Route path="/discover" element={<BrowsePage/>} />
           <Route path="/premium" element={<Premium/>} />
 
 
