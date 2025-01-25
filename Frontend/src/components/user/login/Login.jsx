@@ -2,7 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Loader } from 'lucide-react';
 import api from '../../../api';
 import GoogleAuthButton from '../GoogleAuth';
-
+import { useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { setUserData } from '../../../slices/user/userSlice';
+import { decodeToken } from '../../../utils/tokenUtils';
+import { ACCESS_TOKEN, REFRESH_TOKEN, GOOGLE_CLIENT_ID } from '../../../constants/authConstants';
 
 const LoginPage = () => {
   const [isOtpSent, setIsOtpSent] = useState(false);
@@ -27,7 +31,7 @@ const LoginPage = () => {
       setLoading(false);
     }
   };
-
+  const navigate = useNavigate();
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full bg-gray-800 rounded-lg shadow-xl p-8">
@@ -141,7 +145,8 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
   const [loading, setLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
-
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
   useEffect(() => {
     let timer;
     if (resendCooldown > 0) {
@@ -176,19 +181,45 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
   
     try {
       const response = await api.post('/api/users/verify-otp/', { email, otp });
-      localStorage.setItem('accessToken', response.data.tokens.access);
-      localStorage.setItem('refreshToken', response.data.tokens.refresh);
+      console.log('OTP Verification Response:', response.data);
+
+      // Store tokens
+      localStorage.setItem(ACCESS_TOKEN, response.data.tokens.access);
+      localStorage.setItem(REFRESH_TOKEN, response.data.tokens.refresh);
+      
+      // Decode token
+      const decodedToken = decodeToken(response.data.tokens.access);
+      console.log('Decoded Token:', decodedToken);
+
+      // Dispatch user data
+      dispatch(setUserData({
+        email: decodedToken.email,
+        first_name: decodedToken.first_name,
+        last_name: decodedToken.last_name,
+        image: decodedToken.image || null,
+        isAuthenticated: true,
+      }));
+
+      // Store user data in localStorage
+      localStorage.setItem('userData', JSON.stringify({
+        user_id: decodedToken.user_id,
+        email: decodedToken.email,
+        first_name: decodedToken.first_name,
+        last_name: decodedToken.last_name,
+        image: decodedToken.image || null,
+      }));
+      localStorage.setItem('isAuthenticated', 'true');
+
+
+      // Set default Authorization header
       api.defaults.headers.common['Authorization'] = `Bearer ${response.data.tokens.access}`;
-      window.location.href = '/home';
+
+
+      // Navigate to home
+      navigate('/home');
     } catch (err) {
-      if (err.response?.data?.error?.includes('expired')) {
-        setError('OTP has expired. Please request a new one.');
-        setResendCooldown(0);
-      } else if (err.response?.data?.error === 'Invalid OTP') {
-        setError('Invalid OTP. Please try again or request a new one.');
-      } else {
-        setError(err.response?.data?.error || 'Failed to verify OTP');
-      }
+      console.error('OTP Verification Error:', err);
+      setError(err.response?.data?.error || 'Failed to verify OTP');
     } finally {
       setLoading(false);
     }
