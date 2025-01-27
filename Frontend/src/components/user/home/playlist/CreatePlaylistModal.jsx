@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Music, Upload, Globe, Lock } from 'lucide-react';
 import api from '../../../../api';
+import { toast } from 'react-toastify';
 
 const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
   const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -15,13 +16,15 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
     const file = e.target.files[0];
     if (file) {
       // Validate file type
-      if (!['image/jpeg', 'image/png'].includes(file.type)) {
-        setError('Please upload only JPG or PNG images');
+      if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
+        setError('Please upload only JPG, JPEG or PNG images');
+        toast.error('Please upload only JPG, JPEG or PNG images'); // Show toast error
         return;
       }
       // Validate file size (e.g., 5MB limit)
       if (file.size > 5 * 1024 * 1024) {
         setError('Image size should be less than 5MB');
+        toast.error('Image size should be less than 5MB'); // Show toast error
         return;
       }
       
@@ -37,26 +40,36 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
       setError('Playlist name is required');
       return;
     }
-
+    
+    if (!description.trim()) {
+      setError('Description is required');
+      return;
+    }
+  
+    if (!coverPhoto) {
+      setError('Cover photo is required');
+      return;
+    }
+  
     setError('');
     setIsLoading(true);
-
+  
     try {
       const formData = new FormData();
       formData.append('name', newPlaylistName.trim());
       formData.append('description', description.trim());
       formData.append('is_public', isPublic);
-      
+  
       if (coverPhoto) {
         formData.append('cover_photo', coverPhoto);
       }
-      
+  
       const response = await api.post('/api/playlist/playlists/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
-      
+  
       // Create a simplified playlist object for the sidebar
       const newPlaylist = {
         name: response.data.name,
@@ -65,10 +78,10 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
         songCount: 0,
         type: 'Playlist'
       };
-      
+  
       onCreatePlaylist(newPlaylist);
       resetForm();
-      onClose();
+      onClose(); // Close the modal after creation
     } catch (error) {
       console.error('Error creating playlist:', error);
       const errorMessage = error.response?.data?.details || 
@@ -89,6 +102,11 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
     setError('');
   };
 
+  const handleClose = () => {
+    resetForm();  // Reset the form state when the modal is closed
+    onClose();  // Call the onClose prop to close the modal
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -96,8 +114,9 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
       <div className="bg-gray-900 rounded-lg w-full max-w-md p-6 mx-4">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-white">Create New Playlist</h2>
+
           <button 
-            onClick={onClose}
+            onClick={handleClose}  // Call handleClose to reset and close
             className="text-gray-400 hover:text-white transition-colors"
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -164,16 +183,18 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
 
         <div className="flex justify-end gap-3">
           <button
-            onClick={onClose}
+            onClick={handleClose}  // Call handleClose to reset and close
             className="px-4 py-2 rounded-full text-white hover:bg-gray-800 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleCreatePlaylist}
-            disabled={!newPlaylistName.trim()}
+            disabled={!newPlaylistName.trim() || !description.trim() || !coverPhoto}
             className={`px-6 py-2 rounded-full bg-green-500 text-white font-medium transition-colors ${
-              newPlaylistName.trim() ? 'hover:bg-green-400' : 'opacity-50 cursor-not-allowed'
+              newPlaylistName.trim() && description.trim() && coverPhoto
+                ? 'hover:bg-green-400'
+                : 'opacity-50 cursor-not-allowed'
             }`}
           >
             Create

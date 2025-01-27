@@ -7,6 +7,11 @@ from rest_framework.response import Response
 from music.models import Music, Album
 from playlist.models import Playlist
 from .serializers import Music_ListSerializer, Playlist_ListSerializer, Album_ListSerializer
+from rest_framework.decorators import api_view, permission_classes
+from playlist.serializers import PlaylistSerializer
+from django.db.models import Q
+
+
 
 class MusicListView(generics.ListAPIView):
     queryset = Music.objects.filter(is_public=True).select_related('artist')
@@ -26,13 +31,7 @@ class AlbumListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated] # Serialize the data
     
     
-# home/views.py
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from playlist.models import Playlist
-from playlist.serializers import PlaylistSerializer
-from django.db.models import Q
+
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

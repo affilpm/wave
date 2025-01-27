@@ -1,21 +1,20 @@
-
-// Converts time in HH:MM:SS.mmm format to total seconds
-// Converts time in HH:MM:SS.mmm format to total seconds
+// Converts a duration string (hh:mm:ss.ms) to seconds
 export const convertToSeconds = (duration) => {
     if (!duration) return 0; // If duration is undefined or empty, return 0 seconds
   
     const [hours, minutes, seconds] = duration.split(':');
-    const [secs, ms] = seconds.split('.');
+    const [secs, ms] = (seconds || '0').split('.'); // Default to '0' if seconds is undefined
   
     return (
       parseInt(hours) * 3600 + 
       parseInt(minutes) * 60 + 
       parseInt(secs) + 
-      parseInt(ms) / 1000000
+      (ms ? parseInt(ms) / 1000000 : 0)
     );
-  };
-  // Converts total seconds to "X hr Y min" or "X min Y sec" format
-  export const convertToHrMinFormat = (seconds) => {
+};
+
+// Converts total seconds to "X hr Y min" or "X min Y sec" format
+export const convertToHrMinFormat = (seconds) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const remainingSeconds = Math.floor(seconds % 60);
@@ -26,13 +25,13 @@ export const convertToSeconds = (duration) => {
     if (remainingSeconds > 0 || hours === 0) result += `${remainingSeconds} sec`;
   
     return result.trim();
-  };
-  
-// Combine two durations and return the total duration in "X hr Y min" or "X min Y sec" format
-export const combineDurations = (duration1, duration2) => {
-    const totalSeconds = convertToSeconds(duration1) + convertToSeconds(duration2);
+};
+
+// Combine multiple durations and return the total duration in "X hr Y min" or "X min Y sec" format
+export const combineDurations = (durations) => {
+    const totalSeconds = durations.reduce((acc, duration) => acc + convertToSeconds(duration), 0);
     return convertToHrMinFormat(totalSeconds);
-  };
+};
 
 
 // utils/formatters.js

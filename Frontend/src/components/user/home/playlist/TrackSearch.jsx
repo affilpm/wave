@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, X } from 'lucide-react';
+import { Search, X, Plus } from 'lucide-react';
 import api from '../../../../api';
 
 const TrackSearch = ({ playlistId, onTracksUpdate }) => {
@@ -103,7 +103,7 @@ const TrackSearch = ({ playlistId, onTracksUpdate }) => {
                   </div>
                   <div className="ml-auto opacity-0 group-hover:opacity-100">
                     <div className="w-8 h-8 rounded-full bg-green-500 flex items-center justify-center">
-                      <span className="text-black text-xl">+</span>
+                    <Plus className="text-black text-xl" />
                     </div>
                   </div>
                 </button>
