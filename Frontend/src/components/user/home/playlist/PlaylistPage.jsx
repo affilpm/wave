@@ -1,27 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Pause, Clock, Heart, Share2, X } from 'lucide-react';
-import { formatDuration } from '../../../../utils/formatters';
+import { Play, Pause, Clock, Plus, Share2, X, Shuffle } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../../../../api';
 import PlaylistMenuModal from './PlaylistMenuModal';
 import EditPlaylistModal from './EditPlaylistModal';
 import TrackSearch from './TrackSearch';
+import { combineDurations } from '../../../../utils/formatters';
+import { formatDuration } from '../../../../utils/formatters';
 
 const PlaylistPage = () => {
   const [playlist, setPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isShuffling, setIsShuffling] = useState(false);
   const [currentTrackId, setCurrentTrackId] = useState(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const { playlistId } = useParams();
   const navigate = useNavigate();
 
-  const totalDuration = playlist?.tracks?.reduce(
-    (acc, track) => acc + (track.music_details?.duration || 0),
-    0
-  );
+  const [totalDuration, setTotalDuration] = useState('');
 
+  
+  useEffect(() => {
+    const calculateTotalDuration = () => {
+      if (playlist?.tracks?.length) {
+        const combined = playlist.tracks.reduce((acc, track) => {
+          const trackDuration = track.music_details?.duration || '00:00:00'; // Default to '00:00:00' if undefined
+          return combineDurations(acc, trackDuration);
+        }, '00:00:00');
+        setTotalDuration(combined);
+      }
+    };
+  
+    calculateTotalDuration();
+  }, [playlist]);
+  
   const handleEdit = () => setIsEditModalOpen(true);
   
   const handleEditPlaylist = (updatedPlaylist) => setPlaylist(updatedPlaylist);
@@ -68,6 +82,7 @@ const PlaylistPage = () => {
     try {
       const response = await api.get(`/api/playlist/playlists/${playlistId}/`);
       setPlaylist(response.data);
+      console.log(response.data);
     } catch (err) {
       setError('Failed to refresh playlist');
     }
@@ -78,6 +93,7 @@ const PlaylistPage = () => {
       try {
         const response = await api.get(`/api/playlist/playlists/${playlistId}/`);
         setPlaylist(response.data);
+        console.log(response.data);
       } catch (err) {
         setError('Failed to load playlist');
       } finally {
@@ -97,14 +113,6 @@ const PlaylistPage = () => {
       </div>
     );
   }
-
-  // if (error) {
-  //   return (
-  //     <div className="m-6 p-4 bg-red-900/20 border border-red-500 text-red-500 rounded-lg">
-  //       {error}
-  //     </div>
-  //   );
-  // }
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 via-black to-black text-white">
@@ -132,17 +140,9 @@ const PlaylistPage = () => {
           </span>
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight">{playlist.name}</h1>
           <div className="flex items-center gap-4 text-gray-300">
-            <img 
-              src={playlist.created_by_details?.avatar || "/api/placeholder/24/24"}
-              alt="Creator"
-              className="w-8 h-8 rounded-full"
-            />
-            <div className="flex flex-col">
-              <span className="font-medium">{playlist.created_by_details?.username}</span>
-              <div className="text-sm">
-                {playlist.tracks?.length || 0} songs • {formatDuration(totalDuration)}
-              </div>
-            </div>
+            <span className="text-sm">
+              Created by <span className="text-white">{playlist.created_by_details?.first_name}</span> • {playlist.tracks?.length || 0} songs • {totalDuration}
+            </span>
           </div>
         </div>
       </div>
@@ -161,10 +161,17 @@ const PlaylistPage = () => {
         </button>
         
         <button
-          className="p-2 text-gray-400 hover:text-white transition-colors"
+          className={`p-2 text-gray-400 hover:text-white transition-colors ${isShuffling ? 'text-green-500' : ''}`}
+          onClick={() => setIsShuffling(!isShuffling)}
         >
-          <Heart className="h-6 w-6" />
+          <Shuffle className="h-6 w-6" />
         </button>
+        
+        <button
+  className="group p-1 border-2 border-gray-400 rounded-full w-8 h-8 flex items-center justify-center transition-all duration-200 transform group-hover:scale-90 hover:border-gray-100 hover:bg-transparent"
+>
+  <Plus className="h-6 w-6 text-gray-400 group-hover:text-white transition-colors" />
+</button>
         
         <button
           className="p-2 text-gray-400 hover:text-white transition-colors"
@@ -185,18 +192,18 @@ const PlaylistPage = () => {
         <table className="w-full border-collapse">
           <thead>
             <tr className="text-gray-400 border-b border-gray-800">
-              <th className="font-normal text-left py-3 w-12">#</th>
-              <th className="font-normal text-left py-3">Title</th>
-              <th className="font-normal text-left py-3 hidden md:table-cell">Album</th>
-              <th className="font-normal text-left py-3 hidden md:table-cell">Added</th>
-              <th className="font-normal text-right py-3 pr-8">
+              <th className="font-normal text-left py-3 w-12 pl-4">#</th>
+              <th className="font-normal text-left py-3 pl-3">Title</th>
+              <th className="font-normal text-left py-3 hidden md:table-cell pl-3">Artist</th>
+              <th className="font-normal text-left py-3 hidden md:table-cell pl-3">Added</th>
+              <th className="font-normal text-center py-3 w-20">
                 <Clock className="h-4 w-4 inline" />
               </th>
-              <th className="w-8"></th>
+              <th className="w-8 pr-4"></th>
             </tr>
           </thead>
           <tbody>
-            {playlist.tracks?.map((track, index) => (
+            {playlist.tracks?.map((track) => (
               <tr
                 key={track.id}
                 className={`group hover:bg-white/10 transition-colors ${
@@ -204,9 +211,9 @@ const PlaylistPage = () => {
                 }`}
               >
                 <td className="py-3 pl-4">
-                  <div className="flex items-center justify-center w-6">
+                  <div className="flex items-center justify-start w-6">
                     <span className="group-hover:hidden">
-                      {currentTrackId === track.id ? '▶️' : index + 1}
+                      {currentTrackId === track.id ? '▶️' : track.track_number}
                     </span>
                     <button
                       className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
@@ -216,33 +223,28 @@ const PlaylistPage = () => {
                     </button>
                   </div>
                 </td>
-                <td className="py-3">
+                <td className="py-3 pl-3">
                   <div className="flex items-center gap-3">
                     <img
-                      src={track.music_details?.album?.cover_photo || "/api/placeholder/40/40"}
-                      alt={track.music_details?.title}
+                      src={track.music_details?.cover_photo || "/api/placeholder/40/40"}
+                      alt={track.music_details?.artist_full_name}
                       className="w-10 h-10 rounded-md"
                     />
-                    <div className="flex flex-col">
-                      <span className="font-medium">
-                        {track.music_details?.title}
-                      </span>
-                      <span className="text-sm text-gray-400">
-                        {track.music_details?.artist?.name}
-                      </span>
-                    </div>
+                    <span className="font-medium">
+                      {track.music_details?.name}
+                    </span>
                   </div>
                 </td>
-                <td className="py-3 hidden md:table-cell text-gray-400">
-                  {track.music_details?.album?.name}
+                <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
+                  {track.music_details?.artist_full_name}
                 </td>
-                <td className="py-3 hidden md:table-cell text-gray-400">
-                  {new Date(track.created_at).toLocaleDateString()}
+                <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
+                  {track.music_details?.release_date}
                 </td>
-                <td className="py-3 text-right text-gray-400">
-                  {formatDuration(track.music_details?.duration)}
+                <td className="py-3 text-center text-gray-400 w-20">
+                {formatDuration(track.music_details?.duration)} {/* Format each track's duration */}
                 </td>
-                <td className="py-3 pr-4">
+                <td className="py-3 pr-4 text-right">
                   <button
                     className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-all"
                     onClick={() => handleRemoveTrack(track.id)}

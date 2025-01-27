@@ -7,7 +7,10 @@ import YourPlaylistSection from './YourPlaylistSection';
 import SavedPlaylistSection from './SavedPlaylistSection';
 
 const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
+  // State for managing the search query in the library
   const [librarySearchQuery, setLibrarySearchQuery] = useState('');
+
+  // State for managing user's own playlists (including "Liked Songs")
   const [ownPlaylists, setOwnPlaylists] = useState([
     { 
       name: 'Liked Songs', 
@@ -18,28 +21,37 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
       type: 'Playlist'
     }
   ]);
+
+  // State for managing playlists added to the library
   const [libraryPlaylists, setLibraryPlaylists] = useState([]);
+
+  // State for modal visibility (create playlist)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+
+  // Loading and error state for playlist fetching
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const navigate = useNavigate();
 
+  // Fetch playlists (user's own and library playlists) on component mount
   useEffect(() => {
     const fetchPlaylists = async () => {
       try {
+        // Fetch user's own playlists
         const ownPlaylistsResponse = await api.get('/api/playlist/playlists/');
         const formattedOwnPlaylists = ownPlaylistsResponse.data.map(playlist => ({
           id: playlist.id,
           name: playlist.name,
           icon: null,
-          image: playlist.cover_photo || "/api/placeholder/40/40",
-          songCount: playlist.tracks?.length || 0,
-          type: 'Playlist',
-          description: playlist.description,
-          isPublic: playlist.is_public
+          image: playlist.cover_photo || "/api/placeholder/40/40", // Use a placeholder if no cover photo
+          songCount: playlist.tracks?.length || 0, // Number of tracks in the playlist
+          type: 'Playlist', // Type of playlist
+          description: playlist.description, // Playlist description
+          is_public: playlist.is_public // Public or private status
         }));
 
+        // Fetch playlists added to the library
         const libraryPlaylistsResponse = await api.get('/api/library/playlists/');
         const formattedLibraryPlaylists = libraryPlaylistsResponse.data.map(playlist => ({
           id: playlist.id,
@@ -47,27 +59,29 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
           icon: null,
           image: playlist.cover_photo || "/api/placeholder/40/40",
           songCount: playlist.tracks?.length || 0,
-          type: 'Added Playlist',
+          type: 'Added Playlist', // Differentiates library playlists
           description: playlist.description,
-          isPublic: playlist.is_public
+          is_public: playlist.is_public
         }));
 
+        // Update state with fetched playlists
         setOwnPlaylists(prevPlaylists => [
-          prevPlaylists[0], // Keep Liked Songs
+          prevPlaylists[0], // Keep the "Liked Songs" playlist
           ...formattedOwnPlaylists
         ]);
         setLibraryPlaylists(formattedLibraryPlaylists);
       } catch (err) {
         console.error('Error fetching playlists:', err);
-        setError('Failed to load playlists');
+        setError('Failed to load playlists'); // Handle fetch errors
       } finally {
-        setIsLoading(false);
+        setIsLoading(false); // Stop the loading spinner
       }
     };
 
     fetchPlaylists();
   }, []);
 
+  // Handle the creation of a new playlist
   const handleCreatePlaylist = (newPlaylist) => {
     setOwnPlaylists(prevPlaylists => [...prevPlaylists, {
       id: newPlaylist.id,
@@ -77,10 +91,11 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
       songCount: 0,
       type: 'Playlist',
       description: newPlaylist.description,
-      isPublic: newPlaylist.is_public
+      is_public: newPlaylist.is_public
     }]);
   };
 
+  // Filter playlists based on the search query
   const filteredOwnPlaylists = ownPlaylists.filter(playlist =>
     playlist.name.toLowerCase().includes(librarySearchQuery.toLowerCase())
   );
@@ -88,14 +103,12 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
     playlist.name.toLowerCase().includes(librarySearchQuery.toLowerCase())
   );
 
+  // Handle navigation to a specific playlist
   const handlePlaylistClick = (playlistId) => {
     navigate(`/playlist/${playlistId}`);
   };
 
-  const handlesPlaylistClick = (playlistId) => {
-    navigate(`./`);
-  };
-
+  // Handle updates to a playlist
   const handlePlaylistUpdate = (updatedPlaylist) => {
     setOwnPlaylists(prevPlaylists => 
       prevPlaylists.map(playlist => 
@@ -104,19 +117,19 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
           name: updatedPlaylist.name,
           description: updatedPlaylist.description,
           image: updatedPlaylist.cover_photo || playlist.image,
-          isPublic: updatedPlaylist.is_public
+          is_public: updatedPlaylist.is_public
         } : playlist
       )
     );
   };
-  
+
+  // Handle deletion of a playlist
   const handlePlaylistDelete = (playlistId) => {
     setOwnPlaylists(prevPlaylists => 
       prevPlaylists.filter(playlist => playlist.id !== playlistId)
     );
-    navigate('/home');
+    navigate('/home'); // Redirect after deletion
   };
-
 
   return (
     <div className="h-full flex flex-col bg-black">
@@ -165,13 +178,14 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
       </div>
 
       {/* Playlist Lists */}
-      <div className="flex-1 overflow-y-auto px-2 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-gray-900 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto px-2">
         {isLoading ? (
           <div className="text-gray-400 text-center py-4">Loading playlists...</div>
         ) : error ? (
           <div className="text-red-400 text-center py-4">{error}</div>
         ) : (
           <>
+            {/* Section for user-created playlists */}
             <YourPlaylistSection 
               title="Your Playlists" 
               playlists={filteredOwnPlaylists}
@@ -180,6 +194,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
               onPlaylistUpdate={handlePlaylistUpdate}
               onPlaylistDelete={handlePlaylistDelete}
             />
+            {/* Section for library playlists */}
             {filteredLibraryPlaylists.length > 0 && (
               <SavedPlaylistSection
                 playlists={filteredLibraryPlaylists}
@@ -200,4 +215,5 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
     </div>
   );
 };
+
 export default Sidebar;

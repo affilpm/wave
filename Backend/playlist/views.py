@@ -8,7 +8,7 @@ from .models import Playlist, PlaylistTrack, Music
 from .serializers import PlaylistSerializer, PlaylistTrackSerializer
 from django.db.models import Q
 import logging
-from music.serializers import MusicSerializer
+from .serializers import MusicSerializer
 logger = logging.getLogger(__name__)
 
 
@@ -20,16 +20,19 @@ class MusicService(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = Music.objects.filter(is_public=True)
         search = self.request.query_params.get('search', None)
+        playlist_id = self.request.query_params.get('playlist_id', None)
         
         if search:
             queryset = queryset.filter(name__istartswith=search)
             
+        if playlist_id:
+            # Exclude tracks that are already in the playlist
+            existing_track_ids = PlaylistTrack.objects.filter(
+                playlist_id=playlist_id
+            ).values_list('music_id', flat=True)
+            queryset = queryset.exclude(id__in=existing_track_ids)
+            
         return queryset.select_related('artist')
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
     
 class PlaylistViewSet(viewsets.ModelViewSet):
     serializer_class = PlaylistSerializer
@@ -175,3 +178,14 @@ class PlaylistViewSet(viewsets.ModelViewSet):
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
+            
+class PlaylistTrackViewSet(viewsets.ModelViewSet):
+   serializer_class = PlaylistTrackSerializer
+   permission_classes = [IsAuthenticated]
+   
+   def get_queryset(self):
+        queryset = PlaylistTrack.objects.filter(playlist__created_by=self.request.user)
+        playlist_id = self.request.query_params.get('playlist', None)
+        if playlist_id:
+            queryset = queryset.filter(playlist_id=playlist_id)
+        return queryset

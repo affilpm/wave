@@ -1,11 +1,10 @@
-// PlaylistSection.js
 import React from "react";
 import { Play } from "lucide-react";
 import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
 
-const PlaylistSection = ({ title, items, isPlaying, setIsPlaying }) => {
+const PlaylistSection = ({ title, items, isPlaying, setIsPlaying, onPlaylistClick }) => {
   const handlePlaylistAddSuccess = (playlistId) => {
-    console.log('Playlist added to library successfully:', playlistId);
+    console.log("Playlist added to library successfully:", playlistId);
     // Here you could trigger a refresh of the library data if needed
   };
 
@@ -17,6 +16,7 @@ const PlaylistSection = ({ title, items, isPlaying, setIsPlaying }) => {
           <div
             key={item.id} // Changed from index to item.id for better React key handling
             className="bg-gray-800/30 rounded-lg p-4 hover:bg-gray-800/60 transition-all cursor-pointer group relative"
+            onClick={() => onPlaylistClick(item.id)} // Pass the playlist ID to the callback
           >
             <PlaylistSectionMenuModal
               playlist={{
@@ -35,7 +35,7 @@ const PlaylistSection = ({ title, items, isPlaying, setIsPlaying }) => {
               <button
                 className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
                 onClick={(e) => {
-                  e.stopPropagation();
+                  e.stopPropagation(); // Prevent the click event from propagating to the parent div
                   setIsPlaying(!isPlaying);
                 }}
               >

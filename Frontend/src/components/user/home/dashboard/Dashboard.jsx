@@ -4,6 +4,10 @@ import MusicSection from "./MusicSection";
 import PlaylistSection from "./PlaylistSection";
 import api from "../../../../api";
 import AlbumSection from "./AlbumSection";
+import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+
+
 
 const Dashboard = () => {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -14,6 +18,8 @@ const Dashboard = () => {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const navigate = useNavigate();
+  const userEmail = useSelector((state) => state.user.email);
 
   useEffect(() => {
     // Fetch music data and playlists from the backend
@@ -41,21 +47,17 @@ const Dashboard = () => {
 
     fetchData();
   }, []);
+//  const playlistId = playlistData
 
-  const featuredAlbums = [
-    { name: "Album 1", artist: "Artist 1", image: "/api/placeholder/200/200", type: "Album" },
-    { name: "Album 2", artist: "Artist 2", image: "/api/placeholder/200/200", type: "Album" },
-    { name: "Album 2", artist: "Artist 2", image: "/api/placeholder/200/200", type: "Album" },
-    { name: "Album 2", artist: "Artist 2", image: "/api/placeholder/200/200", type: "Album" },
-  ];
-
-  const topMixes = [
-    { name: "Mix 1", description: "Artist 1, Artist 2, Artist 3", image: "/api/placeholder/200/200", type: "Mix" },
-    { name: "Mix 2", description: "Artist 4, Artist 5, Artist 6", image: "/api/placeholder/200/200", type: "Mix" },
-    { name: "Mix 2", description: "Artist 4, Artist 5, Artist 6", image: "/api/placeholder/200/200", type: "Mix" },
-    { name: "Mix 2", description: "Artist 4, Artist 5, Artist 6", image: "/api/placeholder/200/200", type: "Mix" },
-  ];
-
+  const handlePlaylistClick = (playlistId) => {
+    const playlist = playlistData.find((item) => item.id === playlistId);
+    if (playlist && playlist.created_by === userEmail) {
+      navigate(`/playlist/${playlistId}`);
+    } else {
+      alert("You don't have access to this playlist.");
+    }
+  };
+  
   const handleFilterChange = (type) => {
     setFilter(type);
   };
@@ -95,6 +97,7 @@ const Dashboard = () => {
           items={filteredItems(playlistData)}
           isPlaying={isPlaying}
           setIsPlaying={setIsPlaying}
+          onPlaylistClick={handlePlaylistClick}
         />
       )}
       {filteredItems(AlbumlistData).length > 0 && (
