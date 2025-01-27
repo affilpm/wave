@@ -29,6 +29,7 @@ class Playlist(models.Model):
 
     def __str__(self):
         return f"Playlist: {self.name} by {self.created_by.email}"
+    
 
 class PlaylistTrack(models.Model):
     playlist = models.ForeignKey(Playlist, on_delete=models.CASCADE)

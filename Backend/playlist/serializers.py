@@ -1,11 +1,52 @@
 # serializers.py
 from rest_framework import serializers
 from .models import Playlist, PlaylistTrack
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import viewsets
 from music.serializers import MusicSerializer
 from users.serializers import UserSerializer
 from music.models import Music
 from rest_framework import serializers
 from datetime import timedelta
+from music.models import Genre
+import os
+class MusicSerializer(serializers.ModelSerializer):
+    genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
+    artist_email = serializers.SerializerMethodField()
+    artist_full_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Music
+        fields = [
+            'id', 'name', 'cover_photo', 'audio_file', 
+            'video_file', 'genres', 'release_date',
+            'approval_status', 'duration', 'artist', 
+            'artist_email', 'artist_full_name', 'is_public'
+        ]
+
+    def get_artist_email(self, obj):
+        # Assuming the artist field is related to the User model
+        return obj.artist.user.email if obj.artist and obj.artist.user else None
+
+    def get_artist_full_name(self, obj):
+        # Combine first name and last name
+        if obj.artist and obj.artist.user:
+            return f"{obj.artist.user.first_name} {obj.artist.user.last_name}".strip()
+        return None
+
+    def get_genres(self, obj):
+        # Return a list of genre names
+        return [genre.name for genre in obj.genres.all()]
+    
+    def validate_cover_photo(self, value):
+        # Check the length of the filename
+        file_name, file_extension = os.path.splitext(value.name)
+        if len(file_name) > 250:
+            raise serializers.ValidationError("Ensure this filename has at most 100 characters.")
+        return value
+    
+    
+    
 class PlaylistTrackSerializer(serializers.ModelSerializer):
     music_details = MusicSerializer(source='music', read_only=True)
     created_at = serializers.DateTimeField(read_only=True)
@@ -14,18 +55,16 @@ class PlaylistTrackSerializer(serializers.ModelSerializer):
         model = PlaylistTrack
         fields = ['id', 'music', 'track_number', 'music_details', 'created_at']
         read_only_fields = ['id', 'created_at']
-
-    # def to_representation(self, instance):
-    #     # Add error handling for music details
-    #     representation = super().to_representation(instance)
-    #     if not representation.get('music_details'):
-    #         representation['music_details'] = {
-    #             'title': 'Unknown Track',
-    #             'duration': 0,
-    #             'artist': {'name': 'Unknown Artist'},
-    #             # 'album': {'name': 'Unknown Album', 'cover_photo': None}
-    #         }
-    #     return representation
+        
+        
+class PlaylistTrackViewSet(viewsets.ModelViewSet):
+   serializer_class = PlaylistTrackSerializer
+   permission_classes = [IsAuthenticated]
+   
+   def get_queryset(self):
+       # Fetch playlist tracks for the authenticated user's playlists
+       return PlaylistTrack.objects.filter(playlist__created_by=self.request.user)
+   
 
 class PlaylistSerializer(serializers.ModelSerializer):
     tracks = PlaylistTrackSerializer(source='playlisttrack_set', many=True, read_only=True)
@@ -43,15 +82,7 @@ class PlaylistSerializer(serializers.ModelSerializer):
             'cover_photo': {'required': False},  # Make cover_photo optional
             'description': {'required': False},  # Make description optional
         }
-    # def get_duration_formatted(self, obj):
-    #     # Assuming 'duration' is a timedelta field
-    #     if isinstance(obj.duration, timedelta):
-    #         # Format the timedelta as a string, e.g., '3 minutes' or '1 hour 30 minutes'
-    #         total_seconds = int(obj.duration.total_seconds())
-    #         minutes, seconds = divmod(total_seconds, 60)
-    #         hours, minutes = divmod(minutes, 60)
-    #         return f"{hours} hours {minutes} minutes" if hours else f"{minutes} minutes"
-    #     return str(obj.duration)  # Fallback if not a timedelta    
+
     def create(self, validated_data):
         # Assign the current user as the creator
         user = self.context['request'].user

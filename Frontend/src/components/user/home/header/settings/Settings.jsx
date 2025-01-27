@@ -2,7 +2,6 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom'; // Import useNavigate
 import { ChevronRight, User, Bell, Globe, Lock, Shield, Volume2, Download, Plus, Clock, Info, Music, Star, ArrowLeft } from 'lucide-react';
 import { useState } from 'react';
-import { ACCESS_TOKEN } from '../../../../../constants/authConstants';
 import api from '../../../../../api'; // Import your API instance
 import CreatorStudio from './CreatorStudio';
 const Settings = () => {
