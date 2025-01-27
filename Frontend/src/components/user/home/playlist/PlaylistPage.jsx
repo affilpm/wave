@@ -5,8 +5,9 @@ import api from '../../../../api';
 import PlaylistMenuModal from './PlaylistMenuModal';
 import EditPlaylistModal from './EditPlaylistModal';
 import TrackSearch from './TrackSearch';
-import { combineDurations } from '../../../../utils/formatters';
-import { formatDuration } from '../../../../utils/formatters';
+import { formatDuration, convertToSeconds, convertToHrMinFormat } from '../../../../utils/formatters';
+
+
 
 const PlaylistPage = () => {
   const [playlist, setPlaylist] = useState(null);
@@ -25,14 +26,18 @@ const PlaylistPage = () => {
   useEffect(() => {
     const calculateTotalDuration = () => {
       if (playlist?.tracks?.length) {
-        const combined = playlist.tracks.reduce((acc, track) => {
+        // Accumulate the total duration in seconds
+        const totalSeconds = playlist.tracks.reduce((acc, track) => {
           const trackDuration = track.music_details?.duration || '00:00:00'; // Default to '00:00:00' if undefined
-          return combineDurations(acc, trackDuration);
-        }, '00:00:00');
-        setTotalDuration(combined);
+          return acc + convertToSeconds(trackDuration);
+        }, 0); // Start with 0 seconds
+
+        // Convert total seconds to formatted duration
+        const combinedDuration = convertToHrMinFormat(totalSeconds);
+        setTotalDuration(combinedDuration);
       }
     };
-  
+
     calculateTotalDuration();
   }, [playlist]);
   
