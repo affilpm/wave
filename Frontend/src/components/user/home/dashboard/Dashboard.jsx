@@ -31,11 +31,12 @@ const Dashboard = () => {
 
         const playlistResponse = await api.get("/api/home/playlist/");
         setPlaylistData(playlistResponse.data);
+        
 
         const AlbumlistResponse = await api.get("/api/home/albumlist/");
         setAlbumlistData(AlbumlistResponse.data);
 
-        console.log('e',playlistResponse.data);
+        // console.log('e',playlistResponse.data);
         console.log('fddf',AlbumlistResponse.data);
 
       } catch (err) {
@@ -67,7 +68,7 @@ const Dashboard = () => {
 
   return (
     <div className="flex-1 p-8 overflow-y-auto bg-gradient-to-b from-gray-900 to-black text-white">
-      {/* Filter Section */}
+      {/* Filter Section
       <div className="mb-6 flex gap-4">
         {["all", "musicData", "album", "mix", "playlist"].map((type) => (
           <button
@@ -80,7 +81,7 @@ const Dashboard = () => {
             {type.charAt(0).toUpperCase() + type.slice(1)}
           </button>
         ))}
-      </div>
+      </div> */}
 
       {/* Sections */}
       {filteredItems(musiclistData).length > 0 && (
@@ -104,8 +105,7 @@ const Dashboard = () => {
         <AlbumSection
           title="Album"
           items={filteredItems(AlbumlistData)}
-          isPlaying={isPlaying}
-          setIsPlaying={setIsPlaying}
+
         />
       )}
     </div>
