@@ -12,7 +12,7 @@ from .serializers import MusicSerializer
 logger = logging.getLogger(__name__)
 
 
-
+# this view is used search music and add to playlist
 class MusicService(viewsets.ModelViewSet):
     serializer_class = MusicSerializer
     permission_classes = [IsAuthenticated]
@@ -34,6 +34,8 @@ class MusicService(viewsets.ModelViewSet):
             
         return queryset.select_related('artist')
     
+    
+# used to manage playlist    
 class PlaylistViewSet(viewsets.ModelViewSet):
     serializer_class = PlaylistSerializer
     permission_classes = [IsAuthenticated]
@@ -178,7 +180,10 @@ class PlaylistViewSet(viewsets.ModelViewSet):
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
+ 
+ 
+ 
+# this view is used to list all the tracks in a playlist           
 class PlaylistTrackViewSet(viewsets.ModelViewSet):
    serializer_class = PlaylistTrackSerializer
    permission_classes = [IsAuthenticated]

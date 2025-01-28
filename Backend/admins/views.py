@@ -10,6 +10,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from users.models import CustomUser
 from artists.models import Artist
 from rest_framework.permissions import IsAuthenticated
+from .serializers import UserTableSerializer, UserStatusUpdateSerializer
+
+
+
+#used for admin login
 class AdminLoginView(TokenObtainPairView):
 
 
@@ -37,9 +42,8 @@ class AdminLoginView(TokenObtainPairView):
             
             
 
-
+#used to list users
 User = CustomUser
-from .serializers import UserTableSerializer, UserStatusUpdateSerializer
 
 class UserTableViewSet(viewsets.ModelViewSet):  # Changed from ReadOnlyModelViewSet
     queryset = User.objects.filter(is_superuser=False)
