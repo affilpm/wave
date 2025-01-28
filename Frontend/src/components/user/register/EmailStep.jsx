@@ -1,8 +1,14 @@
 import React from 'react';
 import { Loader } from 'lucide-react';
 import GoogleAuthButton from '../GoogleAuth';
+import { useNavigate } from 'react-router-dom';
 
-const EmailStep = ({ formData, errors, isSubmitting, handleChange, handleEmailSubmit }) => (
+
+const EmailStep = ({ formData, errors, isSubmitting, handleChange, handleEmailSubmit }) => {
+
+  const Navigate = useNavigate();
+
+  return (
   <>
     <div className="flex justify-center mb-8">
       <div className="w-20 h-20 bg-gray-700 rounded-full flex items-center justify-center">
@@ -21,10 +27,10 @@ const EmailStep = ({ formData, errors, isSubmitting, handleChange, handleEmailSu
 
     <div className="space-y-6">
       {/* GoogleAuthButton with proper padding */}
-      <div className="flex justify-center items-center">
-        <div className="w-full">
-          <GoogleAuthButton />
-        </div>
+      <div className="flex justify-center  px-4">
+              <div className="w-full max-w-[320px]">
+                <GoogleAuthButton />
+              </div>
       </div>
 
       <div className="relative">
@@ -71,8 +77,20 @@ const EmailStep = ({ formData, errors, isSubmitting, handleChange, handleEmailSu
           )}
         </button>
       </form>
+          {/* Toggle between Login and Signup */}
+          <div className="text-center text-sm text-gray-400">
+               <p>
+                 Already have an account?{' '}
+                 <button
+                   className="text-blue-500 hover:underline"
+                   onClick={() => Navigate('/login')}
+                 >
+                   Sign In
+                 </button>
+               </p>
+           </div>
     </div>
   </>
-);
+)};
 
 export default EmailStep;

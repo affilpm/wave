@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from .models import Artist, ArtistVerificationStatus
 from .serializers import ArtistSerializer
 from rest_framework.decorators import api_view, permission_classes
-
+from users.models import CustomUser
 
 class ArtistViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
@@ -156,3 +156,9 @@ def check_artist_status(request):
         return Response({
             'error': str(e)
         }, status=400)        
+        
+        
+        
+        
+        
+        

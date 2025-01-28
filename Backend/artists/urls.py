@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import ArtistViewSet
 from . import views
 
+
 urlpatterns = [
     # Explicitly define the URL for the request_verification action
     path('request_verification/', ArtistViewSet.as_view({'post': 'request_verification'}), name='request-verification'),
