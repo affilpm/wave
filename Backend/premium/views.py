@@ -17,6 +17,8 @@ from django.shortcuts import get_object_or_404
 from .models import PremiumPlan, UserSubscription, RazorpayTransaction
 from .serializers import PremiumPlanSerializer, UserSubscriptionSerializer, RazorpayTransactionSerializer
 from django.utils.timezone import now
+from django.db import transaction
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +65,7 @@ class CreateRazorpayOrderView(APIView):
                 'error': str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-from django.db import transaction
+
 
 class VerifyPaymentView(APIView):
     @transaction.atomic
@@ -156,10 +158,7 @@ class RazorpayTransactionViewSet(viewsets.ModelViewSet):
         return self.queryset.filter(user=self.request.user)
     
     
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.response import Response
-from .models import UserSubscription
+
 
 class CheckSubscriptionStatusViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]

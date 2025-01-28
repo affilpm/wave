@@ -7,6 +7,8 @@ from .serializers import ArtistSerializer
 from rest_framework.decorators import api_view, permission_classes
 from users.models import CustomUser
 
+
+# ViewSet for managing artists
 class ArtistViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Artist.objects.all()
@@ -92,7 +94,7 @@ class ArtistViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Artist not found'}, status=404)
         
 
-    
+    # used to edit and resend verification request to become an artist.
     @action(detail=False, methods=['POST'])
     def update_profile(self, request):
         try:
@@ -131,6 +133,7 @@ class ArtistViewSet(viewsets.ModelViewSet):
 
 
 
+#used to check if a user is an artist
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def check_artist_status(request):

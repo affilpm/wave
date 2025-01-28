@@ -1,8 +1,29 @@
-// MusicSection.js
 import React from "react";
-import { Play } from "lucide-react";
+import { Play, Pause } from "lucide-react";
+import { useDispatch, useSelector } from "react-redux";
+import { setCurrentTrack, setIsPlaying, setQueue } from "../../../../slices/user/playerSlice";
 
-const MusicSection = ({ title, items, isPlaying, setIsPlaying }) => {
+const MusicSection = ({ title, items }) => {
+  const dispatch = useDispatch();
+  const currentTrack = useSelector((state) => state.player.currentTrack);
+  const isPlaying = useSelector((state) => state.player.isPlaying);
+
+  const handlePlay = (item, index) => {
+    if (currentTrack?.id === item.id) {
+      // If clicking the currently playing track, toggle play/pause
+      dispatch(setIsPlaying(!isPlaying));
+    } else {
+      // If clicking a new track, start playing it
+      dispatch(setCurrentTrack(item));
+      dispatch(setQueue(items));
+      dispatch(setIsPlaying(true));
+    }
+  };
+
+  const isItemPlaying = (item) => {
+    return currentTrack?.id === item.id && isPlaying;
+  };
+
   return (
     <section className="mb-8">
       <h2 className="text-2xl font-bold mb-4">{title}</h2>
@@ -19,10 +40,16 @@ const MusicSection = ({ title, items, isPlaying, setIsPlaying }) => {
                 className="w-full aspect-square object-cover rounded-md shadow-lg mb-4"
               />
               <button
-                className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
-                onClick={() => setIsPlaying(!isPlaying)}
+                className={`absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center ${
+                  isItemPlaying(item) ? 'flex' : 'hidden group-hover:flex'
+                } shadow-xl hover:scale-105 transition-all`}
+                onClick={() => handlePlay(item, index)}
               >
-                <Play className="w-6 h-6 text-black" />
+                {isItemPlaying(item) ? (
+                  <Pause className="w-6 h-6 text-black" />
+                ) : (
+                  <Play className="w-6 h-6 text-black" />
+                )}
               </button>
             </div>
             <h3 className="font-bold mb-1">{item.name}</h3>

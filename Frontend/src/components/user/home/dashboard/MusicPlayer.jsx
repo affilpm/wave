@@ -1,8 +1,37 @@
 import React from 'react';
+import { useSelector, useDispatch } from 'react-redux';
 import { IconButton, Slider, Box, Typography, Avatar } from '@mui/material';
 import { PlayArrow, Pause, SkipNext, SkipPrevious } from '@mui/icons-material';
+import { 
+  setIsPlaying, 
+  setVolume, 
+  nextTrack, 
+  previousTrack } from '../../../../slices/user/playerSlice';
 
-const MusicPlayer = ({ isPlaying, handlePlayPause, handleSkip, handlePrevious, albumCover, songTitle, artistName }) => {
+  
+
+const MusicPlayer = () => {
+  const dispatch = useDispatch();
+  const { currentTrack, isPlaying, volume } = useSelector((state) => state.player);
+
+  const handlePlayPause = () => {
+    dispatch(setIsPlaying(!isPlaying));
+  };
+
+  const handleSkip = () => {
+    dispatch(nextTrack());
+  };
+
+  const handlePrevious = () => {
+    dispatch(previousTrack());
+  };
+
+  const handleVolumeChange = (event, newValue) => {
+    dispatch(setVolume(newValue));
+  };
+
+  if (!currentTrack) return null;
+
   return (
     <Box
       sx={{
@@ -21,10 +50,9 @@ const MusicPlayer = ({ isPlaying, handlePlayPause, handleSkip, handlePrevious, a
         boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.5)',
       }}
     >
-      {/* Left Section: Album Cover and Song Info */}
       <Box sx={{ display: 'flex', alignItems: 'center' }}>
         <Avatar
-          src={albumCover}
+          src={currentTrack.cover_photo}
           alt="Album Cover"
           sx={{
             width: 60,
@@ -41,17 +69,15 @@ const MusicPlayer = ({ isPlaying, handlePlayPause, handleSkip, handlePrevious, a
 
         <Box>
           <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '14px' }}>
-            {songTitle}
+            {currentTrack.name}
           </Typography>
           <Typography variant="body2" sx={{ color: 'gray', fontSize: '12px' }}>
-            {artistName}
+            {currentTrack.artist}
           </Typography>
         </Box>
       </Box>
 
-      {/* Center Section: Control Buttons */}
       <Box sx={{ display: 'flex', alignItems: 'center' }}>
-        {/* Previous Button */}
         <IconButton
           onClick={handlePrevious}
           sx={{
@@ -64,7 +90,6 @@ const MusicPlayer = ({ isPlaying, handlePlayPause, handleSkip, handlePrevious, a
           <SkipPrevious sx={{ fontSize: '30px' }} />
         </IconButton>
 
-        {/* Play/Pause Button */}
         <IconButton
           onClick={handlePlayPause}
           sx={{
@@ -78,7 +103,6 @@ const MusicPlayer = ({ isPlaying, handlePlayPause, handleSkip, handlePrevious, a
           {isPlaying ? <Pause sx={{ fontSize: '40px' }} /> : <PlayArrow sx={{ fontSize: '40px' }} />}
         </IconButton>
 
-        {/* Skip Button */}
         <IconButton
           onClick={handleSkip}
           sx={{
@@ -92,12 +116,13 @@ const MusicPlayer = ({ isPlaying, handlePlayPause, handleSkip, handlePrevious, a
         </IconButton>
       </Box>
 
-      {/* Right Section: Volume Slider */}
       <Box sx={{ width: 100, marginLeft: 2 }}>
         <Typography variant="caption" sx={{ color: 'gray' }}>
           Volume
         </Typography>
         <Slider
+          value={volume}
+          onChange={handleVolumeChange}
           sx={{
             color: 'white',
             '& .MuiSlider-thumb': {
@@ -107,7 +132,6 @@ const MusicPlayer = ({ isPlaying, handlePlayPause, handleSkip, handlePrevious, a
               backgroundColor: '#1ED760',
             },
           }}
-          defaultValue={50}
           aria-label="Volume"
           valueLabelDisplay="auto"
         />
