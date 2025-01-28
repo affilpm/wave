@@ -130,7 +130,7 @@ const GoogleAuthButton = () => {
       {loading ? (
         <div className="flex items-center justify-center space-x-2 h-10">
           <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin"></div>
-          <span className="text-sm text-gray-300">Processing...</span>
+          <span className="text-sm text-gray-300">Loading...</span>
         </div>
       ) : (
         <div ref={buttonRef} className="min-h-[40px] w-full"></div>

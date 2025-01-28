@@ -3,7 +3,7 @@ import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import AdminHeader from './AdminHeader';
 import NavTabs from './NavTabs';
-import UserTable from './UserTable';
+import UserTable from './UsersTable';
 import ArtistVerification from './ArtistVerification';
 import MusicVerification from './MusicVerification';
 

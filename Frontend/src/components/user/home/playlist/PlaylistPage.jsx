@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { Play, Pause, Clock, Plus, Share2, X, Shuffle } from 'lucide-react';
-import { useNavigate, useParams } from 'react-router-dom';
-import api from '../../../../api';
-import PlaylistMenuModal from './PlaylistMenuModal';
-import EditPlaylistModal from './EditPlaylistModal';
-import TrackSearch from './TrackSearch';
-import { formatDuration, convertToSeconds, convertToHrMinFormat } from '../../../../utils/formatters';
-
-
+import React, { useState, useEffect } from "react";
+import { Play, Pause, Clock, Plus, Share2, X, Shuffle } from "lucide-react";
+import { useNavigate, useParams } from "react-router-dom";
+import api from "../../../../api";
+import PlaylistMenuModal from "./PlaylistMenuModal";
+import EditPlaylistModal from "./EditPlaylistModal";
+import TrackSearch from "./TrackSearch";
+import {
+  formatDuration,
+  convertToSeconds,
+  convertToHrMinFormat,
+} from "../../../../utils/formatters";
 
 const PlaylistPage = () => {
   const [playlist, setPlaylist] = useState(null);
@@ -20,15 +22,14 @@ const PlaylistPage = () => {
   const { playlistId } = useParams();
   const navigate = useNavigate();
 
-  const [totalDuration, setTotalDuration] = useState('');
+  const [totalDuration, setTotalDuration] = useState("");
 
-  
   useEffect(() => {
     const calculateTotalDuration = () => {
       if (playlist?.tracks?.length) {
         // Accumulate the total duration in seconds
         const totalSeconds = playlist.tracks.reduce((acc, track) => {
-          const trackDuration = track.music_details?.duration || '00:00:00'; // Default to '00:00:00' if undefined
+          const trackDuration = track.music_details?.duration || "00:00:00"; // Default to '00:00:00' if undefined
           return acc + convertToSeconds(trackDuration);
         }, 0); // Start with 0 seconds
 
@@ -40,29 +41,29 @@ const PlaylistPage = () => {
 
     calculateTotalDuration();
   }, [playlist]);
-  
+
   const handleEdit = () => setIsEditModalOpen(true);
-  
+
   const handleEditPlaylist = (updatedPlaylist) => setPlaylist(updatedPlaylist);
 
   const handleTogglePrivacy = async () => {
     try {
       await api.patch(`/api/playlist/playlists/${playlistId}/`, {
-        is_public: !playlist.is_public
+        is_public: !playlist.is_public,
       });
-      setPlaylist(prev => ({ ...prev, is_public: !prev.is_public }));
+      setPlaylist((prev) => ({ ...prev, is_public: !prev.is_public }));
     } catch (err) {
-      setError('Failed to update playlist privacy');
+      setError("Failed to update playlist privacy");
     }
   };
 
   const handleDelete = async () => {
-    if (window.confirm('Are you sure you want to delete this playlist?')) {
+    if (window.confirm("Are you sure you want to delete this playlist?")) {
       try {
         await api.delete(`/api/playlist/playlists/${playlistId}/`);
-        navigate('/home');
+        navigate("/home");
       } catch (err) {
-        setError('Failed to delete playlist');
+        setError("Failed to delete playlist");
       }
     }
   };
@@ -70,11 +71,11 @@ const PlaylistPage = () => {
   const handleRemoveTrack = async (trackId) => {
     try {
       await api.post(`/api/playlist/playlists/${playlistId}/remove_tracks/`, {
-        track_ids: [trackId]
+        track_ids: [trackId],
       });
       handleTracksUpdate();
     } catch (err) {
-      setError('Failed to remove track');
+      setError("Failed to remove track");
     }
   };
 
@@ -89,18 +90,20 @@ const PlaylistPage = () => {
       setPlaylist(response.data);
       console.log(response.data);
     } catch (err) {
-      setError('Failed to refresh playlist');
+      setError("Failed to refresh playlist");
     }
   };
 
   useEffect(() => {
     const fetchPlaylist = async () => {
       try {
-        const response = await api.get(`/api/playlist/playlists/${playlistId}/`);
+        const response = await api.get(
+          `/api/playlist/playlists/${playlistId}/`
+        );
         setPlaylist(response.data);
         console.log(response.data);
       } catch (err) {
-        setError('Failed to load playlist');
+        setError("Failed to load playlist");
       } finally {
         setIsLoading(false);
       }
@@ -138,15 +141,21 @@ const PlaylistPage = () => {
             </button>
           </div>
         </div>
-        
+
         <div className="flex flex-col gap-4">
           <span className="text-sm font-medium uppercase tracking-wider text-gray-400">
-            {playlist.is_public ? 'Public Playlist' : 'Private Playlist'}
+            {playlist.is_public ? "Public Playlist" : "Private Playlist"}
           </span>
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight">{playlist.name}</h1>
+          <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
+            {playlist.name}
+          </h1>
           <div className="flex items-center gap-4 text-gray-300">
             <span className="text-sm">
-              Created by <span className="text-white">{playlist.created_by_details?.first_name}</span> • {playlist.tracks?.length || 0} songs • {totalDuration}
+              Created by{" "}
+              <span className="text-white">
+                {playlist.created_by_details?.first_name}
+              </span>{" "}
+              • {playlist.tracks?.length || 0} songs • {totalDuration}
             </span>
           </div>
         </div>
@@ -164,27 +173,25 @@ const PlaylistPage = () => {
             <Play className="h-6 w-6 text-black ml-1" />
           )}
         </button>
-        
+
         <button
-          className={`p-2 text-gray-400 hover:text-white transition-colors ${isShuffling ? 'text-green-500' : ''}`}
+          className={`p-2 text-gray-400 hover:text-white transition-colors ${
+            isShuffling ? "text-green-500" : ""
+          }`}
           onClick={() => setIsShuffling(!isShuffling)}
         >
           <Shuffle className="h-6 w-6" />
         </button>
-        
-        <button
-  className="group p-1 border-2 border-gray-400 rounded-full w-8 h-8 flex items-center justify-center transition-all duration-200 transform group-hover:scale-90 hover:border-gray-100 hover:bg-transparent"
->
-  <Plus className="h-6 w-6 text-gray-400 group-hover:text-white transition-colors" />
-</button>
-        
-        <button
-          className="p-2 text-gray-400 hover:text-white transition-colors"
-        >
+
+        <button className="group p-1 border-2 border-gray-400 rounded-full w-8 h-8 flex items-center justify-center transition-all duration-200 transform group-hover:scale-90 hover:border-gray-100 hover:bg-transparent">
+          <Plus className="h-6 w-6 text-gray-400 group-hover:text-white transition-colors" />
+        </button>
+
+        <button className="p-2 text-gray-400 hover:text-white transition-colors">
           <Share2 className="h-6 w-6" />
         </button>
-        
-        <PlaylistMenuModal 
+
+        <PlaylistMenuModal
           playlist={playlist}
           onEdit={handleEdit}
           onTogglePrivacy={handleTogglePrivacy}
@@ -199,8 +206,12 @@ const PlaylistPage = () => {
             <tr className="text-gray-400 border-b border-gray-800">
               <th className="font-normal text-left py-3 w-12 pl-4">#</th>
               <th className="font-normal text-left py-3 pl-3">Title</th>
-              <th className="font-normal text-left py-3 hidden md:table-cell pl-3">Artist</th>
-              <th className="font-normal text-left py-3 hidden md:table-cell pl-3">Added</th>
+              <th className="font-normal text-left py-3 hidden md:table-cell pl-3">
+                Artist
+              </th>
+              <th className="font-normal text-left py-3 hidden md:table-cell pl-3">
+                Added
+              </th>
               <th className="font-normal text-center py-3 w-20">
                 <Clock className="h-4 w-4 inline" />
               </th>
@@ -212,13 +223,13 @@ const PlaylistPage = () => {
               <tr
                 key={track.id}
                 className={`group hover:bg-white/10 transition-colors ${
-                  currentTrackId === track.id ? 'bg-white/20' : ''
+                  currentTrackId === track.id ? "bg-white/20" : ""
                 }`}
               >
                 <td className="py-3 pl-4">
                   <div className="flex items-center justify-start w-6">
                     <span className="group-hover:hidden">
-                      {currentTrackId === track.id ? '▶️' : track.track_number}
+                      {currentTrackId === track.id ? "▶️" : track.track_number}
                     </span>
                     <button
                       className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
@@ -231,7 +242,10 @@ const PlaylistPage = () => {
                 <td className="py-3 pl-3">
                   <div className="flex items-center gap-3">
                     <img
-                      src={track.music_details?.cover_photo || "/api/placeholder/40/40"}
+                      src={
+                        track.music_details?.cover_photo ||
+                        "/api/placeholder/40/40"
+                      }
                       alt={track.music_details?.artist_full_name}
                       className="w-10 h-10 rounded-md"
                     />
@@ -247,7 +261,8 @@ const PlaylistPage = () => {
                   {track.music_details?.release_date}
                 </td>
                 <td className="py-3 text-center text-gray-400 w-20">
-                {formatDuration(track.music_details?.duration)} {/* Format each track's duration */}
+                  {formatDuration(track.music_details?.duration)}{" "}
+                  {/* Format each track's duration */}
                 </td>
                 <td className="py-3 pr-4 text-right">
                   <button
@@ -262,7 +277,7 @@ const PlaylistPage = () => {
           </tbody>
         </table>
 
-        <TrackSearch 
+        <TrackSearch
           playlistId={playlistId}
           onTracksUpdate={handleTracksUpdate}
         />

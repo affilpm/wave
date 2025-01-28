@@ -11,38 +11,9 @@ from .models import CustomUser
 from datetime import timedelta
 from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework import status
-from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
-
-from datetime import timedelta
-from rest_framework.response import Response
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
 from google.auth.transport.requests import Request
-from google.oauth2 import id_token
-from .models import CustomUser  # Ensure you import your custom user model
-from .serializers import UserSerializer  # Ensure you import your user serializer
-from rest_framework_simplejwt.tokens import RefreshToken
-from django.conf import settings
-from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
 from django.core.cache import cache
-from .models import CustomUser
-from .serializers import UserSerializer, LoginSerializer
-from .utils import generate_otp, send_otp_email
-
-
-from rest_framework import status
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
-from rest_framework_simplejwt.tokens import RefreshToken
-from django.core.cache import cache
-from datetime import timedelta
-from .models import CustomUser
-from .serializers import UserSerializer
 from .utils import generate_otp, send_otp_email
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
@@ -69,6 +40,13 @@ def login(request):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+        # Check if user is active
+        if not user.is_active:
+            return Response(
+                {'message': 'Your account has been deactivated. Please contact support for assistance.'}, 
+                status=status.HTTP_403_FORBIDDEN
+            )
+
         # Generate and store OTP
         otp = generate_otp()
         cache_key = f'login_otp_{email}'
@@ -92,7 +70,6 @@ def login(request):
             {'message': str(e)}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-
 
 
 
@@ -269,13 +246,24 @@ def google_auth(request):
         user = CustomUser.objects.filter(email=email).first()
 
         if user:
+            # Check if user is active
+            if not user.is_active:
+                return Response({
+                    'message': 'Your account has been deactivated. Please contact support for assistance.'
+                }, status=403)
+                
             # Update the user if necessary
             serializer = UserSerializer(user, data={'first_name': first_name, 'last_name': last_name}, partial=True)
             if serializer.is_valid():
                 serializer.save()
         else:
             # Create a new user
-            serializer = UserSerializer(data={'email': email, 'first_name': first_name, 'last_name': last_name})
+            serializer = UserSerializer(data={
+                'email': email, 
+                'first_name': first_name, 
+                'last_name': last_name,
+                'is_active': True  # Ensure new users are active by default
+            })
             if serializer.is_valid():
                 user = serializer.save()
             else:
@@ -306,7 +294,6 @@ def google_auth(request):
         # Log the error in production (using Django logging)
         print(f"Auth error: {str(e)}")  # You can replace this with proper logging in production
         return Response({'message': str(e)}, status=400)
-
 
 
 @api_view(['POST'])
