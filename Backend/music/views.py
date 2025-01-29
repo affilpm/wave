@@ -157,6 +157,8 @@ class MusicViewSet(ModelViewSet):
         print(f"Queryset for user {self.request.user}: {queryset}")
         return queryset
         
+        
+        
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         # Completely delete the music file and cover photo

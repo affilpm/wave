@@ -20,7 +20,7 @@ import LoginPage from './components/user/login/Login';
 import Dashboard from './components/user/home/dashboard/Dashboard';
 import PlaylistPage from './components/user/home/playlist/PlaylistPage'; 
 import Premium from './components/user/home/header/Premium';
-
+import MusicShowMorePage from './components/user/home/dashboard/MusicShowMorePage';
 
 import { Navigate } from 'react-router-dom';
 export const logout= () => {
@@ -68,6 +68,7 @@ function App() {
           <Route path="/" element={<HomePage />}>
               <Route path="/home" element={<Dashboard/>} />
               <Route path="/playlist/:playlistId" element={<PlaylistPage/>} />
+              <Route path="/music-show-more" element={<MusicShowMorePage/>} />
 
 
 

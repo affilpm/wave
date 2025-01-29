@@ -5,6 +5,8 @@ import MusicPlayer from '../../components/user/home/dashboard/MusicPlayer';
 
 
 import { useNavigate, Routes, Route, Outlet } from 'react-router-dom';
+
+
 const HomePage = () => {
   const navigate = useNavigate();
   const [isSidebarExpanded, setSidebarExpanded] = useState(true);
@@ -40,7 +42,7 @@ const HomePage = () => {
         </div>
 
         {/* Main Content - Added padding at bottom for music player */}
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto scrollbar-hidden">
           <div className="h-full pb-24"> {/* Added padding-bottom for music player space */}
           <Outlet /> 
           </div>
