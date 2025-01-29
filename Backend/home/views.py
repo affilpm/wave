@@ -14,10 +14,26 @@ from django.db.models import Q
 
 
 class MusicListView(generics.ListAPIView):
-    queryset = Music.objects.filter(is_public=True).select_related('artist')
     serializer_class = Music_ListSerializer
-    permission_classes = [IsAuthenticated]  
+    permission_classes = [IsAuthenticated]
 
+    def get_queryset(self):
+        # Check if the 'top10' query parameter is present
+        top10 = self.request.query_params.get('top10', None)
+        all_songs = self.request.query_params.get('all_songs', None)
+
+        if top10 is not None:
+            # If 'top10' is present, limit to the top 10 public music items
+            return Music.objects.filter(is_public=True).select_related('artist').order_by('-created_at')[:10]
+        elif all_songs is not None:
+            # If 'all_songs' is present, return all public music items
+            return Music.objects.filter(is_public=True).select_related('artist')
+        else:
+            # Default: return all public music items
+            return Music.objects.filter(is_public=True).select_related('artist')
+
+    
+    
 class PlaylistView(generics.ListAPIView):
     queryset = Playlist.objects.filter(is_public=True) # Fetch public playlists
     serializer_class = Playlist_ListSerializer # Serialize the data

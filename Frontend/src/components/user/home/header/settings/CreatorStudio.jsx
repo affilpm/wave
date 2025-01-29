@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Music, Star, Plus, Clock, Award, Edit2, Save,  X } from 'lucide-react';
+import { Music, Star, Plus, Clock, Award, Edit2, Save, X } from 'lucide-react';
 import api from '../../../../../api';
 import 'react-toastify/dist/ReactToastify.css';
 import { ToastContainer, toast } from 'react-toastify';
+import GenreDropdown from './GenreDropdown';
 
 const VerificationStatus = {
   PENDING: 'pending',
@@ -113,23 +114,34 @@ const CreatorStudio = () => {
     }
   };
 
-  const canEdit = verificationStatus === VerificationStatus.PENDING || 
-                 verificationStatus === VerificationStatus.REJECTED;
-
-
-
   const handleCancelEdit = () => {
     setIsEditing(false);
-    // Reset to original values
     setCurrentBio(currentBio);
     setCurrentGenres(currentGenres);
   };
 
-               
+  const handleGenreSelect = (genreId) => {
+    if (isEditing) {
+      setCurrentGenres(prev => [...prev, genreId]);
+    } else {
+      setSelectedGenres(prev => [...prev, genreId]);
+    }
+  };
+
+  const handleGenreRemove = (genreId) => {
+    if (isEditing) {
+      setCurrentGenres(prev => prev.filter(id => id !== genreId));
+    } else {
+      setSelectedGenres(prev => prev.filter(id => id !== genreId));
+    }
+  };
+
+  const canEdit = verificationStatus === VerificationStatus.PENDING || 
+                 verificationStatus === VerificationStatus.REJECTED;
 
   const renderForm = (isEditMode = false) => (
     <>
-      <div className="mb-4">
+      <div className="mb-6">
         <label className="block text-sm font-medium text-gray-200 mb-2">
           Tell us about yourself
         </label>
@@ -141,25 +153,17 @@ const CreatorStudio = () => {
         />
       </div>
 
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-200 mb-2">
-          Select Genres
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-200 mb-3">
+          Select your genres
         </label>
-        <select
-          multiple
-          className="w-full bg-gray-700 text-white rounded-lg p-3"
-          value={isEditMode ? currentGenres : selectedGenres}
-          onChange={(e) => {
-            const selected = [...e.target.selectedOptions].map(option => option.value);
-            isEditMode ? setCurrentGenres(selected) : setSelectedGenres(selected);
-          }}
-        >
-          {genres.map((genre) => (
-            <option key={genre.id} value={genre.id}>
-              {genre.name}
-            </option>
-          ))}
-        </select>
+        <GenreDropdown
+          genres={genres}
+          selectedGenres={isEditMode ? currentGenres : selectedGenres}
+          onGenreSelect={handleGenreSelect}
+          onGenreRemove={handleGenreRemove}
+          isEditMode={isEditMode}
+        />
       </div>
 
       {isEditMode ? (
@@ -174,7 +178,7 @@ const CreatorStudio = () => {
           </button>
           <button
             className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            onClick={() => handleSubmit(isEditMode)}
+            onClick={() => handleSubmit(true)}
             disabled={isSubmitting || !currentBio.trim() || currentGenres.length === 0}
           >
             <Save className="h-5 w-5" />
@@ -184,7 +188,7 @@ const CreatorStudio = () => {
       ) : (
         <button
           className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={() => handleSubmit(isEditMode)}
+          onClick={() => handleSubmit(false)}
           disabled={isSubmitting || !bio.trim() || selectedGenres.length === 0}
         >
           <Plus className="h-5 w-5" />
@@ -193,26 +197,6 @@ const CreatorStudio = () => {
       )}
     </>
   );
-
-  // ... (rest of the component remains the same until the edit button section)
-
-  {verificationStatus && canEdit && (
-    <div className="mt-4">
-      {!isEditing ? (
-        <button
-          onClick={() => setIsEditing(true)}
-          className="flex items-center gap-2 text-blue-400 hover:text-blue-300"
-        >
-          <Edit2 className="h-4 w-4" />
-          Edit Profile
-        </button>
-      ) : (
-        renderForm(true)
-      )}
-    </div>
-  )}
-
-
 
   const renderStatusBadge = () => {
     const statusStyles = {
@@ -242,9 +226,9 @@ const CreatorStudio = () => {
         <h2 className="text-xl font-bold mb-4">
           {verificationStatus === VerificationStatus.APPROVED ? 'Artist Studio' : 'Creator Studio'}
         </h2>
-        <div className="bg-gray-800 rounded-lg overflow-hidden">
+        <div className="bg-gray-800 rounded-lg ">
           <div className="p-6 border-b border-gray-700">
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-4">
                 <Music className="h-8 w-8 text-blue-400" />
                 <div>
@@ -262,12 +246,12 @@ const CreatorStudio = () => {
             </div>
 
             {!verificationStatus && (
-              <div className="bg-gray-700/50 rounded-lg p-4 mb-4">
+              <div className="bg-gray-700/50 rounded-lg p-4 mb-6">
                 <div className="flex items-start gap-3">
                   <Star className="h-5 w-5 text-yellow-400 mt-0.5" />
                   <div>
-                    <div className="font-semibold mb-1">Artist Benefits</div>
-                    <ul className="text-sm text-gray-300 space-y-1">
+                    <div className="font-semibold mb-2">Artist Benefits</div>
+                    <ul className="text-sm text-gray-300 space-y-2">
                       <li>• Upload and manage your music</li>
                       <li>• Access to artist analytics</li>
                       <li>• Customize your artist profile</li>
@@ -281,14 +265,14 @@ const CreatorStudio = () => {
             {!verificationStatus && renderForm(false)}
 
             {verificationStatus && canEdit && (
-              <div className="mt-4">
+              <div className="mt-6">
                 {!isEditing ? (
                   <button
                     onClick={() => setIsEditing(true)}
                     className="flex items-center gap-2 text-blue-400 hover:text-blue-300"
                   >
                     <Edit2 className="h-4 w-4" />
-                    Edit Request
+                    Edit Profile
                   </button>
                 ) : (
                   renderForm(true)

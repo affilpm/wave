@@ -246,26 +246,3 @@ class AlbumViewSet(viewsets.ModelViewSet):
 
 
 
-
-class TrackViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = AlbumTrackSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_queryset(self):
-        """
-        Filter AlbumTrack by the artist associated with the logged-in user.
-        Only tracks belonging to albums created by the logged-in user's artist profile are shown.
-        """
-        user = self.request.user
-        # Filter tracks by the logged-in user's artist profile
-        return AlbumTrack.objects.filter(album__artist=user.artist_profile)
-    @action(detail=False, methods=['get'])
-    def available_tracks(self, request):
-        """
-        Fetch tracks available for the authenticated user.
-        This method returns tracks from albums associated with the user's artist profile.
-        """
-        tracks = self.get_queryset()
-        serializer = self.get_serializer(tracks, many=True)
-        return Response(serializer.data)
-    
