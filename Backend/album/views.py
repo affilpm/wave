@@ -15,11 +15,18 @@ from .serializers import AlbumSerializer
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 import json
+from rest_framework.parsers import JSONParser
+from music.serializers import  MusicSerializer
+from rest_framework.viewsets import ModelViewSet
+from music.models import Music, MusicApprovalStatus
+
+
+
 # Create your views here.
 
 class AlbumViewSet(viewsets.ModelViewSet):
     serializer_class = AlbumSerializer
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
@@ -102,7 +109,6 @@ class AlbumViewSet(viewsets.ModelViewSet):
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
-            
             
             
     @action(detail=False, methods=['get'])
@@ -228,9 +234,7 @@ class AlbumViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )     
 
-
-
-        
+ 
             
     @action(detail=False, methods=['get'])
     def drafts(self, request):
@@ -242,7 +246,18 @@ class AlbumViewSet(viewsets.ModelViewSet):
 
 
 
-###3
 
+class MusicViewSet(ModelViewSet):
+    queryset = Music.objects.all()
+    serializer_class = MusicSerializer
 
+    def get_queryset(self):
+        used_tracks = AlbumTrack.objects.values_list('track_id', flat=True)
 
+        queryset = Music.objects.filter(
+            artist__user=self.request.user,
+            approval_status=MusicApprovalStatus.APPROVED  # Ensure only approved tracks are retrieved
+        ).exclude(id__in=used_tracks).select_related('artist__user').prefetch_related('genres')
+
+        print(f"Queryset for user {self.request.user}: {queryset}")
+        return queryset

@@ -621,12 +621,12 @@ const MusicUpload = () => {
     
     
   return (
-    <div className="max-w-4xl mx-auto p-0">
-    <div className="bg-gray-900 rounded-lg border border-black">
-      <div className="p-6 border-b border-black ">
+    <div className="max-w-2xl mx-auto p-5">
       <div className="mb-8">
-        <h2 className="text-2xl font-bold mb-2 text-white">Upload New Track</h2>
-        <p className="text-white">Share your music with the world</p>
+        <h2 className="text-2xl p-2 font-bold mb-1 text-white">Upload New Track</h2>
+      <div className="p-1 border-b border-gray-700 "></div>
+      <p className="text-white p-1 ">Share your music with the world</p>
+
       </div>
 
 
@@ -917,8 +917,8 @@ const MusicUpload = () => {
 </button>
       </form>
     </div>
-    </div>
-    </div>
+    // </div>
+    // </div>
 
   );
 };

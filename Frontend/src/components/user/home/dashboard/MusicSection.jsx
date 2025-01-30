@@ -1,26 +1,27 @@
-import React, { useState, useEffect } from "react";
-import { Play, Pause } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { setCurrentTrack, setIsPlaying, setQueue } from "../../../../slices/user/playerSlice";
-import { useNavigate } from "react-router-dom"; // Import useNavigate for navigation
+import { useNavigate } from "react-router-dom";
 import api from "../../../../api";
 
 const MusicSection = ({ title }) => {
   const dispatch = useDispatch();
   const currentTrack = useSelector((state) => state.player.currentTrack);
   const isPlaying = useSelector((state) => state.player.isPlaying);
-
+  const scrollContainerRef = useRef(null);
+  const [isHovered, setIsHovered] = useState(false); // Track hover state
+  
   const [musiclistData, setMusiclistData] = useState([]);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate(); // Initialize useNavigate
+  const navigate = useNavigate();
 
-  // Fetch music data inside useEffect
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         const musiclistResponse = await api.get("/api/home/musiclist/?top10=true");
-        setMusiclistData(musiclistResponse.data); // Set the fetched music data
+        setMusiclistData(musiclistResponse.data);
       } catch (error) {
         console.error("Error fetching music data:", error);
       } finally {
@@ -29,14 +30,24 @@ const MusicSection = ({ title }) => {
     };
 
     fetchData();
-  }, []); // Empty dependency array ensures it runs only once when the component mounts
+  }, []);
 
-  const handlePlay = (item, index) => {
+  const handleScroll = (direction) => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      const scrollAmount = 300;
+      container.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
+  const handlePlay = (item, index, e) => {
+    e.stopPropagation(); // Prevent event bubbling
     if (currentTrack?.id === item.id) {
-      // If clicking the currently playing track, toggle play/pause
       dispatch(setIsPlaying(!isPlaying));
     } else {
-      // If clicking a new track, start playing it
       dispatch(setCurrentTrack(item));
       dispatch(setQueue(musiclistData));
       dispatch(setIsPlaying(true));
@@ -48,60 +59,91 @@ const MusicSection = ({ title }) => {
   };
 
   const handleShowMore = () => {
-    // Navigate to the ShowMorePage with just the title
-    navigate("/music-show-more", { state: { title } }); // Only pass title, fetch all data in ShowMorePage
+    navigate("/music-show-more", { state: { title } });
   };
 
   if (loading) {
-    return <div>Loading...</div>; // Show loading state while data is being fetched
+    return <div>Loading...</div>;
   }
 
   return (
-    
     <section className="mb-8 relative">
-      <h2 className="text-2xl p-2 font-bold mb-4">{title}</h2>
-      <div className="overflow-x-auto scrollbar-hidden">
-        <div className="flex gap-6">
-          {musiclistData.map((item, index) => (
-            <div
-              key={index}
-              className="bg-gray-800/30 rounded-lg p-4 hover:bg-gray-800/60 transition-all cursor-pointer group flex-none w-40"
+      <div className="flex justify-between items-center mb-4 px-4">
+        <h2 className="text-2xl font-bold">{title}</h2>
+        <button
+          onClick={handleShowMore}
+          className="text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          Show all
+        </button>
+      </div>
+
+      <div className="relative">
+        {/* Scroll Buttons */}
+        {(isHovered) && (
+          <>
+            <button
+              onClick={() => handleScroll('left')}
+              className="absolute left-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2"
             >
-              <div className="relative">
-                <img
-                  src={item.cover_photo}
-                  alt={item.name}
-                  className="w-full aspect-square object-cover rounded-md shadow-lg mb-4"
-                />
-                <button
-                  className={`absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center ${
-                    isItemPlaying(item) ? 'flex' : 'hidden group-hover:flex'
-                  } shadow-xl hover:scale-105 transition-all`}
-                  onClick={() => handlePlay(item, index)}
-                >
-                  {isItemPlaying(item) ? (
-                    <Pause className="w-6 h-6 text-black" />
-                  ) : (
-                    <Play className="w-6 h-6 text-black" />
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+            
+            <button
+              onClick={() => handleScroll('right')}
+              className="absolute right-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2"
+            >
+              <ChevronRight className="h-6 w-6" />
+            </button>
+          </>
+        )}
+
+        {/* Scrollable Content */}
+        <div 
+          ref={scrollContainerRef}
+          className="overflow-x-auto scrollbar-hide"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          onMouseEnter={() => setIsHovered(true)} // Show buttons on hover
+          onMouseLeave={() => setIsHovered(false)} // Hide buttons when not hovering
+        >
+          <div className="flex gap-4 px-4">
+            {musiclistData.map((item, index) => (
+              <div
+                key={index}
+                className="flex-none w-40"
+              >
+                <div className="relative group">
+                  <img
+                    src={item.cover_photo}
+                    alt={item.name}
+                    className="w-25 h-25 object-cover rounded-md"
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
+                    <button
+                      className={`absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center ${
+                        isItemPlaying(item) ? 'flex' : 'hidden group-hover:flex'
+                      } shadow-xl hover:scale-105 transition-all`}
+                      onClick={(e) => handlePlay(item, index, e)}
+                    >
+                      {isItemPlaying(item) ? (
+                        <Pause className="w-6 h-6 text-black" />
+                      ) : (
+                        <Play className="w-6 h-6 text-black" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <h3 className="font-bold text-white truncate">{item.name}</h3>
+                  {item.artist && (
+                    <p className="text-sm text-gray-400 truncate">{item.artist}</p>
                   )}
-                </button>
+                </div>
               </div>
-              <h3 className="font-bold mb-1">{item.name}</h3>
-              {item.owner && <p className="text-sm text-gray-400">{item.owner}</p>}
-              {item.description && <p className="text-sm text-gray-400">{item.description}</p>}
-              {item.artist && <p className="text-sm text-gray-400">{item.artist}</p>}
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
-        <div className="absolute top-4 right-4">
-          <button
-            onClick={handleShowMore}
-            className="px-4 py-2  text-white rounded-lg transition-all"
-          >
-            Show all
-          </button>
-        </div>
     </section>
   );
 };

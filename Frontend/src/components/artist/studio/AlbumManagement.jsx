@@ -256,9 +256,9 @@ const AlbumManagement = () => {
         onClose={() => setIsEditModalOpen(false)}
       >
         {selectedAlbum && (
-          <div className="max-h-[80vh] overflow-y-auto">
-            <div className="sticky top-0 bg-gray-900 p-4 border-b border-gray-700">
-              <h2 className="text-xl font-semibold text-white">Edit Album</h2>
+          <div className="max-h-[80vh] ">
+            <div className="top-0 bg-gray-900 p-7 border-b border-gray-700">
+              <h1 className="text-xl font-semibold text-white">Edit Album</h1>
             </div>
             <EditAlbum
               album={selectedAlbum}

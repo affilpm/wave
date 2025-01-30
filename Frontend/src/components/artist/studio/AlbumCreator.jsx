@@ -62,7 +62,7 @@ const AlbumCreator = () => {
 
   const fetchUserTracks = async () => {
     try {
-      const response = await api.get('/api/music/music/');
+      const response = await api.get('/api/album/music/');
       setTracksList(response.data);
     } catch (err) {
       setError('Failed to load tracks: ' + (err.response?.data?.error || err.message));
