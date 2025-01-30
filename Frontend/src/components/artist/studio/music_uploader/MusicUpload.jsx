@@ -1,12 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import { Music, Image as ImageIcon, X, ChevronDown, ChevronUp, Search,  Edit2 } from 'lucide-react';
-import api from '../../../api';
-import { openModal, closeModal } from '../../../slices/artist/modalSlice'; // Import actions
+import api from '../../../../api';
+import { openModal, closeModal } from '../../../../slices/artist/modalSlice'; // Import actions
 import { debounce } from 'lodash';
 // import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import { toast } from 'react-toastify';
-import ImageCropper from '../../ImageCropper';
+import ImageCropper from './ImageCropper';
+import ResizeImage from './RezizeImage';
+
+const MIN_IMAGE_SIZE = 500;
+const MAX_IMAGE_SIZE = 2048;
+const TARGET_SIZE = 500;
+
+
 
 
 const MusicUpload = () => {
@@ -172,152 +179,99 @@ const MusicUpload = () => {
     
 
 
-
-    const handleFileChange = (e, type) => {
+    const handleFileChange = async (e, type) => {
       const file = e.target.files[0];
       if (file) {
         if (type === 'cover') {
-          // Validate image file
-          if (!file.type.startsWith('image/')) {
-            setFileErrors((prev) => ({
-              ...prev,
-              cover: 'Please select an image file',
-            }));
-            toast.error('Please select a valid image file');
-            resetImageInput();
-            return;
-          }
-  
-          const allowedImageTypes = ['image/jpeg', 'image/png', 'image/jpg'];
-          if (!allowedImageTypes.includes(file.type)) {
-            setFileErrors((prev) => ({
-              ...prev,
-              cover: 'Only JPG, JPEG, and PNG images are accepted',
-            }));
-            toast.error('Only JPG, JPEG, and PNG images are accepted');
-            resetImageInput();
-            return;
-          }
-  
-          if (file.size > 5 * 1024 * 1024) {
-            setFileErrors((prev) => ({
-              ...prev,
-              cover: 'Image must be smaller than 5MB',
-            }));
-            toast.error('Image must be smaller than 5MB');
-            resetImageInput();
-            return;
-          }
-  
-          // Clear errors for valid cover file
-          setFileErrors((prev) => ({
-            ...prev,
-            cover: null,
-          }));
-  
-          // Check image dimensions before deciding to show cropper
-          const reader = new FileReader();
-          reader.onload = () => {
-            const img = new Image();
-            img.onload = () => {
-              // Only show cropper if image is larger than 500x500
-              if (img.width > 500 || img.height > 500) {
-                setOriginalImage(reader.result);
-                setShowCropper(true);
-                setZoom(1);
-                setCrop({ x: 0, y: 0 });
-              } else {
-                // If image is small enough, use it directly
-                setCoverPreview(reader.result);
-                setFiles((prev) => ({ ...prev, cover: file }));
-                setShowCropper(false);
-              }
-            };
-            img.src = reader.result;
-          };
-          reader.readAsDataURL(file);
-          setImageInputKey((prevKey) => prevKey + 1);
-        } else if (type === 'audio') {
-          // Validate audio file
-          if (!file.type.startsWith('audio/')) {
-            setFileErrors((prev) => ({
-              ...prev,
-              audio: 'Please select an audio file',
-            }));
-            toast.error('Please select a valid audio file');
-            e.target.value = ''; // Reset input
-            setFiles((prev) => ({ ...prev, [type]: null }));
-            return;
-          }
-    
-          const allowedAudioTypes = ['audio/mpeg', 'audio/wav', 'audio/aac'];
-          if (!allowedAudioTypes.includes(file.type)) {
-            setFileErrors((prev) => ({
-              ...prev,
-              audio: 'Only MP3, WAV, and AAC files are accepted',
-            }));
-            toast.error('Only MP3, WAV, and AAC files are accepted');
-            e.target.value = ''; // Reset input
-            setFiles((prev) => ({ ...prev, [type]: null }));
-            return;
-          }
-    
-          if (file.size > 10 * 1024 * 1024) {
-            setFileErrors((prev) => ({
-              ...prev,
-              audio: 'Audio file must be smaller than 10MB',
-            }));
-            toast.error('Audio file must be smaller than 10MB');
-            e.target.value = ''; // Reset input
-            setFiles((prev) => ({ ...prev, [type]: null }));
-            return;
-          }
-    
-          // Clear errors for valid audio file
-          setFileErrors((prev) => ({
-            ...prev,
-            audio: null,
-          }));
-                // Create URL for the image
-          const reader = new FileReader();
-          reader.onload = () => {
-            // Create an image element to check dimensions
-            const img = new Image();
-            img.onload = () => {
-              setOriginalImage(reader.result);
-              if (img.width > 512 || img.height > 512) {
-                setShowCropper(true);
-              } else {
-                setCoverPreview(reader.result);
-                setShowCropper(false);
-              }
-            };
-            img.src = reader.result;
-          };
-          reader.readAsDataURL(file);
-
+          try {
+            // Validate image file type
+            if (!file.type.startsWith('image/')) {
+              throw new Error('Please select an image file');
             }
-    
-        // Set valid file
-        setFiles((prev) => ({ ...prev, [type]: file }));
+  
+            const allowedImageTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+            if (!allowedImageTypes.includes(file.type)) {
+              throw new Error('Only JPG, JPEG, and PNG images are accepted');
+            }
+  
+            if (file.size > 5 * 1024 * 1024) {
+              throw new Error('Image must be smaller than 5MB');
+            }
+  
+            // Create a promise to get image dimensions
+            const getDimensions = new Promise((resolve, reject) => {
+              const img = new Image();
+              const objectUrl = URL.createObjectURL(file);
+              
+              img.onload = () => {
+                URL.revokeObjectURL(objectUrl);
+                resolve({ width: img.width, height: img.height });
+              };
+              
+              img.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error('Failed to load image'));
+              };
+              
+              img.src = objectUrl;
+            });
+  
+            const dimensions = await getDimensions;
+  
+            // Check if image is too large
+            if (dimensions.width > MAX_IMAGE_SIZE || dimensions.height > MAX_IMAGE_SIZE) {
+              throw new Error(`Image must be no larger than ${MAX_IMAGE_SIZE}x${MAX_IMAGE_SIZE} pixels`);
+            }
+  
+            // Handle small images
+            if (dimensions.width < MIN_IMAGE_SIZE || dimensions.height < MIN_IMAGE_SIZE) {
+              const willResize = window.confirm(
+                `Image is smaller than ${MIN_IMAGE_SIZE}x${MIN_IMAGE_SIZE} pixels. Would you like to automatically resize it? This may affect image quality.`
+              );
+  
+              if (willResize) {
+                const resized = await ResizeImage(file);
+                console.log('Resized image details:', {
+                  width: resized.width,
+                  height: resized.height,
+                  size: resized.file.size
+                });
+                
+                setOriginalImage(resized.url);
+                setShowCropper(true);
+                // toast.success('Image has been resized successfully');
+                return;
+              } else {
+                throw new Error(`Please select an image at least ${MIN_IMAGE_SIZE}x${MIN_IMAGE_SIZE} pixels`);
+              }
+            }
+  
+            // Handle normal sized images
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              setOriginalImage(e.target.result);
+              setShowCropper(true);
+            };
+            reader.readAsDataURL(file);
+  
+          } catch (error) {
+            console.error('Image processing error:', error);
+            setFileErrors((prev) => ({
+              ...prev,
+              cover: error.message
+            }));
+            toast.error(error.message);
+            resetImageInput();
+          }
+        } else {
+          // Handle other file types (audio, video)
+          setFiles((prev) => ({ ...prev, [type]: file }));
+        }
       }
     };
-    
-
-    const resetImageInput = () => {
-      setImageInputKey(Date.now()); // Force input reset
-      setFiles(prev => ({ ...prev, cover: null }));
-      setCoverPreview(null);
-      setOriginalImage(null);
-      setShowCropper(false);
-    };
-  
-
-
 
     
- 
-  
+
   
     const handleCropSave = async () => {
       if (!croppedAreaPixels || !originalImage) return;
@@ -332,8 +286,8 @@ const MusicUpload = () => {
         });
   
         // Set fixed output dimensions
-        canvas.width = 500;  // Fixed width
-        canvas.height = 500; // Fixed height for 1:1 aspect ratio
+        canvas.width = TARGET_SIZE;
+        canvas.height = TARGET_SIZE;
   
         const ctx = canvas.getContext('2d');
         ctx.drawImage(
@@ -367,8 +321,14 @@ const MusicUpload = () => {
       }
     };
   
-
-
+    const resetImageInput = () => {
+      setImageInputKey(Date.now());
+      setFiles(prev => ({ ...prev, cover: null }));
+      setCoverPreview(null);
+      setOriginalImage(null);
+      setShowCropper(false);
+    };
+  
     
 
 
@@ -621,7 +581,7 @@ const MusicUpload = () => {
     
     
   return (
-    <div className="max-w-2xl mx-auto p-5">
+    <div className="max-w-5xl mx-auto p-5">
       <div className="mb-8">
         <h2 className="text-2xl p-2 font-bold mb-1 text-white">Upload New Track</h2>
       <div className="p-1 border-b border-gray-700 "></div>
@@ -873,7 +833,7 @@ const MusicUpload = () => {
         image={originalImage}
         onCropComplete={setCroppedAreaPixels}
         onCropSave={handleCropSave}
-
+        onClose={() => setShowCropper(false)}
       />
     )}
         

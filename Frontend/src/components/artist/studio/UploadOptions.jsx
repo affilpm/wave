@@ -1,7 +1,7 @@
 import React from 'react';
 import { Music, Disc } from 'lucide-react';
 import StudioCard from './StudioCard';
-import MusicUpload from './MusicUpload';
+import MusicUpload from './music_uploader/MusicUpload';
 import AlbumCreator from './AlbumCreator';
 import { useDispatch, useSelector } from 'react-redux';
 import { openModal } from '../../../slices/artist/modalSlice';
