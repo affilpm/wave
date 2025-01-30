@@ -10,8 +10,7 @@ const MusicSection = ({ title }) => {
   const currentTrack = useSelector((state) => state.player.currentTrack);
   const isPlaying = useSelector((state) => state.player.isPlaying);
   const scrollContainerRef = useRef(null);
-  const [isHovered, setIsHovered] = useState(false); // Track hover state
-  
+  const [showControls, setShowControls] = useState(false);
   const [musiclistData, setMusiclistData] = useState([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -44,7 +43,7 @@ const MusicSection = ({ title }) => {
   };
 
   const handlePlay = (item, index, e) => {
-    e.stopPropagation(); // Prevent event bubbling
+    e.stopPropagation();
     if (currentTrack?.id === item.id) {
       dispatch(setIsPlaying(!isPlaying));
     } else {
@@ -78,33 +77,33 @@ const MusicSection = ({ title }) => {
         </button>
       </div>
 
-      <div className="relative">
-        {/* Scroll Buttons */}
-        {(isHovered) && (
+      <div 
+        className="relative"
+        onMouseEnter={() => setShowControls(true)}
+        onMouseLeave={() => setShowControls(false)}
+      >
+        {showControls && (
           <>
             <button
               onClick={() => handleScroll('left')}
-              className="absolute left-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2"
+              className="absolute left-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2 transition-transform hover:scale-110"
             >
               <ChevronLeft className="h-6 w-6" />
             </button>
             
             <button
               onClick={() => handleScroll('right')}
-              className="absolute right-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2"
+              className="absolute right-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2 transition-transform hover:scale-110"
             >
               <ChevronRight className="h-6 w-6" />
             </button>
           </>
         )}
 
-        {/* Scrollable Content */}
         <div 
           ref={scrollContainerRef}
           className="overflow-x-auto scrollbar-hide"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          onMouseEnter={() => setIsHovered(true)} // Show buttons on hover
-          onMouseLeave={() => setIsHovered(false)} // Hide buttons when not hovering
         >
           <div className="flex gap-4 px-4">
             {musiclistData.map((item, index) => (
