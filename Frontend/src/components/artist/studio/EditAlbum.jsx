@@ -1,6 +1,16 @@
+
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, X, ImageIcon, Music, Plus, Trash2, Search as SearchIcon,ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertCircle, X, ImageIcon, Music, Plus, Trash2, Search as SearchIcon } from 'lucide-react';
+import Cropper from 'react-easy-crop';
 import api from '../../../api';
+
+const MIN_IMAGE_SIZE = 500;
+const TARGET_SIZE = 500;
+const COVER_ASPECT = 1; // Square for cover
+const BANNER_ASPECT = 16 / 9; // Widescreen for banner
+
+
+
 
 const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
   const [originalAlbum, setOriginalAlbum] = useState(null);
@@ -20,6 +30,22 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredTracks, setFilteredTracks] = useState([]);
+const [albumData, setAlbumData] = useState([])
+  const [coverPhotoError, setCoverPhotoError] = useState('');
+  const [bannerImgError, setBannerImgError] = useState('');
+  const [coverPreviewUrl, setCoverPreviewUrl] = useState(null);
+  const [bannerPreviewUrl, setBannerPreviewUrl] = useState(null);
+  const [originalCoverImage, setOriginalCoverImage] = useState(null);
+  const [originalBannerImage, setOriginalBannerImage] = useState(null);
+  const [showCoverCropper, setShowCoverCropper] = useState(false);
+  const [showBannerCropper, setShowBannerCropper] = useState(false);
+  const [coverCrop, setCoverCrop] = useState({ x: 0, y: 0 });
+  const [bannerCrop, setBannerCrop] = useState({ x: 0, y: 0 });
+  const [coverZoom, setCoverZoom] = useState(1);
+  const [bannerZoom, setBannerZoom] = useState(1);
+  const [coverCroppedAreaPixels, setCoverCroppedAreaPixels] = useState(null);
+  const [bannerCroppedAreaPixels, setBannerCroppedAreaPixels] = useState(null);
+
   useEffect(() => {
     const filtered = availableTracks
       .filter(track => 
@@ -126,21 +152,234 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
     return originalTrackIds.some((trackId, index) => trackId !== currentTrackIds[index]);
   };
 
-  const handleImageChange = (e, type) => {
+  const createImage = (url) =>
+    new Promise((resolve, reject) => {
+      const image = new Image();
+      image.addEventListener('load', () => resolve(image));
+      image.addEventListener('error', (error) => reject(error));
+      image.src = url;
+    });
+
+  const getCroppedImg = async (imageSrc, pixelCrop, targetWidth, targetHeight) => {
+    const image = await createImage(imageSrc);
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      throw new Error('No 2d context');
+    }
+
+    // Set canvas size to desired output size
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+
+    // Draw cropped image
+    ctx.drawImage(
+      image,
+      pixelCrop.x,
+      pixelCrop.y,
+      pixelCrop.width,
+      pixelCrop.height,
+      0,
+      0,
+      targetWidth,
+      targetHeight
+    );
+
+    return new Promise((resolve) => {
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            console.error('Canvas is empty');
+            return;
+          }
+          resolve(blob);
+        },
+        'image/jpeg',
+        0.95
+      );
+    });
+  };
+
+  const handleImageChange = async (e, type) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (type === 'cover') {
-        setCoverPreview(reader.result);
-        setAlbum(prev => ({ ...prev, cover_photo: file }));
-      } else {
-        setBannerPreview(reader.result);
-        setAlbum(prev => ({ ...prev, banner_img: file }));
+    try {
+      if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
+        throw new Error('Please upload only JPG, JPEG or PNG images');
       }
-    };
-    reader.readAsDataURL(file);
+      
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('Image size should be less than 5MB');
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (type === 'cover') {
+          setOriginalCoverImage(e.target.result);
+          setShowCoverCropper(true);
+          setCoverPhotoError('');
+        } else {
+          setOriginalBannerImage(e.target.result);
+          setShowBannerCropper(true);
+          setBannerImgError('');
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      if (type === 'cover') {
+        setCoverPhotoError(err.message);
+      } else {
+        setBannerImgError(err.message);
+      }
+      toast.error(err.message);
+    }
+  };
+
+  const handleCropComplete = (croppedArea, croppedAreaPixels, isCover) => {
+    if (isCover) {
+      setCoverCroppedAreaPixels(croppedAreaPixels);
+    } else {
+      setBannerCroppedAreaPixels(croppedAreaPixels);
+    }
+  };
+
+  const handleCropSave = async (isCover) => {
+    try {
+      const croppedAreaPixels = isCover ? coverCroppedAreaPixels : bannerCroppedAreaPixels;
+      const originalImage = isCover ? originalCoverImage : originalBannerImage;
+      
+      if (!croppedAreaPixels || !originalImage) {
+        console.error('Missing required cropping data');
+        return;
+      }
+
+      const image = await createImage(originalImage);
+      const canvas = document.createElement('canvas');
+      const targetWidth = isCover ? TARGET_SIZE : TARGET_SIZE * (16/9);
+      const targetHeight = isCover ? TARGET_SIZE : TARGET_SIZE;
+
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(
+        image,
+        croppedAreaPixels.x,
+        croppedAreaPixels.y,
+        croppedAreaPixels.width,
+        croppedAreaPixels.height,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          console.error('Failed to generate blob');
+          return;
+        }
+
+        const fileName = isCover ? 'album-cover.jpg' : 'album-banner.jpg';
+        const croppedFile = new File([blob], fileName, {
+          type: 'image/jpeg',
+          lastModified: Date.now(),
+        });
+
+        if (isCover) {
+          setAlbumData(prev => ({ ...prev, coverPhoto: croppedFile }));
+          setCoverPreviewUrl(URL.createObjectURL(blob));
+          setShowCoverCropper(false);
+        } else {
+          setAlbumData(prev => ({ ...prev, bannerImg: croppedFile }));
+          setBannerPreviewUrl(URL.createObjectURL(blob));
+          setShowBannerCropper(false);
+        }
+      }, 'image/jpeg', 0.95);
+    } catch (error) {
+      console.error('Error cropping image:', error);
+      toast.error('Failed to crop image. Please try again.');
+      if (isCover) {
+        setCoverPhotoError('Failed to crop image');
+      } else {
+        setBannerImgError('Failed to crop image');
+      }
+    }
+  };
+
+  const renderCropper = (isCover) => {
+    const image = isCover ? originalCoverImage : originalBannerImage;
+    const crop = isCover ? coverCrop : bannerCrop;
+    const zoom = isCover ? coverZoom : bannerZoom;
+    const setCrop = isCover ? setCoverCrop : setBannerCrop;
+    const setZoom = isCover ? setCoverZoom : setBannerZoom;
+    const aspect = isCover ? COVER_ASPECT : BANNER_ASPECT;
+
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+        <div className="bg-gray-900 rounded-lg w-full max-w-2xl p-6 mx-4">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-white">
+                Crop {isCover ? 'Cover Photo' : 'Banner Image'}
+              </h3>
+              <button 
+                onClick={() => isCover ? setShowCoverCropper(false) : setShowBannerCropper(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="relative h-96">
+              <Cropper
+                image={image}
+                crop={crop}
+                zoom={zoom}
+                aspect={aspect}
+                onCropChange={setCrop}
+                onZoomChange={setZoom}
+                onCropComplete={(croppedArea, croppedAreaPixels) => 
+                  handleCropComplete(croppedArea, croppedAreaPixels, isCover)
+                }
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm text-gray-400 mb-2">
+                Zoom: {zoom.toFixed(1)}x
+              </label>
+              <input
+                type="range"
+                min={1}
+                max={3}
+                step={0.1}
+                value={zoom}
+                onChange={(e) => setZoom(Number(e.target.value))}
+                className="w-full"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => isCover ? setShowCoverCropper(false) : setShowBannerCropper(false)}
+                className="px-4 py-2 text-white hover:bg-gray-800 rounded-md"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleCropSave(isCover)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   };
 
   const addTrack = () => {
@@ -241,6 +480,8 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
 
   return (
     <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            {showCoverCropper && renderCropper(true)}
+            {showBannerCropper && renderCropper(false)}
       {error && (
         <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 flex items-center gap-2">
           <AlertCircle className="h-5 w-5" />

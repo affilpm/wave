@@ -40,3 +40,5 @@ class PlaylistTrack(models.Model):
         ordering = ['track_number']
         unique_together = ['playlist', 'music', 'track_number']
 
+
+

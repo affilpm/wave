@@ -2,11 +2,11 @@ import React, {useState} from "react";
 import { Search, Plus, Library, Heart, Music, ChevronLeft, MoreVertical, Share2, Delete, Edit } from 'lucide-react';
 import api from "../../../../api";
 import SavedPlaylistSectionMenuModal from "./SavedPlaylistSectionMenuModal";
-
+import { useNavigate } from "react-router-dom";
 
 const SavedPlaylistSection = ({ playlists, isSidebarExpanded, setLibraryPlaylists }) => {
     const [activeMenu, setActiveMenu] = useState(null);
-  
+  const navigate = useNavigate();
     const handleMenuAction = async (e, action, playlist) => {
       e.stopPropagation();
       setActiveMenu(null);
@@ -28,6 +28,9 @@ const SavedPlaylistSection = ({ playlists, isSidebarExpanded, setLibraryPlaylist
       setActiveMenu(activeMenu === playlistId ? null : playlistId);
     };
   
+    const handlesPlaylistClick = (id) => {
+      navigate(`/saved-playlist/${id}`);
+    };
     return (
       <>
         {isSidebarExpanded && (

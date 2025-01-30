@@ -11,7 +11,7 @@ from .models import Library
 from playlist.models import Playlist
 # from .serializers import LibrarySerializer, PlaylistSerializer, PlaylistDetailSerializer, LibraryPlaylistSerializer
 from django.db.models import Q
-from .serializers import LibrarySerializer,LibraryPlaylistSerializer
+from .serializers import LibraryPlaylistSerializer
 
 from rest_framework import viewsets, permissions
 from rest_framework.decorators import action
@@ -147,7 +147,6 @@ from .serializers import PlaylistDetailSerializer
 from rest_framework import generics
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
-from .serializers import PlaylistDetailSerializer
 
 class PlaylistLibraryView(generics.ListAPIView):
     """
