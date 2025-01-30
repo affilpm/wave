@@ -1,54 +1,113 @@
-import React from "react";
-import { Play } from "lucide-react";
+import React, { useRef, useState } from "react";
+import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
 
 const PlaylistSection = ({ title, items, isPlaying, setIsPlaying, onPlaylistClick }) => {
+  const scrollContainerRef = useRef(null);
+  const [showControls, setShowControls] = useState(false);
+
   const handlePlaylistAddSuccess = (playlistId) => {
     console.log("Playlist added to library successfully:", playlistId);
     // Here you could trigger a refresh of the library data if needed
   };
 
+  const handleScroll = (direction) => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      const scrollAmount = 300;
+      container.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   return (
-    <section className="mb-8">
-      <h2 className="text-2xl p-2 font-bold mb-4">{title}</h2>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
-        {items.map((item) => (
-          <div
-            key={item.id} // Changed from index to item.id for better React key handling
-            className="bg-gray-800/30 rounded-lg p-4 hover:bg-gray-800/60 transition-all cursor-pointer group relative"
-            onClick={() => onPlaylistClick(item.id)} // Pass the playlist ID to the callback
-          >
-            <PlaylistSectionMenuModal
-              playlist={{
-                id: item.id,
-                name: item.name,
-                // Pass any other required playlist data
-              }}
-              onSuccess={() => handlePlaylistAddSuccess(item.id)}
-            />
-            <div className="relative">
-              <img
-                src={item.cover_photo}
-                alt={item.name}
-                className="w-full aspect-square object-cover rounded-md shadow-lg mb-4"
-              />
-              <button
-                className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
-                onClick={(e) => {
-                  e.stopPropagation(); // Prevent the click event from propagating to the parent div
-                  setIsPlaying(!isPlaying);
-                }}
+    <section className="mb-8 relative">
+      <div className="flex justify-between items-center mb-4 px-4">
+        <h2 className="text-2xl font-bold">{title}</h2>
+        {/* Add Show all button if needed */}
+      </div>
+
+      <div 
+        className="relative"
+        onMouseEnter={() => setShowControls(true)}
+        onMouseLeave={() => setShowControls(false)}
+      >
+        {showControls && (
+          <>
+            <button
+              onClick={() => handleScroll('left')}
+              className="absolute left-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2 transition-transform hover:scale-110"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+            
+            <button
+              onClick={() => handleScroll('right')}
+              className="absolute right-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2 transition-transform hover:scale-110"
+            >
+              <ChevronRight className="h-6 w-6" />
+            </button>
+          </>
+        )}
+
+        <div 
+          ref={scrollContainerRef}
+          className="overflow-x-auto scrollbar-hide"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          <div className="flex gap-4 px-4">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="flex-none w-40"
+                onClick={() => onPlaylistClick(item.id)}
               >
-                <Play className="w-6 h-6 text-black" />
-              </button>
-            </div>
-            <h3 className="font-bold mb-1">{item.name}</h3>
-            {item.description && <p className="text-sm text-gray-400">{item.description}</p>}
-            {item.created_by && (
-              <p className="text-sm text-gray-400">By {item.created_by}</p>
-            )}
+                <div className="relative group">
+                  <img
+                    src={item.cover_photo}
+                    alt={item.name}
+                    className="w-25 h-25 object-cover rounded-md shadow-lg"
+                  />
+                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
+                    <button
+                      className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setIsPlaying(!isPlaying);
+                      }}
+                    >
+                      {isPlaying ? (
+                        <Pause className="w-6 h-6 text-black" />
+                      ) : (
+                        <Play className="w-6 h-6 text-black" />
+                      )}
+                    </button>
+                  </div>
+                  <div className="absolute top-2 right-2">
+                    <PlaylistSectionMenuModal
+                      playlist={{
+                        id: item.id,
+                        name: item.name,
+                      }}
+                      onSuccess={() => handlePlaylistAddSuccess(item.id)}
+                    />
+                  </div>
+                </div>
+                <div className="mt-2">
+                  <h3 className="font-bold text-white truncate">{item.name}</h3>
+                  {item.description && (
+                    <p className="text-sm text-gray-400 truncate">{item.description}</p>
+                  )}
+                  {item.created_by && (
+                    <p className="text-sm text-gray-400 truncate">By {item.created_by}</p>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
     </section>
   );
