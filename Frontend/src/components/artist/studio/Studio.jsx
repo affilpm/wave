@@ -7,7 +7,7 @@ import RecentActivity from './RecentActivity';
 import Modal from '../../modal';
 import { useDispatch, useSelector } from 'react-redux';
 import { openModal, closeModal } from '../../../slices/artist/modalSlice';
-import MusicUpload from './MusicUpload';
+import MusicUpload from './music_uploader/MusicUpload';
 import AlbumCreator from './AlbumCreator';
 import MusicManagement from './MusicManagement';
 import AlbumManagement from './AlbumManagement';

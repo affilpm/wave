@@ -138,21 +138,18 @@ class MusicViewSet(ModelViewSet):
     def check_name(self, request):
         name = request.query_params.get('name', '').strip()
         artist = request.user.artist_profile
-        
         exists = Music.objects.filter(
             name__iexact=name, 
             artist=artist
         ).exists()
-        
         return Response({
             'exists': exists
         })
         
-        
     def get_queryset(self):
         queryset = Music.objects.filter(
             artist__user=self.request.user,
-        ).select_related('artist__user').prefetch_related('genres')
+        ).select_related('artist__user').prefetch_related('genres').order_by('-created_at')
 
         print(f"Queryset for user {self.request.user}: {queryset}")
         return queryset

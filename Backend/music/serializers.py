@@ -34,7 +34,7 @@ class MusicSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Ensure this filename has at most 100 characters.")
         return value
 
-
+ 
 # In your view
 from rest_framework import generics
 

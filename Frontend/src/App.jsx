@@ -11,7 +11,7 @@ import AdminDashboard from './components/admin/AdminDashboard';
 import AdminLogout from './components/admin/AdminLogout';
 import GoogleAuth from './components/user/GoogleAuth';
 import ProtectedRoute from './components/admin/ProtectedRoute';
-import MusicUpload from './components/artist/studio/MusicUpload';
+import MusicUpload from './components/artist/studio/music_uploader/MusicUpload';
 import StudioPage from './pages/artist/StudioPage';
 import AlbumCreator from './components/artist/studio/AlbumCreator';
 import EditAlbum from './components/artist/studio/EditAlbum';
