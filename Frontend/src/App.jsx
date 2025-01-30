@@ -21,8 +21,9 @@ import Dashboard from './components/user/home/dashboard/Dashboard';
 import PlaylistPage from './components/user/home/playlist/PlaylistPage'; 
 import Premium from './components/user/home/header/Premium';
 import MusicShowMorePage from './components/user/home/dashboard/MusicShowMorePage';
-
+import SavedPlaylistPage from './components/user/home/playlist/SavedPlaylistPage';
 import { Navigate } from 'react-router-dom';
+
 export const logout= () => {
   // Completely clear all data from localStorage
   localStorage.clear();
@@ -64,10 +65,10 @@ function App() {
           <Route path="/editalbum/:id" element={<EditAlbum/>} />
           <Route path="/premium" element={<Premium/>} />
 
-
           <Route path="/" element={<HomePage />}>
               <Route path="/home" element={<Dashboard/>} />
               <Route path="/playlist/:playlistId" element={<PlaylistPage/>} />
+              <Route path="/saved-playlist/:playlistId" element={<SavedPlaylistPage />} />
               <Route path="/music-show-more" element={<MusicShowMorePage/>} />
 
 

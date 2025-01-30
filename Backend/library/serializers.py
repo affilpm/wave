@@ -12,8 +12,8 @@ class MusicInPlaylistSerializer(serializers.ModelSerializer):
     class Meta:
         model = Music
         fields = [
-            'id', 'title', 'duration', 'artist_name', 
-            'album_name', 'cover_image', 'audio_file'
+            'id', 'name', 'duration', 'artist_name', 
+            'album_name', 'cover_photo', 'audio_file'
         ]
 
 # Playlist Serializer for basic playlist data
@@ -46,7 +46,6 @@ class PlaylistCreatorSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = ['id', 'username', 'avatar']
 
-# Music Details Serializer for detailed music info
 class MusicDetailsSerializer(serializers.ModelSerializer):
     artist_name = serializers.CharField(source='artist.name')
     album_name = serializers.CharField(source='album.name')
@@ -54,8 +53,9 @@ class MusicDetailsSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Music
-        fields = ['id', 'title', 'duration', 'artist_name', 'album_name', 'album_cover']
-
+        fields = ['id', 'name', 'duration', 'artist_name', 'album_name', 'album_cover']
+        
+        
 # Playlist Track Serializer for detailed track info
 class PlaylistTrackSerializer(serializers.ModelSerializer):
     music_details = MusicDetailsSerializer(source='music')
