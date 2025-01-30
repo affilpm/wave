@@ -6,6 +6,13 @@ const ImageCropper = ({ image, onCropComplete, onCropSave }) => {
   const [crop, setCrop] = React.useState({ x: 0, y: 0 });
   const [zoom, setZoom] = React.useState(1);
 
+  const handleSaveCrop = (e) => {
+    // Prevent any form submission
+    e.preventDefault();
+    e.stopPropagation();
+    onCropSave();
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-gray-900 rounded-lg p-6 w-full max-w-2xl">
@@ -39,7 +46,8 @@ const ImageCropper = ({ image, onCropComplete, onCropSave }) => {
 
         <div className="flex justify-end">
           <button
-            onClick={onCropSave}
+            onClick={handleSaveCrop}
+            type="button" // Explicitly set type to button
             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
           >
             Save Crop

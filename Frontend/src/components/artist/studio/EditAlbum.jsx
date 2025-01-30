@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, X, ImageIcon, Music, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, X, ImageIcon, Music, Plus, Trash2, Search as SearchIcon,ChevronDown, ChevronUp } from 'lucide-react';
 import api from '../../../api';
 
 const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
@@ -18,13 +18,23 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
   const [bannerPreview, setBannerPreview] = useState(null);
   const [selectedTrack, setSelectedTrack] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredTracks, setFilteredTracks] = useState([]);
+  useEffect(() => {
+    const filtered = availableTracks
+      .filter(track => 
+        !album.tracks.some(t => t.track === track.id) &&
+        track.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    setFilteredTracks(filtered);
+  }, [searchQuery, availableTracks, album.tracks]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         const [tracksResponse] = await Promise.all([
-          api.get('/api/music/music/')
+          api.get('/api/album/music/')
         ]);
 
         setOriginalAlbum(initialAlbum);
@@ -355,76 +365,98 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
           </div>
         </div>
 
-        {/* Tracks Section */}
-        <div>
+      {/* Tracks Section */}
+      <div>
+        <label className="block text-sm font-medium text-gray-300 mb-4">
+          Current Tracks
+        </label>
+        
+        {/* Existing Tracks List */}
+        <div className="mb-8 space-y-4">
+          {album.tracks.length > 0 ? (
+            album.tracks.map((track, index) => (
+              <div key={track.id} className="flex items-center gap-4 bg-gray-700 p-4 rounded-lg">
+                <div className="flex-none w-8 h-8 flex items-center justify-center bg-gray-600 rounded-lg text-gray-300">
+                  {index + 1}
+                </div>
+                <Music className="h-5 w-5 text-gray-400" />
+                <span className="flex-1 text-white">{track.name}</span>
+                <button
+                  type="button"
+                  onClick={() => removeTrack(track)}
+                  className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span>Remove</span>
+                </button>
+              </div>
+            ))
+          ) : (
+            <div className="text-center py-8 text-gray-400">
+              No tracks in this album yet.
+            </div>
+          )}
+        </div>
+
+        {/* Add New Tracks Section */}
+        <div className="mt-6">
           <label className="block text-sm font-medium text-gray-300 mb-4">
-            Current Tracks
+            Add New Tracks
           </label>
           
-          {/* Existing Tracks List */}
-          <div className="mb-8 space-y-4">
-            {album.tracks.length > 0 ? (
-              album.tracks.map((track, index) => (
-                <div key={track.id} className="flex items-center gap-4 bg-gray-700 p-4 rounded-lg">
-                  <div className="flex-none w-8 h-8 flex items-center justify-center bg-gray-600 rounded-lg text-gray-300">
-                    {index + 1}
-                  </div>
+          {/* Search Input */}
+          <div className="relative mb-4">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <SearchIcon className="h-5 w-5 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search tracks..."
+              className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+            />
+          </div>
+
+          {/* Scrollable Track List */}
+          <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-600">
+            {filteredTracks.length > 0 ? (
+              filteredTracks.map(track => (
+                <div
+                  key={track.id}
+                  className="flex items-center gap-4 p-4 hover:bg-gray-700 cursor-pointer border-b border-gray-600 last:border-b-0"
+                  onClick={() => {
+                    setAlbum(prev => ({
+                      ...prev,
+                      tracks: [
+                        ...prev.tracks,
+                        {
+                          id: Date.now(),
+                          track: track.id,
+                          track_number: prev.tracks.length + 1,
+                          name: track.name
+                        }
+                      ]
+                    }));
+                  }}
+                >
                   <Music className="h-5 w-5 text-gray-400" />
                   <span className="flex-1 text-white">{track.name}</span>
-                  <button
-                    type="button"
-                    onClick={() => removeTrack(track)}
-                    className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span>Remove</span>
-                  </button>
+                  <Plus className="h-5 w-5 text-blue-400" />
                 </div>
               ))
             ) : (
               <div className="text-center py-8 text-gray-400">
-                No tracks in this album yet.
+                {searchQuery ? 'No matching tracks found' : 'No available tracks'}
               </div>
             )}
           </div>
-
-          {/* Add New Tracks Section */}
-          <div className="mt-6">
-            <label className="block text-sm font-medium text-gray-300 mb-4">
-              Add New Tracks
-            </label>
-            <div className="flex gap-4">
-              <select
-                value={selectedTrack}
-                onChange={(e) => setSelectedTrack(e.target.value)}
-                className="flex-1 px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-              >
-                <option value="">Select a track to add</option>
-                {availableTracks
-                  .filter(track => !album.tracks.some(t => t.track === track.id))
-                  .map(track => (
-                    <option key={track.id} value={track.id}>
-                      {track.name}
-                    </option>
-                  ))
-                }
-              </select>
-              <button
-                type="button"
-                onClick={addTrack}
-                disabled={!selectedTrack}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <Plus className="h-5 w-5" />
-                <span>Add Track</span>
-              </button>
-              </div>
-            
-            <div className="mt-4 text-sm text-gray-400">
-              Select tracks from the dropdown above to add them to the album.
-            </div>
+          
+          <div className="mt-4 text-sm text-gray-400">
+            Click on a track to add it to the album
           </div>
         </div>
+      </div>
       </div>
 
       <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-700">

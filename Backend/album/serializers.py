@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from music.models import Album, AlbumTrack
+from music.models import Album, AlbumTrack, Music
 from music.serializers import MusicSerializer
 
 
@@ -9,7 +9,7 @@ class AlbumTrackSerializer(serializers.ModelSerializer):
     class Meta:
         model = AlbumTrack
         fields = ['id', 'track', 'track_number', 'name']
-
+        
 
 
 
