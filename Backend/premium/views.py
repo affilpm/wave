@@ -160,6 +160,7 @@ class RazorpayTransactionViewSet(viewsets.ModelViewSet):
     
 
 
+
 class CheckSubscriptionStatusViewSet(viewsets.ViewSet):
     permission_classes = [IsAuthenticated]
 
@@ -184,5 +185,7 @@ class CheckSubscriptionStatusViewSet(viewsets.ViewSet):
         except UserSubscription.DoesNotExist:
             return Response({
                 "status": "error",
-                "message": "You do not have a subscription."
-            }, status=404)
+                "message": "You do not have a subscription.",
+                "plan": None,
+                "expires_at": None
+            })

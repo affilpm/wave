@@ -1,15 +1,17 @@
 # urls.py
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-# from .views import LibraryPlaylistView
 from . import views
 from .views import LibraryViewSet
-# router = DefaultRouter()
-# router.register(r'playlists', views.PlaylistViewSet, basename='playlist')
-from .views import PlaylistLibraryView
+from .views import PlaylistLibraryView, PlaylistViewSet
+
+
 router = DefaultRouter()
 router.register(r'library', LibraryViewSet, basename='library')
+router.register(r'playlists', PlaylistViewSet, basename='playlist')
 
+# Get the router URLs
+urlpatterns = router.urls
 urlpatterns = [
     path('', include(router.urls)),
     path('playlists/', PlaylistLibraryView.as_view(), name='playlist-detail'),

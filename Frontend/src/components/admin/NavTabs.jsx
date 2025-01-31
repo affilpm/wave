@@ -2,42 +2,71 @@
 import React from 'react';
 import { Users, CheckCircle, Music } from 'lucide-react';
 
-const NavTabs = ({ activeTab, setActiveTab }) => {
+export const NavTabs = ({ activeTab, setActiveTab }) => {
+  const tabs = [
+    {
+      id: 'users',
+      label: 'Users',
+      icon: Users,
+    },
+    {
+      id: 'artist-verification',
+      label: 'Artist Verification',
+      icon: CheckCircle,
+    },
+    {
+      id: 'music-verification',
+      label: 'Music Verification',
+      icon: Music,
+    },
+  ];
+
   return (
-    <div className="border-b border-gray-800">
-      <div className="max-w-7xl mx-auto px-6">
-        <div className="flex space-x-6">
-          <button
-            onClick={() => setActiveTab('users')}
-            className={`py-4 px-2 flex items-center gap-2 border-b-2 transition-colors ${
-              activeTab === 'users' ? 'border-blue-500 text-blue-500' : 'border-transparent text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            <Users className="h-5 w-5" />
-            Users
-          </button>
-          <button
-            onClick={() => setActiveTab('artist-verification')}
-            className={`py-4 px-2 flex items-center gap-2 border-b-2 transition-colors ${
-              activeTab === 'artist-verification' ? 'border-blue-500 text-blue-500' : 'border-transparent text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            <CheckCircle className="h-5 w-5" />
-            Artist Verification
-          </button>
-          <button
-            onClick={() => setActiveTab('music-verification')}
-            className={`py-4 px-2 flex items-center gap-2 border-b-2 transition-colors ${
-              activeTab === 'music-verification' ? 'border-blue-500 text-blue-500' : 'border-transparent text-gray-400 hover:text-gray-200'
-            }`}
-          >
-            <Music className="h-5 w-5" />
-            Music Verification
-          </button>
+    <div className="sticky top-[73px] sm:top-[65px] z-10 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800">
+      <div className="px-3 sm:px-6">
+        {/* Desktop Tabs */}
+        <div className="hidden sm:flex space-x-6 overflow-x-auto">
+          {tabs.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={`py-4 px-3 flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap
+                ${
+                  activeTab === id
+                    ? 'border-violet-500 text-violet-400'
+                    : 'border-transparent text-gray-400 hover:text-gray-200'
+                }`}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Mobile Tabs */}
+        <div className="flex sm:hidden">
+          <div className="flex space-x-4 overflow-x-auto py-3 w-full">
+            {tabs.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors whitespace-nowrap
+                  ${
+                    activeTab === id
+                      ? 'bg-violet-500/20 text-violet-400'
+                      : 'text-gray-400 hover:text-gray-200'
+                  }`}
+              >
+                <Icon className="h-4 w-4" />
+                <span className="text-sm">{label}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
     </div>
   );
 };
+
 
 export default NavTabs;

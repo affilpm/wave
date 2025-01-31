@@ -18,7 +18,19 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
 from library.models import Library
-
+from playlist.models import Playlist
+from playlist.serializers import PlaylistSerializer
+ 
+class PlaylistViewSet(viewsets.ModelViewSet):
+    serializer_class = PlaylistSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        # Fetch playlists created by the authenticated user
+        return Playlist.objects.all()
+    
+    
+    
 class LibraryViewSet(viewsets.ViewSet):
     
     permission_classes = [permissions.IsAuthenticated]

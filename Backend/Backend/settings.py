@@ -72,6 +72,8 @@ CORS_ALLOW_HEADERS = [
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5174",  # Your React frontend URL
+    # "http://localhost:3000",  # Your frontend origin
+    # "https://accounts.google.com",  
 ]
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True  # For development only
@@ -176,7 +178,7 @@ WSGI_APPLICATION = 'Backend.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'wave',  # Replace with your database name
+        'NAME': 'wav',  # Replace with your database name
         'USER': 'postgres',  # Replace with your PostgreSQL username
         'PASSWORD': '1234',  # Replace with your PostgreSQL password
         'HOST': 'localhost',  # Set to your PostgreSQL host, e.g., 'localhost' or an IP address
