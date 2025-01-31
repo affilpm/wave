@@ -21,7 +21,10 @@ export const adminLogout = async () => {
     } catch (err) {
         console.error('Error during logout:', err);
     } finally {
+        localStorage.removeItem(ACCESS_TOKEN);
+        localStorage.removeItem(REFRESH_TOKEN);
         localStorage.clear();
+
         window.location.href = '/adminlogin';
     }
 };

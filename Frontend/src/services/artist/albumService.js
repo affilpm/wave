@@ -1,17 +1,45 @@
 // albumService.js
 import api from '../../api';
 
-export const albumService = {
+
+
+const albumService = {
   createAlbum: async (albumData) => {
     try {
       const formData = new FormData();
-      const formattedReleaseDate = new Date(albumData.releaseDate).toISOString();
+      
+      // More robust date handling with explicit validation
+      let formattedReleaseDate;
+      if (albumData.releaseDate) {
+        // Handle different date input formats
+        const dateInput = albumData.releaseDate;
+        let date;
+        
+        if (typeof dateInput === 'string' && dateInput.includes('T')) {
+          // If it's already in ISO format or datetime-local input format
+          date = new Date(dateInput);
+        } else {
+          // If it's in a different format, try parsing it
+          date = new Date(Date.parse(dateInput));
+        }
+
+        if (isNaN(date.getTime())) {
+          console.error('Invalid date input:', dateInput);
+          throw new Error('Invalid release date format');
+        }
+
+        // Format to ISO string and ensure UTC
+        formattedReleaseDate = date.toISOString();
+        console.log('Formatted release date:', formattedReleaseDate); // Debug log
+      } else {
+        throw new Error('Release date is required');
+      }
       
       // Append basic album data
       formData.append('name', albumData.name);
       formData.append('description', albumData.description);
       formData.append('release_date', formattedReleaseDate);
-      formData.append('is_public', albumData.is_public.toString()); // Convert boolean to string
+      formData.append('is_public', albumData.is_public.toString());
       
       // Append tracks data
       if (albumData.tracks?.length) {
@@ -26,10 +54,13 @@ export const albumService = {
       }
       
       // Debug log
-      console.log('Sending album data:');
-      for (let pair of formData.entries()) {
-        console.log(pair[0], pair[1]);
-      }
+      console.log('Sending album data:', {
+        name: albumData.name,
+        releaseDate: formattedReleaseDate,
+        isPublic: albumData.is_public,
+        tracksCount: albumData.tracks?.length || 0,
+        description: albumData.description
+      });
       
       const response = await api.post('/api/album/albums/', formData, {
         headers: {
@@ -37,14 +68,17 @@ export const albumService = {
         },
       });
 
-      return response.data;
+      return response;
     } catch (error) {
-      // Enhanced error logging
-      console.error('Create album error:', error.response?.data || error);
-      const errorMessage = error.response?.data?.error || error.message;
-      throw new Error(errorMessage);
+      console.error('Create album error details:', {
+        originalError: error,
+        responseData: error.response?.data,
+        message: error.message
+      });
+      throw new Error(error.response?.data?.error || error.message || 'Failed to create album');
     }
-},
+  }
+,
 
     
 

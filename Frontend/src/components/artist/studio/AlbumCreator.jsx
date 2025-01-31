@@ -3,7 +3,7 @@ import { Music, Upload, Calendar, AlertCircle, X, ChevronDown, ChevronUp, Search
 import Cropper from 'react-easy-crop';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
-import { albumService } from '../../../services/artist/albumService';
+import albumService from '../../../services/artist/albumService';
 import api from '../../../api';
 import { useDispatch } from 'react-redux';
 import { openModal, closeModal } from '../../../slices/artist/modalSlice';
@@ -11,7 +11,8 @@ import { debounce } from 'lodash';
 
 const MIN_IMAGE_SIZE = 500;
 const TARGET_SIZE = 500;
-
+const COVER_ASPECT = 1; // Square for cover
+const BANNER_ASPECT = 16 / 9; // Widescreen for banner
 
 
 const AlbumCreator = () => {
@@ -39,6 +40,8 @@ const AlbumCreator = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [focusedTrackIndex, setFocusedTrackIndex] = useState(-1);
   const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
+
+
 
   useEffect(() => {
     fetchUserTracks();
@@ -153,14 +156,30 @@ const AlbumCreator = () => {
   }, 500);
 
 
+  const [dateError, setDateError] = useState('');
+
+  // Update the handleInputChange function
   const handleInputChange = async (e) => {
     const { name, value } = e.target;
+    
+    if (name === 'releaseDate') {
+      try {
+        const date = new Date(value);
+        if (isNaN(date.getTime())) {
+          setDateError('Please enter a valid date and time');
+        } else {
+          setDateError('');
+        }
+      } catch (err) {
+        setDateError('Invalid date format');
+      }
+    }
+    
     setAlbumData((prev) => ({
       ...prev,
       [name]: value,
     }));
-    setAlbumNameError(''); // Clear error on change
-
+    
     if (name === 'name') {
       debouncedCheckAlbum(value);
     }
@@ -196,6 +215,21 @@ const AlbumCreator = () => {
       }));
     });
   };
+  const formatDateForAPI = (dateString) => {
+    try {
+      // Convert the local datetime to UTC
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        throw new Error('Invalid date');
+      }
+      
+      // Format date as ISO string and remove milliseconds
+      return date.toISOString().split('.')[0] + 'Z';
+    } catch (error) {
+      console.error('Date formatting error:', error);
+      throw new Error('Invalid release date format');
+    }
+  };
 
 
 //image cropping//
@@ -221,58 +255,57 @@ const createImage = (url) =>
     image.addEventListener('error', (error) => reject(error));
     image.src = url;
   });
-
-const handleImageChange = async (e, type) => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  try {
-    if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
-      throw new Error('Please upload only JPG, JPEG or PNG images');
-    }
-    
-    if (file.size > 5 * 1024 * 1024) {
-      throw new Error('Image size should be less than 5MB');
-    }
-
-    const img = await createImage(URL.createObjectURL(file));
-    
-    // Check minimum dimensions based on type
-    const minWidth = type === 'cover' ? MIN_IMAGE_SIZE : MIN_IMAGE_SIZE * (16/9);
-    const minHeight = type === 'cover' ? MIN_IMAGE_SIZE : MIN_IMAGE_SIZE;
-
-    if (img.width < minWidth || img.height < minHeight) {
-      const willResize = window.confirm(
-        `Image is smaller than ${minWidth}x${minHeight} pixels. Would you like to automatically resize it? This may affect image quality.`
-      );
-
-      if (!willResize) {
-        throw new Error(`Please select an image at least ${minWidth}x${minHeight} pixels`);
+  const handleImageChange = async (e, type) => {
+    const file = e.target.files[0];
+    if (!file) return;
+  
+    try {
+      if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
+        throw new Error('Please upload only JPG, JPEG or PNG images');
       }
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
+      
+      if (file.size > 5 * 1024 * 1024) {
+        throw new Error('Image size should be less than 5MB');
+      }
+  
+      const img = await createImage(URL.createObjectURL(file));
+      
+      // Check minimum dimensions based on type
+      const minWidth = type === 'cover' ? MIN_IMAGE_SIZE : MIN_IMAGE_SIZE * (16/9);
+      const minHeight = type === 'cover' ? MIN_IMAGE_SIZE : MIN_IMAGE_SIZE;
+  
+      if (img.width < minWidth || img.height < minHeight) {
+        const willResize = window.confirm(
+          `Image is smaller than ${minWidth}x${minHeight} pixels. Would you like to automatically resize it? This may affect image quality.`
+        );
+  
+        if (!willResize) {
+          throw new Error(`Please select an image at least ${minWidth}x${minHeight} pixels`);
+        }
+      }
+  
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (type === 'cover') {
+          setOriginalCoverImage(e.target.result);
+          setShowCoverCropper(true);
+          setCoverPhotoError('');
+        } else if (type === 'banner') {
+          setOriginalBannerImage(e.target.result);
+          setShowBannerCropper(true);
+          setBannerImgError('');
+        }
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
       if (type === 'cover') {
-        setOriginalCoverImage(e.target.result);
-        setShowCoverCropper(true);
-        setCoverPhotoError('');
+        setCoverPhotoError(err.message);
       } else {
-        setOriginalBannerImage(e.target.result);
-        setShowBannerCropper(true);
-        setBannerImgError('');
+        setBannerImgError(err.message);
       }
-    };
-    reader.readAsDataURL(file);
-  } catch (err) {
-    if (type === 'cover') {
-      setCoverPhotoError(err.message);
-    } else {
-      setBannerImgError(err.message);
+      toast.error(err.message);
     }
-    toast.error(err.message);
-  }
-};
+  };
 
 const handleCropComplete = (croppedArea, croppedAreaPixels, isCover) => {
   if (isCover) {
@@ -292,7 +325,6 @@ const handleCropSave = async (isCover) => {
       return;
     }
 
-    // Set target dimensions based on type
     const targetWidth = isCover ? TARGET_SIZE : TARGET_SIZE * (16/9);
     const targetHeight = isCover ? TARGET_SIZE : TARGET_SIZE;
 
@@ -332,13 +364,18 @@ const handleCropSave = async (isCover) => {
         lastModified: Date.now(),
       });
 
+      // Update albumData state with the cropped image file
+      setAlbumData(prev => ({
+        ...prev,
+        [isCover ? 'coverPhoto' : 'bannerImg']: croppedFile
+      }));
+
+      // Update preview URLs
       if (isCover) {
-        setAlbum(prev => ({ ...prev, cover_photo: croppedFile }));
-        setCoverPreview(URL.createObjectURL(blob));
+        setCoverPreviewUrl(URL.createObjectURL(blob));
         setShowCoverCropper(false);
       } else {
-        setAlbum(prev => ({ ...prev, banner_img: croppedFile }));
-        setBannerPreview(URL.createObjectURL(blob));
+        setBannerPreviewUrl(URL.createObjectURL(blob));
         setShowBannerCropper(false);
       }
     }, 'image/jpeg', 0.95);
@@ -425,71 +462,102 @@ const renderCropper = (isCover) => {
     </div>
   );
 };
-const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    setSuccessMessage('');
-    setIsLoading(true);
-  
-    try {
-      // Validation
-      if (!albumData.name?.trim()) {
-        throw new Error('Album name is required');
-      }
-      if (!albumData.coverPhoto) {
-        throw new Error('Cover photo is required');
-      }
-      if (!albumData.releaseDate) {
-        throw new Error('Release date is required');
-      }
-      if (!selectedTracks.length) {
-        throw new Error('Please select at least one track');
-      }
-  
-      const formattedTracks = selectedTracks.map((track, index) => ({
-        track: track.id,
-        track_number: index + 1,
-      }));
-  
-      // Debug log before sending
-      console.log('Submitting album data:', {
-        ...albumData,
-        tracks: formattedTracks
-      });
-  
-      const response = await albumService.createAlbum({
-        ...albumData,
-        tracks: formattedTracks,
-      });
-  
-      setSuccessMessage('Album created successfully!');
-      toast.success('Album created successfully!', {
-        position: 'top-right',
-        autoClose: 3000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-        progress: undefined,
-        theme: 'dark',
-      });
-    
-      dispatch(closeModal());
-    } catch (err) {
-      console.error('Submit error:', err);
-      setError(err.message || 'Failed to create album');
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
-const isFormValid =
-  albumData.name.trim() &&
-  albumData.coverPhoto &&
-  albumData.releaseDate &&
-  albumData.description &&
-  selectedTracks.length &&
-  !albumNameError;
+
+
+
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  if (isLoading) return;
+  
+  setError('');
+  setSuccessMessage('');
+  setIsLoading(true);
+
+  try {
+    // Validation checks
+    if (!albumData.name?.trim()) {
+      throw new Error('Album name is required');
+    }
+    if (!albumData.coverPhoto) {
+      throw new Error('Cover photo is required');
+    }
+    if (!albumData.releaseDate) {
+      throw new Error('Release date is required');
+    }
+    if (dateError) {
+      throw new Error(dateError);
+    }
+    if (!selectedTracks.length) {
+      throw new Error('Please select at least one track');
+    }
+    if (albumNameError) {
+      throw new Error('Please fix the album name error before submitting');
+    }
+
+    // Format tracks data
+    const formattedTracks = selectedTracks.map((track, index) => ({
+      track: track.id,
+      track_number: index + 1,
+    }));
+
+    // Create submission data
+    const submissionData = {
+      name: albumData.name.trim(),
+      description: albumData.description.trim(),
+      releaseDate: albumData.releaseDate,
+      is_public: albumData.is_public,
+      tracks: formattedTracks,
+      coverPhoto: albumData.coverPhoto,
+      bannerImg: albumData.bannerImg
+    };
+
+    console.log('Submitting data:', {
+      ...submissionData,
+      releaseDate: new Date(submissionData.releaseDate).toISOString()
+    });
+
+    const response = await albumService.createAlbum(submissionData);
+    
+    toast.success('Album created successfully!', {
+      position: 'top-right',
+      autoClose: 3000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: true,
+      progress: undefined,
+      theme: 'dark',
+    });
+
+    dispatch(closeModal());
+    
+  } catch (err) {
+    console.error('Album creation error:', err);
+    const errorMessage = err.message || 'Failed to create album';
+    setError(errorMessage);
+    toast.error(errorMessage, {
+      position: 'top-right',
+      theme: 'dark',
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+const isFormValid = React.useMemo(() => {
+  return Boolean(
+    albumData.name.trim() &&
+    albumData.coverPhoto &&
+    albumData.releaseDate &&
+    albumData.description.trim() &&
+    selectedTracks.length > 0 &&
+    !albumNameError &&
+    !isLoading
+  );
+}, [albumData, selectedTracks, albumNameError, isLoading]);
+
 
 return (
   <div className="max-w-4xl mx-auto p-0">
@@ -558,12 +626,12 @@ return (
                     <label className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                       <Upload className="w-8 h-8 text-white" />
                       <input
-                        type="file"
-                        name="coverPhoto"
-                        onChange={handleImageChange}
-                        accept="image/jpeg,image/png"
-                        className="hidden"
-                      />
+  type="file"
+  name="coverPhoto"
+  onChange={(e) => handleImageChange(e, 'cover')}
+  accept="image/jpeg,image/png"
+  className="hidden"
+/>
                     </label>
                   </div>
                 </div>
@@ -588,12 +656,12 @@ return (
                     <label className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                       <Upload className="w-8 h-8 text-white" />
                       <input
-                        type="file"
-                        name="bannerImg"
-                        onChange={handleImageChange}
-                        accept="image/jpeg,image/png"
-                        className="hidden"
-                      />
+  type="file"
+  name="bannerImg"
+  onChange={(e) => handleImageChange(e, 'banner')}
+  accept="image/jpeg,image/png"
+  className="hidden"
+/>
                     </label>
                   </div>
                 </div>

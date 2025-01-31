@@ -43,7 +43,7 @@ const SavedPlaylistPage = () => {
   useEffect(() => {
     const fetchPlaylist = async () => {
       try {
-        const response = await api.get(`/api/playlist/playlists/${playlistId}/`);
+        const response = await api.get(`/api/library/playlists/${playlistId}/`);
         setPlaylist(response.data);
       } catch (err) {
         setError("Failed to load playlist");

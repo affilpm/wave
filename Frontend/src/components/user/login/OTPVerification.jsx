@@ -7,35 +7,43 @@ import { setUserData } from '../../../slices/user/userSlice';
 import { decodeToken } from '../../../utils/tokenUtils';
 import { ACCESS_TOKEN, REFRESH_TOKEN} from '../../../constants/authConstants';
 
-
-
 const OTPVerification = ({ email, setIsOtpSent }) => {
     const [otp, setOtp] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [resendLoading, setResendLoading] = useState(false);
-    const [resendCooldown, setResendCooldown] = useState(0);
+    const [timer, setTimer] = useState(60);
+    const [isExpired, setIsExpired] = useState(false);
     const navigate = useNavigate();
     const dispatch = useDispatch();
+
     useEffect(() => {
-      let timer;
-      if (resendCooldown > 0) {
-        timer = setInterval(() => {
-          setResendCooldown(prev => prev - 1);
+      let interval;
+      if (timer > 0) {
+        interval = setInterval(() => {
+          setTimer(prev => prev - 1);
         }, 1000);
+      } else {
+        // Clear OTP and show expired message when timer reaches 0
+        setOtp('');
+        setIsExpired(true);
       }
-      return () => clearInterval(timer);
-    }, [resendCooldown]);
+      return () => clearInterval(interval);
+    }, [timer]);
   
     const handleResendOTP = async () => {
-      if (resendCooldown > 0) return;
+      if (timer > 0) return;
         
       setResendLoading(true);
       setError('');
+      setIsExpired(false);
     
       try {
         const response = await api.post('/api/users/resend-otp/', { email });
-        setResendCooldown(60);
+        // Reset timer after successful resend
+        setTimer(60);
+        // Clear any existing OTP
+        setOtp('');
       } catch (err) {
         const errorMessage = err.response?.data?.message || 'Failed to resend OTP';
         setError(errorMessage);
@@ -80,10 +88,8 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
         }));
         localStorage.setItem('isAuthenticated', 'true');
   
-  
         // Set default Authorization header
         api.defaults.headers.common['Authorization'] = `Bearer ${response.data.tokens.access}`;
-  
   
         // Navigate to home
         navigate('/home');
@@ -124,7 +130,14 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
             placeholder="Enter 6-digit code"
             value={otp}
             onChange={handleOTPChange}
+            disabled={isExpired}
           />
+
+          {isExpired && (
+            <p className="mt-1 text-sm text-red-400">
+              OTP expired. Please request a new one.
+            </p>
+          )}
         </div>
   
         {error && (
@@ -135,7 +148,7 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
   
         <button
           type="submit"
-          disabled={loading || otp.length !== 6}
+          disabled={loading || otp.length !== 6 || isExpired}
           className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
         >
           {loading ? (
@@ -156,18 +169,23 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
           >
             Change email
           </button>
-          <button
-            type="button"
-            onClick={handleResendOTP}
-            disabled={resendLoading || resendCooldown > 0}
-            className="text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50"
-          >
-            {resendLoading ? 'Resending...' : 
-             resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend OTP'}
-          </button>
+          {timer === 0 ? (
+            <button
+              type="button"
+              onClick={handleResendOTP}
+              disabled={resendLoading}
+              className="text-sm text-blue-400 hover:text-blue-300 disabled:opacity-50"
+            >
+              {resendLoading ? 'Resending...' : 'Resend OTP'}
+            </button>
+          ) : (
+            <span className="text-sm text-gray-400">
+              Resend OTP in {timer}s
+            </span>
+          )}
         </div>
       </form>
     );
-  };
+};
 
 export default OTPVerification;

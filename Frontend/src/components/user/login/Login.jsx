@@ -23,7 +23,7 @@ const LoginPage = () => {
     try {
       const response = await api.post('/api/users/login/', { email });
       setIsOtpSent(true);
-      setSuccess('OTP sent successfully');
+      // setSuccess('OTP sent successfully');
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong');
     } finally {

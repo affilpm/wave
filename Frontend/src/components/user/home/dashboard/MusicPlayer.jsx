@@ -52,7 +52,7 @@ const MusicPlayer = () => {
     >
       <Box sx={{ display: 'flex', alignItems: 'center' }}>
         <Avatar
-          src={currentTrack.cover_photo}
+          src={currentTrack.cover}
           alt="Album Cover"
           sx={{
             width: 60,

@@ -42,7 +42,7 @@ class PlaylistViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         # Fetch playlists created by the authenticated user
-        return Playlist.objects.all()
+        return Playlist.objects.filter(created_by_id=self.request.user)
     
 
     

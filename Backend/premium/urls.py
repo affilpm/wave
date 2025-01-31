@@ -6,9 +6,10 @@ from .views import PremiumPlanViewSet, UserSubscriptionView, RazorpayTransaction
 router = DefaultRouter()
 router.register(r'plans', CheckSubscriptionStatusViewSet, basename='premium-plan')
 router.register(r'transactions', RazorpayTransactionViewSet, basename='razorpay-transaction')
+router.register(r'subscription/status', CheckSubscriptionStatusViewSet, basename='subscription-status')
 
 urlpatterns = [
-    path('subscription/', UserSubscriptionView.as_view(), name='user-subscription'),
+    # path('subscription/', UserSubscriptionView.as_view(), name='user-subscription'),
     path('', include(router.urls)),
     path('create-order/', CreateRazorpayOrderView.as_view(), name='create_order'),
     path('verify-payment/', VerifyPaymentView.as_view(), name='verify_payment'),

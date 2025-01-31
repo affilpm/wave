@@ -15,13 +15,15 @@ const Header = () => {
   const { first_name, photo } = useSelector((state) => state.user);
   const { isArtist } = useArtistStatus();
 
+
   useEffect(() => {
     const fetchPremiumStatus = async () => {
       try {
-        const { data } = await api.get('/api/premium/plans');
-        setIsPremium(data.status); // Assuming `data.status` indicates premium status
+        const { data } = await api.get('/api/premium/subscription/status/');
+        setIsPremium(data.status === 'success');
       } catch (error) {
         console.error('Error fetching premium status:', error);
+        setIsPremium(false);
       }
     };
     fetchPremiumStatus();
