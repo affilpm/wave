@@ -215,21 +215,7 @@ const AlbumCreator = () => {
       }));
     });
   };
-  const formatDateForAPI = (dateString) => {
-    try {
-      // Convert the local datetime to UTC
-      const date = new Date(dateString);
-      if (isNaN(date.getTime())) {
-        throw new Error('Invalid date');
-      }
-      
-      // Format date as ISO string and remove milliseconds
-      return date.toISOString().split('.')[0] + 'Z';
-    } catch (error) {
-      console.error('Date formatting error:', error);
-      throw new Error('Invalid release date format');
-    }
-  };
+
 
 
 //image cropping//

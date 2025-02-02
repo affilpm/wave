@@ -34,7 +34,14 @@ class MusicService(viewsets.ModelViewSet):
             
         return queryset.select_related('artist')
     
+class PlaylistData(viewsets.ModelViewSet):
+    serializer_class = PlaylistSerializer
+    permission_classes = [IsAuthenticated]
     
+    def get_queryset(self):
+        # Fetch playlists created by the authenticated user
+        return Playlist.objects.all()
+        
 # used to manage playlist    
 class PlaylistViewSet(viewsets.ModelViewSet):
     serializer_class = PlaylistSerializer

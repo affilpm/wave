@@ -1,13 +1,17 @@
 from rest_framework import serializers
 from music.models import Music, Album
 from playlist.models import Playlist
+from artists.models import Artist
 
 class Music_ListSerializer(serializers.ModelSerializer):
-    artist = serializers.CharField(source='artist.user.first_name')  # Assuming artist is linked to a user with an email
+    artist = serializers.SerializerMethodField() # To show email or username
 
     class Meta:
         model = Music
         fields = ['id', 'name', 'artist', 'cover_photo']
+
+    def get_artist(self, obj):
+        return f"{obj.artist.user.first_name} {obj.artist.user.last_name}"
         
         
 

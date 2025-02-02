@@ -160,7 +160,7 @@ const Dashboard = () => {
     if (playlist && playlist.created_by === userEmail) {
       navigate(`/playlist/${playlistId}`);
     } else {
-      alert("You don't have access to this playlist.");
+        navigate(`/saved-playlist/${playlistId}`);
     }
   };
 

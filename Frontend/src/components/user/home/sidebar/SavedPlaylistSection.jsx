@@ -1,16 +1,13 @@
-import React, {useState} from "react";
+import React, {useState, useRef} from "react";
 import { Search, Plus, Library, Heart, Music, ChevronLeft, MoreVertical, Share2, Delete, Edit } from 'lucide-react';
 import api from "../../../../api";
 import SavedPlaylistSectionMenuModal from "./SavedPlaylistSectionMenuModal";
 import { useNavigate } from "react-router-dom";
 
 const SavedPlaylistSection = ({ playlists, isSidebarExpanded, setLibraryPlaylists }) => {
-    const [activeMenu, setActiveMenu] = useState(null);
-  const navigate = useNavigate();
-    const handleMenuAction = async (e, action, playlist) => {
-      e.stopPropagation();
-      setActiveMenu(null);
+    const navigate = useNavigate();
   
+    const handleMenuAction = async (action, playlist) => {
       if (action === 'delete') {
         try {
           await api.post('/api/library/remove_playlist/', {
@@ -23,14 +20,15 @@ const SavedPlaylistSection = ({ playlists, isSidebarExpanded, setLibraryPlaylist
       }
     };
   
-    const handleMenuClick = (e, playlistId) => {
-      e.stopPropagation();
-      setActiveMenu(activeMenu === playlistId ? null : playlistId);
-    };
-  
-    const handlesPlaylistClick = (id) => {
+    const handlePlaylistClick = (e, id) => {
+      // If the click target or its parent is the modal button, don't navigate
+      if (e.target.closest('.playlist-manager-button')) {
+        e.stopPropagation();
+        return;
+      }
       navigate(`/saved-playlist/${id}`);
     };
+
     return (
       <>
         {isSidebarExpanded && (
@@ -40,7 +38,7 @@ const SavedPlaylistSection = ({ playlists, isSidebarExpanded, setLibraryPlaylist
           {playlists.map((playlist) => (
             <div
               key={playlist.id || playlist.name}
-              onClick={() => handlesPlaylistClick(playlist.id)}
+              onClick={(e) => handlePlaylistClick(e, playlist.id)}
               className="group relative"
             >
               <div className={`
@@ -71,26 +69,21 @@ const SavedPlaylistSection = ({ playlists, isSidebarExpanded, setLibraryPlaylist
                         Playlist • {playlist.songCount} songs
                       </span>
                     </div>
-                    <button
-                      onClick={(e) => handleMenuClick(e, playlist.id)}
-                      className="p-1 rounded-full hover:bg-gray-700 opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <MoreVertical className="h-5 w-5 text-gray-400" />
-                    </button>
+
+                    <div className="playlist-manager-button">
+                      <SavedPlaylistSectionMenuModal 
+                        playlist={playlist}
+                        handleMenuAction={handleMenuAction}
+                      />
+                    </div>
                   </>
                 )}
               </div>
-              <SavedPlaylistSectionMenuModal
-                activeMenu={activeMenu} 
-                playlist={playlist} 
-                handleMenuAction={handleMenuAction} 
-
-              />
             </div>
           ))}
         </div>
       </>
     );
-  };
-  
-  export default SavedPlaylistSection;
+};
+
+export default SavedPlaylistSection;

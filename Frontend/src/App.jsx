@@ -18,7 +18,7 @@ import EditAlbum from './components/artist/studio/EditAlbum';
 import MultiStepRegister from './components/user/register/MultiStepRegister';
 import LoginPage from './components/user/login/Login';
 import Dashboard from './components/user/home/dashboard/Dashboard';
-import PlaylistPage from './components/user/home/playlist/PlaylistPage'; 
+import PlaylistPage from './components/user/home/playlist/your-playlist-page/YourPlaylistPage'; 
 import Premium from './components/user/home/header/Premium';
 import MusicShowMorePage from './components/user/home/dashboard/MusicShowMorePage';
 import SavedPlaylistPage from './components/user/home/playlist/SavedPlaylistPage';

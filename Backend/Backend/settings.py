@@ -47,14 +47,12 @@ REST_FRAMEWORK = {
 
 # Django settings.py
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),  # Increased from 5 minutes
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),     # Increased for better UX
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
     'ROTATE_REFRESH_TOKENS': True,
     'BLACKLIST_AFTER_ROTATION': True,
-    'UPDATE_LAST_LOGIN': True,  # Add this to track user login activity
-    'AUTH_TOKEN_CLASSES': ('rest_framework_simplejwt.tokens.AccessToken',),
-    'TOKEN_BLACKLIST_ENABLED': True,
 }
+
 
 CORS_ALLOW_HEADERS = [
     'accept',

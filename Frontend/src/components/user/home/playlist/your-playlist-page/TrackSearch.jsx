@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X, Plus } from 'lucide-react';
-import api from '../../../../api';
+import api from '../../../../../api';
 
 const TrackSearch = ({ playlistId, onTracksUpdate }) => {
   const [searchResults, setSearchResults] = useState([]);
