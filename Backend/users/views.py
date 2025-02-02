@@ -257,24 +257,13 @@ def google_auth(request):
             if serializer.is_valid():
                 serializer.save()
         else:
-            # Create a new user
-            serializer = UserSerializer(data={
-                'email': email, 
-                'first_name': first_name, 
-                'last_name': last_name,
-                'is_active': True  # Ensure new users are active by default
-            })
-            if serializer.is_valid():
-                user = serializer.save()
-            else:
-                return Response(serializer.errors, status=400)
+
+            return Response({"error": "Email not found. Please sign up to continue."}, status=status.HTTP_404_NOT_FOUND)
 
         # Create refresh token and access token
         refresh = RefreshToken.for_user(user)
         access_token = refresh.access_token
 
-        # Set access token lifetime (e.g., 1 hour)
-        access_token.set_exp(lifetime=timedelta(hours=1))
 
         # Add custom claims to the access token
         access_token['email'] = user.email
@@ -294,6 +283,83 @@ def google_auth(request):
         # Log the error in production (using Django logging)
         print(f"Auth error: {str(e)}")  # You can replace this with proper logging in production
         return Response({'message': str(e)}, status=400)
+
+
+# @api_view(['POST'])
+# @permission_classes([AllowAny])
+# def google_sign_up(request):
+#     try:
+#         token = request.data.get('token')
+
+#         if not token:
+#             return Response({'message': 'Token required'}, status=400)
+
+#         # Verify the token with Google's API
+#         idinfo = id_token.verify_oauth2_token(
+#             token,
+#             Request(),
+#             settings.GOOGLE_CLIENT_ID
+#         )
+
+#         # Validate the issuer
+#         if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+#             return Response({'message': 'Invalid issuer'}, status=400)
+
+#         email = idinfo['email']
+#         first_name = idinfo.get('given_name', '')
+#         last_name = idinfo.get('family_name', '')
+
+#         # Check if the user exists
+#         user = CustomUser.objects.filter(email=email).first()
+
+#         if user:
+#             # Check if user is active
+#             if not user.is_active:
+#                 return Response({
+#                     'message': 'Your account has been deactivated. Please contact support for assistance.'
+#                 }, status=403)
+                
+#             # Update the user if necessary
+#             serializer = UserSerializer(user, data={'first_name': first_name, 'last_name': last_name}, partial=True)
+#             if serializer.is_valid():
+#                 serializer.save()
+#         else:
+#             # Create a new user
+#             serializer = UserSerializer(data={
+#                 'email': email, 
+#                 'first_name': first_name, 
+#                 'last_name': last_name,
+#                 'is_active': True  # Ensure new users are active by default
+#             })
+#             if serializer.is_valid():
+#                 user = serializer.save()
+#             else:
+#                 return Response(serializer.errors, status=400)
+
+#         # Create refresh token and access token
+#         refresh = RefreshToken.for_user(user)
+#         access_token = refresh.access_token
+
+
+#         # Add custom claims to the access token
+#         access_token['email'] = user.email
+#         access_token['user_id'] = user.id
+#         access_token['first_name'] = user.first_name
+#         access_token['last_name'] = user.last_name
+
+#         # Return the tokens
+#         return Response({
+#             'tokens': {
+#                 'access': str(access_token),
+#                 'refresh': str(refresh)
+#             }
+#         })
+
+#     except Exception as e:
+#         # Log the error in production (using Django logging)
+#         print(f"Auth error: {str(e)}")  # You can replace this with proper logging in production
+#         return Response({'message': str(e)}, status=400)
+
 
 
 @api_view(['POST'])

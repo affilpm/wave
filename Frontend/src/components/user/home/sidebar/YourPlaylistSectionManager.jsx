@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import YourPlaylistSectionMenuModal from './YourPlaylistSectionMenuModal';
-import EditPlaylistModal from '../playlist/EditPlaylistModal';
+import EditPlaylistModal from '../playlist/your-playlist-page/EditPlaylistModal';
 import api from '../../../../api';
 
 const YourPlaylistSectionManager = ({ playlist, onPlaylistUpdate, onPlaylistDelete }) => {

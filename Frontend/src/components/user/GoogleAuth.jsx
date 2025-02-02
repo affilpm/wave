@@ -81,7 +81,7 @@ const GoogleAuthButton = () => {
         { token: response.credential },
         { headers: { 'Content-Type': 'application/json' } }
       );
-      
+      console.log('Google Auth Response:', data);
       if (!data?.tokens?.access || !data?.tokens?.refresh) {
         throw new Error('Invalid token data received from server');
       }
@@ -115,11 +115,19 @@ const GoogleAuthButton = () => {
       navigate('/home');
     } catch (err) {
       console.error('Authentication error:', err);
-      setError(
-        err.response?.data?.message || 
-        err.message || 
-        'Authentication failed. Please try again.'
-      );
+
+      // Check if the error has a response and display the message from the backend
+      if (err.response) {
+        console.error('Backend Error:', err.response.data);
+        setError(
+          err.response?.data?.error || // Custom error message from the backend
+          err.response?.data?.message || // Fallback to generic message
+          err.message || // Fallback to default error message
+          'Authentication failed. Please try again.' // Default message
+        );
+      } else {
+        setError('Network error or unexpected issue. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

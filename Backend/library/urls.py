@@ -8,7 +8,7 @@ from .views import PlaylistLibraryView, PlaylistViewSet
 
 router = DefaultRouter()
 router.register(r'library', LibraryViewSet, basename='library')
-router.register(r'playlists', PlaylistViewSet, basename='playlist')
+router.register(r'playlist_data', PlaylistViewSet, basename='playlist')
 
 # Get the router URLs
 urlpatterns = router.urls

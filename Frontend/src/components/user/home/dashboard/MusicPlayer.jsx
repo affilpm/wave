@@ -13,7 +13,7 @@ import {
 const MusicPlayer = () => {
   const dispatch = useDispatch();
   const { currentTrack, isPlaying, volume } = useSelector((state) => state.player);
-
+console.log(currentTrack);
   const handlePlayPause = () => {
     dispatch(setIsPlaying(!isPlaying));
   };
@@ -52,7 +52,7 @@ const MusicPlayer = () => {
     >
       <Box sx={{ display: 'flex', alignItems: 'center' }}>
         <Avatar
-          src={currentTrack.cover}
+          src={currentTrack.cover_photo}
           alt="Album Cover"
           sx={{
             width: 60,

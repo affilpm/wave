@@ -1,142 +1,161 @@
 import axios from 'axios';
 import jwt_decode from 'jwt-decode';
-import { ACCESS_TOKEN, REFRESH_TOKEN } from './constants/authConstants';
 
-const API_URL = import.meta.env.VITE_API_URL;
+// Constants
+const TOKEN_BUFFER_TIME = 30000; // 30 seconds in milliseconds
+const UNAUTHORIZED = 401;
 
-class Api {
-  constructor() {
-    this.api = axios.create({
-      baseURL: API_URL,
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-    
+export class api {
+  constructor(config) {
+    this.config = {
+      baseURL: config.baseURL || import.meta.env.VITE_API_URL,
+      accessTokenKey: config.accessTokenKey || 'access_token',
+      refreshTokenKey: config.refreshTokenKey || 'refresh_token',
+      onLogout: config.onLogout || (() => {}),
+      tokenType: config.tokenType || 'Bearer'
+    };
+
     this.refreshPromise = null;
-    this.setupInterceptors();
+    this.api = this.setupAxiosInstance();
+  }
+
+  setupAxiosInstance() {
+    const instance = axios.create({
+      baseURL: this.config.baseURL,
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    instance.interceptors.request.use(
+      (config) => this.handleRequestInterceptor(config), 
+      (error) => this.handleRequestError(error)
+    );
+
+    instance.interceptors.response.use(
+      (response) => response,
+      (error) => this.handleResponseError(error) 
+    );
+
+    return instance;
+  }
+
+  getToken(key) {
+    return localStorage.getItem(this.config[key]);
+  }
+
+  setToken(key, value) {
+    if (value) {
+      localStorage.setItem(this.config[key], value);
+    } else {
+      localStorage.removeItem(this.config[key]);
+    }
   }
 
   isTokenExpired(token) {
     if (!token) return true;
+
     try {
       const decoded = jwt_decode(token);
-      // Add 30-second buffer to prevent edge cases
-      return (decoded.exp * 1000) - 30000 <= Date.now();
+      return (decoded.exp * 1000) - TOKEN_BUFFER_TIME <= Date.now();
     } catch (error) {
-      console.error('Error decoding token:', error);
+      console.error('Token decode error:', error);
       return true;
     }
   }
 
   async refreshAccessToken() {
     try {
-      const refreshToken = localStorage.getItem(REFRESH_TOKEN);
-      if (!refreshToken) {
-        throw new Error('No refresh token available');
+      const refreshToken = this.getToken('refreshTokenKey');
+
+      if (!refreshToken || this.isTokenExpired(refreshToken)) {
+        console.error("Refresh token expired. Logging out.");
+        this.handleLogout();
+        throw new Error('Invalid or expired refresh token');
       }
 
-      if (this.isTokenExpired(refreshToken)) {
-        throw new Error('Refresh token has expired');
-      }
-
-      const response = await axios.post(`${API_URL}/api/token/refresh/`, {
+      const response = await axios.post(`${this.config.baseURL}/api/users/token/refresh/`, {
         refresh: refreshToken
       });
 
       const { access, refresh } = response.data;
-      
-      // Store both new tokens if rotation is enabled
-      localStorage.setItem(ACCESS_TOKEN, access);
+
+      this.setToken('accessTokenKey', access);
       if (refresh) {
-        localStorage.setItem(REFRESH_TOKEN, refresh);
+        this.setToken('refreshTokenKey', refresh);
       }
-      
-      this.api.defaults.headers.common.Authorization = `Bearer ${access}`;
+
       return access;
     } catch (error) {
-      console.error('Token refresh failed:', error);
-      this.logout();
+      console.error("Token refresh failed:", error);
+      this.handleLogout();
       throw error;
     }
   }
 
-  logout() {
-    localStorage.removeItem(ACCESS_TOKEN);
-    localStorage.removeItem(REFRESH_TOKEN);
-    localStorage.clear()
-    delete this.api.defaults.headers.common.Authorization;
-    // Implement your logout logic here (e.g., redirect)
-    // window.location.href = '/login';
+  async handleRequestInterceptor(config) {
+    const token = this.getToken('accessTokenKey');
+
+    if (!token) return config;
+
+    if (!this.isTokenExpired(token)) {
+      config.headers.Authorization = `${this.config.tokenType} ${token}`;
+      return config;
+    }
+
+    try {
+      if (!this.refreshPromise) {
+        this.refreshPromise = this.refreshAccessToken();
+      }
+
+      const newToken = await this.refreshPromise;
+      config.headers.Authorization = `${this.config.tokenType} ${newToken}`;
+      return config;
+    } finally {
+      this.refreshPromise = null;
+    }
   }
 
-  setupInterceptors() {
-    // Request interceptor
-    this.api.interceptors.request.use(
-      async (config) => {
-        const token = localStorage.getItem(ACCESS_TOKEN);
-        
-        if (!token) {
-          return config;
+  async handleResponseError(error) {
+    const originalRequest = error.config;
+
+    if (!error.response) {
+      return Promise.reject(error);
+    }
+
+    if (
+      error.response.status === UNAUTHORIZED &&
+      !originalRequest._retry &&
+      this.isTokenExpired(this.getToken('accessTokenKey'))
+    ) {
+      originalRequest._retry = true;
+
+      try {
+        if (!this.refreshPromise) {
+          this.refreshPromise = this.refreshAccessToken();
         }
 
-        if (!this.isTokenExpired(token)) {
-          config.headers.Authorization = `Bearer ${token}`;
-          return config;
-        }
-
-        try {
-          if (!this.refreshPromise) {
-            this.refreshPromise = this.refreshAccessToken();
-          }
-          
-          const newToken = await this.refreshPromise;
-          config.headers.Authorization = `Bearer ${newToken}`;
-          return config;
-        } catch (error) {
-          this.logout();
-          throw error;
-        } finally {
-          this.refreshPromise = null;
-        }
-      },
-      (error) => Promise.reject(error)
-    );
-
-    // Response interceptor
-    this.api.interceptors.response.use(
-      (response) => response,
-      async (error) => {
-        const originalRequest = error.config;
-
-        if (
-          error.response?.status === 401 &&
-          !originalRequest._retry &&
-          this.isTokenExpired(localStorage.getItem(ACCESS_TOKEN))
-        ) {
-          originalRequest._retry = true;
-
-          try {
-            if (!this.refreshPromise) {
-              this.refreshPromise = this.refreshAccessToken();
-            }
-
-            const newToken = await this.refreshPromise;
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
-            return this.api(originalRequest);
-          } catch (refreshError) {
-            this.logout();
-            throw refreshError;
-          } finally {
-            this.refreshPromise = null;
-          }
-        }
-
-        return Promise.reject(error);
+        const newToken = await this.refreshPromise;
+        originalRequest.headers.Authorization = `${this.config.tokenType} ${newToken}`;
+        return this.api(originalRequest);
+      } catch (refreshError) {
+        console.error("Failed to refresh token:", refreshError);
+        this.handleLogout();
+        return Promise.reject(refreshError);
+      } finally {
+        this.refreshPromise = null;
       }
-    );
+    }
+
+    return Promise.reject(error);
+  }
+
+  handleLogout() {
+    console.error('Logging out');
+    this.setToken('accessTokenKey', null);
+    this.setToken('refreshTokenKey', null);
+    delete this.api.defaults.headers.common.Authorization;
+    this.config.onLogout();
   }
 }
 
-export const apiInstance = new Api();
+export const apiInstance = new api({ baseURL: import.meta.env.VITE_API_URL, onLogout: () => window.location.replace('/logout') });
 export default apiInstance.api;
