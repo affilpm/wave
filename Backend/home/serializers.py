@@ -37,7 +37,7 @@ class Album_ListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Album
-        fields = ['name', 'artist', 'cover_photo', 'banner_img', 'is_public']        
+        fields = ['id', 'name', 'artist', 'cover_photo', 'banner_img', 'is_public']        
         
         
     

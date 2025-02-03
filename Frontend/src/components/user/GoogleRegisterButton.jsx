@@ -6,10 +6,14 @@ import api from '../../api';
 import { ACCESS_TOKEN, REFRESH_TOKEN, GOOGLE_CLIENT_ID } from '../../constants/authConstants';
 import { decodeToken } from '../../utils/tokenUtils';
 
-const GoogleAuthButton = () => {
+const GoogleRegisterButton = () => {
   const buttonRef = useRef(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [googleCredential, setGoogleCredential] = useState(null);
+  const [showUsernameForm, setShowUsernameForm] = useState(false);
+  const [username, setUsername] = useState('');
+  const [usernameError, setUsernameError] = useState('');
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
@@ -77,27 +81,76 @@ const GoogleAuthButton = () => {
         throw new Error('No credential received from Google');
       }
   
-      const { data } = await api.post('/api/users/google_auth/', 
+      const { data } = await api.post('/api/users/google_pre_register/', 
         { token: response.credential },
         { headers: { 'Content-Type': 'application/json' } }
       );
-      console.log('Google Auth Response:', data);
-      if (!data?.tokens?.access || !data?.tokens?.refresh) {
-        throw new Error('Invalid token data received from server');
+
+      // If user needs to select a username
+      if (data.requires_username) {
+        setGoogleCredential(response.credential);
+        setShowUsernameForm(true);
+      } else {
+        // Existing user or immediate registration possible
+        await finalizeRegistration(response.credential);
       }
-      
+    } catch (err) {
+      console.error('Authentication error:', err);
+      setError(
+        err.response?.data?.error || 
+        err.response?.data?.message || 
+        err.message || 
+        'Authentication failed. Please try again.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUsernameSubmit = async (e) => {
+    e.preventDefault();
+    if (!username) {
+      setUsernameError('Username is required');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const { data } = await api.post('/api/users/google_register/', 
+        { 
+          token: googleCredential, 
+          username: username 
+        },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+
+      await finalizeRegistration(googleCredential);
+    } catch (err) {
+      console.error('Username registration error:', err);
+      setUsernameError(
+        err.response?.data?.error || 
+        err.response?.data?.message || 
+        'Username registration failed'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const finalizeRegistration = async (credential) => {
+    try {
+      const { data } = await api.post('/api/users/google_login/', 
+        { token: credential },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+
       localStorage.setItem(ACCESS_TOKEN, data.tokens.access);
       localStorage.setItem(REFRESH_TOKEN, data.tokens.refresh);
   
       const decodedToken = decodeToken(data.tokens.access);
-      
-      if (!decodedToken?.user_id || !decodedToken?.email) {
-        throw new Error('Invalid user data in token');
-      }
   
       dispatch(setUserData({
         email: decodedToken.email,
-        username: decodedToken.username,
         first_name: decodedToken.first_name,
         last_name: decodedToken.last_name,
         image: decodedToken.image || null,
@@ -115,24 +168,52 @@ const GoogleAuthButton = () => {
   
       navigate('/home');
     } catch (err) {
-      console.error('Authentication error:', err);
-
-      // Check if the error has a response and display the message from the backend
-      if (err.response) {
-        console.error('Backend Error:', err.response.data);
-        setError(
-          err.response?.data?.error || // Custom error message from the backend
-          err.response?.data?.message || // Fallback to generic message
-          err.message || // Fallback to default error message
-          'Authentication failed. Please try again.' // Default message
-        );
-      } else {
-        setError('Network error or unexpected issue. Please try again.');
-      }
-    } finally {
-      setLoading(false);
+      console.error('Final registration error:', err);
+      setError(
+        err.response?.data?.error || 
+        err.response?.data?.message || 
+        'Registration failed. Please try again.'
+      );
     }
   };
+
+  // Render username form
+  if (showUsernameForm) {
+    return (
+      <div className="w-full max-w-md mx-auto">
+        <form onSubmit={handleUsernameSubmit} className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+          <div className="mb-4">
+            <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="username">
+              Choose a Unique Username
+            </label>
+            <input
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => {
+                setUsername(e.target.value);
+                setUsernameError('');
+              }}
+              placeholder="Enter your username"
+              className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+            {usernameError && (
+              <p className="text-red-500 text-xs italic mt-2">{usernameError}</p>
+            )}
+          </div>
+          <div className="flex items-center justify-between">
+            <button
+              type="submit"
+              disabled={loading}
+              className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+            >
+              {loading ? 'Submitting...' : 'Submit Username'}
+            </button>
+          </div>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">
@@ -154,4 +235,4 @@ const GoogleAuthButton = () => {
   );
 };
 
-export default GoogleAuthButton;
+export default GoogleRegisterButton;

@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-const AlbumSection = ({ title, items, isPlaying, setIsPlaying, currentAlbum, onAlbumPlay }) => {
+const AlbumSection = ({ title, items, isPlaying, setIsPlaying, currentAlbum, onAlbumPlay, onAlbumClick}) => {
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
   const navigate = useNavigate();
@@ -80,6 +80,7 @@ const AlbumSection = ({ title, items, isPlaying, setIsPlaying, currentAlbum, onA
               <div
                 key={index}
                 className="flex-none w-40"
+                onClick={() => onAlbumClick(item.id)}
               >
                 <div className="relative group">
                   <img

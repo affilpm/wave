@@ -79,10 +79,7 @@ class PlaylistSerializer(serializers.ModelSerializer):
             'updated_at', 'tracks', 'created_by_details'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by_details']
-        extra_kwargs = {
-            'cover_photo': {'required': False},  # Make cover_photo optional
-            'description': {'required': False},  # Make description optional
-        }
+
 
     def create(self, validated_data):
         # Assign the current user as the creator

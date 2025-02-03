@@ -31,7 +31,7 @@ const ShowMorePage = () => {
   }
 
   return (
-    <div className="flex-1 p-2 overflow-y-auto bg-gradient-to-b from-gray-900 to-black text-white">
+    <div className="flex-1 p-2 ">
     <section className="mb-8 relative">
       <h2 className="text-2xl p-2 font-bold mb-4">{title}</h2>
       <div className="overflow-x-auto scrollbar-hidden">

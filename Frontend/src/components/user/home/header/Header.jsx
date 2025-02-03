@@ -12,7 +12,7 @@ const Header = () => {
   const [isPremium, setIsPremium] = useState(false);
   const navigate = useNavigate();
 
-  const { first_name, photo } = useSelector((state) => state.user);
+  const { first_name, username, photo } = useSelector((state) => state.user);
   const { isArtist } = useArtistStatus();
 
 
@@ -94,7 +94,7 @@ const Header = () => {
                 backgroundPosition: 'center',
               }}
             />
-            {first_name && <span className="text-white text-sm">{first_name}</span>}
+            {first_name && <span className="text-white text-sm">{username}</span>}
           </button>
           {showProfileMenu && (
             <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-md shadow-lg py-1">

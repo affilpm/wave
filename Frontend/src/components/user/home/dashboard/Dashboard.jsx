@@ -107,7 +107,7 @@ const ShufflingDashboard = ({ children }) => {
   ));
 
   return (
-    <div className="flex-1 p-2 overflow-y-auto bg-gradient-to-b from-gray-900 to-black text-white">
+    <div className="flex-1 p-2 ">
       <div className="mb-6">
       </div>
 
@@ -164,6 +164,11 @@ const Dashboard = () => {
     }
   };
 
+
+  const handleAlbumClick = (albumId) => {
+        navigate(`/album/${albumId}`);
+  };
+
   const filteredItems = (items) =>
     filter === "all" ? items : items.filter((item) => item.type === filter);
 
@@ -191,6 +196,7 @@ const Dashboard = () => {
         <AlbumSection
           title="Album"
           items={filteredItems(AlbumlistData)}
+          onAlbumClick={handleAlbumClick}
         />
       )}
     </ShufflingDashboard>

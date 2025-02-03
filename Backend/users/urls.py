@@ -11,6 +11,10 @@ urlpatterns = [
     # path('google_signin/', google_signin, name='google_signin'),
     # path('check_user/', views.check_user, name='check_user'),
     path('google_auth/', views.google_auth, name='google_auth'),
+    path('google_pre_register/', views.google_pre_register, name='google_pre_register'),
+    
+    path('google_register/', views.google_register, name='google_register'),
+    
     path('logout/', views.logout, name='logout'),
     path('register/initiate/', views.initiate_registration, name='initiate-registration'),
     path('register/verify-otp/', views.verify_otp, name='verify-otp'),

@@ -3,6 +3,7 @@ import { createSlice } from '@reduxjs/toolkit';
 // Initial state for the user
 const initialState = {
   email: '',
+  username: '',
   first_name: '',
   last_name: '',
   image: '', // Image will be null initially
@@ -16,6 +17,7 @@ const userSlice = createSlice({
   reducers: {
     setUserData: (state, action) => {
       state.email = action.payload.email;
+      state.username = action.payload.username;
       state.first_name = action.payload.first_name;
       state.last_name = action.payload.last_name;
       state.image = action.payload.image || ''; // image can be added later
@@ -26,6 +28,7 @@ const userSlice = createSlice({
     },
     clearUserData: (state) => {
       state.email = ''; // Reset to empty string
+      state.username = ''; // Reset to empty string
       state.first_name = ''; // Reset to empty string
       state.last_name = ''; // Reset to empty string
       state.image = ''; // Keep image as null

@@ -25,7 +25,7 @@ const HomePage = () => {
   const handlePrevious = () => console.log("Go to previous song");
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-b from-gray-900 to-black text-white">
+    <div className="h-screen flex-1 p-2 overflow-y-auto bg-gradient-to-b from-gray-900 to-black text-white">
       {/* Header - Fixed at top with highest z-index */}
       <div className="sticky top-0 z-50 bg-gradient-to-b from-gray-900 to-black/40">
         <Header className="h-16" />

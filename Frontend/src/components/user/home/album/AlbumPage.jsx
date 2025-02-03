@@ -16,7 +16,9 @@ const AlbumPage = () => {
       const [isPlaying, setIsPlaying] = useState(false);
       const [isShuffling, setIsShuffling] = useState(false);
       const [currentTrackId, setCurrentTrackId] = useState(null);
-      const { playlistId } = useParams();
+      // const { playlistId } = useParams();
+      const { albumId } = useParams();
+
       const navigate = useNavigate();
     
       const [totalDuration, setTotalDuration] = useState("");
@@ -44,9 +46,9 @@ const AlbumPage = () => {
       useEffect(() => {
         const fetchPlaylist = async () => {
           try {
-            const response = await api.get(`/api/playlist/playlist_data/${playlistId}/`);
+            const response = await api.get(`/api/album/album_data/${albumId}/`);
             setPlaylist(response.data);
-            console.log('jjbubbbbbbnuh',response.data);
+            console.log('',response.data);
           } catch (err) {
             setError("Failed to load playlist");
           } finally {
@@ -55,7 +57,7 @@ const AlbumPage = () => {
         };
     
         fetchPlaylist();
-      }, [playlistId]);
+      }, [albumId]);
     
       if (isLoading) {
         return (
@@ -81,7 +83,7 @@ const AlbumPage = () => {
     
             <div className="flex flex-col gap-4">
               <span className="text-sm font-medium uppercase tracking-wider text-gray-400">
-                {playlist.is_public ? "Public Playlist" : "Private Playlist"}
+                Album
               </span>
               <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
                 {playlist.name}
