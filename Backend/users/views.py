@@ -267,6 +267,7 @@ def google_auth(request):
 
         # Add custom claims to the access token
         access_token['email'] = user.email
+        access_token['username'] = user.username
         access_token['user_id'] = user.id
         access_token['first_name'] = user.first_name
         access_token['last_name'] = user.last_name
@@ -285,82 +286,102 @@ def google_auth(request):
         return Response({'message': str(e)}, status=400)
 
 
-# @api_view(['POST'])
-# @permission_classes([AllowAny])
-# def google_sign_up(request):
-#     try:
-#         token = request.data.get('token')
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def google_pre_register(request):
+    try:
+        token = request.data.get('token')
 
-#         if not token:
-#             return Response({'message': 'Token required'}, status=400)
+        if not token:
+            return Response({'message': 'Token required'}, status=400)
 
-#         # Verify the token with Google's API
-#         idinfo = id_token.verify_oauth2_token(
-#             token,
-#             Request(),
-#             settings.GOOGLE_CLIENT_ID
-#         )
+        # Verify the token with Google's API
+        idinfo = id_token.verify_oauth2_token(
+            token,
+            requests.Request(),
+            settings.GOOGLE_CLIENT_ID
+        )
 
-#         # Validate the issuer
-#         if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
-#             return Response({'message': 'Invalid issuer'}, status=400)
+        # Validate the issuer
+        if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+            return Response({'message': 'Invalid issuer'}, status=400)
 
-#         email = idinfo['email']
-#         first_name = idinfo.get('given_name', '')
-#         last_name = idinfo.get('family_name', '')
+        email = idinfo['email']
+        first_name = idinfo.get('given_name', '')
+        last_name = idinfo.get('family_name', '')
 
-#         # Check if the user exists
-#         user = CustomUser.objects.filter(email=email).first()
+        # Check if the user exists
+        user = CustomUser.objects.filter(email=email).first()
 
-#         if user:
-#             # Check if user is active
-#             if not user.is_active:
-#                 return Response({
-#                     'message': 'Your account has been deactivated. Please contact support for assistance.'
-#                 }, status=403)
-                
-#             # Update the user if necessary
-#             serializer = UserSerializer(user, data={'first_name': first_name, 'last_name': last_name}, partial=True)
-#             if serializer.is_valid():
-#                 serializer.save()
-#         else:
-#             # Create a new user
-#             serializer = UserSerializer(data={
-#                 'email': email, 
-#                 'first_name': first_name, 
-#                 'last_name': last_name,
-#                 'is_active': True  # Ensure new users are active by default
-#             })
-#             if serializer.is_valid():
-#                 user = serializer.save()
-#             else:
-#                 return Response(serializer.errors, status=400)
+        if user:
+            # Check if the user is active
+            if not user.is_active:
+                return Response({
+                    'message': 'Your account has been deactivated. Please contact support for assistance.'
+                }, status=403)
+            
+            return Response({'requires_username': False}, status=200)
+        else:
+            # New user needs to select a username
+            return Response({'requires_username': True}, status=200)
 
-#         # Create refresh token and access token
-#         refresh = RefreshToken.for_user(user)
-#         access_token = refresh.access_token
+    except Exception as e:
+        return Response({'message': str(e)}, status=400)
 
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def google_register(request):
+    try:
+        token = request.data.get('token')
+        username = request.data.get('username')
 
-#         # Add custom claims to the access token
-#         access_token['email'] = user.email
-#         access_token['user_id'] = user.id
-#         access_token['first_name'] = user.first_name
-#         access_token['last_name'] = user.last_name
+        if not token:
+            return Response({'message': 'Token required'}, status=400)
+        
+        if not username:
+            return Response({'message': 'Username required'}, status=400)
 
-#         # Return the tokens
-#         return Response({
-#             'tokens': {
-#                 'access': str(access_token),
-#                 'refresh': str(refresh)
-#             }
-#         })
+        # Verify the token with Google's API
+        idinfo = id_token.verify_oauth2_token(
+            token,
+            requests.Request(),
+            settings.GOOGLE_CLIENT_ID
+        )
 
-#     except Exception as e:
-#         # Log the error in production (using Django logging)
-#         print(f"Auth error: {str(e)}")  # You can replace this with proper logging in production
-#         return Response({'message': str(e)}, status=400)
+        # Validate the issuer
+        if idinfo['iss'] not in ['accounts.google.com', 'https://accounts.google.com']:
+            return Response({'message': 'Invalid issuer'}, status=400)
 
+        email = idinfo['email']
+        first_name = idinfo.get('given_name', '')
+        last_name = idinfo.get('family_name', '')
 
+        # Check if username is unique
+        if CustomUser.objects.filter(username=username).exists():
+            return Response({'error': 'Username already exists'}, status=400)
+
+        # Create a new user with the provided username
+        user = CustomUser.objects.create_user(
+            email=email,
+            username=username,
+            first_name=first_name,
+            last_name=last_name,
+            is_active=True
+        )
+
+        # Generate JWT tokens
+        refresh = RefreshToken.for_user(user)
+        
+        return Response({
+            'message': 'User successfully registered',
+            'tokens': {
+                'refresh': str(refresh),
+                'access': str(refresh.access_token)
+            }
+        }, status=201)
+
+    except Exception as e:
+        return Response({'message': str(e)}, status=400)
 
 @api_view(['POST'])
 @authentication_classes([])

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Loader } from 'lucide-react';
 import GoogleAuthButton from '../GoogleAuth';
+import GoogleRegisterButton from '../GoogleRegisterButton';
 import { useNavigate } from 'react-router-dom';
 
 
@@ -29,7 +30,7 @@ const EmailStep = ({ formData, errors, isSubmitting, handleChange, handleEmailSu
       {/* GoogleAuthButton with proper padding */}
       <div className="flex justify-center  px-4">
               <div className="w-full max-w-[320px]">
-                <GoogleAuthButton />
+                <GoogleRegisterButton />
               </div>
       </div>
 

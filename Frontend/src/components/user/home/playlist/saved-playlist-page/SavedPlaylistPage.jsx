@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Play, Pause, Clock, Share2, Shuffle } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import api from "../../../../api";
+import api from "../../../../../api";
 import {
   formatDuration,
   convertToSeconds,
   convertToHrMinFormat,
-} from "../../../../utils/formatters";
+} from "../../../../../utils/formatters";
 
 const SavedPlaylistPage = () => {
   const [playlist, setPlaylist] = useState(null);

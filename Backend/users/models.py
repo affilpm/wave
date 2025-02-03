@@ -27,7 +27,7 @@ class CustomUserManager(BaseUserManager):
 
 class CustomUser(AbstractUser):
     email = models.EmailField(unique=True)
-    username = None  # Remove the username field
+    username = models.CharField(max_length=150, unique=True) 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     profile_photo = models.ImageField(upload_to='profile_photo/', null=True, blank=True)

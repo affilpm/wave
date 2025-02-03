@@ -23,7 +23,15 @@ from music.models import Music, MusicApprovalStatus
 
 
 # Create your views here.
-
+class AlbumData(viewsets.ModelViewSet):
+    serializer_class = AlbumSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        # Fetch playlists created by the authenticated user
+        return Album.objects.all()
+        
+        
 class AlbumViewSet(viewsets.ModelViewSet):
     serializer_class = AlbumSerializer
     parser_classes = (MultiPartParser, FormParser, JSONParser)

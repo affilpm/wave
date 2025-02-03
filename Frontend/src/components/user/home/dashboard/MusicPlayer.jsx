@@ -1,142 +1,262 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { IconButton, Slider, Box, Typography, Avatar } from '@mui/material';
-import { PlayArrow, Pause, SkipNext, SkipPrevious } from '@mui/icons-material';
 import { 
-  setIsPlaying, 
-  setVolume, 
-  nextTrack, 
-  previousTrack } from '../../../../slices/user/playerSlice';
-
-  
+  Play, Pause, SkipForward, SkipBack, Volume2, Volume1, VolumeX,
+  Shuffle, Repeat, List, X, Music2
+} from 'lucide-react';
+import { 
+  setIsPlaying,
+  setVolume,
+  nextTrack,
+  previousTrack,
+  setCurrentTrack,
+  setQueue 
+} from '../../../../slices/user/playerSlice';
 
 const MusicPlayer = () => {
   const dispatch = useDispatch();
-  const { currentTrack, isPlaying, volume } = useSelector((state) => state.player);
-console.log(currentTrack);
+  const { currentTrack, isPlaying, volume, queue } = useSelector((state) => state.player);
+  const [isPlaylistOpen, setIsPlaylistOpen] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  
+  const audioRef = useRef(null);
+
+  useEffect(() => {
+    if (currentTrack?.url) {
+      audioRef.current.src = currentTrack.url;
+      if (isPlaying) {
+        audioRef.current.play();
+      }
+    }
+  }, [currentTrack]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = volume / 100;
+    }
+  }, [volume]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.play();
+      } else {
+        audioRef.current.pause();
+      }
+    }
+  }, [isPlaying]);
+
   const handlePlayPause = () => {
     dispatch(setIsPlaying(!isPlaying));
   };
 
-  const handleSkip = () => {
-    dispatch(nextTrack());
+  const handleTimeUpdate = () => {
+    setCurrentTime(audioRef.current.currentTime);
+    setDuration(audioRef.current.duration);
   };
 
-  const handlePrevious = () => {
-    dispatch(previousTrack());
+  const handleSeek = (e) => {
+    const time = Number(e.target.value);
+    setCurrentTime(time);
+    audioRef.current.currentTime = time;
   };
 
-  const handleVolumeChange = (event, newValue) => {
-    dispatch(setVolume(newValue));
+  const handleVolumeChange = (e) => {
+    dispatch(setVolume(Number(e.target.value)));
   };
 
-  if (!currentTrack) return null;
+  const handleTrackSelect = (track) => {
+    dispatch(setCurrentTrack(track));
+    dispatch(setIsPlaying(true));
+  };
+
+  const formatTime = (time) => {
+    if (!time) return '0:00';
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
+  const getVolumeIcon = () => {
+    if (volume === 0) return <VolumeX size={20} />;
+    if (volume < 50) return <Volume1 size={20} />;
+    return <Volume2 size={20} />;
+  };
 
   return (
-    <Box
-      sx={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        background: 'linear-gradient(135deg, #121212, #1c1c1c)',
-        padding: 2,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        color: 'white',
-        borderTop: '1px solid #333',
-        height: '80px',
-        boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.5)',
-      }}
-    >
-      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-        <Avatar
-          src={currentTrack.cover_photo}
-          alt="Album Cover"
-          sx={{
-            width: 60,
-            height: 60,
-            borderRadius: '8px',
-            marginRight: 2,
-            boxShadow: '0 0 10px rgba(0, 0, 0, 0.5)',
-            transition: 'transform 0.3s ease',
-            '&:hover': {
-              transform: 'scale(1.1)',
-            },
-          }}
-        />
+    <div className="fixed bottom-0 left-0 right-0 backdrop-blur-lg bg-black/30 border-t border-white/10">
+      <audio
+        ref={audioRef}
+        onTimeUpdate={handleTimeUpdate}
+        onEnded={() => dispatch(nextTrack())}
+      />
+      
+      <div className="max-w-screen-2xl mx-auto">
+        <div className="flex items-center justify-between p-4">
+          {/* Track Info */}
+          <div className="flex items-center space-x-4 w-1/4">
+            {currentTrack ? (
+              <>
+                <div className="relative group">
+                  {currentTrack.cover_photo ? (
+                    <img
+                      src={currentTrack.cover_photo}
+                      alt={currentTrack.name}
+                      className="w-14 h-14 rounded-xl shadow-lg group-hover:scale-105 transition-transform"
+                    />
+                  ) : (
+                    <div className="w-14 h-14 rounded-xl bg-gray-800 flex items-center justify-center">
+                      <Music2 size={24} className="text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col">
+                  <h3 className="font-medium text-sm text-white hover:underline cursor-pointer">
+                    {currentTrack.name}
+                  </h3>
+                  <p className="text-xs text-gray-400 hover:text-white transition-colors cursor-pointer">
+                    {currentTrack.artist}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center space-x-2 text-gray-400">
+                <Music2 size={24} />
+                <span className="text-sm">No track selected</span>
+              </div>
+            )}
+          </div>
 
-        <Box>
-          <Typography variant="body1" sx={{ fontWeight: 'bold', fontSize: '14px' }}>
-            {currentTrack.name}
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'gray', fontSize: '12px' }}>
-            {currentTrack.artist}
-          </Typography>
-        </Box>
-      </Box>
+          {/* Player Controls */}
+          <div className="flex flex-col items-center flex-1 max-w-2xl px-4">
+            <div className="flex items-center space-x-6 mb-3">
+              <button className="text-gray-400 hover:text-white transition-colors">
+                <Shuffle size={20} />
+              </button>
+              
+              <button
+                onClick={() => dispatch(previousTrack())}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <SkipBack size={20} />
+              </button>
+              
+              <button
+                onClick={handlePlayPause}
+                className="bg-white rounded-full p-2 hover:scale-105 transition-all hover:bg-green-400"
+              >
+                {isPlaying ? (
+                  <Pause size={24} className="text-black" />
+                ) : (
+                  <Play size={24} className="text-black" />
+                )}
+              </button>
 
-      <Box sx={{ display: 'flex', alignItems: 'center' }}>
-        <IconButton
-          onClick={handlePrevious}
-          sx={{
-            color: 'white',
-            '&:hover': {
-              backgroundColor: 'rgba(255, 255, 255, 0.2)',
-            },
-          }}
-        >
-          <SkipPrevious sx={{ fontSize: '30px' }} />
-        </IconButton>
+              <button
+                onClick={() => dispatch(nextTrack())}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <SkipForward size={20} />
+              </button>
 
-        <IconButton
-          onClick={handlePlayPause}
-          sx={{
-            color: 'white',
-            marginX: 2,
-            '&:hover': {
-              backgroundColor: 'rgba(255, 255, 255, 0.2)',
-            },
-          }}
-        >
-          {isPlaying ? <Pause sx={{ fontSize: '40px' }} /> : <PlayArrow sx={{ fontSize: '40px' }} />}
-        </IconButton>
+              <button className="text-gray-400 hover:text-white transition-colors">
+                <Repeat size={20} />
+              </button>
+            </div>
 
-        <IconButton
-          onClick={handleSkip}
-          sx={{
-            color: 'white',
-            '&:hover': {
-              backgroundColor: 'rgba(255, 255, 255, 0.2)',
-            },
-          }}
-        >
-          <SkipNext sx={{ fontSize: '30px' }} />
-        </IconButton>
-      </Box>
+            {/* Progress Bar */}
+            <div className="w-full flex items-center space-x-3 text-xs">
+              <span className="text-gray-400">{formatTime(currentTime)}</span>
+              <div className="flex-1 relative">
+                <input
+                  type="range"
+                  min="0"
+                  max={duration || 0}
+                  value={currentTime}
+                  onChange={handleSeek}
+                  className="w-full h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-white hover:accent-green-400"
+                />
+              </div>
+              <span className="text-gray-400">{formatTime(duration)}</span>
+            </div>
+          </div>
 
-      <Box sx={{ width: 100, marginLeft: 2 }}>
-        <Typography variant="caption" sx={{ color: 'gray' }}>
-          Volume
-        </Typography>
-        <Slider
-          value={volume}
-          onChange={handleVolumeChange}
-          sx={{
-            color: 'white',
-            '& .MuiSlider-thumb': {
-              backgroundColor: '#1DB954',
-            },
-            '& .MuiSlider-track': {
-              backgroundColor: '#1ED760',
-            },
-          }}
-          aria-label="Volume"
-          valueLabelDisplay="auto"
-        />
-      </Box>
-    </Box>
+          {/* Volume and Additional Controls */}
+          <div className="flex items-center justify-end space-x-4 w-1/4">
+            <div className="group relative flex items-center">
+              <button className="text-gray-400 group-hover:text-white transition-colors">
+                {getVolumeIcon()}
+              </button>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                value={volume}
+                onChange={handleVolumeChange}
+                className="w-0 group-hover:w-20 origin-right transition-all duration-200 h-1 mx-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-white hover:accent-green-400"
+              />
+            </div>
+
+            <button
+              onClick={() => setIsPlaylistOpen(!isPlaylistOpen)}
+              className="text-gray-400 hover:text-white transition-colors"
+            >
+              <List size={20} />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Queue Panel */}
+      {isPlaylistOpen && (
+        <div className="absolute bottom-full right-0 w-96 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-t-xl p-4 max-h-96 overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold">Queue</h2>
+            <button 
+              onClick={() => setIsPlaylistOpen(false)}
+              className="text-gray-400 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+          </div>
+          
+          <div className="space-y-2">
+            {queue.map((track, index) => (
+              <div
+                key={index}
+                onClick={() => handleTrackSelect(track)}
+                className={`flex items-center space-x-3 p-2 rounded-lg cursor-pointer transition-all
+                  ${currentTrack?.id === track.id ? 'bg-white/10' : 'hover:bg-white/5'}`}
+              >
+                {track.cover_photo ? (
+                  <img
+                    src={track.cover_photo}
+                    alt={track.name}
+                    className="w-10 h-10 rounded-lg"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center">
+                    <Music2 size={20} className="text-gray-400" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-medium text-sm truncate">{track.name}</h3>
+                  <p className="text-xs text-gray-400 truncate">{track.artist}</p>
+                </div>
+                {currentTrack?.id === track.id && isPlaying && (
+                  <div className="flex-shrink-0">
+                    <span className="bg-green-500 rounded-full p-1">
+                      <Play size={16} className="text-white" />
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 
