@@ -60,7 +60,6 @@ const PlaylistSectionMenuModal = ({ playlist, onSuccess }) => {
     }
   };
 
-  // Rest of the component remains the same...
   return (
     <div ref={menuRef} className="relative">
       <button
@@ -68,20 +67,20 @@ const PlaylistSectionMenuModal = ({ playlist, onSuccess }) => {
           e.stopPropagation();
           setIsMenuOpen(!isMenuOpen);
         }}
-        className="absolute top-2 right-2 p-2 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
+        className="absolute top-4 right-2 p-2 bg-black/60 rounded-full opacity-0 group-hover:opacity-100 transition-opacity z-10"
       >
         <MoreVertical className="w-5 h-5 text-white" />
       </button>
 
       {isMenuOpen && (
         <div 
-          className="absolute top-12 right-2 w-48 bg-gray-800 rounded-md shadow-lg py-1 z-20"
+          className="absolute top-14 right-1 w-40 bg-gray-800 rounded-md shadow-lg py-0 z-[1000]"
           onClick={(e) => e.stopPropagation()}
         >
           <button
             onClick={handleAddToLibrary}
             disabled={isLoading}
-            className={`w-full px-4 py-2 text-sm text-white hover:bg-gray-700 flex items-center gap-2 ${
+            className={`w-full px-3 py-2 text-sm text-white hover:bg-gray-700 rounded-md flex items-center gap-2 ${
               isLoading ? 'opacity-50 cursor-not-allowed' : ''
             }`}
           >

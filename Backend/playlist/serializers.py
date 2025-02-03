@@ -3,13 +3,14 @@ from rest_framework import serializers
 from .models import Playlist, PlaylistTrack
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import viewsets
-from music.serializers import MusicSerializer
+# from music.serializers import MusicSerializer
 from users.serializers import UserSerializer
 from music.models import Music
 from rest_framework import serializers
 from datetime import timedelta
 from music.models import Genre
 import os
+
 class MusicSerializer(serializers.ModelSerializer):
     genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
     artist_email = serializers.SerializerMethodField()
