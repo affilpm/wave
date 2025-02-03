@@ -45,7 +45,8 @@ const SavedPlaylistPage = () => {
       try {
         const response = await api.get(`/api/playlist/playlist_data/${playlistId}/`);
         setPlaylist(response.data);
-        console.log(response.data);
+        console.log('jjbubbbbbbnuh',response.data);
+
       } catch (err) {
         setError("Failed to load playlist");
       } finally {

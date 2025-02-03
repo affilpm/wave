@@ -115,7 +115,7 @@ const ShufflingDashboard = ({ children }) => {
         {wrappedSections}
       </AnimatePresence>
 
-      <GenreDiscovery />
+      {/* <GenreDiscovery /> */}
     </div>
   );
 };
@@ -167,7 +167,7 @@ const Dashboard = () => {
   const filteredItems = (items) =>
     filter === "all" ? items : items.filter((item) => item.type === filter);
 
-  if (loading) return <div className="text-white">Loading...</div>;
+  // if (loading) return <div className="text-white">Loading...</div>;
   if (error) return <div className="text-white">{error}</div>;
 
   return (
