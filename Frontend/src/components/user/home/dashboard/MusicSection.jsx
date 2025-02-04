@@ -21,6 +21,7 @@ const MusicSection = ({ title }) => {
         setLoading(true);
         const musiclistResponse = await api.get("/api/home/musiclist/?top10=true");
         setMusiclistData(musiclistResponse.data);
+        console.log('ndfdsf', musiclistData)
       } catch (error) {
         console.error("Error fetching music data:", error);
       } finally {

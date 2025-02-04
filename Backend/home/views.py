@@ -16,7 +16,12 @@ from django.db.models import Q
 class MusicListView(generics.ListAPIView):
     serializer_class = Music_ListSerializer
     permission_classes = [IsAuthenticated]
-
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+    
     def get_queryset(self):
         # Check if the 'top10' query parameter is present
         top10 = self.request.query_params.get('top10', None)
@@ -31,6 +36,7 @@ class MusicListView(generics.ListAPIView):
         else:
             # Default: return all public music items
             return Music.objects.filter(is_public=True).select_related('artist')
+        
 
     
     
