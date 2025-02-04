@@ -88,7 +88,6 @@ const PlaylistPage = () => {
     try {
       const response = await api.get(`/api/playlist/playlists/${playlistId}/`);
       setPlaylist(response.data);
-      console.log(response.data);
     } catch (err) {
       setError("Failed to refresh playlist");
     }
@@ -153,7 +152,7 @@ const PlaylistPage = () => {
             <span className="text-sm">
               Created by{" "}
               <span className="text-white">
-                {playlist.created_by_details?.first_name}
+                {playlist.created_by}
               </span>{" "}
               • {playlist.tracks?.length || 0} songs • {totalDuration}
             </span>
@@ -201,81 +200,80 @@ const PlaylistPage = () => {
 
       {/* Track List */}
       <div className="flex-1 p-6">
-        <table className="w-full border-collapse">
-          <thead>
-            <tr className="text-gray-400 border-b border-gray-800">
-              <th className="font-normal text-left py-3 w-12 pl-4">#</th>
-              <th className="font-normal text-left py-3 pl-3">Title</th>
-              <th className="font-normal text-left py-3 hidden md:table-cell pl-3">
-                Artist
-              </th>
-              <th className="font-normal text-left py-3 hidden md:table-cell pl-3">
-                Added
-              </th>
-              <th className="font-normal text-center py-3 w-20">
-                <Clock className="h-4 w-4 inline" />
-              </th>
-              <th className="w-8 pr-4"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {playlist.tracks?.map((track) => (
-              <tr
-                key={track.id}
-                className={`group hover:bg-white/10 transition-colors ${
-                  currentTrackId === track.id ? "bg-white/20" : ""
-                }`}
+  <table className="w-full border-collapse">
+    <thead>
+      <tr className="text-gray-400 border-b border-gray-800">
+        <th className="font-normal text-left py-3 w-12 pl-4">#</th>
+        <th className="font-normal text-left py-3 pl-6">Title</th>
+        <th className="font-normal text-left py-3 hidden md:table-cell pl-6 pr-4">
+          Artist
+        </th>
+        <th className="font-normal text-left py-3 hidden md:table-cell pl-6 pr-4">
+          Added
+        </th>
+        <th className="font-normal text-center py-3 w-20">
+          <Clock className="h-4 w-4 inline" />
+        </th>
+        <th className="w-8 pr-6"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {playlist.tracks?.map((track) => (
+        <tr
+          key={track.id}
+          className={`group hover:bg-white/10 transition-colors ${
+            currentTrackId === track.id ? "bg-white/20" : ""
+          }`}
+        >
+          <td className="py-3 pl-4">
+            <div className="flex items-center justify-start w-6">
+              <span className="group-hover:hidden">
+                {currentTrackId === track.id ? "▶️" : track.track_number}
+              </span>
+              <button
+                className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
+                onClick={() => handlePlayTrack(track.id)}
               >
-                <td className="py-3 pl-4">
-                  <div className="flex items-center justify-start w-6">
-                    <span className="group-hover:hidden">
-                      {currentTrackId === track.id ? "▶️" : track.track_number}
-                    </span>
-                    <button
-                      className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
-                      onClick={() => handlePlayTrack(track.id)}
-                    >
-                      <Play className="h-4 w-4" />
-                    </button>
-                  </div>
-                </td>
-                <td className="py-3 pl-3">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={
-                        track.music_details?.cover_photo ||
-                        "/api/placeholder/40/40"
-                      }
-                      alt={track.music_details?.artist_full_name}
-                      className="w-10 h-10 rounded-md"
-                    />
-                    <span className="font-medium">
-                      {track.music_details?.name}
-                    </span>
-                  </div>
-                </td>
-                <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
-                  {track.music_details?.artist_full_name}
-                </td>
-                <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
-                  {track.music_details?.release_date}
-                </td>
-                <td className="py-3 text-center text-gray-400 w-20">
-                  {formatDuration(track.music_details?.duration)}{" "}
-                  {/* Format each track's duration */}
-                </td>
-                <td className="py-3 pr-4 text-right">
-                  <button
-                    className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-all"
-                    onClick={() => handleRemoveTrack(track.id)}
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                <Play className="h-4 w-4" />
+              </button>
+            </div>
+          </td>
+          <td className="py-3 pl-6">
+            <div className="flex items-center gap-3">
+              <img
+                src={
+                  track.music_details?.cover_photo ||
+                  "/api/placeholder/40/40"
+                }
+                alt={track.music_details?.artist_username}
+                className="w-10 h-10 rounded-md"
+              />
+              <span className="font-medium">
+                {track.music_details?.name}
+              </span>
+            </div>
+          </td>
+          <td className="py-3 pl-6 pr-4 hidden md:table-cell text-gray-400">
+            {track.music_details?.artist_username}
+          </td>
+          <td className="py-3 pl-6 pr-4 hidden md:table-cell text-gray-400">
+            {track.music_details?.release_date}
+          </td>
+          <td className="py-3 text-center text-gray-400 w-20">
+            {formatDuration(track.music_details?.duration)}
+          </td>
+          <td className="py-3 pr-6 text-right">
+            <button
+              className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-all"
+              onClick={() => handleRemoveTrack(track.id)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
 
         <TrackSearch
           playlistId={playlistId}

@@ -2,6 +2,7 @@ from rest_framework import serializers
 from music.models import Music, Album
 from playlist.models import Playlist
 from artists.models import Artist
+from users.serializers import UserSerializer
 
 class Music_ListSerializer(serializers.ModelSerializer):
     artist = serializers.SerializerMethodField()
@@ -12,7 +13,7 @@ class Music_ListSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'artist', 'cover_photo', 'audio_file']
 
     def get_artist(self, obj):
-        return f"{obj.artist.user.first_name} {obj.artist.user.last_name}"
+        return obj.artist.user.username
     
     def get_audio_file(self, obj):
         try:
@@ -27,7 +28,7 @@ class Music_ListSerializer(serializers.ModelSerializer):
             return None
 
 class Playlist_ListSerializer(serializers.ModelSerializer):
-    created_by = serializers.StringRelatedField()  # To show email or username
+    created_by = serializers.CharField(source='created_by.username', read_only = True)  # To show username
     cover_photo = serializers.ImageField()  # To show the image URL
     duration = serializers.IntegerField()  # Total duration in seconds
     name = serializers.CharField()  # Playlist name
@@ -40,7 +41,7 @@ class Playlist_ListSerializer(serializers.ModelSerializer):
 
 
 class Album_ListSerializer(serializers.ModelSerializer):
-    artist = serializers.CharField(source='artist.user.first_name')  # To show email or username
+    artist = serializers.CharField(source='artist.user.username')  # To show email or username
     cover_photo = serializers.ImageField()  # Cover photo image
     banner_img = serializers.ImageField(required=False)  # Banner image (optional)
     is_public = serializers.BooleanField()  # Whether the album is public

@@ -15,20 +15,26 @@ class MusicSerializer(serializers.ModelSerializer):
     genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
     artist_email = serializers.SerializerMethodField()
     artist_full_name = serializers.SerializerMethodField()
-
+    artist_username = serializers.SerializerMethodField()
+    
     class Meta:
         model = Music
         fields = [
             'id', 'name', 'cover_photo', 'audio_file', 
             'video_file', 'genres', 'release_date',
             'approval_status', 'duration', 'artist', 
-            'artist_email', 'artist_full_name', 'is_public'
+            'artist_email', 'artist_full_name',
+            'artist_username', 'is_public',
         ]
 
     def get_artist_email(self, obj):
         # Assuming the artist field is related to the User model
         return obj.artist.user.email if obj.artist and obj.artist.user else None
 
+    def get_artist_username(self, obj):
+        # Assuming the artist field is related to the User model
+        return obj.artist.user.username if obj.artist and obj.artist.user else None
+    
     def get_artist_full_name(self, obj):
         # Combine first name and last name
         if obj.artist and obj.artist.user:
@@ -69,16 +75,18 @@ class PlaylistTrackViewSet(viewsets.ModelViewSet):
 
 class PlaylistSerializer(serializers.ModelSerializer):
     tracks = PlaylistTrackSerializer(source='playlisttrack_set', many=True, read_only=True)
-    created_by_details = UserSerializer(source='created_by', read_only=True)
+    # created_by_details = UserSerializer(source='created_by', read_only=True)
+    created_by = serializers.CharField(source='created_by.username', read_only = True)  # To show username
     
     class Meta:
         model = Playlist
         fields = [
             'id', 'name', 'description', 'is_public', 
             'cover_photo', 'duration', 'created_at', 
-            'updated_at', 'tracks', 'created_by_details'
+            'updated_at', 'tracks',
+            'created_by'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by_details']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
 
 
     def create(self, validated_data):

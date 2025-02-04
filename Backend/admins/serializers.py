@@ -37,6 +37,7 @@ class UserTableSerializer(serializers.ModelSerializer):
             'email',
             'first_name',
             'last_name',
+            'username',
             'is_active',
             'role',
             'joined',
