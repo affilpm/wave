@@ -67,7 +67,8 @@ const UsersTable = () => {
         const response = await api.get('/api/admins/user-table/');
         const userData = Array.isArray(response.data) ? response.data : response.data.results || [];
         setUsers(userData);
-        setFilteredUsers(userData);
+        console.log(userData)
+        setFilteredUsers(userData); 
       } catch (error) {
         console.error('Error fetching users:', error);
         setError('Failed to load users');
@@ -130,18 +131,18 @@ const UsersTable = () => {
           {user.profile_photo ? (
             <img 
               src={user.profile_photo} 
-              alt={`${user.first_name} ${user.last_name}`}
+              alt={user.username}
               className="w-12 h-12 rounded-lg object-cover ring-2 ring-gray-700 shrink-0"
             />
           ) : (
             <div className={`w-12 h-12 rounded-lg ring-2 ring-gray-700 flex items-center justify-center ${getRandomColor(user.email)} shrink-0`}>
               <span className="text-sm font-medium text-white">
-                {user.first_name?.[0]}{user.last_name?.[0]}
+                {user.username}
               </span>
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <p className="text-gray-200 font-medium">{user.first_name} {user.last_name}</p>
+            <p className="text-gray-200 font-medium">{user.username}</p>
             <p className="text-gray-300 text-sm break-all">{user.email}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {getRoleBadge(user.role)}
@@ -246,7 +247,7 @@ const UsersTable = () => {
                       {user.profile_photo ? (
                         <img 
                           src={user.profile_photo} 
-                          alt={`${user.first_name} ${user.last_name}`}
+                          alt={user.username}
                           className="w-10 h-10 rounded-lg object-cover ring-2 ring-gray-700"
                         />
                       ) : (
@@ -258,7 +259,7 @@ const UsersTable = () => {
                       )}
                       <div>
                         <div className="font-medium text-gray-200">{user.first_name} {user.last_name}</div>
-                        <div className="text-sm text-gray-400">@{user.email.split('@')[0]}</div>
+                        <div className="text-sm text-gray-400">@{user.username.split('@')[0]}</div>
                       </div>
                     </div>
                   </td>

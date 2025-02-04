@@ -11,6 +11,7 @@ const MultiStepRegister = () => {
   const [formData, setFormData] = useState({
     email: '',
     otp: '',
+    username: '',
     firstName: '',
     lastName: '',
     verificationToken: '',
@@ -87,8 +88,9 @@ const MultiStepRegister = () => {
   const handleFinalSubmit = async (e) => {
     e.preventDefault();
     setErrors({});
-    if (!formData.firstName.trim() || !formData.lastName.trim()) {
+    if (!formData.username.trim() || !formData.firstName.trim() || !formData.lastName.trim()) {
       setErrors({
+        username: !formData.username.trim() ? 'Username is required' : undefined,
         firstName: !formData.firstName.trim() ? 'First name is required' : undefined,
         lastName: !formData.lastName.trim() ? 'Last name is required' : undefined,
       });
@@ -98,6 +100,7 @@ const MultiStepRegister = () => {
     try {
       await registerService .completeRegistration({
         email: formData.email,
+        username: formData.username,
         firstName: formData.firstName,
         lastName: formData.lastName,
         verification_token: formData.verificationToken,

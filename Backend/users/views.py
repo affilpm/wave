@@ -17,7 +17,7 @@ from django.core.cache import cache
 from .utils import generate_otp, send_otp_email
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
-
+import re
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -120,6 +120,7 @@ def login_verify_otp(request):
             
             # Add custom claims
             access_token['email'] = user.email
+            access_token['username'] = user.username
             access_token['user_id'] = user.id
             access_token['first_name'] = user.first_name
             access_token['last_name'] = user.last_name
@@ -356,6 +357,12 @@ def google_register(request):
         first_name = idinfo.get('given_name', '')
         last_name = idinfo.get('family_name', '')
 
+
+        #check if username contain whitespace
+        if " " in username or re.search(r"\s", username):
+            return Response({'error': 'Username cannot contain spaces'}, status=400)
+        
+        
         # Check if username is unique
         if CustomUser.objects.filter(username=username).exists():
             return Response({'error': 'Username already exists'}, status=400)
@@ -382,6 +389,8 @@ def google_register(request):
 
     except Exception as e:
         return Response({'message': str(e)}, status=400)
+
+
 
 @api_view(['POST'])
 @authentication_classes([])
@@ -536,12 +545,32 @@ def complete_registration(request):
     email = request.data.get('email')
     first_name = request.data.get('firstName')
     last_name = request.data.get('lastName')
+    username = request.data.get('username', '').strip()
+    
+    # More comprehensive username validation
+    if not username:
+        return Response({'error': 'Username is required'}, status=400)
+    
+    if " " in username or re.search(r"\s", username):
+        return Response({'error': 'Username cannot contain spaces'}, status=400)
+    
+    # Optional: Add more username validation (e.g., length, allowed characters)
+    if len(username) < 3 or len(username) > 30:
+        return Response({'error': 'Username must be between 3 and 30 characters'}, status=400)
+    
+    if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        return Response({'error': 'Username can only contain letters, numbers, and underscores'}, status=400)
+    
+    # Check if username is unique
+    if CustomUser.objects.filter(username=username).exists():
+        return Response({'error': 'Username already exists'}, status=400)    
     
     # Create user
     user_data = {
         'email': email,
         'first_name': first_name,
         'last_name': last_name,
+        'username': username,
     }
     
     # Verify OTP was sent and verified

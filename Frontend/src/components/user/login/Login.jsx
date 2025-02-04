@@ -53,19 +53,27 @@ const LoginPage = () => {
       <div className="max-w-lg w-full bg-gray-800 min-h-[450px] rounded-lg shadow-lg p-8">  
         {/* Logo Space */}
         <div className="flex justify-center mb-8">
-          <div className="w-20 h-20 bg-gray-700 rounded-full flex items-center justify-center">
-            <img src="/shape.png" alt="Logo" className="h-auto w-auto" />
-          </div>
-        </div>
+    <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-lg">
+      <img 
+        src="/shape.png" 
+        alt="Company Logo" 
+        className="w-14 h-14 object-contain" 
+      />
+    </div>
+  </div>
 
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-100 mb-2">
-            {isSignup ? 'Sign Up' : 'Sign In'}
-          </h2>
-          <p className="text-gray-400 text-sm">
-            {isSignup ? 'Create a new account' : 'Continue with your email or Google account'}
-          </p>
-        </div>
+  <div className="text-center mb-10">
+  {!isOtpSent && (
+    <>
+      <h2 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-4">
+        {isSignup ? 'Sign Up' : 'Sign In'}
+      </h2>
+      <p className="text-gray-400 text-sm">
+        {isSignup ? 'Create a new account' : 'Continue with your email or Google account'}
+      </p>
+    </>
+  )}
+</div>
 
         {!isOtpSent ? (
           <div className="space-y-8">

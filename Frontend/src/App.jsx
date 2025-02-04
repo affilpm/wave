@@ -24,6 +24,7 @@ import MusicShowMorePage from './components/user/home/dashboard/MusicShowMorePag
 import SavedPlaylistPage from './components/user/home/playlist/saved-playlist-page/SavedPlaylistPage';
 import { Navigate } from 'react-router-dom';
 import AlbumPage from './components/user/home/album/AlbumPage';
+import UsernameSelectionPage from './components/user/register/UsernameSelectionPage';
 
 
 export const logout= () => {
@@ -47,6 +48,7 @@ function App() {
           } />
 
 
+
         <Route
           path="/login"
           element={
@@ -57,6 +59,14 @@ function App() {
         />
 
         <Route path="/logout" element={<Logout/>} />
+
+
+        <Route path="/register" element={<MultiStepRegister/>} />
+
+
+        <Route path="select-username" element={<UsernameSelectionPage/>} />
+
+
 
         <Route element={<PrivateRoute isAuthenticated={isAuthenticated} />}>
 
@@ -86,12 +96,14 @@ function App() {
         </Route>
 
 
+
+
         {/* Account settings page */}
         
 
 
         <Route path="/adminlogin" element={<AdminLogin/>} /> 
-        <Route path="/register" element={<MultiStepRegister/>} /> 
+         
 
 
 

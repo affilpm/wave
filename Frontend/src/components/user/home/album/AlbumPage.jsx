@@ -11,6 +11,7 @@ import {
 const AlbumPage = () => {
 
       const [playlist, setPlaylist] = useState(null);
+      const [album, setAlbum] = useState(null);
       const [isLoading, setIsLoading] = useState(true);
       const [error, setError] = useState(null);
       const [isPlaying, setIsPlaying] = useState(false);
@@ -48,7 +49,7 @@ const AlbumPage = () => {
           try {
             const response = await api.get(`/api/album/album_data/${albumId}/`);
             setPlaylist(response.data);
-            console.log('',response.data);
+
           } catch (err) {
             setError("Failed to load playlist");
           } finally {
@@ -92,7 +93,7 @@ const AlbumPage = () => {
                 <span className="text-sm">
                   Created by{" "}
                   <span className="text-white">
-                    {playlist.created_by_details?.first_name}
+                    {playlist.artist_username}
                   </span>{" "}
                   • {playlist.tracks?.length || 0} songs • {totalDuration}
                 </span>
@@ -173,7 +174,7 @@ const AlbumPage = () => {
                             track.music_details?.cover_photo ||
                             "/api/placeholder/40/40"
                           }
-                          alt={track.music_details?.artist_full_name}
+                          alt={track.music_details?.artist_username}
                           className="w-10 h-10 rounded-md"
                         />
                         <span className="font-medium">
@@ -182,7 +183,7 @@ const AlbumPage = () => {
                       </div>
                     </td>
                     <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
-                      {track.music_details?.artist_full_name}
+                      {track.music_details?.artist_username}
                     </td>
                     <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
                       {track.music_details?.release_date}

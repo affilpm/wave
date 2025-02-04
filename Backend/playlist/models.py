@@ -28,7 +28,7 @@ class Playlist(models.Model):
         
 
     def __str__(self):
-        return f"Playlist: {self.name} by {self.created_by.email}"
+        return f"Playlist: {self.name} by {self.created_by.username}"
     
 
 class PlaylistTrack(models.Model):

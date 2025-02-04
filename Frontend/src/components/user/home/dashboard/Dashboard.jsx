@@ -142,9 +142,10 @@ const Dashboard = () => {
 
         const playlistResponse = await api.get("/api/home/playlist/");
         setPlaylistData(playlistResponse.data);
-
+console.log(playlistResponse)
         const AlbumlistResponse = await api.get("/api/home/albumlist/");
         setAlbumlistData(AlbumlistResponse.data);
+
       } catch (err) {
         setError("Failed to load data.");
       } finally {
