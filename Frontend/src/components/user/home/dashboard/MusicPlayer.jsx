@@ -10,7 +10,8 @@ import {
   nextTrack,
   previousTrack,
   setCurrentTrack,
-  setQueue 
+  setQueue,
+  setRepeatMode
 } from '../../../../slices/user/playerSlice';
 
 import MediaSessionControl from './MediaSessionControl';
@@ -20,18 +21,17 @@ import MediaSessionControl from './MediaSessionControl';
 
 const MusicPlayer = () => {
   const dispatch = useDispatch();
-  const { currentTrack, isPlaying, volume, queue } = useSelector((state) => state.player);
+  const { currentTrack, isPlaying, volume, queue, repeatMode} = useSelector((state) => state.player);
   
   const [isPlaylistOpen, setIsPlaylistOpen] = useState(false);
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [repeatMode, setRepeatMode] = useState('off');
+  // const [repeatMode, setRepeatMode] = useState('off');
   const [selectedDevice, setSelectedDevice] = useState(null);
 
   const audioRef = useRef(null);
-  
-
+  const [userHasInteracted, setUserHasInteracted] = useState(false);
 
   const devices = [
     { 
@@ -66,11 +66,16 @@ const MusicPlayer = () => {
   useEffect(() => {
     if (currentTrack?.audio_file) {
       audioRef.current.src = currentTrack.audio_file;
-      if (isPlaying) {
-        audioRef.current.play();
+      if (isPlaying && userHasInteracted) {
+        audioRef.current.play().catch(error => {
+          console.warn('Playback failed:', error);
+          dispatch(setIsPlaying(false));
+        });
       }
     }
   }, [currentTrack]);
+
+
 
   useEffect(() => {
     if (audioRef.current) {
@@ -83,8 +88,11 @@ const MusicPlayer = () => {
 
   useEffect(() => {
     if (audioRef.current) {
-      if (isPlaying) {
-        audioRef.current.play();
+      if (isPlaying && userHasInteracted) {
+        audioRef.current.play().catch(error => {
+          console.warn('Playback failed:', error);
+          dispatch(setIsPlaying(false));
+        });
       } else {
         audioRef.current.pause();
       }
@@ -92,6 +100,7 @@ const MusicPlayer = () => {
   }, [isPlaying]);
 
   const handlePlayPause = () => {
+    setUserHasInteracted(true)
     dispatch(setIsPlaying(!isPlaying));
   };
 
@@ -111,28 +120,49 @@ const MusicPlayer = () => {
   };
 
   const handleTrackSelect = (track) => {
+    setUserHasInteracted(true);
     dispatch(setCurrentTrack(track));
     dispatch(setIsPlaying(true));
     setIsPlaylistOpen(false);
   };
 
   const handleTrackEnd = () => {
+    if (!audioRef.current) return;
+
     if (repeatMode === 'single') {
       audioRef.current.currentTime = 0;
-      audioRef.current.play();
-    } else if (repeatMode === 'off') {
+      if (userHasInteracted) {
+        audioRef.current.play().catch(error => {
+          console.warn('Playback failed:', error);
+          dispatch(setIsPlaying(false));
+        });
+      }
+        return;
+    } 
+    
+    const isLastTrack = queue.length - 1 === queue.indexOf(currentTrack);
+
+    if (isLastTrack) {
+      if (repeatMode === 'all') {
+        dispatch(setCurrentTrack(queue[0]));
+        dispatch(setIsPlaying(true));
+      }else {
+        
+        dispatch(setIsPlaying(false));
+        audioRef.current.currentTime = 0;
+      }
+    } else {
       dispatch(nextTrack());
-    } else if (repeatMode === 'all') {
-      dispatch(nextTrack());
+      // dispatch(setIsPlaying(true))
     }
   };
 
   const toggleRepeatMode = () => {
     const modes = ['off', 'all', 'single'];
-    const currentIndex = modes.indexOf(repeatMode);
-    const nextIndex = (currentIndex + 1) % modes.length;
-    setRepeatMode(modes[nextIndex]);
+    const nextIndex = (modes.indexOf(repeatMode) + 1) % modes.length;
+    dispatch(setRepeatMode(modes[nextIndex]));
   };
+
 
   const formatTime = (time) => {
     if (!time) return '0:00';
@@ -231,9 +261,9 @@ const MusicPlayer = () => {
                   ${repeatMode !== 'off' ? 'text-green-500' : ''}`}
               >
                 <Repeat size={20} />
-                {repeatMode === 'single' && 
+                {repeatMode === 'single' && (
                   <span className="absolute text-[10px] bottom-0 right-0 text-green-500">1</span>
-                }
+                )}
               </button>
             </div>
 
