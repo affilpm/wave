@@ -56,7 +56,8 @@ class ArtistSerializer(serializers.ModelSerializer):
     
     
     
-    
+#
+
     
 class MusicVerificationSerializer(serializers.ModelSerializer):
     artist = ArtistSerializer()  # Make sure this includes user data
