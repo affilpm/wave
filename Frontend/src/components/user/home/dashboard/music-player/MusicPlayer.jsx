@@ -30,7 +30,9 @@ const MusicPlayer = () => {
   const [duration, setDuration] = useState(0);
   // const [repeatMode, setRepeatMode] = useState('off');
   const [selectedDevice, setSelectedDevice] = useState(null);
-
+  const [isShuffled, setIsShuffled] = useState(false);
+  const [originalQueue, setOriginalQueue] = useState([]);
+  
   const audioRef = useRef(null);
   // const [userHasInteracted, setUserHasInteracted] = useState(false);
 
@@ -62,6 +64,48 @@ const MusicPlayer = () => {
     }
   };
 
+
+  const shuffleArray = (array) => {
+    const newArray = [...array];
+    for (let i = newArray.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+    }
+    return newArray;
+  };
+
+  const handleShuffle = () => {
+    if (!isShuffled) {
+      // Store the original queue before shuffling
+      setOriginalQueue([...queue]);
+      
+      // Find the current track index
+      const currentIndex = queue.findIndex(track => track.id === currentTrack?.id);
+      
+      // Remove current track from the array to shuffle
+      const remainingTracks = queue.filter((_, index) => index !== currentIndex);
+      const shuffledRemaining = shuffleArray(remainingTracks);
+      
+      // Put current track at the beginning followed by shuffled tracks
+      const newQueue = currentTrack ? [currentTrack, ...shuffledRemaining] : shuffledRemaining;
+      
+      dispatch(setQueue(newQueue));
+      setIsShuffled(true);
+    } else {
+      // Restore the original queue while maintaining the current track position
+      const currentIndex = originalQueue.findIndex(track => track.id === currentTrack?.id);
+      if (currentIndex !== -1) {
+        const reorderedQueue = [
+          ...originalQueue.slice(currentIndex),
+          ...originalQueue.slice(0, currentIndex)
+        ];
+        dispatch(setQueue(reorderedQueue));
+      } else {
+        dispatch(setQueue(originalQueue));
+      }
+      setIsShuffled(false);
+    }
+  };
 
 
   useEffect(() => {
@@ -144,23 +188,22 @@ const MusicPlayer = () => {
           dispatch(setIsPlaying(false));
         });
       }
-        return;
-    } 
-    
-    const isLastTrack = queue.length - 1 === queue.indexOf(currentTrack);
+      return;
+    }
+
+    const currentIndex = queue.findIndex(track => track.id === currentTrack?.id);
+    const isLastTrack = currentIndex === queue.length - 1;
 
     if (isLastTrack) {
       if (repeatMode === 'all') {
         dispatch(setCurrentTrack(queue[0]));
         dispatch(setIsPlaying(true));
-      }else {
-        
+      } else {
         dispatch(setIsPlaying(false));
         audioRef.current.currentTime = 0;
       }
     } else {
       dispatch(nextTrack());
-      // dispatch(setIsPlaying(true))
     }
   };
 
@@ -233,9 +276,13 @@ const MusicPlayer = () => {
           {/* Player Controls */}
           <div className="flex flex-col items-center flex-1 max-w-2xl px-4">
             <div className="flex items-center space-x-6 mb-3">
-              <button className="text-gray-400 hover:text-white transition-colors">
-                <Shuffle size={20} />
-              </button>
+            <button 
+          onClick={handleShuffle}
+          className={`text-gray-400 hover:text-white transition-colors
+            ${isShuffled ? 'text-green-500' : ''}`}
+        >
+          <Shuffle size={20} />
+        </button>
               
               <button
                 onClick={() => dispatch(previousTrack())}
