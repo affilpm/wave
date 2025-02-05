@@ -61,33 +61,32 @@ class PlaylistViewSet(viewsets.ModelViewSet):
             is_public = data.get('is_public', 'true')
             if isinstance(is_public, str):
                 data['is_public'] = is_public.lower() == 'true'
-            
-            serializer = self.get_serializer(data=data)
-            if not serializer.is_valid():
-                logger.error(f"Validation errors: {serializer.errors}")
+
+            user = request.user
+            playlist_name = data.get('name')
+
+            # Check if a playlist with the same name already exists for this user
+            if Playlist.objects.filter(name=playlist_name, created_by=user).exists():
                 return Response(
-                    {
-                        'error': 'Invalid data',
-                        'details': serializer.errors
-                    },
+                    {'error': 'You already have a playlist with this name.'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
-            serializer.validated_data['created_by'] = request.user
+
+            serializer = self.get_serializer(data=data)
+            if not serializer.is_valid():
+                return Response(
+                    {'error': 'Invalid data', 'details': serializer.errors},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            serializer.validated_data['created_by'] = user
             playlist = serializer.save()
-            
-            return Response(
-                serializer.data,
-                status=status.HTTP_201_CREATED
-            )
-            
+
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
         except Exception as e:
-            logger.error(f"Error creating playlist: {str(e)}")
             return Response(
-                {
-                    'error': 'Failed to create playlist',
-                    'details': str(e)
-                },
+                {'error': 'Failed to create playlist', 'details': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
     

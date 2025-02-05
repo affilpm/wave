@@ -25,10 +25,15 @@ class Playlist(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-        
+        constraints = [
+            models.UniqueConstraint(fields=['name', 'created_by'], name='unique_playlist_per_user')
+        ]
 
     def __str__(self):
-        return f"Playlist: {self.name} by {self.created_by.username}"
+        return f"Playlist: {self.name} by {self.created_by.username if self.created_by else 'Unknown'}"
+        
+
+
     
 
 class PlaylistTrack(models.Model):

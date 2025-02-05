@@ -65,7 +65,7 @@ const MusicPlayer = () => {
 
 
   useEffect(() => {
-    if (currentTrack?.audio_file) {
+    if (currentTrack?.audio_file && audioRef.current) {
       const shouldPlayImmediately = isPlaying && userHasInteracted;
       
       // Only set the source if it's different from the current source

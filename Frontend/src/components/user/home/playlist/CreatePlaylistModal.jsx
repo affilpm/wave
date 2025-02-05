@@ -193,7 +193,7 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
                           error.response?.data?.error ||
                           'Failed to create playlist. Please try again.';
       setError(errorMessage);
-      toast.error(errorMessage);
+      // toast.error(errorMessage);
       setIsLoading(false);
     }
   };
@@ -201,7 +201,7 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center text-center z-50">
       <div className="bg-gray-900 rounded-lg w-full max-w-md p-6 mx-4">
         {showCropper && originalImage ? (
           <div className="space-y-4">
@@ -330,7 +330,7 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
             </div>
 
             {error && (
-              <div className="text-red-500 text-sm mb-4">
+              <div className="bg-red-900 text-red-100 px-4 py-2 rounded-md mb-4">
                 {error}
               </div>
             )}
