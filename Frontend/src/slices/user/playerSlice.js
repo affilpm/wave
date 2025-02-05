@@ -59,9 +59,9 @@ const playerSlice = createSlice({
         return;
       }
 
-      const isFistTrack = state.currentIndex === 0
+      const isFirstTrack = state.currentIndex === 0
 
-      if (!isFistTrack) {
+      if (!isFirstTrack) {
         state.currentIndex -= 1;
         state.currentTrack = state.queue[state.currentIndex];
       } else if (state.repeatMode === 'all') {

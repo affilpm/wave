@@ -7,7 +7,7 @@ import adminReducer from './slices/admin/adminSlice'; // Import the admin slice
 import modalReducer from './slices/artist/modalSlice'
 import playlistReducer from './slices/user/playlistSlice';
 import playerReducer from './slices/user/playerSlice';
-
+import albumRducer from './slices/user/albumSlice'
 
 // Root reducer
 const rootReducer = combineReducers({
@@ -16,12 +16,13 @@ const rootReducer = combineReducers({
   modal: modalReducer,
   playlists: playlistReducer,
   player: playerReducer,
+  album: albumRducer
 });
 
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['user', 'admin', 'player'], // Persist both user and admin slices
+  whitelist: ['user', 'admin', 'player', 'album'], // Persist both user and admin slices
 
 };
 

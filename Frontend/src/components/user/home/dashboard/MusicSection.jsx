@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
-import { setCurrentTrack, setIsPlaying, setQueue, reorderQueue} from "../../../../slices/user/playerSlice";
+import { setCurrentTrack, setIsPlaying, setQueue, reorderQueue } from "../../../../slices/user/playerSlice";
 import { useNavigate } from "react-router-dom";
 import api from "../../../../api";
 
@@ -50,16 +50,9 @@ const MusicSection = ({ title }) => {
       // If clicking the currently playing track, just toggle play/pause
       dispatch(setIsPlaying(!isPlaying));
     } else {
-      // // If clicking a new track, update the queue starting from the clicked track
-      // const newQueue = [...musiclistData];
-      // // Reorder queue to start from clicked track
-      // const reorderedQueue = [
-      //   ...newQueue.slice(index),
-      //   ...newQueue.slice(0, index)
-      // ];
-      
-      dispatch(setQueue(musiclistData));
-      dispatch(reorderQueue({ startIndex: index }));
+      // If clicking a new track, update the queue with the selected track
+      dispatch(setQueue([item])); // Only set the selected track in the queue
+      dispatch(setCurrentTrack(item));
       dispatch(setIsPlaying(true));
     }
   };
