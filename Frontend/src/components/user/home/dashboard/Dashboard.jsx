@@ -131,7 +131,7 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
-  const userEmail = useSelector((state) => state.user.email);
+  const username = useSelector((state) => state.user.username);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -158,7 +158,7 @@ console.log(playlistResponse)
 
   const handlePlaylistClick = (playlistId) => {
     const playlist = playlistData.find((item) => item.id === playlistId);
-    if (playlist && playlist.created_by === userEmail) {
+    if (playlist && playlist.created_by === username) {
       navigate(`/playlist/${playlistId}`);
     } else {
         navigate(`/saved-playlist/${playlistId}`);

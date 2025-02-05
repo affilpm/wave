@@ -158,4 +158,4 @@ export class api {
 }
 
 export const apiInstance = new api({ baseURL: import.meta.env.VITE_API_URL, onLogout: () => window.location.replace('/logout') });
-export default apiInstance.api;
+export default apiInstance.api; 

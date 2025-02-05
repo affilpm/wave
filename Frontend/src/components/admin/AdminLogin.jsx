@@ -14,7 +14,7 @@ const AdminLogin = () => {
     const navigate = useNavigate();
     const dispatch = useDispatch();
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-    const { email } = useSelector((state) => state.admin); // Only email from Redux
+    const [email, setEmail] = useState('')
     const togglePasswordVisibility = () => {
         setIsPasswordVisible(!isPasswordVisible);
       };
@@ -41,6 +41,7 @@ const AdminLogin = () => {
             }));
             navigate('/admindashboard');
         } catch (error) {
+            
             setError(error.response?.data?.detail || 'Incorrect email or password');
             setLoading(false);
         } finally {
@@ -64,7 +65,7 @@ const AdminLogin = () => {
                                 name="email"
                                 type="text"
                                 value={email}
-                                onChange={(e) => dispatch(setUser({ email: e.target.value }))}
+                                onChange={(e) => setEmail(e.target.value)}
                                 required
                                 className="appearance-none rounded-lg relative block w-full px-4 py-3 bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 placeholder="Email"

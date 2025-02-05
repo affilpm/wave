@@ -21,7 +21,7 @@ import Dashboard from './components/user/home/dashboard/Dashboard';
 import PlaylistPage from './components/user/home/playlist/your-playlist-page/YourPlaylistPage'; 
 import Premium from './components/user/home/header/Premium';
 import MusicShowMorePage from './components/user/home/dashboard/MusicShowMorePage';
-import SavedPlaylistPage from './components/user/home/playlist/saved-playlist-page/SavedPlaylistPage';
+import SavedPlaylistPage from './components/user/home/playlist/playlist-page/PlaylistPage';
 import { Navigate } from 'react-router-dom';
 import AlbumPage from './components/user/home/album/AlbumPage';
 import UsernameSelectionPage from './components/user/register/UsernameSelectionPage';
