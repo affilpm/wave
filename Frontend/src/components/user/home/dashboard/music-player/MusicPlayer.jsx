@@ -11,8 +11,9 @@ import {
   previousTrack,
   setCurrentTrack,
   setQueue,
-  setRepeatMode
-} from '../../../../slices/user/playerSlice';
+  setRepeatMode,
+  setUserHasInteracted
+} from '../../../../../slices/user/playerSlice';
 
 import MediaSessionControl from './MediaSessionControl';
 
@@ -21,7 +22,7 @@ import MediaSessionControl from './MediaSessionControl';
 
 const MusicPlayer = () => {
   const dispatch = useDispatch();
-  const { currentTrack, isPlaying, volume, queue, repeatMode} = useSelector((state) => state.player);
+  const { currentTrack, isPlaying, volume, queue, repeatMode, userHasInteracted} = useSelector((state) => state.player);
   
   const [isPlaylistOpen, setIsPlaylistOpen] = useState(false);
   const [isDeviceMenuOpen, setIsDeviceMenuOpen] = useState(false);
@@ -31,7 +32,7 @@ const MusicPlayer = () => {
   const [selectedDevice, setSelectedDevice] = useState(null);
 
   const audioRef = useRef(null);
-  const [userHasInteracted, setUserHasInteracted] = useState(false);
+  // const [userHasInteracted, setUserHasInteracted] = useState(false);
 
   const devices = [
     { 
@@ -65,15 +66,22 @@ const MusicPlayer = () => {
 
   useEffect(() => {
     if (currentTrack?.audio_file) {
-      audioRef.current.src = currentTrack.audio_file;
-      if (isPlaying && userHasInteracted) {
-        audioRef.current.play().catch(error => {
-          console.warn('Playback failed:', error);
-          dispatch(setIsPlaying(false));
-        });
+      const shouldPlayImmediately = isPlaying && userHasInteracted;
+      
+      // Only set the source if it's different from the current source
+      if (audioRef.current.src !== currentTrack.audio_file) {
+        audioRef.current.src = currentTrack.audio_file;
+        
+        if (shouldPlayImmediately) {
+          audioRef.current.play().catch(error => {
+            console.warn('Playback failed:', error);
+            dispatch(setIsPlaying(false));
+          });
+        }
       }
     }
-  }, [currentTrack]);
+  }, [currentTrack, dispatch, isPlaying, userHasInteracted]);
+
 
 
 
@@ -87,7 +95,7 @@ const MusicPlayer = () => {
   
 
   useEffect(() => {
-    if (audioRef.current) {
+    if (audioRef.current && currentTrack) {
       if (isPlaying && userHasInteracted) {
         audioRef.current.play().catch(error => {
           console.warn('Playback failed:', error);
@@ -97,10 +105,10 @@ const MusicPlayer = () => {
         audioRef.current.pause();
       }
     }
-  }, [isPlaying]);
+  }, [isPlaying, userHasInteracted, currentTrack, dispatch]);
+
 
   const handlePlayPause = () => {
-    setUserHasInteracted(true)
     dispatch(setIsPlaying(!isPlaying));
   };
 
@@ -120,7 +128,6 @@ const MusicPlayer = () => {
   };
 
   const handleTrackSelect = (track) => {
-    setUserHasInteracted(true);
     dispatch(setCurrentTrack(track));
     dispatch(setIsPlaying(true));
     setIsPlaylistOpen(false);

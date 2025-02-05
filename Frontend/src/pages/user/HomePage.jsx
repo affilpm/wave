@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import Sidebar from '../../components/user/home/sidebar/Sidebar';
 import Header from '../../components/user/home/header/Header';
-import MusicPlayer from '../../components/user/home/dashboard/MusicPlayer';
+import MusicPlayer from '../../components/user/home/dashboard/music-player/MusicPlayer';
 
 
 import { useNavigate, Routes, Route, Outlet } from 'react-router-dom';

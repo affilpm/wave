@@ -8,6 +8,7 @@ const initialState = {
   queue: [],
   currentIndex: 0,
   repeatMode: 'off',
+  userHasInteracted: false,
 };
 
 const playerSlice = createSlice({
@@ -17,9 +18,15 @@ const playerSlice = createSlice({
     setCurrentTrack: (state, action) => {
       state.currentTrack = action.payload;
     },
+    setUserHasInteracted: (state, action) => {
+      state.userHasInteracted = action.payload;
+    },
     setIsPlaying: (state, action) => {
       state.isPlaying = action.payload;
-    },
+      if (action.payload) {
+        state.userHasInteracted = true;
+      }
+    },  
     setVolume: (state, action) => {
       state.volume = action.payload;
     },
@@ -65,7 +72,20 @@ const playerSlice = createSlice({
     },
     setRepeatMode: (state, action) => {
       state.repeatMode = action.payload
-    }
+    },
+    reorderQueue: (state, action) => {
+      const { startIndex } = action.payload;
+      if (startIndex >= 0 && startIndex < state.queue.length) {
+        // Reorder the queue to start from the specified index
+        const reorderedQueue = [
+          ...state.queue.slice(startIndex),
+          ...state.queue.slice(0, startIndex)
+        ];
+        state.queue = reorderedQueue;
+        state.currentIndex = 0;
+        state.currentTrack = reorderedQueue[0];
+      }
+    },
   },
 });
 
@@ -78,6 +98,8 @@ export const {
   nextTrack,
   previousTrack,
   setRepeatMode,
+  reorderQueue,
+  setUserHasInteracted,
 } = playerSlice.actions;
 
 export default playerSlice.reducer;
