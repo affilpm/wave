@@ -499,6 +499,7 @@ const MusicUpload = () => {
         formData.name.trim() !== "" && 
         formData.selectedGenres.length > 0 &&
         formData.selectedGenres.every(id => id && id !== 'undefined') &&
+        formData.releaseDate &&
         !fileErrors.cover &&
         !nameValidation.isChecking &&
         !nameValidation.error

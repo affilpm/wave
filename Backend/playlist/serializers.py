@@ -104,6 +104,12 @@ class PlaylistSerializer(serializers.ModelSerializer):
                 return False
         return value
     
+    def validate_name(self, value):
+        user = self.context['request'].user  # Get the logged-in user
+        if Playlist.objects.filter(name=value, created_by=user).exists():
+            raise serializers.ValidationError("You already have a playlist with this name.")
+        return value
+    
     
     
     
