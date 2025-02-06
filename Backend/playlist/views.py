@@ -83,7 +83,6 @@ class PlaylistViewSet(viewsets.ModelViewSet):
 
             # Check if a playlist with the same name already exists for this user
             if Playlist.objects.filter(name=playlist_name, created_by=user).exists():
-                print("Error: Playlist already exists") 
                 return Response(
                     {'error': 'You already have a playlist with this name.'},
                     status=status.HTTP_400_BAD_REQUEST
@@ -207,7 +206,7 @@ class PlaylistViewSet(viewsets.ModelViewSet):
  
  
     @action(detail=False, methods=['post'])
-    def like_track(self, request):
+    def like_Songs(self, request):
         """
         Add or remove a track from the user's Liked Tracks playlist
         """
@@ -222,7 +221,7 @@ class PlaylistViewSet(viewsets.ModelViewSet):
             # Get or create the Liked Tracks playlist
             liked_playlist, created = Playlist.objects.get_or_create(
                 created_by=request.user, 
-                name='Liked Tracks',
+                name='Liked Songs',
                 defaults={
                     'is_public': False,
                     'is_system_created': True,
@@ -230,21 +229,21 @@ class PlaylistViewSet(viewsets.ModelViewSet):
                 }
             )
             
-            # Check if track is already in Liked Tracks
+            # Check if track is already in Liked Songs
             existing_track = PlaylistTrack.objects.filter(
                 playlist=liked_playlist, 
                 music_id=music_id
             ).first()
             
             if existing_track:
-                # Remove from Liked Tracks if already exists
+                # Remove from Liked Songs if it already exists
                 existing_track.delete()
                 return Response(
-                    {'status': 'Track removed from Liked Tracks'},
+                    {'status': 'Track removed from Liked Songs', 'liked': False},
                     status=status.HTTP_200_OK
                 )
             else:
-                # Add to Liked Tracks
+                # Determine the next track number
                 last_track = PlaylistTrack.objects.filter(playlist=liked_playlist).order_by('-track_number').first()
                 next_track_number = (last_track.track_number + 1) if last_track else 1
                 
@@ -255,7 +254,7 @@ class PlaylistViewSet(viewsets.ModelViewSet):
                 )
                 
                 return Response(
-                    {'status': 'Track added to Liked Tracks'},
+                    {'status': 'Track added to Liked Songs', 'liked': True},
                     status=status.HTTP_201_CREATED
                 )
         
@@ -264,6 +263,11 @@ class PlaylistViewSet(viewsets.ModelViewSet):
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
+            
+            
+            
+            
+            
 # this view is used to list all the tracks in a playlist           
 class PlaylistTrackViewSet(viewsets.ModelViewSet):
    serializer_class = PlaylistTrackSerializer
@@ -289,7 +293,7 @@ def create_liked_playlist(sender, instance, created, **kwargs):
     if created:
         try:
             Playlist.objects.create(
-                name='Liked Tracks',
+                name='Liked Songs',
                 created_by=instance,
                 is_public=False,
                 is_system_created=True,
