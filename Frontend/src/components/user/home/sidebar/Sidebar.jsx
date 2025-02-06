@@ -20,7 +20,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
       songCount: 123,
       type: 'Playlist'
     }
-  ]);
+  ]);      
 
   // State for managing playlists added to the library
   const [libraryPlaylists, setLibraryPlaylists] = useState([]);
@@ -34,24 +34,51 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
 
   const navigate = useNavigate();
 
-  // Fetch playlists (user's own and library playlists) on component mount
   useEffect(() => {
     const fetchPlaylists = async () => {
       try {
         // Fetch user's own playlists
         const ownPlaylistsResponse = await api.get('/api/playlist/playlists/');
-        const formattedOwnPlaylists = ownPlaylistsResponse.data.map(playlist => ({
+        
+        // First, remove "Liked Songs" from the response data if it exists
+        const regularPlaylists = ownPlaylistsResponse.data.filter(
+          playlist => playlist.name !== 'Liked Songs'
+        );
+
+        // Format regular playlists
+        const formattedOwnPlaylists = regularPlaylists.map(playlist => ({
           id: playlist.id,
           name: playlist.name,
           icon: null,
-          image: playlist.cover_photo || "/api/placeholder/40/40", // Use a placeholder if no cover photo
-          songCount: playlist.tracks?.length || 0, // Number of tracks in the playlist
-          type: 'Playlist', // Type of playlist
-          description: playlist.description, // Playlist description
-          is_public: playlist.is_public // Public or private status
+          image: playlist.cover_photo || "/api/placeholder/40/40",
+          songCount: playlist.tracks?.length || 0,
+          type: 'Playlist',
+          description: playlist.description,
+          is_public: playlist.is_public
         }));
-        console.log('dsfds', ownPlaylistsResponse.data)
-        // Fetch playlists added to the library
+  
+        // Find and format Liked Songs playlist if it exists
+        const likedSongsPlaylist = ownPlaylistsResponse.data.find(
+          playlist => playlist.name === 'Liked Songs'
+        );
+  
+        if (likedSongsPlaylist) {
+          const likedSongs = {
+            id: likedSongsPlaylist.id,
+            name: 'Liked Songs',
+            icon: <Heart className="h-6 w-6" />,
+            image: likedSongsPlaylist.cover_photo || "/api/placeholder/40/40",
+            songCount: likedSongsPlaylist.tracks?.length || 0,
+            type: 'Playlist',
+            description: likedSongsPlaylist.description,
+            is_public: likedSongsPlaylist.is_public,
+          };
+          
+          setOwnPlaylists([likedSongs, ...formattedOwnPlaylists]);
+        } else {
+          setOwnPlaylists(formattedOwnPlaylists);
+        }
+
         const libraryPlaylistsResponse = await api.get('/api/library/playlists/');
         const formattedLibraryPlaylists = libraryPlaylistsResponse.data.map(playlist => ({
           id: playlist.id,
@@ -59,25 +86,21 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
           icon: null,
           image: playlist.cover_photo || "/api/placeholder/40/40",
           songCount: playlist.tracks?.length || 0,
-          type: 'Added Playlist', // Differentiates library playlists
+          type: 'Added Playlist',
           description: playlist.description,
           is_public: playlist.is_public
         }));
-
-        // Update state with fetched playlists
-        setOwnPlaylists(prevPlaylists => [
-          prevPlaylists[0], // Keep the "Liked Songs" playlist
-          ...formattedOwnPlaylists
-        ]);
+  
         setLibraryPlaylists(formattedLibraryPlaylists);
+  
       } catch (err) {
         console.error('Error fetching playlists:', err);
-        setError('Failed to load playlists'); // Handle fetch errors
+        setError('Failed to load playlists');
       } finally {
-        setIsLoading(false); // Stop the loading spinner
+        setIsLoading(false);
       }
     };
-
+  
     fetchPlaylists();
   }, []);
 

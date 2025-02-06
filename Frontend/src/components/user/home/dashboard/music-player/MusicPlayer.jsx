@@ -16,7 +16,7 @@ import {
 } from '../../../../../slices/user/playerSlice';
 
 import MediaSessionControl from './MediaSessionControl';
-
+import LikeButton from './LikedButton';
 
 
 
@@ -227,6 +227,9 @@ const MusicPlayer = () => {
     return <Volume2 size={20} />;
   };
 
+
+
+  
   return (
     <div className="fixed bottom-0 left-0 right-0 backdrop-blur-lg bg-black/30 border-t border-white/10 relative">
       <audio
@@ -263,6 +266,13 @@ const MusicPlayer = () => {
                   <p className="text-xs text-gray-400 hover:text-white transition-colors cursor-pointer">
                     {currentTrack.artist}
                   </p>
+                  <p className="text-xs text-gray-400 hover:text-white transition-colors cursor-pointer">
+                  </p>
+                  
+                </div>
+                <div className="flex flex-col">
+
+                <LikeButton trackId={currentTrack.id} />
                 </div>
               </>
             ) : (

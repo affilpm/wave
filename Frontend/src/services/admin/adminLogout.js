@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { ACCESS_TOKEN, REFRESH_TOKEN } from '../../constants/authConstants';
 import api from '../../api';
-
+import {persistor} from '../../store'
 // Frontend: logout.js
 
 export const adminLogout = async () => {
@@ -11,7 +11,7 @@ export const adminLogout = async () => {
     try {
         if (refreshToken) {
             await api.post(`${import.meta.env.VITE_API_URL}/api/users/logout/`, {
-                refresh_token: refreshToken,  // Changed from 'refresh' to 'refresh_token'
+                refresh_token: refreshToken,  
             }, {
                 headers: {
                     Authorization: `Bearer ${accessToken}`,
@@ -23,8 +23,8 @@ export const adminLogout = async () => {
     } finally {
         localStorage.removeItem(ACCESS_TOKEN);
         localStorage.removeItem(REFRESH_TOKEN);
-        localStorage.clear();
-
+        persistor.purge(); // Clears the persisted storage
+        // window.location.reload(); 
         window.location.href = '/adminlogin';
     }
 };

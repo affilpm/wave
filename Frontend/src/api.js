@@ -1,6 +1,6 @@
 import axios from 'axios';
 import jwt_decode from 'jwt-decode';
-
+import { persistor } from './store';
 // Constants
 const TOKEN_BUFFER_TIME = 30000; // 30 seconds in milliseconds
 const UNAUTHORIZED = 401;
@@ -148,14 +148,43 @@ export class api {
     return Promise.reject(error);
   }
 
-  handleLogout() {
-    console.error('Logging out');
-    this.setToken('accessTokenKey', null);
-    this.setToken('refreshTokenKey', null);
-    delete this.api.defaults.headers.common.Authorization;
-    this.config.onLogout();
+
+  handleLogout = async () => {
+  try {
+      const refreshToken = this.getToken('refreshTokenKey');
+      const accessToken = this.getToken('accessTokenKey');
+      
+      // Attempt to notify server
+      if (refreshToken) {
+          await this.api.post('/api/users/logout/', {
+              refresh_token: refreshToken
+          }, {
+              headers: {
+                  Authorization: `Bearer ${accessToken}`
+              }
+          });
+      }
+  } catch (error) {
+      console.error('Error during logout:', error);
+  } finally {
+      // Clean up tokens
+      this.setToken('accessTokenKey', null);
+      this.setToken('refreshTokenKey', null);
+      
+      // Clean up API instance
+      delete this.api.defaults.headers.common.Authorization;
+      
+      // Clear persisted state
+      persistor.purge();
+      
+      // Navigate (via config callback)
+      this.config.onLogout();
   }
 }
 
-export const apiInstance = new api({ baseURL: import.meta.env.VITE_API_URL, onLogout: () => window.location.replace('/logout') });
+
+
+}
+
+export const apiInstance = new api({ baseURL: import.meta.env.VITE_API_URL, onLogout: () => window.location.replace('/landingpage') });
 export default apiInstance.api; 
