@@ -293,7 +293,7 @@ const PlaylistPage = () => {
             <span className="text-sm">
               Created by{" "}
               <span className="text-white">
-                {playlist.created_by}
+                {playlist.created_by_username}
               </span>{" "}
               • {playlist.tracks?.length || 0} songs • {totalDuration}
             </span>

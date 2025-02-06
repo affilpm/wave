@@ -133,6 +133,7 @@ const PlaylistPage = () => {
       try {
         const response = await api.get(`/api/playlist/playlist_data/${playlistId}/`);
         setPlaylist(response.data);
+        console.log(response.data)
       } catch (err) {
         setError("Failed to load playlist");
       } finally {
@@ -225,9 +226,9 @@ const PlaylistPage = () => {
             <span className="text-sm">
               Created by{" "}
               <span className="text-white">
-                {playlist.created_by_details?.username}
+                {playlist.created_by_username}
               </span>{" "}
-              • {playlist.tracks?.length || 0} songs • {totalDuration}
+              • {playlist.tracks?.length || 0} songs • {`${totalDuration}`}
             </span>
           </div>
         </div>

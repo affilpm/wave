@@ -60,10 +60,25 @@ const EditPlaylistModal = ({ isOpen, onClose, onEditPlaylist, playlist }) => {
       resetForm();
       onClose();
     } catch (error) {
-      console.error('Error editing playlist:', error);
-      const errorMessage = error.response?.data?.details || 
-                          error.response?.data?.error ||
-                          'Failed to edit playlist. Please try again.';
+      console.error('Error updating playlist:', error);
+      console.log(error.response?.data); // Debugging
+  
+      // Extract error message properly
+      const errorData = error.response?.data;
+      let errorMessage = 'Failed to update playlist. Please try again.';
+  
+      if (errorData) {
+        if (typeof errorData === 'string') {
+          errorMessage = errorData;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.details) {
+          errorMessage = errorData.details;
+        } else if (errorData.name) {
+          errorMessage = errorData.name[0]; // Extracts first validation error for 'name'
+        }
+      }
+  
       setError(errorMessage);
     } finally {
       setIsLoading(false);

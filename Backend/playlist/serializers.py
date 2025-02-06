@@ -76,17 +76,19 @@ class PlaylistTrackViewSet(viewsets.ModelViewSet):
 class PlaylistSerializer(serializers.ModelSerializer):
     tracks = PlaylistTrackSerializer(source='playlisttrack_set', many=True, read_only=True)
     # created_by_details = UserSerializer(source='created_by', read_only=True)
-    created_by = serializers.CharField(source='created_by.username', read_only = True)  # To show username
+    created_by = serializers.CharField(source='created_by.email', read_only = True) 
+    created_by_username = serializers.CharField(source='created_by.username', read_only = True)  # To show username
+    
     
     class Meta:
         model = Playlist
         fields = [
             'id', 'name', 'description', 'is_public', 
             'cover_photo', 'duration', 'created_at', 
-            'updated_at', 'tracks',
+            'updated_at', 'tracks', 'created_by_username',
             'created_by'
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by_username', 'created_by']
 
 
     def create(self, validated_data):
