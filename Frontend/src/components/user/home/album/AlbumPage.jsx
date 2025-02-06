@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Play, Pause, Clock, Share2, Shuffle } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from 'react-redux';
@@ -21,7 +21,7 @@ import {
 const AlbumPage = () => {
   const dispatch = useDispatch();
   const { currentTrack, isPlaying, queue } = useSelector((state) => state.player);
-  
+  const audioRef = useRef(null);
   const [album, setAlbum] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -47,7 +47,7 @@ const AlbumPage = () => {
 
   useEffect(() => {
     const calculateTotalDuration = () => {
-      if (album?.tracks?.length) {
+      if (album?.tracks?.length && audioRef.current) {
         const totalSeconds = album.tracks.reduce((acc, track) => {
           const trackDuration = track.music_details?.duration || "00:00:00";
           return acc + convertToSeconds(trackDuration);
@@ -85,10 +85,22 @@ const AlbumPage = () => {
       // Otherwise, set new queue and start playing
       dispatch(setQueue(formattedTracks));
       dispatch(setCurrentTrack(formattedTracks[0]));
-      dispatch(setIsPlaying(true));
+      // dispatch(setIsPlaying(true));
+      try {
+        // Only attempt to play if there's been user interaction
+        if (document.body.hasInteracted) {
+          dispatch(setIsPlaying(true));
+        } else {
+          // Just queue it up without playing
+          dispatch(setIsPlaying(false));
+        }
+      } catch (error) {
+        console.warn('Playback failed:', error);
+        dispatch(setIsPlaying(false));
+      }
     }
   };
-
+  
   // Handle playing individual track
   const handlePlayTrack = (track, index) => {
     const formattedTrack = prepareTrackForPlayer(track);
@@ -106,11 +118,15 @@ const AlbumPage = () => {
       dispatch(setQueue(formattedTracks));
     }
     
-    // Start playing from the clicked track
-    dispatch(reorderQueue({ startIndex: index }));
-    dispatch(setIsPlaying(true));
+    try {
+      dispatch(reorderQueue({ startIndex: index }));
+      // Since this is triggered by a click, it's safe to play
+      dispatch(setIsPlaying(true));
+    } catch (error) {
+      console.warn('Playback failed:', error);
+      dispatch(setIsPlaying(false));
+    }
   };
-
   // Handle shuffle
   const handleShuffle = () => {
     if (!album?.tracks?.length) return;

@@ -19,7 +19,7 @@ class Playlist(models.Model):
     duration = models.PositiveIntegerField(default=0, help_text="Total duration of the playlist in seconds")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+    is_system_created = models.BooleanField(default=False, help_text="Indicates if playlist is system-generated")
 
 
 

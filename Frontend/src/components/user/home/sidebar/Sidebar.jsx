@@ -50,7 +50,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
           description: playlist.description, // Playlist description
           is_public: playlist.is_public // Public or private status
         }));
-
+        console.log('dsfds', ownPlaylistsResponse.data)
         // Fetch playlists added to the library
         const libraryPlaylistsResponse = await api.get('/api/library/playlists/');
         const formattedLibraryPlaylists = libraryPlaylistsResponse.data.map(playlist => ({

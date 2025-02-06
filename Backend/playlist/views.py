@@ -10,7 +10,8 @@ from django.db.models import Q
 import logging
 from .serializers import MusicSerializer
 logger = logging.getLogger(__name__)
-
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 # this view is used search music and add to playlist
 class MusicService(viewsets.ModelViewSet):
@@ -54,7 +55,22 @@ class PlaylistViewSet(viewsets.ModelViewSet):
 
     
     def create(self, request, *args, **kwargs):
+
+    
         try:
+            if request.data.get('name', '').lower() == 'liked tracks':
+                existing_liked_playlist = Playlist.objects.filter(
+                    created_by=request.user, 
+                    name='Liked Songs'
+                ).exists()
+                
+                if existing_liked_playlist:
+                    return Response(
+                        {'error': 'You already have a Liked Tracks playlist.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            
+                return super().create(request, *args, **kwargs)
             data = request.data.copy()
             
             # Handle is_public conversion
@@ -67,6 +83,7 @@ class PlaylistViewSet(viewsets.ModelViewSet):
 
             # Check if a playlist with the same name already exists for this user
             if Playlist.objects.filter(name=playlist_name, created_by=user).exists():
+                print("Error: Playlist already exists") 
                 return Response(
                     {'error': 'You already have a playlist with this name.'},
                     status=status.HTTP_400_BAD_REQUEST
@@ -189,6 +206,64 @@ class PlaylistViewSet(viewsets.ModelViewSet):
  
  
  
+    @action(detail=False, methods=['post'])
+    def like_track(self, request):
+        """
+        Add or remove a track from the user's Liked Tracks playlist
+        """
+        try:
+            music_id = request.data.get('music_id')
+            if not music_id:
+                return Response(
+                    {'error': 'Music ID is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get or create the Liked Tracks playlist
+            liked_playlist, created = Playlist.objects.get_or_create(
+                created_by=request.user, 
+                name='Liked Tracks',
+                defaults={
+                    'is_public': False,
+                    'is_system_created': True,
+                    'description': 'Tracks you have liked'
+                }
+            )
+            
+            # Check if track is already in Liked Tracks
+            existing_track = PlaylistTrack.objects.filter(
+                playlist=liked_playlist, 
+                music_id=music_id
+            ).first()
+            
+            if existing_track:
+                # Remove from Liked Tracks if already exists
+                existing_track.delete()
+                return Response(
+                    {'status': 'Track removed from Liked Tracks'},
+                    status=status.HTTP_200_OK
+                )
+            else:
+                # Add to Liked Tracks
+                last_track = PlaylistTrack.objects.filter(playlist=liked_playlist).order_by('-track_number').first()
+                next_track_number = (last_track.track_number + 1) if last_track else 1
+                
+                PlaylistTrack.objects.create(
+                    playlist=liked_playlist,
+                    music_id=music_id,
+                    track_number=next_track_number
+                )
+                
+                return Response(
+                    {'status': 'Track added to Liked Tracks'},
+                    status=status.HTTP_201_CREATED
+                )
+        
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 # this view is used to list all the tracks in a playlist           
 class PlaylistTrackViewSet(viewsets.ModelViewSet):
    serializer_class = PlaylistTrackSerializer
@@ -200,3 +275,27 @@ class PlaylistTrackViewSet(viewsets.ModelViewSet):
         if playlist_id:
             queryset = queryset.filter(playlist_id=playlist_id)
         return queryset
+    
+    
+    
+from users.models import CustomUser
+
+
+@receiver(post_save, sender=CustomUser)
+def create_liked_playlist(sender, instance, created, **kwargs):
+    """
+    Automatically create a 'Liked Tracks' playlist for new users
+    """
+    if created:
+        try:
+            Playlist.objects.create(
+                name='Liked Tracks',
+                created_by=instance,
+                is_public=False,
+                is_system_created=True,
+                description='Tracks you have liked'
+            )
+        except Exception as e:
+            # Log the error or handle it appropriately
+            print(f"Failed to create Liked Tracks playlist for user {instance.username}: {e}")
+    
