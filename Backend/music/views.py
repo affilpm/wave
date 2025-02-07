@@ -5,7 +5,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework import viewsets, status
-from rest_framework.decorators import action
+from rest_framework.decorators import action, api_view
 from rest_framework.permissions import IsAdminUser
 from .models import Music, MusicApprovalStatus
 from .serializers import MusicVerificationSerializer
@@ -241,4 +241,15 @@ class MusicVerificationViewSet(viewsets.ModelViewSet):
             )
         
 
+
+@api_view(['GET'])
+def get_music_by_genre(request, genre_id):
+    music = Music.objects.filter(
+        genres__id=genre_id,
+        approval_status=MusicApprovalStatus.APPROVED,
+        is_public=True
+    ).select_related('artist__user').order_by('-created_at')
+    
+    serializer = MusicSerializer(music, many=True)
+    return Response(serializer.data)
 

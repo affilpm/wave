@@ -114,6 +114,7 @@ INSTALLED_APPS = [
     'home',
     'library',
     'premium',
+    'data',
     # 'csp',
     # 'django_csp', 
 ]

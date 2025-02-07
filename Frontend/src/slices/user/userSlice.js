@@ -3,6 +3,7 @@ import { createSlice } from '@reduxjs/toolkit';
 // Initial state for the user
 const initialState = {
   email: '',
+  user_id: '',
   username: '',
   first_name: '',
   last_name: '',
@@ -17,6 +18,7 @@ const userSlice = createSlice({
   reducers: {
     setUserData: (state, action) => {
       state.email = action.payload.email;
+      state.user_id = action.payload.user_id;
       state.username = action.payload.username;
       state.first_name = action.payload.first_name;
       state.last_name = action.payload.last_name;
@@ -28,6 +30,7 @@ const userSlice = createSlice({
     },
     clearUserData: (state) => {
       state.email = ''; // Reset to empty string
+      state.user_id= '',
       state.username = ''; // Reset to empty string
       state.first_name = ''; // Reset to empty string
       state.last_name = ''; // Reset to empty string
