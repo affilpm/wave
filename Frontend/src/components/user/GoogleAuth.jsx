@@ -94,10 +94,12 @@ const GoogleAuthButton = () => {
       if (!decodedToken?.user_id || !decodedToken?.email) {
         throw new Error('Invalid user data in token');
       }
+      console.log(decodeToken)
   
       dispatch(setUserData({
         email: decodedToken.email,
         username: decodedToken.username,
+        user_id: decodeToken.user_id,
         first_name: decodedToken.first_name,
         last_name: decodedToken.last_name,
         image: decodedToken.image || null,

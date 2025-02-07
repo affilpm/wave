@@ -115,7 +115,7 @@ const ShufflingDashboard = ({ children }) => {
         {wrappedSections}
       </AnimatePresence>
 
-      {/* <GenreDiscovery /> */}
+      <GenreDiscovery />
     </div>
   );
 };

@@ -25,6 +25,7 @@ import SavedPlaylistPage from './components/user/home/playlist/playlist-page/Pla
 import { Navigate } from 'react-router-dom';
 import AlbumPage from './components/user/home/album/AlbumPage';
 import UsernameSelectionPage from './components/user/register/UsernameSelectionPage';
+import GenrePage from './components/user/home/dashboard/GenrePage';
 
 
 export const logout= () => {
@@ -83,6 +84,8 @@ function App() {
               <Route path="/saved-playlist/:playlistId" element={<SavedPlaylistPage />} />
               <Route path="/music-show-more" element={<MusicShowMorePage/>} />
               <Route path="/album/:albumId" element={<AlbumPage/>} />
+              <Route path="/genres/:genreId" element={<GenrePage/>} />
+
 
 
 
