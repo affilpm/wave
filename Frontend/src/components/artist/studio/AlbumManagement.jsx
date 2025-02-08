@@ -186,6 +186,7 @@ const AlbumManagement = () => {
                                 try {
                                 const response = await api.get(`/api/album/albums/${album.id}/`);
                                 setSelectedAlbum(response.data);
+                                console.log(response.data)
                                 setIsEditModalOpen(true);
                                 } catch (err) {
                                 setError('Failed to fetch album details');

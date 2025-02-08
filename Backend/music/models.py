@@ -2,6 +2,7 @@ from django.db import models
 from django.core.validators import FileExtensionValidator
 from django.core.exceptions import ValidationError
 import os
+import uuid
 from django.db import models
 from django.core.validators import FileExtensionValidator
 
@@ -107,3 +108,20 @@ class AlbumTrack(models.Model):
     class Meta:
         ordering = ['track_number']
         unique_together = ['album', 'track_number']        
+        
+from users.models import CustomUser        
+        
+class StreamingSession(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    music = models.ForeignKey('Music', on_delete=models.CASCADE)
+    session_id = models.UUIDField(default=uuid.uuid4, editable=False)
+    started_at = models.DateTimeField(auto_now_add=True)
+    ended_at = models.DateTimeField(null=True, blank=True)
+    last_position = models.PositiveIntegerField(default=0)  # in seconds
+    completed = models.BooleanField(default=False)
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['user', 'music', 'started_at'])
+        ]
+        

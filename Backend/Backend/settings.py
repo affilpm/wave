@@ -114,7 +114,6 @@ INSTALLED_APPS = [
     'home',
     'library',
     'premium',
-    'data',
     # 'csp',
     # 'django_csp', 
 ]
@@ -138,6 +137,22 @@ MIDDLEWARE = [
     
 ]
 
+
+CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins (for development)
+# Or restrict to specific origins
+# CORS_ALLOWED_ORIGINS = ['http://localhost:3000']
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # Your Vite dev server
+]
+
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "authorization",
+    "content-type",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
 
 # Add these headers to your response
 SECURE_CONTENT_TYPE_NOSNIFF = False

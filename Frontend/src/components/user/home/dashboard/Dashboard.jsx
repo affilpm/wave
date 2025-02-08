@@ -7,9 +7,10 @@ import AlbumSection from "./AlbumSection";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import GenreDiscovery from "./GenreDiscovery";
-
 import { Shuffle, PauseCircle, PlayCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+
+
 const ShufflingDashboard = ({ children }) => {
   const [sections, setSections] = useState([]);
   const [shuffleCount, setShuffleCount] = useState(0);

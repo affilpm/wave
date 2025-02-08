@@ -17,7 +17,6 @@ const LikeButton = ({ trackId }) => {
     setIsChecking(true); // Start checking
     try {
       const playlistsResponse = await api.get('api/playlist/playlist_data/');
-      console.log("Playlists Response:", playlistsResponse.data); // Log response to confirm structure
       const playlists = playlistsResponse.data.results || playlistsResponse.data;
       const likedPlaylist = playlists.find(playlist => playlist.name === 'Liked Songs');
   
@@ -25,13 +24,11 @@ const LikeButton = ({ trackId }) => {
         const tracksResponse = await api.get('api/playlist/playlist-tracks/', {
           params: { playlist: likedPlaylist.id, music: trackId }
         });
-        console.log("Tracks Response:", tracksResponse.data); // Log response to confirm track info
         const tracks = tracksResponse.data.results || tracksResponse.data;
   
         // Check if trackId matches any track in the playlist
         const isTrackLiked = tracks.some(track => track.music === trackId); // Check if music matches
   
-        console.log('Is track liked:', isTrackLiked); // Debugging log
         setIsLiked(isTrackLiked); // Set liked status based on track existence
       } else {
         console.log('No "Liked Songs" playlist found');

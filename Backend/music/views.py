@@ -1,4 +1,4 @@
-from django.shortcuts import render
+from django.shortcuts import render, get_object_or_404
 from .models import Genre, Music
 from .serializers import GenreSerializer, MusicSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -11,8 +11,9 @@ from .models import Music, MusicApprovalStatus
 from .serializers import MusicVerificationSerializer
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
 from django.db import transaction
-from .models import Album
+from .models import Album, StreamingSession
 # from .serializers import AlbumSerializer
 from mutagen.mp3 import MP3
 from mutagen.wavpack import WavPack
@@ -22,6 +23,8 @@ from .models import AlbumTrack
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 import json
+from django.http import HttpResponse, FileResponse
+from django.utils import timezone
 
 
 
@@ -39,101 +42,100 @@ class GenreViewSet(viewsets.ReadOnlyModelViewSet):
 
 ##
 
-
 class MusicViewSet(ModelViewSet):
     queryset = Music.objects.all()
     serializer_class = MusicSerializer
     parser_classes = (MultiPartParser, FormParser)
 
+    @transaction.atomic
     def create(self, request, *args, **kwargs):
         try:
-            # Print incoming data for debugging
-            print("Request data:", request.data)
-            print("Request FILES:", request.FILES)
-            
             artist = request.user.artist_profile
-
+            
+            # Prepare music data
             music_data = {
                 'name': request.data.get('name'),
                 'release_date': request.data.get('release_date'),
-                'artist': artist.id
+                'artist': artist.id,
+                'genres': request.data.getlist('genres[]'),
+                **{field: request.FILES[field] 
+                for field in ['audio_file', 'cover_photo', 'video_file'] 
+                if field in request.FILES}
             }
 
-            # Check for duplicate music name
-            if Music.objects.filter(name=music_data['name'], artist=artist).exists():
-                return Response(
-                    {'error': 'Duplicate music name is not allowed for the same artist'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            # Handle file uploads
-            audio_file = None
-            if 'audio_file' in request.FILES:
-                audio_file = request.FILES['audio_file']
-                music_data['audio_file'] = audio_file
-
-            # Extract audio duration if the audio file exists
-            if audio_file:
-                # Get the duration of the audio file using mutagen
-                audio = File(audio_file)
-                if audio is not None:
-                    duration = audio.info.length  # Duration in seconds
-                    music_data['duration'] = duration
-
-            if 'cover_photo' in request.FILES:
-                music_data['cover_photo'] = request.FILES['cover_photo']
-            if 'video_file' in request.FILES:
-                music_data['video_file'] = request.FILES['video_file']
-
-            # Handle genres
-            genres = request.data.getlist('genres[]')  # Note the '[]' suffix
-            if genres:
-                music_data['genres'] = genres
-
-            # Print the processed data for the serializer
-            print("Processed data for serializer:", music_data)
-
             serializer = self.get_serializer(data=music_data)
-            
-            # Validate the serializer data
             if not serializer.is_valid():
-                print("Serializer Errors:", serializer.errors)
                 return Response(
                     {'error': 'Validation failed', 'details': serializer.errors},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Perform the creation of the music object
-            self.perform_create(serializer)
+            music_track = serializer.save()
 
-            # Create a success response with the created data
-            response_data = {
-                'message': 'Music track created successfully',
-                'music': serializer.data
-            }
-
-            headers = self.get_success_headers(serializer.data)
+            # Handle album assignment
+            album_id = request.data.get('album')
+            track_number = request.data.get('track_number')
+            
+            if album_id and track_number:
+                try:
+                    album = Album.objects.select_for_update().get(
+                        id=album_id, 
+                        artist=artist
+                    )
+                    
+                    # Check for duplicate track numbers
+                    if AlbumTrack.objects.filter(
+                        album=album, 
+                        track_number=track_number
+                    ).exists():
+                        raise ValidationError('Track number already exists in this album')
+                    
+                    AlbumTrack.objects.create(
+                        album=album,
+                        track=music_track,
+                        track_number=int(track_number)
+                    )
+                    
+                except Album.DoesNotExist:
+                    return Response(
+                        {'error': 'Album not found or does not belong to artist'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                except ValidationError as e:
+                    return Response(
+                        {'error': str(e)},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
             return Response(
-                response_data,
-                status=status.HTTP_201_CREATED,
-                headers=headers
+                serializer.data,
+                status=status.HTTP_201_CREATED
             )
 
-        except IntegrityError as e:
-            print(f"IntegrityError: {str(e)}")
-            return Response(
-                {'error': 'Integrity Error', 'details': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
         except Exception as e:
-            # Handle any unexpected errors
-            print(f"Unexpected error: {str(e)}")
             return Response(
-                {'error': 'An unexpected error occurred', 'details': str(e)},
+                {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
             
+    @action(detail=True)
+    def streaming_stats(self, request, pk=None):
+            music = self.get_object()
+            stats = StreamingSession.objects.filter(music=music).aggregate(
+                total_plays=Count('id'),
+                completed_plays=Count('id', filter=Q(completed=True)),
+                average_duration=Avg('last_position')
+            )
+            
+            serializer = StreamingStatsSerializer({
+                'id': music.id,
+                'name': music.name,
+                **stats
+            })
+            return Response(serializer.data)    
+        
+        
+        
     @action(detail=False, methods=['get'])
     def check_name(self, request):
         name = request.query_params.get('name', '').strip()
@@ -241,6 +243,8 @@ class MusicVerificationViewSet(viewsets.ModelViewSet):
             )
         
 
+import re
+import os
 
 @api_view(['GET'])
 def get_music_by_genre(request, genre_id):
@@ -253,3 +257,160 @@ def get_music_by_genre(request, genre_id):
     serializer = MusicSerializer(music, many=True)
     return Response(serializer.data)
 
+
+
+import os
+import re
+import mimetypes
+from mutagen import File
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.http import StreamingHttpResponse, HttpResponse
+from django.shortcuts import get_object_or_404
+
+class MusicStreamView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_audio_properties(self, file_path):
+        """Get audio file properties using mutagen"""
+        try:
+            audio = File(file_path)
+            if audio is None:
+                return None
+            
+            # Calculate bitrate (bits per second)
+            if hasattr(audio.info, 'bitrate'):
+                bitrate = audio.info.bitrate
+            else:
+                # Fallback to a default bitrate of 128kbps if not available
+                bitrate = 128 * 1024
+            
+            return {
+                'duration': audio.info.length,  # Duration in seconds
+                'bitrate': bitrate  # Bitrate in bits per second
+            }
+        except Exception:
+            return None
+
+    def calculate_chunk_size(self, file_path):
+        """Calculate optimal chunk size for 5-second segments"""
+        audio_props = self.get_audio_properties(file_path)
+        
+        if audio_props:
+            # Calculate bytes for 5 seconds of audio
+            # bitrate is in bits per second, divide by 8 to get bytes per second
+            chunk_size = int((audio_props['bitrate'] / 8) * 5)
+            # Ensure chunk size is at least 64KB and no more than 1MB
+            return max(min(chunk_size, 1024 * 1024), 64 * 1024)
+        
+        # Default to 256KB chunks if we can't determine audio properties
+        return 256 * 1024
+
+    def get(self, request, music_id):
+        try:
+            music = get_object_or_404(Music, pk=music_id)
+            path = music.audio_file.path
+
+            if not os.path.exists(path):
+                return Response({"error": "Audio file not found"}, status=404)
+
+            content_type, _ = mimetypes.guess_type(path)
+            if not content_type:
+                content_type = "audio/mpeg"
+
+            file_size = os.path.getsize(path)
+            range_header = request.headers.get("Range", None)
+            
+            # Calculate chunk size based on audio properties
+            chunk_size = self.calculate_chunk_size(path)
+
+            def file_iterator(start, end):
+                """Generator to stream file in chunks"""
+                with open(path, "rb") as f:
+                    f.seek(start)
+                    remaining = end - start + 1
+                    while remaining > 0:
+                        chunk = f.read(min(chunk_size, remaining))
+                        if not chunk:
+                            break
+                        yield chunk
+                        remaining -= len(chunk)
+
+            if range_header:
+                range_match = re.match(r"bytes=(\d+)-(\d*)", range_header)
+                if range_match:
+                    start, end = range_match.groups()
+                    start = int(start)
+                    end = int(end) if end else min(start + chunk_size - 1, file_size - 1)
+
+                    if start >= file_size:
+                        return HttpResponse(status=416)  # Range Not Satisfiable
+
+                    response = StreamingHttpResponse(
+                        file_iterator(start, end),
+                        content_type=content_type,
+                        status=206
+                    )
+                    response["Content-Range"] = f"bytes {start}-{end}/{file_size}"
+                    response["Content-Length"] = str(end - start + 1)
+                else:
+                    return HttpResponse(status=400)  # Bad Request
+            else:
+                # For initial request, send first 5 seconds
+                end = chunk_size - 1
+                response = StreamingHttpResponse(
+                    file_iterator(0, end),
+                    content_type=content_type,
+                    status=206
+                )
+                response["Content-Range"] = f"bytes 0-{end}/{file_size}"
+                response["Content-Length"] = str(end + 1)
+
+            response["Accept-Ranges"] = "bytes"
+            response["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response["Content-Disposition"] = f'inline; filename="{os.path.basename(path)}"'
+
+            return response
+
+        except Exception as e:
+            print(f"Streaming error: {str(e)}")
+            return Response({"error": "Internal Server Error"}, status=500)
+        
+    @action(detail=False, methods=['POST'])
+    def track_progress(self, request):
+        """Track playback progress with validation"""
+        try:
+            session_id = request.data.get('session_id')
+            position = request.data.get('position')
+            completed = request.data.get('completed', False)
+            
+            if not session_id or position is None:
+                return Response(
+                    {'error': 'session_id and position required'}, 
+                    status=400
+                )
+                
+            session = get_object_or_404(
+                StreamingSession, 
+                session_id=session_id,
+                user=request.user
+            )
+            
+            # Validate position
+            if position < 0 or position > session.music.duration:
+                return Response(
+                    {'error': 'Invalid position'}, 
+                    status=400
+                )
+            
+            session.last_position = position
+            if completed:
+                session.completed = True
+                session.ended_at = timezone.now()
+            session.save()
+            
+            return Response({'status': 'updated'})
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
