@@ -22,7 +22,6 @@ const Header = () => {
         const { data } = await api.get('/api/premium/subscription/status/');
         setIsPremium(data.status === 'success');
       } catch (error) {
-        console.error('Error fetching premium status:', error);
         setIsPremium(false);
       }
     };

@@ -61,40 +61,6 @@ class AlbumTrackSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_at']   
 
 
-# class PlaylistSerializer(serializers.ModelSerializer):
-#     tracks = AlbumTrackSerializer(source='playlisttrack_set', many=True, read_only=True)
-#     created_by_details = ArtistSerializer(source='created_by', read_only=True)
-    
-#     class Meta:
-#         model = Album
-#         fields = [
-#             'id', 'name', 'description', 'is_public', 
-#             'cover_photo', 'duration', 'created_at', 
-#             'updated_at', 'tracks', 'created_by_details'
-#         ]
-#         read_only_fields = ['id', 'created_at', 'updated_at', 'created_by_details']
-#         extra_kwargs = {
-#             'cover_photo': {'required': False},  # Make cover_photo optional
-#             'description': {'required': False},  # Make description optional
-#         }
-
-#     def create(self, validated_data):
-#         # Assign the current user as the creator
-#         user = self.context['request'].user
-#         validated_data['created_by'] = user
-#         return super().create(validated_data)
-    
-#     def validate_is_public(self, value):
-#         # Handle string values from form data
-#         if isinstance(value, str):
-#             if value.lower() == 'true':
-#                 return True
-#             elif value.lower() == 'false':
-#                 return False
-#         return value
-    
-    
-    
     
    
 class AlbumSerializer(serializers.ModelSerializer):

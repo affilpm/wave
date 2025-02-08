@@ -21,6 +21,7 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
     banner_img: null,
     tracks: []
   });
+  
   const [availableTracks, setAvailableTracks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -62,7 +63,7 @@ const [albumData, setAlbumData] = useState([])
         const [tracksResponse] = await Promise.all([
           api.get('/api/album/music/')
         ]);
-
+console.log(tracksResponse.data)
         setOriginalAlbum(initialAlbum);
         setAlbum(initialAlbum);
         setAvailableTracks(tracksResponse.data);
@@ -621,7 +622,7 @@ const [albumData, setAlbumData] = useState([])
                   {index + 1}
                 </div>
                 <Music className="h-5 w-5 text-gray-400" />
-                <span className="flex-1 text-white">{track.name}</span>
+                <span className="flex-1 text-white">{track.music_details.name}</span>
                 <button
                   type="button"
                   onClick={() => removeTrack(track)}

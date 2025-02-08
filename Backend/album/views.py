@@ -28,7 +28,7 @@ class AlbumData(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        # Fetch playlists created by the authenticated user
+        # Fetch album created by the authenticated user
         return Album.objects.all()
         
         

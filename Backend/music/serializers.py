@@ -13,26 +13,38 @@ class GenreSerializer(serializers.ModelSerializer):
 
 class MusicSerializer(serializers.ModelSerializer):
     genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
-    # genres = serializers.SerializerMethodField()
+    album_id = serializers.IntegerField(required=False, write_only=True)
+    track_number = serializers.IntegerField(required=False, write_only=True)
 
     class Meta:
         model = Music
         fields = [
             'id', 'name', 'cover_photo', 'audio_file', 
             'video_file', 'genres', 'release_date',
-            'approval_status', 'duration', 'artist','is_public'
+            'approval_status', 'duration', 'artist', 'is_public',
+            'album_id', 'track_number'
         ]
+
+    def create(self, validated_data):
+        album_id = validated_data.pop('album_id', None)
+        track_number = validated_data.pop('track_number', None)
         
-    def get_genres(self, obj):
-        # Return a list of genre names
-        return [genre.name for genre in obj.genres.all()]
-    
-    def validate_cover_photo(self, value):
-        # Check the length of the filename
-        file_name, file_extension = os.path.splitext(value.name)
-        if len(file_name) > 250:
-            raise serializers.ValidationError("Ensure this filename has at most 100 characters.")
-        return value
+        # Create the music track
+        music = super().create(validated_data)
+        
+        # If album_id is provided, create the album track association
+        if album_id and track_number:
+            try:
+                album = Album.objects.get(id=album_id)
+                AlbumTrack.objects.create(
+                    album=album,
+                    track=music,
+                    track_number=track_number
+                )
+            except Album.DoesNotExist:
+                raise serializers.ValidationError({'album_id': 'Album not found'})
+            
+        return music
 
  
 # In your view
@@ -99,4 +111,11 @@ class MusicVerificationSerializer(serializers.ModelSerializer):
 
 
 
-# 
+class StreamingStatsSerializer(serializers.ModelSerializer):
+    total_plays = serializers.IntegerField()
+    completed_plays = serializers.IntegerField()
+    average_duration = serializers.FloatField()
+    
+    class Meta:
+        model = Music
+        fields = ['id', 'name', 'total_plays', 'completed_plays', 'average_duration']

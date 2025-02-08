@@ -53,6 +53,7 @@ const MusicSection = ({ title }) => {
       // If clicking a new track, update the queue with the selected track
       dispatch(setQueue([item])); // Only set the selected track in the queue
       dispatch(setCurrentTrack(item));
+      console.log(item.id)
       dispatch(setIsPlaying(true));
     }
   };

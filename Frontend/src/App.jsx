@@ -9,7 +9,6 @@ import { useSelector } from 'react-redux';
 import AdminLogin from './components/admin/AdminLogin';
 import AdminDashboard from './components/admin/AdminDashboard';
 import AdminLogout from './components/admin/AdminLogout';
-import GoogleAuth from './components/user/GoogleAuth';
 import ProtectedRoute from './components/admin/ProtectedRoute';
 import MusicUpload from './components/artist/studio/music_uploader/MusicUpload';
 import StudioPage from './pages/artist/StudioPage';
@@ -26,7 +25,8 @@ import { Navigate } from 'react-router-dom';
 import AlbumPage from './components/user/home/album/AlbumPage';
 import UsernameSelectionPage from './components/user/register/UsernameSelectionPage';
 import GenrePage from './components/user/home/dashboard/GenrePage';
-
+// import { apiInstance } from './api';
+// import { musicStreamService } from './services/user/musicService';
 
 export const logout= () => {
   // Completely clear all data from localStorage
@@ -36,7 +36,7 @@ export const logout= () => {
 
 function App() {
   const { isAuthenticated } = useSelector((state) => state.user);
-
+  // musicStreamService.setApiInstance(apiInstance);
   
   return (
     <Router>
