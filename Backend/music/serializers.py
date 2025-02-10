@@ -9,7 +9,11 @@ class GenreSerializer(serializers.ModelSerializer):
     class Meta:
         model = Genre
         fields = ['id', 'name', 'description']
-        
+class MusicMetadataSerializer(serializers.Serializer):
+    duration = serializers.FloatField()
+    title = serializers.CharField()
+    artist = serializers.CharField(source="artist.email")  # Adjust this based on what you need
+    format = serializers.CharField()        
 
 class MusicSerializer(serializers.ModelSerializer):
     genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)

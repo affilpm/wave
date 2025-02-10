@@ -1,156 +1,137 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Play, Pause, Volume2, VolumeX, RotateCcw, Settings } from "lucide-react";
-import apiInstance from "../../../../../api";
+import React, { useState, useEffect, useRef } from "react";
+import { Play, Pause, Volume2, VolumeX, RotateCcw, SkipBack, SkipForward } from 'lucide-react';
 
-const musicId = 8
-const MusicPlayer = ({  onError }) => {
+import api from "../../../../../api";
+
+const musicId = 2;
+
+const MusicPlayer = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isBuffering, setIsBuffering] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [volume, setVolume] = useState(1);
   const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
   const [error, setError] = useState(null);
-  const [audioSource, setAudioSource] = useState('');
+  const [metadata, setMetadata] = useState(null);
+  
   const audioRef = useRef(null);
-  const objectUrlRef = useRef(null);
+  const progressRef = useRef(null);
 
-  const handleError = useCallback((errorMessage) => {
-    setError(errorMessage);
-    setIsLoading(false);
-    if (onError) onError(errorMessage);
-  }, [onError]);
+  useEffect(() => {
+    // Fetch metadata first
+    const fetchMetadata = async () => {
+      try {
+        const { data } = await api.get(`/api/music/metadata/${musicId}/`);
+        setMetadata(data);
+        setDuration(data.duration);
+      } catch (err) {
+        console.error("Metadata fetch error:", err);
+        setError("Failed to load track information");
+      }
+    };
 
-  const updateProgress = useCallback(() => {
-    if (audioRef.current) {
-      const currentTime = audioRef.current.currentTime;
-      const duration = audioRef.current.duration;
-      setProgress((currentTime / duration) * 100);
-    }
-  }, []);
+    fetchMetadata();
+  }, [musicId]);
 
-  // Separate effect for audio element event listeners
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (!audio || !musicId) return;
 
-    const handleLoadedData = () => {
-      console.log('Audio loaded successfully');
+    const handleLoadStart = () => setIsLoading(true);
+    const handleCanPlay = () => {
       setIsLoading(false);
-      setDuration(audio.duration);
+      setError(null);
+    };
+    const handleWaiting = () => setIsBuffering(true);
+    const handlePlaying = () => {
+      setIsBuffering(false);
+      setIsLoading(false);
+    };
+    
+    const handleTimeUpdate = () => {
+      setCurrentTime(audio.currentTime);
+      setProgress((audio.currentTime / audio.duration) * 100);
     };
 
-    const handleEnded = () => {
+    const handleError = async (e) => {
+      console.error('Audio error:', e);
+      setError('Failed to load audio. Please try again.');
+      setIsLoading(false);
       setIsPlaying(false);
-      setProgress(0);
+      
+      // Attempt to refresh the audio source
+      try {
+        const response = await api.get(`/api/music/stream/${musicId}/`, {
+          responseType: 'blob'
+        });
+        
+        const blob = new Blob([response.data], { type: 'audio/mpeg' });
+        const url = URL.createObjectURL(blob);
+        audio.src = url;
+      } catch (err) {
+        console.error("Stream fetch error:", err);
+        setError("Failed to load audio stream");
+      }
     };
 
-    const handleError = (e) => {
-      console.error('Audio element error:', {
-        error: e.target.error,
-        currentSrc: audio.currentSrc,
-        readyState: audio.readyState,
-        networkState: audio.networkState,
-        errorCode: audio.error?.code,
-        errorMessage: audio.error?.message
-      });
-      handleError("Audio playback error occurred");
-    };
-
-    audio.addEventListener('loadeddata', handleLoadedData);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('timeupdate', updateProgress);
+    // Set up event listeners
+    audio.addEventListener('loadstart', handleLoadStart);
+    audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener('waiting', handleWaiting);
+    audio.addEventListener('playing', handlePlaying);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('error', handleError);
-
-    return () => {
-      audio.removeEventListener('loadeddata', handleLoadedData);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('timeupdate', updateProgress);
-      audio.removeEventListener('error', handleError);
-    };
-  }, [updateProgress, handleError]);
-
-  // Separate effect for fetching audio source
-  useEffect(() => {
-    if (!musicId) {
-      handleError("No music ID provided");
-      return;
-    }
-
-    const fetchMusic = async () => {
+    // Initial setup of audio source using API instance
+    const setupAudioSource = async () => {
       try {
         setIsLoading(true);
-        setError(null);
-
-        const response = await apiInstance.get(`/api/music/stream/${musicId}/`, {
-          responseType: 'blob',
-          headers: {
-            'Range': 'bytes=0-',
-            'Accept': '*/*'
-          }
+        const response = await api.get(`/api/music/stream/${musicId}/`, {
+          responseType: 'blob'
         });
-
-        // Revoke previous object URL if it exists
-        if (objectUrlRef.current) {
-          URL.revokeObjectURL(objectUrlRef.current);
-        }
-
-        // Create and store new object URL
-        const newObjectUrl = URL.createObjectURL(response.data);
-        objectUrlRef.current = newObjectUrl;
-        setAudioSource(newObjectUrl);
-
-      } catch (err) {
-        console.error("Music fetch error:", err);
-        handleError(err.response?.data?.error || err.message || "Failed to fetch music");
-      }
-    };
-
-    fetchMusic();
-
-    // Cleanup function
-    return () => {
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-        objectUrlRef.current = null;
-      }
-      setAudioSource('');
-    };
-  }, [musicId, handleError]);
-
-  // Effect for handling audio source changes
-  useEffect(() => {
-    if (audioRef.current && audioSource) {
-      audioRef.current.src = audioSource;
-      audioRef.current.load();
-    }
-  }, [audioSource]);
-
-  const togglePlay = async () => {
-    if (!audioRef.current || isLoading || !audioSource) return;
-
-    try {
-      if (isPlaying) {
-        await audioRef.current.pause();
-        setIsPlaying(false);
-      } else {
-        await audioRef.current.play();
-        setIsPlaying(true);
-      }
-    } catch (err) {
-      console.error('Playback error:', err);
-      handleError("Playback failed. User interaction may be required.");
-    }
-  };
-
-  const handleSeek = (e) => {
-    if (!audioRef.current || isLoading || !audioSource) return;
-
-    const seekPosition = (e.nativeEvent.offsetX / e.target.offsetWidth) * 100;
-    const seekTime = (seekPosition / 100) * audioRef.current.duration;
     
-    audioRef.current.currentTime = seekTime;
-    setProgress(seekPosition);
-  };
+        if (!response.data) {
+          setError("Failed to load audio stream");
+          return;
+        }
+    
+        const blob = new Blob([response.data], { type: 'audio/mpeg' });
+        const url = URL.createObjectURL(blob);
+        audioRef.current.src = url;
+    
+        audioRef.current.load();
+        setIsLoading(false);
+      } catch (err) {
+        console.error("Initial stream setup error:", err);
+        setError("Failed to initialize audio stream");
+        setIsLoading(false);
+      }
+    };
+
+    setupAudioSource();
+
+    return () => {
+      if (audio) {
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();  // Ensures previous instance is properly reset
+      }
+      // Cleanup event listeners
+      audio.removeEventListener('loadstart', handleLoadStart);
+      audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener('waiting', handleWaiting);
+      audio.removeEventListener('playing', handlePlaying);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('error', handleError);
+    
+      // Cleanup blob URL
+      if (audio.src && audio.src.startsWith("blob:")) {
+        URL.revokeObjectURL(audio.src);
+      }
+    };
+  }, [musicId]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -158,76 +139,157 @@ const MusicPlayer = ({  onError }) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  return (
-    <div className="w-full max-w-md p-4 bg-white rounded-lg shadow">
-      {error && (
-        <div className="mb-4 p-2 bg-red-100 text-red-600 rounded">
-          {error}
-          <button 
-            onClick={() => window.location.reload()} 
-            className="ml-2 text-red-800 hover:text-red-900"
-          >
-            <RotateCcw size={16} />
-          </button>
-        </div>
-      )}
-      
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <button 
-            onClick={togglePlay} 
-            disabled={isLoading || !audioSource} 
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
-          >
-            {isLoading ? (
-              <div className="w-6 h-6 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
-            ) : (
-              isPlaying ? <Pause size={24} /> : <Play size={24} />
-            )}
-          </button>
-          
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setIsMuted(!isMuted)} 
-              disabled={!audioSource}
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
-            >
-              {isMuted ? <VolumeX size={24} /> : <Volume2 size={24} />}
-            </button>
-            <button 
-              className="p-2 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-50"
-              disabled={!audioSource}
-            >
-              <Settings size={24} />
-            </button>
-          </div>
-        </div>
+  const handleSeek = (e) => {
+    const audio = audioRef.current;
+    if (!audio || isNaN(audio.duration) || !isFinite(audio.duration)) return;
+    
+    const rect = progressRef.current.getBoundingClientRect();
+    const pos = (e.clientX - rect.left) / rect.width;
+    const newTime = pos * audio.duration;
+    
+    if (isFinite(newTime)) {
+      audio.currentTime = newTime;
+      setProgress(pos * 100);
+    }
+  };
 
-        <div className="space-y-2">
+  const togglePlay = async () => {
+    const audio = audioRef.current;
+    if (!audio || !audio.src) {
+      setError("Audio source is not loaded.");
+      return;
+    }
+  
+    try {
+      if (isPlaying) {
+        await audio.pause();
+      } else {
+        await audio.play();
+      }
+      setIsPlaying(!isPlaying);
+    } catch (err) {
+      console.error("Playback error:", err);
+      setError("Error controlling playback");
+    }
+  };
+  console.log('Audio Duration:', audioRef.current?.duration);
+
+  return (
+    <div className="w-full max-w-md mx-auto bg-white rounded-lg shadow p-6">
+      <div className="space-y-4">
+        {/* Title and Artist */}
+        {metadata && (
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-gray-900">{metadata.title}</h3>
+            <p className="text-sm text-gray-500">{metadata.artist}</p>
+          </div>
+        )}
+
+        {/* Error Display */}
+        {error && (
+          <div className="text-red-500 text-sm text-center py-2">
+            {error}
+          </div>
+        )}
+
+        {/* Progress Bar */}
+        <div className="relative">
           <div 
+            ref={progressRef}
             className="h-2 bg-gray-200 rounded-full cursor-pointer"
             onClick={handleSeek}
           >
             <div 
-              className="h-full bg-blue-500 rounded-full transition-all"
+              className="absolute h-full bg-blue-500 rounded-full"
               style={{ width: `${progress}%` }}
             />
           </div>
-          
-          <div className="flex justify-between text-sm text-gray-500">
-            <span>{formatTime(audioRef.current?.currentTime || 0)}</span>
-            <span>{formatTime(duration)}</span>
-          </div>
+        </div>
+
+        {/* Time Display */}
+        <div className="flex justify-between text-sm text-gray-500">
+          <span>{formatTime(currentTime)}</span>
+          <span>{formatTime(duration)}</span>
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center justify-center space-x-4">
+          <button 
+            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+            onClick={() => {
+              const audio = audioRef.current;
+              if (audio) audio.currentTime -= 10;
+            }}
+          >
+            <SkipBack className="w-6 h-6 text-gray-700" />
+          </button>
+
+          <button 
+            className="p-3 bg-blue-500 rounded-full hover:bg-blue-600 transition-colors"
+            onClick={togglePlay}
+          >
+            {isLoading ? (
+              <div className="w-6 h-6 border-2 border-white rounded-full animate-spin" />
+            ) : isPlaying ? (
+              <Pause className="w-6 h-6 text-white" />
+            ) : (
+              <Play className="w-6 h-6 text-white" />
+            )}
+          </button>
+
+          <button 
+            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+            onClick={() => {
+              const audio = audioRef.current;
+              if (audio) audio.currentTime += 10;
+            }}
+          >
+            <SkipForward className="w-6 h-6 text-gray-700" />
+          </button>
+        </div>
+
+        {/* Volume Control */}
+        <div className="flex items-center space-x-2">
+          <button 
+            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+            onClick={() => {
+              const audio = audioRef.current;
+              if (audio) {
+                setIsMuted(!isMuted);
+                audio.muted = !isMuted;
+              }
+            }}
+          >
+            {isMuted ? (
+              <VolumeX className="w-5 h-5 text-gray-700" />
+            ) : (
+              <Volume2 className="w-5 h-5 text-gray-700" />
+            )}
+          </button>
+          <input
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={volume}
+            className="w-full"
+            onChange={(e) => {
+              const audio = audioRef.current;
+              if (audio) {
+                const newVolume = parseFloat(e.target.value);
+                setVolume(newVolume);
+                audio.volume = newVolume;
+                setIsMuted(newVolume === 0);
+              }
+            }}
+          />
         </div>
       </div>
 
-      <audio
-        ref={audioRef}
-        muted={isMuted}
-        className="hidden"
-      />
+      <audio ref={audioRef} />
     </div>
   );
 };
+
 
 export default MusicPlayer;

@@ -25,7 +25,7 @@ export const logout = async () => {
         localStorage.removeItem(ACCESS_TOKEN);
         localStorage.removeItem(REFRESH_TOKEN);
         persistor.purge(); // Clears the persisted storage
-        
+        localStorage.clear()
         window.location.href = '/landingpage';
     }
 };
