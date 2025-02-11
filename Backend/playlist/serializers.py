@@ -20,8 +20,7 @@ class MusicSerializer(serializers.ModelSerializer):
     class Meta:
         model = Music
         fields = [
-            'id', 'name', 'cover_photo', 'audio_file', 
-            'video_file', 'genres', 'release_date',
+            'id', 'name', 'cover_photo', 'genres', 'release_date',
             'approval_status', 'duration', 'artist', 
             'artist_email', 'artist_full_name',
             'artist_username', 'is_public',

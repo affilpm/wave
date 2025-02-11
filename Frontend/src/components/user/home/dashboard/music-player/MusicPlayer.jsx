@@ -1,11 +1,24 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Play, Pause, Volume2, VolumeX, RotateCcw, SkipBack, SkipForward, Volume1, Music2, List, X } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, RotateCcw, SkipBack, Shuffle, SkipForward, Volume1, Music2, List, X } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import api from "../../../../../api";
-import { setIsPlaying, setChangeComplete } from "../../../../../slices/user/musicPlayerSlice";
-
+import {   
+  setMusicId,
+  setIsPlaying,
+  setChangeComplete,
+  setQueue,
+  addToQueue,
+  removeFromQueue,
+  clearQueue,
+  playNext,
+  playPrevious,
+  toggleShuffle,
+  setRepeat,
+  moveTrack,
+  markAsPlayed 
+} from "../../../../../slices/user/musicPlayerSlice";
+ 
 const MusicPlayer = () => {
-  const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isBuffering, setIsBuffering] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -19,29 +32,18 @@ const MusicPlayer = () => {
   const [isAudioReady, setIsAudioReady] = useState(false);
   const [currentBlobUrl, setCurrentBlobUrl] = useState(null);
   const dispatch = useDispatch();
-  const {musicId, isPlaying, isChanging} = useSelector((state) => state.musicPlayer);
-  const [loadStatus, setLoadStatus] = useState()
-  const loadTimeoutRef = useRef(null)
   const audioRef = useRef(null);
-  const sourceUrlRef = useRef(null);
   const loadingRef = useRef(false);
   const [loadAttempts, setLoadAttempts] = useState(0);
   const MAX_RETRY_ATTEMPTS = 3;
-  const [hasValidSource, setHasValidSource] = useState(false);
   const [sourceLoadingState, setSourceLoadingState] = useState('idle'); // 'idle' | 'loading' | 'loaded' | 'error'
-  const sourceLoadTimeoutRef = useRef(null);
-
+  
+  const { musicId, isPlaying, isChanging, queue, currentIndex, repeat, shuffle, playedTracks } = useSelector((state) => state.musicPlayer);
+  
+  
   const handleError = async (error) => {
     const audio = audioRef.current;
     if (!audio) return;
-
-    // console.error('Audio error details:', {
-    //   code: audio.error?.code,
-    //   message: audio.error?.message,
-    //   networkState: audio.networkState,
-    //   currentSrc: audio.currentSrc,
-    //   blobUrl: blobUrlRef.current
-    // });
 
     if (loadAttempts < MAX_RETRY_ATTEMPTS) {
       setLoadAttempts(prev => prev + 1);
@@ -67,7 +69,56 @@ const MusicPlayer = () => {
     }
   };
 
-  
+
+  const handleEnded = () => {
+      console.log("Queue before handleEnded:", queue, "Current Index:", currentIndex);
+    
+      if (!queue || queue.length === 0) {
+        console.warn("Queue is empty in handleEnded.");
+        // Remove setting isPlaying to false
+        return;
+      }
+    
+      if (currentIndex < 0 || currentIndex >= queue.length) {
+        console.warn("Invalid queue state in handleEnded:", { queue, currentIndex });
+        // Remove setting isPlaying to false
+        return;
+      }
+    
+      const currentTrack = queue[currentIndex];
+      if (!currentTrack?.id) {
+        console.warn("Invalid track data in handleEnded:", currentTrack);
+        // Remove setting isPlaying to false
+        return;
+      }
+    
+      dispatch(markAsPlayed(currentTrack.id));
+    
+      if (repeat === "one") {
+        if (audioRef.current) {
+          audioRef.current.currentTime = 0;
+          audioRef.current.play().catch(err => {
+            console.error("Error replaying track:", err);
+            // Only set isPlaying to false on actual playback error
+            dispatch(setIsPlaying(false));
+          });
+        }
+      } else {
+        dispatch(playNext());
+    
+        // Ensure audio starts playing after state update
+        setTimeout(() => {
+          if (audioRef.current) {
+            audioRef.current.play().catch(err => {
+              console.error("Error playing next track:", err);
+              // Only set isPlaying to false on actual playback error
+              dispatch(setIsPlaying(false));
+            });
+          }
+        }, 200);
+      }
+  };
+
   useEffect(() => {
     if (isChanging) {
       setIsSourceLoaded(false);
@@ -91,6 +142,9 @@ const MusicPlayer = () => {
     }
   }, [isChanging, dispatch, currentBlobUrl]);
   
+
+
+
   useEffect(() => {
     return () => {
       const audio = audioRef.current;
@@ -104,6 +158,9 @@ const MusicPlayer = () => {
     };
   }, []);
 
+
+
+
   const blobUrlRef = useRef(null);
   const setupInProgressRef = useRef(false);
 
@@ -114,6 +171,10 @@ const MusicPlayer = () => {
       blobUrlRef.current = null;
     }
   };
+
+
+
+
   // Fetch metadata
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -132,12 +193,16 @@ const MusicPlayer = () => {
     fetchMetadata();
   }, [musicId]);
 
+
+
+
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !musicId || sourceLoadingState !== 'idle' || setupInProgressRef.current) return;
 
     const setupAudioSource = async () => {
       setupInProgressRef.current = true;
+      const wasPlaying = isPlaying; // Store play state before changing source
       
       try {
         setSourceLoadingState('loading');
@@ -199,10 +264,11 @@ const MusicPlayer = () => {
         setSourceLoadingState('loaded');
         setError(null);
 
-        // Start playback if needed
-        if (isPlaying) {
+        // Resume playback if it was playing before
+        if (wasPlaying) {
           try {
             await audio.play();
+            dispatch(setIsPlaying(true));
           } catch (playError) {
             console.error("Playback start error:", playError);
             dispatch(setIsPlaying(false));
@@ -223,13 +289,14 @@ const MusicPlayer = () => {
     return () => {
       if (audio) {
         audio.pause();
-    if (audio.src !== blobUrlRef.current) {
-      audio.src = '';
-      audio.load();
-    }
+        if (audio.src !== blobUrlRef.current) {
+          audio.src = '';
+          audio.load();
+        }
       }
     };
-  }, [musicId, sourceLoadingState, isPlaying]);
+  }, [musicId, sourceLoadingState]);
+
 
   // Handle component unmount and cleanup
   useEffect(() => {
@@ -253,21 +320,27 @@ const MusicPlayer = () => {
       setIsLoading(false);
       setError(null);
     };
+
+    
     const handleWaiting = () => setIsBuffering(true);
     const handlePlaying = () => {
       setIsBuffering(false);
       setIsLoading(false);
     };
     
+
+
     const handleTimeUpdate = () => {
       setCurrentTime(audio.currentTime);
       setProgress((audio.currentTime / audio.duration) * 100);
     };
 
-    const handleEnded = () => {
-      dispatch(setIsPlaying(false));
-      audio.currentTime = 0;
-    };
+
+
+
+
+
+
 
     const handleError = (e) => {
       // console.error('Audio error:', e);
@@ -281,7 +354,7 @@ const MusicPlayer = () => {
     audio.addEventListener('waiting', handleWaiting);
     audio.addEventListener('playing', handlePlaying);
     audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('ended', () => handleEnded());
     audio.addEventListener('error', handleError);
 
     return () => {
@@ -290,10 +363,14 @@ const MusicPlayer = () => {
       audio.removeEventListener('waiting', handleWaiting);
       audio.removeEventListener('playing', handlePlaying);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('ended', handleEnded);
+      audio.addEventListener('ended', () => handleEnded());
       audio.removeEventListener('error', handleError);
     };
   }, [dispatch]);
+
+
+
+
 
   // Handle play/pause state
   useEffect(() => {
@@ -309,6 +386,9 @@ const MusicPlayer = () => {
       audioRef.current.play().catch((err) => console.error("Playback error:", err));
     };
 
+
+
+
     const handlePause = () => {
       if (!isPlaying && audio.paused) return;
       audio.pause();
@@ -320,6 +400,11 @@ const MusicPlayer = () => {
       handlePause();
     }
   }, [isPlaying, isAudioReady, dispatch]);
+
+
+
+
+
 
   const togglePlay = async () => {
     if (!audioRef.current || !isAudioReady) {
@@ -342,11 +427,19 @@ const MusicPlayer = () => {
     }
   };
 
+
+
+
+
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+
+
+
 
   const getVolumeIcon = () => {
     if (volume === 0) return <VolumeX size={20} />;
@@ -395,39 +488,56 @@ const MusicPlayer = () => {
           {/* Player Controls */}
           <div className="flex flex-col items-center flex-1 max-w-2xl px-4">
             <div className="flex items-center space-x-6 mb-3">
-              <button
-                onClick={() => {
-                  const audio = audioRef.current;
-                  if (audio) audio.currentTime -= 10;
-                }}
+                <button
+                  onClick={() => dispatch(toggleShuffle())}
+                  className={`p-2 rounded-full ${shuffle ? 'bg-green-500 text-white' : 'text-gray-400 hover:text-white'}`}
+                >
+                  <Shuffle size={16} />
+                </button>
+                <button
+                onClick={() => dispatch(playPrevious())}
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 <SkipBack size={20} />
               </button>
+              <button
+      onClick={togglePlay}
+      className="bg-white rounded-full p-2 hover:scale-105 transition-all hover:bg-green-400"
+      disabled={!isAudioReady}
+    >
+      {isLoading || isBuffering ? (
+        <div className="w-6 h-6 border-2 border-black rounded-full animate-spin" />
+      ) : isPlaying || (!audioRef.current?.paused && isAudioReady) ? (
+        <Pause size={24} className="text-black" />
+      ) : (
+        <Play size={24} className="text-black" />
+      )}
+    </button>
+
 
               <button
-                onClick={togglePlay}
-                className="bg-white rounded-full p-2 hover:scale-105 transition-all hover:bg-green-400"
-                disabled={!isAudioReady}
-              >
-                {isLoading ? (
-                  <div className="w-6 h-6 border-2 border-black rounded-full animate-spin" />
-                ) : isPlaying ? (
-                  <Pause size={24} className="text-black" />
-                ) : (
-                  <Play size={24} className="text-black" />
-                )}
-              </button>
-
-              <button
-                onClick={() => {
-                  const audio = audioRef.current;
-                  if (audio) audio.currentTime += 10;
-                }}
+                onClick={() => dispatch(playNext())}
                 className="text-gray-400 hover:text-white transition-colors"
               >
                 <SkipForward size={20} />
               </button>
+
+              <button
+                onClick={() => {
+                  const nextRepeat = repeat === 'none' ? 'all' : repeat === 'all' ? 'one' : 'none';
+                  dispatch(setRepeat(nextRepeat));
+                }}
+                className={`p-2 rounded-full ${repeat !== 'none' ? 'bg-green-500 text-white' : 'text-gray-400 hover:text-white'}`}
+              >
+                <RotateCcw size={16} />
+              </button>
+              {/* <button 
+                onClick={() => setIsPlaylistOpen(false)}
+                className="text-gray-400 hover:text-white"
+              >
+                <X size={20} />
+              </button> */}
+
             </div>
 
             {/* Progress Bar */}
@@ -452,6 +562,7 @@ const MusicPlayer = () => {
               <span className="text-gray-400">{formatTime(duration)}</span>
             </div>
           </div>
+
 
           {/* Volume and Additional Controls */}
           <div className="flex items-center justify-end space-x-4 w-1/4">
@@ -493,41 +604,118 @@ const MusicPlayer = () => {
         </div>
 
         {/* Playlist Panel */}
-        {isPlaylistOpen && (
-          <div className="absolute bottom-full right-0 w-96 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-t-xl p-4 max-h-96 overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-white">Queue</h2>
-              <button 
-                onClick={() => setIsPlaylistOpen(false)}
-                className="text-gray-400 hover:text-white"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div className="space-y-2">
-              <div className="flex items-center space-x-3 p-2 rounded-lg cursor-pointer transition-all hover:bg-white/5">
+      {/* Updated Playlist Panel */}
+      {isPlaylistOpen && (
+        <div className="absolute bottom-full right-0 w-96 bg-gray-900/95 backdrop-blur-xl border border-white/10 rounded-t-xl p-4 max-h-96 overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-white">Queue</h2>
+            <button 
+              onClick={() => setIsPlaylistOpen(false)}
+              className="text-gray-400 hover:text-white"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Currently Playing */}
+          {queue[currentIndex] && (
+            <div className="mb-4">
+              <h3 className="text-sm text-gray-400 mb-2">Now Playing</h3>
+              <div className="flex items-center space-x-3 p-2 rounded-lg bg-white/10">
                 <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center">
-                  <Music2 size={20} className="text-gray-400" />
+                  <img
+                    src={queue[currentIndex].cover_photo || "/api/placeholder/40/40"}
+                    alt={queue[currentIndex].name}
+                    className="w-full h-full rounded-lg"
+                  />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-medium text-sm text-white truncate">{metadata?.title}</h3>
-                  <p className="text-xs text-gray-400 truncate">{metadata?.artist}</p>
+                  <h3 className="font-medium text-sm text-white truncate">{queue[currentIndex].name}</h3>
+                  <p className="text-xs text-gray-400 truncate">{queue[currentIndex].artist}</p>
                 </div>
-                {isPlaying && (
-                  <div className="flex-shrink-0">
-                    <span className="bg-green-500 rounded-full p-1">
-                      <Play size={16} className="text-white" />
-                    </span>
-                  </div>
-                )}
+                <div className="flex-shrink-0">
+                  <span className="bg-green-500 rounded-full p-1">
+                    <Play size={16} className="text-white" />
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
 
-      <audio ref={audioRef} onError={handleError} onLoadStart={() => setLoadAttempts(0)}/>
+          {/* Up Next */}
+          {queue.slice(currentIndex + 1).length > 0 && (
+            <div className="mb-4">
+              <h3 className="text-sm text-gray-400 mb-2">Up Next</h3>
+              <div className="space-y-2">
+                {queue.slice(currentIndex + 1).map((track, index) => (
+                  <div 
+                    key={`queue-${track.id}-${index}`}
+                    className="flex items-center space-x-3 p-2 rounded-lg cursor-pointer hover:bg-white/5"
+                    onClick={() => {
+                      dispatch(setMusicId(track.id));
+                      dispatch(setIsPlaying(true));
+                    }}
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center">
+                      <img
+                        src={track.cover_photo || "/api/placeholder/40/40"}
+                        alt={track.name}
+                        className="w-full h-full rounded-lg"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-sm text-white truncate">{track.name}</h3>
+                      <p className="text-xs text-gray-400 truncate">{track.artist}</p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        dispatch(removeFromQueue(track.id));
+                      }}
+                      className="text-gray-400 hover:text-red-500 p-1"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Previously Played */}
+          {currentIndex > 0 && (
+            <div>
+              <h3 className="text-sm text-gray-400 mb-2">Previously Played</h3>
+              <div className="space-y-2">
+                {queue.slice(0, currentIndex).reverse().map((track, index) => (
+                  <div 
+                    key={`played-${track.id}-${index}`}
+                    className="flex items-center space-x-3 p-2 rounded-lg cursor-pointer hover:bg-white/5 opacity-75"
+                    onClick={() => {
+                      dispatch(setMusicId(track.id));
+                      dispatch(setIsPlaying(true));
+                    }}
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center">
+                      <img
+                        src={track.cover_photo || "/api/placeholder/40/40"}
+                        alt={track.name}
+                        className="w-full h-full rounded-lg"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-medium text-sm text-white truncate">{track.name}</h3>
+                      <p className="text-xs text-gray-400 truncate">{track.artist}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+      <audio ref={audioRef} onError={handleError} onLoadStart={() => setLoadAttempts(0)} onEnded={handleEnded}/>
     </div>
   );
 };

@@ -388,7 +388,7 @@ class MusicStreamView(APIView):
 
  # For WAV files
 # Add more format handlers if needed
-from mutagen.mp3 import MP3
+# from mutagen.mp3 import MP3
 
 class MusicMetadataView(APIView):
     permission_classes = [IsAuthenticated]
