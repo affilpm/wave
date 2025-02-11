@@ -2,11 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { Play, Pause, Volume2, VolumeX, RotateCcw, SkipBack, SkipForward, Volume1, Music2, List, X } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
 import api from "../../../../../api";
-
-const musicId = 8;
+import { setIsPlaying, setChangeComplete } from "../../../../../slices/user/musicPlayerSlice";
 
 const MusicPlayer = () => {
-  const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isBuffering, setIsBuffering] = useState(false);
@@ -17,17 +15,113 @@ const MusicPlayer = () => {
   const [error, setError] = useState(null);
   const [metadata, setMetadata] = useState(null);
   const [isPlaylistOpen, setIsPlaylistOpen] = useState(false);
-
-  console.log(musicId)
+  const [isSourceLoaded, setIsSourceLoaded] = useState(false);
+  const [isAudioReady, setIsAudioReady] = useState(false);
+  const [currentBlobUrl, setCurrentBlobUrl] = useState(null);
+  const dispatch = useDispatch();
+  const {musicId, isPlaying, isChanging} = useSelector((state) => state.musicPlayer);
+  const [loadStatus, setLoadStatus] = useState()
+  const loadTimeoutRef = useRef(null)
   const audioRef = useRef(null);
-  const progressRef = useRef(null);
+  const sourceUrlRef = useRef(null);
+  const loadingRef = useRef(false);
+  const [loadAttempts, setLoadAttempts] = useState(0);
+  const MAX_RETRY_ATTEMPTS = 3;
+  const [hasValidSource, setHasValidSource] = useState(false);
+  const [sourceLoadingState, setSourceLoadingState] = useState('idle'); // 'idle' | 'loading' | 'loaded' | 'error'
+  const sourceLoadTimeoutRef = useRef(null);
 
+  const handleError = async (error) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    // console.error('Audio error details:', {
+    //   code: audio.error?.code,
+    //   message: audio.error?.message,
+    //   networkState: audio.networkState,
+    //   currentSrc: audio.currentSrc,
+    //   blobUrl: blobUrlRef.current
+    // });
+
+    if (loadAttempts < MAX_RETRY_ATTEMPTS) {
+      setLoadAttempts(prev => prev + 1);
+      setError(`Retrying... Attempt ${loadAttempts + 1}/${MAX_RETRY_ATTEMPTS}`);
+      
+      // Reset audio element
+      audio.pause();
+      audio.src = '';
+      audio.load();
+      
+      // Clean up the current blob URL
+      cleanupBlobUrl();
+
+      // Trigger a new load attempt
+      setSourceLoadingState('idle');
+    } else {
+      setError('Failed to load audio after multiple attempts');
+      setIsLoading(false);
+      setIsAudioReady(false);
+      setSourceLoadingState('error');
+      dispatch(setIsPlaying(false));
+      setLoadAttempts(0);
+    }
+  };
+
+  
+  useEffect(() => {
+    if (isChanging) {
+      setIsSourceLoaded(false);
+      setIsAudioReady(false);
+      loadingRef.current = false;
+      
+      const audio = audioRef.current;
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+        audio.src = "";
+      }
+      
+      // Clean up blob URL
+      if (currentBlobUrl) {
+        URL.revokeObjectURL(currentBlobUrl);
+        setCurrentBlobUrl(null);
+      }
+      
+      dispatch(setChangeComplete());
+    }
+  }, [isChanging, dispatch, currentBlobUrl]);
+  
+  useEffect(() => {
+    return () => {
+      const audio = audioRef.current;
+      if (audio) {
+        audio.removeAttribute('src');
+        audio.load();
+      }
+      if (currentBlobUrl) {
+        URL.revokeObjectURL(currentBlobUrl);
+      }
+    };
+  }, []);
+
+  const blobUrlRef = useRef(null);
+  const setupInProgressRef = useRef(false);
+
+  // Improved blob URL cleanup
+  const cleanupBlobUrl = () => {
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current);
+      blobUrlRef.current = null;
+    }
+  };
+  // Fetch metadata
   useEffect(() => {
     const fetchMetadata = async () => {
+      if (!musicId) return;
+      
       try {
         const { data } = await api.get(`/api/music/metadata/${musicId}/`);
         setMetadata(data);
-        console.log(data)
         setDuration(data.duration);
       } catch (err) {
         console.error("Metadata fetch error:", err);
@@ -40,7 +134,119 @@ const MusicPlayer = () => {
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !musicId) return;
+    if (!audio || !musicId || sourceLoadingState !== 'idle' || setupInProgressRef.current) return;
+
+    const setupAudioSource = async () => {
+      setupInProgressRef.current = true;
+      
+      try {
+        setSourceLoadingState('loading');
+        setIsLoading(true);
+        setIsAudioReady(false);
+
+        // Pause any current playback
+        audio.pause();
+        
+        // Clean up existing blob URL before creating new one
+        cleanupBlobUrl();
+
+        const response = await api.get(`/api/music/stream/${musicId}/`, {
+          responseType: 'blob',
+          timeout: 15000
+        });
+
+        if (!response?.data) {
+          throw new Error('No audio data received');
+        }
+
+        const blob = new Blob([response.data], { type: 'audio/mpeg' });
+        const newBlobUrl = URL.createObjectURL(blob);
+        blobUrlRef.current = newBlobUrl;
+
+        // Create a promise to handle audio loading
+        const loadingPromise = new Promise((resolve, reject) => {
+          const loadTimeout = setTimeout(() => {
+            reject(new Error('Audio loading timeout'));
+          }, 10000);
+
+          const handleCanPlay = () => {
+            clearTimeout(loadTimeout);
+            audio.removeEventListener('canplay', handleCanPlay);
+            audio.removeEventListener('error', handleLoadError);
+            resolve();
+          };
+
+          const handleLoadError = (error) => {
+            clearTimeout(loadTimeout);
+            audio.removeEventListener('canplay', handleCanPlay);
+            audio.removeEventListener('error', handleLoadError);
+            reject(error);
+          };
+
+          audio.addEventListener('canplay', handleCanPlay);
+          audio.addEventListener('error', handleLoadError);
+        });
+
+        // Set the source and load
+        audio.src = blobUrlRef.current;
+        await audio.load();
+        
+        // Wait for the audio to be ready
+        await loadingPromise;
+
+        setIsAudioReady(true);
+        setIsLoading(false);
+        setSourceLoadingState('loaded');
+        setError(null);
+
+        // Start playback if needed
+        if (isPlaying) {
+          try {
+            await audio.play();
+          } catch (playError) {
+            console.error("Playback start error:", playError);
+            dispatch(setIsPlaying(false));
+          }
+        }
+
+      } catch (error) {
+        console.error("Audio setup error:", error);
+        handleError(error);
+      } finally {
+        setupInProgressRef.current = false;
+      }
+    };
+
+    setupAudioSource();
+
+    // Cleanup function
+    return () => {
+      if (audio) {
+        audio.pause();
+    if (audio.src !== blobUrlRef.current) {
+      audio.src = '';
+      audio.load();
+    }
+      }
+    };
+  }, [musicId, sourceLoadingState, isPlaying]);
+
+  // Handle component unmount and cleanup
+  useEffect(() => {
+    return () => {
+      cleanupBlobUrl();
+      const audio = audioRef.current;
+      if (audio) {
+        audio.pause();
+        audio.src = '';
+        audio.load();
+      }
+    };  }, []);
+
+  // Handle audio events
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
 
     const handleLoadStart = () => setIsLoading(true);
     const handleCanPlay = () => {
@@ -58,119 +264,84 @@ const MusicPlayer = () => {
       setProgress((audio.currentTime / audio.duration) * 100);
     };
 
-    const handleError = async (e) => {
-      console.error('Audio error:', e);
-      setError('Failed to load audio. Please try again.');
-      setIsLoading(false);
-      setIsPlaying(false);
-      
-      // Attempt to refresh the audio source
-      try {
-        const response = await api.get(`/api/music/stream/${musicId}/`, {
-          responseType: 'blob'
-        });
-        
-        const blob = new Blob([response.data], { type: 'audio/mpeg' });
-        const url = URL.createObjectURL(blob);
-        audio.src = url;
-      } catch (err) {
-        console.error("Stream fetch error:", err);
-        setError("Failed to load audio stream");
-      }
+    const handleEnded = () => {
+      dispatch(setIsPlaying(false));
+      audio.currentTime = 0;
     };
 
-    // Set up event listeners
+    const handleError = (e) => {
+      // console.error('Audio error:', e);
+      setError('Failed to load audio. Please try again.');
+      setIsLoading(false);
+      dispatch(setIsPlaying(false));
+    };
+
     audio.addEventListener('loadstart', handleLoadStart);
     audio.addEventListener('canplay', handleCanPlay);
     audio.addEventListener('waiting', handleWaiting);
     audio.addEventListener('playing', handlePlaying);
     audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('ended', handleEnded);
     audio.addEventListener('error', handleError);
-    // Initial setup of audio source using API instance
-    const setupAudioSource = async () => {
-      try {
-        setIsLoading(true);
-        const response = await api.get(`/api/music/stream/${musicId}/`, {
-          responseType: 'blob'
-        });
-    
-        if (!response.data) {
-          setError("Failed to load audio stream");
-          return;
-        }
-    
-        const blob = new Blob([response.data], { type: 'audio/mpeg' });
-        const url = URL.createObjectURL(blob);
-        audioRef.current.src = url;
-    
-        audioRef.current.load();
-        setIsLoading(false);
-      } catch (err) {
-        console.error("Initial stream setup error:", err);
-        setError("Failed to initialize audio stream");
-        setIsLoading(false);
-      }
-    };
-
-    setupAudioSource();
 
     return () => {
-      if (audio) {
-        audio.pause();
-        audio.removeAttribute("src");
-        audio.load();  // Ensures previous instance is properly reset
-      }
-      // Cleanup event listeners
       audio.removeEventListener('loadstart', handleLoadStart);
       audio.removeEventListener('canplay', handleCanPlay);
       audio.removeEventListener('waiting', handleWaiting);
       audio.removeEventListener('playing', handlePlaying);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('error', handleError);
-    
-      // Cleanup blob URL
-      if (audio.src && audio.src.startsWith("blob:")) {
-        URL.revokeObjectURL(audio.src);
-      }
     };
-  }, [musicId]);
+  }, [dispatch]);
 
-
-
-  const handleSeek = (e) => {
+  // Handle play/pause state
+  useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || isNaN(audio.duration) || !isFinite(audio.duration)) return;
-    
-    const rect = progressRef.current.getBoundingClientRect();
-    const pos = (e.clientX - rect.left) / rect.width;
-    const newTime = pos * audio.duration;
-    
-    if (isFinite(newTime)) {
-      audio.currentTime = newTime;
-      setProgress(pos * 100);
+    if (!audio || !isAudioReady) return;
+
+    const handlePlay = () => {
+      if (!audioRef.current) return;
+      if (!audioRef.current.src || audioRef.current.src === "blob:") {
+        console.error("Audio source is empty or invalid.");
+        return;
+      }
+      audioRef.current.play().catch((err) => console.error("Playback error:", err));
+    };
+
+    const handlePause = () => {
+      if (!isPlaying && audio.paused) return;
+      audio.pause();
+    };
+
+    if (isPlaying) {
+      handlePlay();
+    } else {
+      handlePause();
     }
-  };
+  }, [isPlaying, isAudioReady, dispatch]);
 
   const togglePlay = async () => {
-    const audio = audioRef.current;
-    if (!audio || !audio.src) {
-      setError("Audio source is not loaded.");
+    if (!audioRef.current || !isAudioReady) {
+      setError("Audio is not ready to play.");
       return;
     }
-  
+
     try {
-      if (isPlaying) {
-        await audio.pause();
+      if (!isPlaying) {
+        await audioRef.current.play();
+        dispatch(setIsPlaying(true));
       } else {
-        await audio.play();
+        audioRef.current.pause();
+        dispatch(setIsPlaying(false));
       }
-      setIsPlaying(!isPlaying);
     } catch (err) {
-      console.error("Playback error:", err);
-      setError("Error controlling playback");
+      console.error("Playback toggle error:", err);
+      setError("Failed to toggle playback");
+      dispatch(setIsPlaying(false));
     }
   };
-  console.log('Audio Duration:', audioRef.current?.duration);
+
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -237,6 +408,7 @@ const MusicPlayer = () => {
               <button
                 onClick={togglePlay}
                 className="bg-white rounded-full p-2 hover:scale-105 transition-all hover:bg-green-400"
+                disabled={!isAudioReady}
               >
                 {isLoading ? (
                   <div className="w-6 h-6 border-2 border-black rounded-full animate-spin" />
@@ -334,7 +506,6 @@ const MusicPlayer = () => {
             </div>
             
             <div className="space-y-2">
-              {/* Example queue item - you can map through actual queue data here */}
               <div className="flex items-center space-x-3 p-2 rounded-lg cursor-pointer transition-all hover:bg-white/5">
                 <div className="w-10 h-10 rounded-lg bg-gray-800 flex items-center justify-center">
                   <Music2 size={20} className="text-gray-400" />
@@ -356,11 +527,9 @@ const MusicPlayer = () => {
         )}
       </div>
 
-      <audio ref={audioRef} />
+      <audio ref={audioRef} onError={handleError} onLoadStart={() => setLoadAttempts(0)}/>
     </div>
   );
 };
 
 export default MusicPlayer;
-
-
