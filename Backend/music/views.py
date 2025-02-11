@@ -400,6 +400,7 @@ class MusicMetadataView(APIView):
 
 
             metadata = {
+                "cover_photo": request.build_absolute_uri(music.cover_photo.url) if music.cover_photo else None,
                 "duration": music.duration,
                 "title": music.name,
                 "artist": music.artist.user.email,
