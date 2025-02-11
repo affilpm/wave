@@ -6,26 +6,15 @@ from users.serializers import UserSerializer
 
 class Music_ListSerializer(serializers.ModelSerializer):
     artist = serializers.SerializerMethodField()
-    audio_file = serializers.SerializerMethodField()
 
     class Meta:
         model = Music
-        fields = ['id', 'name', 'artist', 'cover_photo', 'audio_file']
+        fields = ['id', 'name', 'artist', 'cover_photo']
 
     def get_artist(self, obj):
         return obj.artist.user.username
     
-    def get_audio_file(self, obj):
-        try:
-            if obj.audio_file:
-                # Use the full absolute URL instead of just .url
-                request = self.context.get('request')
-                return request.build_absolute_uri(obj.audio_file.url) if request else obj.audio_file.url
-            return None
-        except Exception as e:
-            # Log the error or print it for debugging
-            print(f"Error getting audio file: {e}")
-            return None
+
 
 class Playlist_ListSerializer(serializers.ModelSerializer):
     created_by = serializers.CharField(source='created_by.username', read_only = True)  # To show username
