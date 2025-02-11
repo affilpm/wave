@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
-import { setCurrentTrack, setIsPlaying, setQueue, reorderQueue } from "../../../../slices/user/playerSlice";
+import { setCurrentTrack, setQueue, reorderQueue } from "../../../../slices/user/playerSlice";
 import { useNavigate } from "react-router-dom";
 import api from "../../../../api";
+import { setMusicId, setIsPlaying, setChangeComplete } from "../../../../slices/user/musicPlayerSlice";
 
 const MusicSection = ({ title }) => {
   const dispatch = useDispatch();
   const currentTrack = useSelector((state) => state.player.currentTrack);
-  const isPlaying = useSelector((state) => state.player.isPlaying);
+  const isPlaying = useSelector((state) => state.musicPlayer.isPlaying);
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
   const [musiclistData, setMusiclistData] = useState([]);
@@ -21,7 +22,6 @@ const MusicSection = ({ title }) => {
         setLoading(true);
         const musiclistResponse = await api.get("/api/home/musiclist/?top10=true");
         setMusiclistData(musiclistResponse.data);
-
       } catch (error) {
         console.error("Error fetching music data:", error);
       } finally {
@@ -43,17 +43,27 @@ const MusicSection = ({ title }) => {
     }
   };
 
-  const handlePlay = (item, index, e) => {
+  const handlePlay = async (item, index, e) => {
     e.stopPropagation();
     
     if (currentTrack?.id === item.id) {
       // If clicking the currently playing track, just toggle play/pause
       dispatch(setIsPlaying(!isPlaying));
     } else {
-      // If clicking a new track, update the queue with the selected track
-      dispatch(setQueue([item])); // Only set the selected track in the queue
+      // First pause current playback and signal track change
+      dispatch(setIsPlaying(false));
+      
+      // Update the queue and current track
+      dispatch(setQueue([item]));
       dispatch(setCurrentTrack(item));
-      console.log(item.id)
+      
+      // Set new music ID and wait for a small delay to ensure proper state updates
+      await new Promise(resolve => {
+        dispatch(setMusicId(item.id));
+        setTimeout(resolve, 100); // Small delay to ensure state updates propagate
+      });
+      
+      // Finally start playback
       dispatch(setIsPlaying(true));
     }
   };
@@ -92,6 +102,7 @@ const MusicSection = ({ title }) => {
             <button
               onClick={() => handleScroll('left')}
               className="absolute left-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2 transition-transform hover:scale-110"
+              aria-label="Scroll left"
             >
               <ChevronLeft className="h-6 w-6" />
             </button>
@@ -99,6 +110,7 @@ const MusicSection = ({ title }) => {
             <button
               onClick={() => handleScroll('right')}
               className="absolute right-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2 transition-transform hover:scale-110"
+              aria-label="Scroll right"
             >
               <ChevronRight className="h-6 w-6" />
             </button>
@@ -128,6 +140,7 @@ const MusicSection = ({ title }) => {
                         isItemPlaying(item) ? 'flex' : 'hidden group-hover:flex'
                       } shadow-xl hover:scale-105 transition-all`}
                       onClick={(e) => handlePlay(item, index, e)}
+                      aria-label={isItemPlaying(item) ? "Pause" : "Play"}
                     >
                       {isItemPlaying(item) ? (
                         <Pause className="w-6 h-6 text-black" />
