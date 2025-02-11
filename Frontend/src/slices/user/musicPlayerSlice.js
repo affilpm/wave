@@ -10,6 +10,7 @@ const initialState = {
   shuffle: false,
   originalQueue: [], 
   playedTracks: [],
+  currentPlaylistId: null,
 };
 
 const musicPlayerSlice = createSlice({
@@ -27,6 +28,9 @@ const musicPlayerSlice = createSlice({
       state.musicId = newMusicId;
       state.isChanging = true;
     },
+    setCurrentPlaylistId: (state, action) => {
+        state.currentPlaylistId = action.payload;
+      },
     setIsPlaying: (state, action) => {
       state.isPlaying = action.payload;
     },
@@ -187,7 +191,8 @@ export const {
   setRepeat,
   moveTrack,
   markAsPlayed,
-  clearPlayedTracks
+  clearPlayedTracks,
+  setCurrentPlaylistId, 
 } = musicPlayerSlice.actions;
 
 export default musicPlayerSlice.reducer;

@@ -501,19 +501,18 @@ const MusicPlayer = () => {
                 <SkipBack size={20} />
               </button>
               <button
-      onClick={togglePlay}
-      className="bg-white rounded-full p-2 hover:scale-105 transition-all hover:bg-green-400"
-      disabled={!isAudioReady}
-    >
-      {isLoading || isBuffering ? (
-        <div className="w-6 h-6 border-2 border-black rounded-full animate-spin" />
-      ) : isPlaying || (!audioRef.current?.paused && isAudioReady) ? (
-        <Pause size={24} className="text-black" />
-      ) : (
-        <Play size={24} className="text-black" />
-      )}
-    </button>
-
+                onClick={togglePlay}
+                className="bg-white rounded-full p-2 hover:scale-105 transition-all hover:bg-green-400"
+                disabled={!isAudioReady}
+              >
+                {isLoading || isBuffering ? (
+                  <div className="w-6 h-6 border-2 border-black rounded-full animate-spin" />
+                ) : isPlaying || (!audioRef.current?.paused && isAudioReady) ? (
+                  <Pause size={24} className="text-black" />
+                ) : (
+                  <Play size={24} className="text-black" />
+                )}
+              </button>
 
               <button
                 onClick={() => dispatch(playNext())}

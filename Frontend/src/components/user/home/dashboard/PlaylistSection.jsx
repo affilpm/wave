@@ -1,6 +1,9 @@
 import React, { useRef, useState } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
+import PlaylistPlayButton from "./PLaylistPlayButton";
+
+
 
 const PlaylistSection = ({ title, items, isPlaying, setIsPlaying, onPlaylistClick }) => {
   const scrollContainerRef = useRef(null);
@@ -10,7 +13,7 @@ const PlaylistSection = ({ title, items, isPlaying, setIsPlaying, onPlaylistClic
     console.log("Playlist added to library successfully:", playlistId);
     // Here you could trigger a refresh of the library data if needed
   };
-
+  console.log('fg',items)
   const handleScroll = (direction) => {
     const container = scrollContainerRef.current;
     if (container) {
@@ -71,19 +74,10 @@ const PlaylistSection = ({ title, items, isPlaying, setIsPlaying, onPlaylistClic
                     className="w-25 h-25 object-cover rounded-md shadow-lg"
                   />
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
-                    <button
-                      className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setIsPlaying(!isPlaying);
-                      }}
-                    >
-                      {isPlaying ? (
-                        <Pause className="w-6 h-6 text-black" />
-                      ) : (
-                        <Play className="w-6 h-6 text-black" />
-                      )}
-                    </button>
+                  <PlaylistPlayButton 
+  playlist={item} 
+  className="absolute bottom-2 right-2 hidden group-hover:flex"
+/>
                   </div>
                   <div className="absolute top-2 right-2">
                     <PlaylistSectionMenuModal

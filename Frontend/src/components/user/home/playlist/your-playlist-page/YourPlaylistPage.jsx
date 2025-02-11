@@ -33,6 +33,9 @@ import {
   markAsPlayed
  } from "../../../../../slices/user/musicPlayerSlice";
 
+import PlaylistPlayButton from "../../dashboard/PLaylistPlayButton";
+
+
 
 
 const PlaylistPage = () => {
@@ -313,17 +316,10 @@ const PlaylistPage = () => {
 
       {/* Action Buttons */}
       <div className="flex items-center gap-4 p-6">
-        <button
-          className="w-14 h-14 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors"
-          onClick={handlePlayPlaylist}
-        >
-          {isPlaying && isCurrentTrackFromPlaylist() ? (
-            <Pause className="h-6 w-6 text-black" />
-          ) : (
-            <Play className="h-6 w-6 text-black ml-1" />
-          )}
-        </button>
-
+      <PlaylistPlayButton 
+        playlist={playlist}
+        size="large"
+      />
         <button
           className={`p-2 text-gray-400 hover:text-white transition-colors ${
             isShuffling ? "text-green-500" : ""

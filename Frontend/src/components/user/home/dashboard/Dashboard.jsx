@@ -188,7 +188,7 @@ console.log(playlistResponse)
       {filteredItems(playlistData).length > 0 && (
         <PlaylistSection
           title="Playlists"
-          items={filteredItems(playlistData)}
+          items={playlistData}
           isPlaying={isPlaying}
           setIsPlaying={setIsPlaying}
           onPlaylistClick={handlePlaylistClick}
