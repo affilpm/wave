@@ -20,7 +20,7 @@ class MusicSerializer(serializers.ModelSerializer):
     class Meta:
         model = Music
         fields = [
-            'id', 'name', 'cover_photo', 'genres', 'release_date',
+            'id', 'name', 'cover_photo',  'genres', 'release_date',
             'approval_status', 'duration', 'artist', 
             'artist_email', 'artist_full_name',
             'artist_username', 'is_public',
@@ -59,7 +59,7 @@ class PlaylistTrackSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = PlaylistTrack
-        fields = ['id', 'music', 'track_number', 'music_details', 'created_at']
+        fields = ['track_number', 'music_details', 'created_at']
         read_only_fields = ['id', 'created_at']
         
         

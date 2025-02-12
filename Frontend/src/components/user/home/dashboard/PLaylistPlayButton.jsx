@@ -23,13 +23,15 @@ const PlaylistPlayButton = ({
 
   const handlePlayClick = (e) => {
     e.stopPropagation();
-    
-    // First update currentPlaylistId if it's a different playlist
+  
+    // If switching to a new playlist
     if (currentPlaylistId !== playlist.id) {
       dispatch(setCurrentPlaylistId(playlist.id));
+      dispatch(setQueue(playlist.tracks)); // Ensure queue is updated
+      dispatch(setMusicId(playlist.tracks[0]?.id || null)); // Set the first track
       dispatch(setIsPlaying(true));
     } else {
-      // If it's the same playlist, just toggle play state
+      // If same playlist, toggle play state
       dispatch(setIsPlaying(!isPlaying));
     }
   };

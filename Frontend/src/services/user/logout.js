@@ -2,12 +2,13 @@ import axios from 'axios';
 import { ACCESS_TOKEN, REFRESH_TOKEN } from '../../constants/authConstants';
 import api from '../../api';
 import { persistor } from '../../store';
+import { useDispatch } from 'react-redux';
+import { clearUserData } from '../../slices/user/userSlice';
 
-
-
-export const logout = async () => {
+export const logout = async (dispatch) => {
     const refreshToken = localStorage.getItem(REFRESH_TOKEN);
     const accessToken = localStorage.getItem(ACCESS_TOKEN);
+    
 
     try {
         if (refreshToken) {
@@ -24,8 +25,10 @@ export const logout = async () => {
     } finally {
         localStorage.removeItem(ACCESS_TOKEN);
         localStorage.removeItem(REFRESH_TOKEN);
-        persistor.purge(); // Clears the persisted storage
-        localStorage.clear()
+
+        persistor.flush().then( () => {
+            dispatch(clearUserData())
+        })
         window.location.href = '/landingpage';
     }
 };

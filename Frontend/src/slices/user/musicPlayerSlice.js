@@ -38,10 +38,23 @@ const musicPlayerSlice = createSlice({
       state.isChanging = false;
     },
     setQueue: (state, action) => {
-      state.queue = action.payload;
-      state.originalQueue = [...action.payload];
-      state.currentIndex = 0;
-    },
+        const { tracks, playlistId } = action.payload;
+        state.queue = tracks;
+        state.originalQueue = [...tracks];
+        state.currentIndex = 0;
+        state.currentPlaylistId = playlistId;
+        state.playedTracks = []; // Reset played tracks for new playlist
+      },
+      
+      clearQueue: (state) => {
+        state.queue = [];
+        state.originalQueue = [];
+        state.currentIndex = 0;
+        state.musicId = null;
+        state.isPlaying = false;
+        state.currentPlaylistId = null;
+        state.playedTracks = [];
+      },
     addToQueue: (state, action) => {
       const tracks = Array.isArray(action.payload) ? action.payload : [action.payload];
       state.queue.push(...tracks);
@@ -59,13 +72,7 @@ const musicPlayerSlice = createSlice({
         }
       }
     },
-    clearQueue: (state) => {
-      state.queue = [];
-      state.originalQueue = [];
-      state.currentIndex = 0;
-      state.musicId = null;
-      state.isPlaying = false;
-    },
+
     playNext: (state) => {
         if (!state.queue || state.queue.length === 0) {
             console.warn("Cannot play next: Queue is empty.");

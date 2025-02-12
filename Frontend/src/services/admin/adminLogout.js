@@ -2,7 +2,9 @@ import axios from 'axios';
 import { ACCESS_TOKEN, REFRESH_TOKEN } from '../../constants/authConstants';
 import api from '../../api';
 import {persistor} from '../../store'
-// Frontend: logout.js
+import { clearUserData } from '../../slices/user/userSlice';
+
+
 
 export const adminLogout = async () => {
     const refreshToken = localStorage.getItem(REFRESH_TOKEN);
@@ -23,8 +25,10 @@ export const adminLogout = async () => {
     } finally {
         localStorage.removeItem(ACCESS_TOKEN);
         localStorage.removeItem(REFRESH_TOKEN);
-        persistor.purge(); // Clears the persisted storage
-        // window.location.reload(); 
+
+        persistor.flush().then( () => {
+            dispatch(clearUserData())
+        })
         window.location.href = '/adminlogin';
     }
 };

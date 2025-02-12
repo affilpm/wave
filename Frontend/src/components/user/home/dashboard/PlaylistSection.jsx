@@ -1,19 +1,81 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useEffect } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
-import PlaylistPlayButton from "./PLaylistPlayButton";
+import { 
+  setMusicId,
+  setIsPlaying,
+  setQueue,
+  setCurrentPlaylistId,
+} from "../../../../slices/user/musicPlayerSlice";
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate } from "react-router-dom";
+import api from "../../../../api";
+import { handlePlaybackAction } from "../playlist/your-playlist-page/music-player-utils";
 
 
 
-const PlaylistSection = ({ title, items, isPlaying, setIsPlaying, onPlaylistClick }) => {
+
+const PlaylistSection = ({ title }) => {
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
+  const [playlistData, setPlaylistData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const username = useSelector((state) => state.user.username);
+  const { 
+    musicId, 
+    isPlaying, 
+    queue, 
+    currentPlaylistId 
+  } = useSelector((state) => state.musicPlayer);
 
+  // Fetch playlist data
+  useEffect(() => {
+    const fetchPlaylistData = async () => {
+      try {
+        const playlistResponse = await api.get("/api/home/playlist/");
+        setPlaylistData(playlistResponse.data);
+      } catch (err) {
+        setError("Failed to load playlists");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPlaylistData();
+  }, []);
+
+  const handlePlaylistClick = (playlistId) => {
+    const playlist = playlistData.find((item) => item.id === playlistId);
+    if (playlist && playlist.created_by === username) {
+      navigate(`/playlist/${playlistId}`);
+    } else {
+      navigate(`/saved-playlist/${playlistId}`);
+    }
+  };
+
+  const handlePlayClick = async (e, item) => {
+    e.stopPropagation();
+      
+    await handlePlaybackAction({
+      playlistId: item.id, // Only pass playlist ID here
+      dispatch,
+      currentState: { 
+        musicId, 
+        isPlaying, 
+        queue, 
+        currentPlaylistId 
+      }
+    });
+  };
+  
   const handlePlaylistAddSuccess = (playlistId) => {
     console.log("Playlist added to library successfully:", playlistId);
-    // Here you could trigger a refresh of the library data if needed
   };
-  console.log('fg',items)
+
   const handleScroll = (direction) => {
     const container = scrollContainerRef.current;
     if (container) {
@@ -25,11 +87,14 @@ const PlaylistSection = ({ title, items, isPlaying, setIsPlaying, onPlaylistClic
     }
   };
 
+  if (loading) return <div className="text-white">Loading playlists...</div>;
+  if (error) return <div className="text-white">{error}</div>;
+  if (!playlistData.length) return null;
+
   return (
     <section className="mb-8 relative">
       <div className="flex justify-between items-center mb-4 px-4">
         <h2 className="text-2xl font-bold">{title}</h2>
-        {/* Add Show all button if needed */}
       </div>
 
       <div 
@@ -61,11 +126,11 @@ const PlaylistSection = ({ title, items, isPlaying, setIsPlaying, onPlaylistClic
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           <div className="flex gap-4 px-4">
-            {items.map((item) => (
+            {playlistData.map((item) => (
               <div
                 key={item.id}
                 className="flex-none w-40"
-                onClick={() => onPlaylistClick(item.id)}
+                onClick={() => handlePlaylistClick(item.id)}
               >
                 <div className="relative group">
                   <img
@@ -74,10 +139,16 @@ const PlaylistSection = ({ title, items, isPlaying, setIsPlaying, onPlaylistClic
                     className="w-25 h-25 object-cover rounded-md shadow-lg"
                   />
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
-                  <PlaylistPlayButton 
-  playlist={item} 
-  className="absolute bottom-2 right-2 hidden group-hover:flex"
-/>
+                    <button
+                      className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
+                      onClick={(e) => handlePlayClick(e, item)}
+                    >
+                      {currentPlaylistId === item.id && isPlaying ? (
+                        <Pause className="w-6 h-6 text-black" />
+                      ) : (
+                        <Play className="w-6 h-6 text-black" />
+                      )}
+                    </button>
                   </div>
                   <div className="absolute top-2 right-2">
                     <PlaylistSectionMenuModal
