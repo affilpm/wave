@@ -9,6 +9,7 @@ const initialState = {
   last_name: '',
   image: '', // Image will be null initially
   isAuthenticated: false, // Add isAuthenticated field
+
 };
 
 // Create the slice
@@ -25,9 +26,11 @@ const userSlice = createSlice({
       state.image = action.payload.image || ''; // image can be added later
       state.isAuthenticated = true; // Set isAuthenticated to true when user data is set
     },
+    
     updateUserImage: (state, action) => {
       state.image = action.payload;
     },
+
     clearUserData: (state) => {
       state.email = ''; // Reset to empty string
       state.user_id= '',

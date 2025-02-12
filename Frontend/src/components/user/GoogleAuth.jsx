@@ -113,6 +113,8 @@ const GoogleAuthButton = () => {
         last_name: decodedToken.last_name,
         image: decodedToken.image || null,
       }));
+
+      
       localStorage.setItem('isAuthenticated', 'true');
   
       navigate('/home');

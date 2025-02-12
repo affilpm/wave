@@ -34,7 +34,7 @@ import {
  } from "../../../../../slices/user/musicPlayerSlice";
 
 import PlaylistPlayButton from "../../dashboard/PLaylistPlayButton";
-
+import { handlePlaybackAction } from "./music-player-utils";
 
 
 
@@ -50,29 +50,29 @@ const PlaylistPage = () => {
   const { playlistId } = useParams();
   const navigate = useNavigate();
   const [totalDuration, setTotalDuration] = useState("");
-  const { musicId, isPlaying, isChanging, queue, currentIndex, repeat, shuffle, playedTracks } = useSelector((state) => state.musicPlayer);
+  const { musicId, isPlaying, isChanging, queue, currentIndex, repeat, shuffle, playedTracks, currentPlaylistId, } = useSelector((state) => state.musicPlayer);
 
 
-  const isCurrentTrackFromPlaylist = () => {
-    if (!playlist?.tracks || !musicId) return false;
+  // const isCurrentTrackFromPlaylist = () => {
+  //   if (!playlist?.tracks || !musicId) return false;
     
-    // First check if current musicId exists in playlist
-    const trackExistsInPlaylist = playlist.tracks.some(track => track.id === musicId);
+  //   // First check if current musicId exists in playlist
+  //   const trackExistsInPlaylist = playlist.tracks.some(track => track.music_details.id === musicId);
     
-    // Then check if current queue matches playlist tracks
-    const isQueueFromPlaylist = queue.length === playlist.tracks.length && 
-      queue.every(queueTrack => 
-        playlist.tracks.some(playlistTrack => playlistTrack.id === queueTrack.id)
-      );
+  //   // Then check if current queue matches playlist tracks
+  //   const isQueueFromPlaylist = queue.length === playlist.tracks.length && 
+  //     queue.every(queueTrack => 
+  //       playlist.tracks.some(playlistTrack => playlistTrack.music_details.id === queueTrack.id)
+  //     );
     
-    return trackExistsInPlaylist && isQueueFromPlaylist;
-  };
+  //   return trackExistsInPlaylist && isQueueFromPlaylist;
+  // };
 
 
 
   // Transform track data for player
   const prepareTrackForPlayer = (track) => ({
-    id: track.id,
+    id: track.music_details.id,
     name: track.music_details.name,
     artist: track.music_details.artist_username,
     artist_full: track.music_details.artist_full_name,
@@ -80,46 +80,71 @@ const PlaylistPage = () => {
     audio_file: track.music_details.audio_file,
     duration: track.music_details.duration
   });
+  
+console.log(prepareTrackForPlayer)
+const isCurrentTrackFromPlaylist = () => {
+  if (!playlist?.tracks || !musicId) return false;
+  
+  // Check if current playlist ID matches
+  if (currentPlaylistId !== playlist.id) return false;
+  
+  // Check if current track exists in playlist
+  return playlist.tracks.some(track => track.music_details.id === musicId);
+};
 
-  const handlePlayPlaylist = () => {
-    if (playlist?.tracks?.length) {
-      const formattedTracks = playlist.tracks.map(prepareTrackForPlayer);
-  
-      if (isCurrentTrackFromPlaylist()) {
-        dispatch(setIsPlaying(!isPlaying));
-        return;
-      }
-  
-      dispatch(setQueue(formattedTracks)); // Set queue first
-  
-      setTimeout(() => {
-        dispatch(setMusicId(formattedTracks[0].id)); // Set first track
-        dispatch(setIsPlaying(true)); // Ensure it plays immediately
-      }, 100);
-    }
-  };
+const handlePlayPlaylist = async () => {
+  if (playlist?.tracks?.length) {
+    const formattedTracks = playlist.tracks.map(prepareTrackForPlayer);
 
-  const handlePlayTrack = (track, index) => {
-    const formattedTrack = prepareTrackForPlayer(track);
-  
-    if (musicId === formattedTrack.id) {
+    if (isCurrentTrackFromPlaylist()) {
       dispatch(setIsPlaying(!isPlaying));
       return;
     }
-  
-    const formattedTracks = playlist.tracks.map(prepareTrackForPlayer);
-  
-    if (!isCurrentTrackFromPlaylist()) {
-      dispatch(setQueue(formattedTracks));
-    }
-  
-    dispatch(setMusicId(formattedTrack.id)); // Ensure track is set before playing
-  
-    // Wait for state update before playing
+    await handlePlaybackAction({
+      tracks: playlist.tracks.music_details, // We already have the tracks here
+      playlistId: playlist.id,
+      dispatch,
+      currentState: { musicId, isPlaying, queue, currentPlaylistId }
+    });
+
+
+    // Clear existing queue and set new one with playlist ID
+    dispatch(clearQueue());
+    dispatch(setQueue({ 
+      tracks: formattedTracks,
+      playlistId: playlist.id 
+    }));
+    
     setTimeout(() => {
+      dispatch(setMusicId(formattedTracks[0].id));
       dispatch(setIsPlaying(true));
     }, 100);
-  };
+  }
+};
+
+const handlePlayTrack = (track, index) => {
+  const formattedTrack = prepareTrackForPlayer(track);
+  
+  if (musicId === formattedTrack.id && currentPlaylistId === playlist.id) {
+    dispatch(setIsPlaying(!isPlaying));
+    return;
+  }
+
+  const formattedTracks = playlist.tracks.map(prepareTrackForPlayer);
+
+  if (currentPlaylistId !== playlist.id) {
+    dispatch(clearQueue());
+    dispatch(setQueue({ 
+      tracks: formattedTracks,
+      playlistId: playlist.id 
+    }));
+  }
+
+  dispatch(setMusicId(formattedTrack.id));
+  setTimeout(() => {
+    dispatch(setIsPlaying(true));
+  }, 100);
+};
 
   // Handle shuffle
   const handleShuffle = () => {
@@ -128,11 +153,13 @@ const PlaylistPage = () => {
       dispatch(setIsPlaying(true));
     }
   };
+  console.log('rrre',playlist)
 
   useEffect(() => {
     const calculateTotalDuration = () => {
       if (playlist?.tracks?.length) {
         const totalSeconds = playlist.tracks.reduce((acc, track) => {
+
           const trackDuration = track.music_details?.duration || "00:00:00";
           return acc + convertToSeconds(trackDuration);
         }, 0);
@@ -158,6 +185,7 @@ const PlaylistPage = () => {
       setError("Failed to update playlist privacy");
     }
   };
+  console.log(playlist, 'dfd')
 
   const handleDelete = async () => {
     if (window.confirm("Are you sure you want to delete this playlist?")) {
@@ -218,7 +246,7 @@ const PlaylistPage = () => {
   }
 
   const TrackRow = ({ track, index }) => {
-    const isThisTrackPlaying = musicId === track.id && isCurrentTrackFromPlaylist();
+    const isThisTrackPlaying = musicId === track.music_details.id && isCurrentTrackFromPlaylist();
 
 
     return (
@@ -316,10 +344,17 @@ const PlaylistPage = () => {
 
       {/* Action Buttons */}
       <div className="flex items-center gap-4 p-6">
-      <PlaylistPlayButton 
-        playlist={playlist}
-        size="large"
-      />
+        <button
+          className="w-14 h-14 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors"
+          onClick={handlePlayPlaylist}
+        >
+          {isPlaying && isCurrentTrackFromPlaylist() ? (
+            <Pause className="h-6 w-6 text-black" />
+          ) : (
+            <Play className="h-6 w-6 text-black ml-1" />
+          )}
+        </button>
+
         <button
           className={`p-2 text-gray-400 hover:text-white transition-colors ${
             isShuffling ? "text-green-500" : ""

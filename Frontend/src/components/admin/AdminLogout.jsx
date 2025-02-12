@@ -12,7 +12,6 @@ const AdminLogout = () => {
       const performLogout = async () => {
           try {
               await adminLogout();
-              dispatch(clearUserData());
           } catch (error) {
               console.error('Logout error:', error);
           } finally {
