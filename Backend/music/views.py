@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404
-from .models import Genre, Music
+from .models import Genre, Music, MusicPlayHistory
 from .serializers import GenreSerializer, MusicSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
@@ -42,6 +42,7 @@ class GenreViewSet(viewsets.ReadOnlyModelViewSet):
 
 ##
 
+
 class MusicViewSet(ModelViewSet):
     queryset = Music.objects.all()
     serializer_class = MusicSerializer
@@ -51,13 +52,26 @@ class MusicViewSet(ModelViewSet):
     def create(self, request, *args, **kwargs):
         try:
             artist = request.user.artist_profile
-            
+            duration_str = request.data.get('duration')
+            duration = None
+            if duration_str:
+                try:
+                    # Using isodate to parse the ISO 8601 duration format
+                    import isodate
+                    duration = isodate.parse_duration(duration_str)
+                except (ValueError, TypeError) as e:
+                    return Response(
+                        {'error': f'Invalid duration format: {str(e)}'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            print(duration)        
             # Prepare music data
             music_data = {
                 'name': request.data.get('name'),
                 'release_date': request.data.get('release_date'),
                 'artist': artist.id,
                 'genres': request.data.getlist('genres[]'),
+                'duration': duration,
                 **{field: request.FILES[field] 
                 for field in ['audio_file', 'cover_photo', 'video_file'] 
                 if field in request.FILES}
@@ -268,123 +282,226 @@ from rest_framework.permissions import IsAuthenticated
 from mutagen.mp3 import MP3
 from .models import Music
 from datetime import datetime, timedelta
+import logging
 
-
-import os
-import time
-from datetime import datetime, timedelta
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_control
 from django.core.cache import cache
 from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.views import APIView
-from mutagen.mp3 import MP3
+from datetime import datetime, timedelta
+import logging
+import os
 
-CHUNK_DURATION = 5  # Used for calculating chunk size but shouldn't limit streaming
+logger = logging.getLogger(__name__)
 
 class MusicStreamView(APIView):
     permission_classes = [IsAuthenticated]
     RATE_LIMIT_REQUESTS = 100
     RATE_LIMIT_DURATION = 3600  # 1 hour
-    print(f"Received request for music ID: df")
-    def get_content_type(self, file_path):
-        ext = os.path.splitext(file_path)[1].lower()
-        return {
-            ".mp3": "audio/mpeg",
-            ".wav": "audio/wav",
-            ".ogg": "audio/ogg",
-            ".m4a": "audio/mp4",
-            ".aac": "audio/aac",
-            ".flac": "audio/flac",
-        }.get(ext, "audio/mpeg")
+    INITIAL_CHUNK_SIZE = 1024 * 1024  # 1MB for first chunk
+    CHUNK_SIZE = 512 * 1024  # 512KB for subsequent chunks
+    
+    CONTENT_TYPES = {
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".ogg": "audio/ogg",
+        ".m4a": "audio/mp4",
+        ".aac": "audio/aac",
+        ".flac": "audio/flac",
+    }
 
-    def check_rate_limit(self, request):
-        user_id = request.user.id
-        cache_key = f"stream_rate_limit_{user_id}"
-        rate_limit_data = cache.get(cache_key, {"count": 0, "reset_time": datetime.utcnow()})
-
-        current_time = datetime.utcnow()
-        if current_time >= rate_limit_data["reset_time"]:
-            cache.set(cache_key, {"count": 1, "reset_time": current_time + timedelta(seconds=self.RATE_LIMIT_DURATION)}, timeout=self.RATE_LIMIT_DURATION)
-            return True
-
-        if rate_limit_data["count"] < self.RATE_LIMIT_REQUESTS:
-            rate_limit_data["count"] += 1
-            cache.set(cache_key, rate_limit_data, timeout=self.RATE_LIMIT_DURATION)
-            return True
-
-        return False
-
+    @method_decorator(cache_control(public=True, max_age=31536000))
     def get(self, request, music_id):
-        print(f"Received request for music ID: {music_id} from {request.user}")  
-        if not self.check_rate_limit(request):
-            return Response({'error': 'Rate limit exceeded'}, status=429)
+        """Handle GET request for music streaming with improved error handling and caching."""
+        try:
+            if not self._check_rate_limit(request):
+                return Response({'error': 'Rate limit exceeded'}, status=429)
+            
+            music = self._get_music_file(music_id)
+            if isinstance(music, Response):  # Error response
+                return music
+                
+            file_info = self._get_file_info(music.audio_file.path)
+            if isinstance(file_info, Response):  # Error response
+                return file_info
+                
+            # Handle range request
+            range_header = request.headers.get('Range')
+            streaming_info = self._handle_range_request(range_header, file_info['size'])
+            
+            # Record play history asynchronously
+            self._record_play_history(request.user, music)
+            
+            return self._create_streaming_response(
+                file_info['path'],
+                file_info['content_type'],
+                streaming_info
+            )
+            
+        except Exception as e:
+            logger.error(f"Error streaming music: {str(e)}", exc_info=True)
+            return Response({'error': 'Internal server error'}, status=500)
+
+    def _check_rate_limit(self, request):
+        """Enhanced rate limiting with better cache key management."""
+        cache_key = f"stream_rate_limit_{request.user.id}"
+        current_time = datetime.utcnow()
         
-        music = get_object_or_404(Music, pk=music_id)
-        path = music.audio_file.path
-        file_size = os.path.getsize(path)
-        content_type = self.get_content_type(path)
-        bitrate = self._get_bitrate(path)
-        chunk_size = self._calculate_chunk_size(bitrate)
+        try:
+            rate_data = cache.get_or_set(
+                cache_key,
+                {
+                    "count": 0,
+                    "reset_time": current_time + timedelta(seconds=self.RATE_LIMIT_DURATION)
+                },
+                self.RATE_LIMIT_DURATION
+            )
+            
+            if current_time >= rate_data["reset_time"]:
+                rate_data = {
+                    "count": 1,
+                    "reset_time": current_time + timedelta(seconds=self.RATE_LIMIT_DURATION)
+                }
+                cache.set(cache_key, rate_data, timeout=self.RATE_LIMIT_DURATION)
+                return True
+                
+            if rate_data["count"] >= self.RATE_LIMIT_REQUESTS:
+                return False
+                
+            rate_data["count"] += 1
+            cache.set(cache_key, rate_data, timeout=self.RATE_LIMIT_DURATION)
+            return True
+            
+        except Exception as e:
+            logger.error(f"Rate limit check failed: {str(e)}")
+            return True  # Fail open to avoid blocking legitimate requests
+            
+    def _get_music_file(self, music_id):
+        """Retrieve music file with validation."""
+        try:
+            return get_object_or_404(Music, pk=music_id)
+        except Exception as e:
+            logger.error(f"Error retrieving music file: {str(e)}")
+            return Response({'error': 'File not found'}, status=404)
 
-        # Extract requested byte range
-        range_header = request.headers.get('Range', None)
-        start, end = self._get_range(range_header, file_size)
+    def _get_file_info(self, file_path):
+        """Get file information with validation."""
+        if not os.path.exists(file_path):
+            return Response({'error': 'File not found'}, status=404)
+            
+        return {
+            'path': file_path,
+            'size': os.path.getsize(file_path),
+            'content_type': self._get_content_type(file_path)
+        }
 
+    def _get_content_type(self, file_path):
+        """Determine content type based on file extension."""
+        ext = os.path.splitext(file_path)[1].lower()
+        return self.CONTENT_TYPES.get(ext, "audio/mpeg")
+
+    def _handle_range_request(self, range_header, file_size):
+        """Process range request with validation."""
+        if not range_header:
+            return {
+                'start': 0,
+                'end': file_size - 1,
+                'status': 200,
+                'content_range': None
+            }
+            
+        start, end = self._parse_range_header(range_header, file_size)
+        return {
+            'start': start,
+            'end': end,
+            'status': 206,
+            'content_range': f"bytes {start}-{end}/{file_size}"
+        }
+
+    def _parse_range_header(self, range_header, file_size):
+        """Parse range header with improved validation."""
+        try:
+            range_str = range_header.replace("bytes=", "")
+            start_str, end_str = range_str.split("-")
+            
+            start = int(start_str) if start_str else 0
+            end = int(end_str) if end_str else file_size - 1
+            
+            if start < 0 or end >= file_size or start > end:
+                return 0, min(self.INITIAL_CHUNK_SIZE - 1, file_size - 1)
+                
+            return start, end
+            
+        except (ValueError, AttributeError):
+            return 0, min(self.INITIAL_CHUNK_SIZE - 1, file_size - 1)
+
+    def _create_streaming_response(self, file_path, content_type, streaming_info):
+        """Create streaming response with appropriate headers."""
         response = StreamingHttpResponse(
-            self._file_iterator(start, end, path, chunk_size),
-            status=206 if range_header else 200,
+            self._file_iterator(
+                streaming_info['start'],
+                streaming_info['end'],
+                file_path
+            ),
+            status=streaming_info['status'],
             content_type=content_type
         )
+        
         response["Accept-Ranges"] = "bytes"
-        response["Content-Length"] = str(end - start + 1)
-
-        if range_header:
-            response["Content-Range"] = f"bytes {start}-{end}/{file_size}"
-
-        response["Cache-Control"] = "public, max-age=31536000"
+        response["Content-Length"] = str(streaming_info['end'] - streaming_info['start'] + 1)
+        
+        if streaming_info['content_range']:
+            response["Content-Range"] = streaming_info['content_range']
+            
+        response["X-Accel-Buffering"] = "yes"
+        
         return response
 
-    def _file_iterator(self, start, end, path, chunk_size):
-        print(f"Streaming file: {path}, Start: {start}, End: {end}")
-        with open(path, 'rb') as f:
-            f.seek(start)
-            while start <= end:
-                buffer = f.read(min(chunk_size, end - start + 1))
-                if not buffer:
-                    print(f"EOF reached at byte {start}")
-                    break
-                print(f"Sending {len(buffer)} bytes (from {start})")
-                yield buffer
-                start += len(buffer)
-                time.sleep(0.005)  # Reduce to minimize delay
+    def _record_play_history(self, user, music):
+        """Record play history asynchronously."""
+        from django.db import transaction
+        transaction.on_commit(
+            lambda: MusicPlayHistory.objects.create(user=user, music=music)
+        )
 
-    def _calculate_chunk_size(self, bitrate):
-        """Determine chunk size based on bitrate but allow larger playback."""
-        return int((bitrate / 8) * CHUNK_DURATION) * 5  # Increase to send more data
-
-    def _get_bitrate(self, path):
-        """Retrieve audio bitrate."""
+    def _file_iterator(self, start, end, path):
+        """Optimized file streaming with error handling."""
+        remaining = end - start + 1
+        bytes_sent = 0
+        
         try:
-            audio = MP3(path)
-            return audio.info.bitrate
-        except Exception:
-            return 128000  # Default 128kbps if unknown
+            with open(path, 'rb') as f:
+                f.seek(start)
+                
+                # Initial chunk for faster playback
+                if start == 0:
+                    initial_chunk = min(self.INITIAL_CHUNK_SIZE, remaining)
+                    data = f.read(initial_chunk)
+                    if data:
+                        bytes_sent += len(data)
+                        yield data
+                
+                # Stream remaining data
+                while bytes_sent < remaining:
+                    chunk_size = min(self.CHUNK_SIZE, remaining - bytes_sent)
+                    data = f.read(chunk_size)
+                    
+                    if not data:
+                        break
+                        
+                    bytes_sent += len(data)
+                    yield data
+                    
+        except Exception as e:
+            logger.error(f"Error during file streaming: {str(e)}", exc_info=True)
+            raise
 
-    def _get_range(self, range_header, file_size):
-        if not range_header:
-            print("No Range header found, serving full file")
-            return 0, file_size - 1
 
-        try:
-            start, end = range_header.replace("bytes=", "").split("-")
-            start = int(start) if start else 0
-            end = int(end) if end else file_size - 1
-            return max(0, start), min(end, file_size - 1)
-        except ValueError:
-            print("Invalid range request, serving full file")
-            return 0, file_size - 1
+
 
  # For WAV files
 # Add more format handlers if needed
@@ -412,3 +529,26 @@ class MusicMetadataView(APIView):
         except Exception as e:
             print(f"Internal Server Error: {e}")
             return Response({"error": str(e)}, status=500)
+        
+        
+        
+        
+# Recently Played
+
+class RecentlyPlayedView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self,request):
+        recent_plays = MusicPlayHistory.objects.filter(user = request.user).select_related('music').order_by('-played_at')[:10]
+        
+        data = [
+            {
+                "music_id": play.music.id,
+                "title": play.music.name,
+                "artist": play.music.artist.user.email,
+                "played_at": play.played_at,
+            }
+            for play in recent_plays
+        ]
+        
+        return Response(data)

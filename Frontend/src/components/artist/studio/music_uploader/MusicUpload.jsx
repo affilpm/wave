@@ -408,7 +408,16 @@ const MusicUpload = () => {
     };
   
   
-
+    const getAudioDuration = (file) => {
+      return new Promise((resolve) => {
+        const audio = new Audio();
+        audio.src = URL.createObjectURL(file);
+        audio.addEventListener('loadedmetadata', () => {
+          URL.revokeObjectURL(audio.src);
+          resolve(audio.duration);
+        });
+      });
+    };
   
     const handleSubmit = async (e) => {
       e.preventDefault();
@@ -423,12 +432,29 @@ const MusicUpload = () => {
     
       try {
         const formDataToSubmit = new FormData();
+
+
+        if (files.audio) {
+          const audioDuration = await getAudioDuration(files.audio);
+          // Convert seconds to ISO 8601 duration format
+          // This format is compatible with Django's DurationField
+          const hours = Math.floor(audioDuration / 3600);
+          const minutes = Math.floor((audioDuration % 3600) / 60);
+          const seconds = Math.floor(audioDuration % 60);
+          const milliseconds = Math.round((audioDuration % 1) * 1000000); // microseconds for Django
+          
+          const durationString = `P0DT${hours}H${minutes}M${seconds}.${milliseconds}S`;
+          console.log('Sending duration:', durationString); // Add this line
+          formDataToSubmit.append('duration', durationString);
+        }
+
+
         formDataToSubmit.append('name', formData.name);
         
         if (formData.releaseDate) {
           formDataToSubmit.append('release_date', formData.releaseDate);
         }
-    
+        
         if (files.audio) formDataToSubmit.append('audio_file', files.audio);
         if (files.cover) formDataToSubmit.append('cover_photo', files.cover);
         if (files.video) formDataToSubmit.append('video_file', files.video);
@@ -605,7 +631,7 @@ const MusicUpload = () => {
         formData.selectedGenres.length > 0 &&
         formData.selectedGenres.every(id => id && id !== 'undefined') &&
         formData.releaseDate &&
-        !fileErrors.cover &&
+        // !fileErrors.cover &&
         !nameValidation.isChecking &&
         !nameValidation.error
       );

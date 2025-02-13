@@ -294,7 +294,7 @@ const handlePlayTrack = (track, index) => {
         <td className="py-3 pr-6 text-right">
           <button
             className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-all"
-            onClick={() => handleRemoveTrack(track.id)}
+            onClick={() => handleRemoveTrack(track.music_details.id)}
           >
             <X className="h-4 w-4" />
           </button>
