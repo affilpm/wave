@@ -17,7 +17,9 @@ import {
   moveTrack,
   markAsPlayed 
 } from "../../../../../slices/user/musicPlayerSlice";
- 
+
+
+
 const MusicPlayer = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isBuffering, setIsBuffering] = useState(false);
@@ -38,7 +40,7 @@ const MusicPlayer = () => {
   const MAX_RETRY_ATTEMPTS = 3;
   const [sourceLoadingState, setSourceLoadingState] = useState('idle'); // 'idle' | 'loading' | 'loaded' | 'error'
   
-  const { musicId, isPlaying, isChanging, queue, currentIndex, repeat, shuffle, playedTracks } = useSelector((state) => state.musicPlayer);
+  const { musicId, isPlaying, isChanging, queue, currentIndex, repeat, shuffle, playedTracks, currentPlaylistId,} = useSelector((state) => state.musicPlayer);
   
   
   const handleError = async (error) => {
@@ -70,7 +72,7 @@ const MusicPlayer = () => {
   };
 
 
-  const handleEnded = () => {
+  const handleEnded = async () => {
       console.log("Queue before handleEnded:", queue, "Current Index:", currentIndex);
     
       if (!queue || queue.length === 0) {
@@ -97,25 +99,29 @@ const MusicPlayer = () => {
       if (repeat === "one") {
         if (audioRef.current) {
           audioRef.current.currentTime = 0;
-          audioRef.current.play().catch(err => {
-            console.error("Error replaying track:", err);
-            // Only set isPlaying to false on actual playback error
-            dispatch(setIsPlaying(false));
-          });
+          
+          try {
+            await audioRef.current.play();
+          } catch (err) {
+            console.error("Error replaying track:", err)
+          }
         }
       } else {
         dispatch(playNext());
     
-        // Ensure audio starts playing after state update
-        setTimeout(() => {
-          if (audioRef.current) {
-            audioRef.current.play().catch(err => {
-              console.error("Error playing next track:", err);
-              // Only set isPlaying to false on actual playback error
-              dispatch(setIsPlaying(false));
-            });
+        const checkAndPlay = async () => {
+          if (audioRef.current && audioRef.current.readyState >= 2){
+            try {
+              await audioRef.current.play();
+            } catch (err) { 
+              console.error("Error playing next track", err);
+            } 
+          } else {
+            setTimeout(checkAndPlay, 100);
           }
-        }, 200);
+        };
+
+        setTimeout(checkAndPlay, 200)
       }
   };
 
@@ -224,6 +230,7 @@ const MusicPlayer = () => {
           throw new Error('No audio data received');
         }
 
+        
         const blob = new Blob([response.data], { type: 'audio/mpeg' });
         const newBlobUrl = URL.createObjectURL(blob);
         blobUrlRef.current = newBlobUrl;
@@ -377,13 +384,22 @@ const MusicPlayer = () => {
     const audio = audioRef.current;
     if (!audio || !isAudioReady) return;
 
-    const handlePlay = () => {
+    const handlePlay = async () => {
       if (!audioRef.current) return;
       if (!audioRef.current.src || audioRef.current.src === "blob:") {
         console.error("Audio source is empty or invalid.");
         return;
       }
-      audioRef.current.play().catch((err) => console.error("Playback error:", err));
+      try {
+        await audioRef.current.play()
+
+        if (!isPlaying) {
+          dispatch(setIsPlaying(true))
+        }
+      } catch (err) {
+        console.error("Playback error", err);
+        dispatch(setIsPlaying(false))
+      }
     };
 
 
@@ -402,6 +418,30 @@ const MusicPlayer = () => {
   }, [isPlaying, isAudioReady, dispatch]);
 
 
+
+  useEffect( () => {
+    const audio = audioRef.current;
+    if (!audio || !isAudioReady || !isPlaying) return;
+
+    const playWhenReady = async () => {
+      try {
+        await audio.play();
+      } catch (err) {
+        console.error("Auto-play error", err);
+      }
+    };
+
+    if (audio.readyState >= 2) {
+      playWhenReady();
+    } else {
+      const handleCanPlay = () => {
+        playWhenReady();
+        audio.removeEventListener('canplay', handleCanPlay);
+      };
+      audio.addEventListener('canplay', handleCanPlay);
+      return () => audio.removeEventListener('canplay', handleCanPlay);
+    }
+  }, [isAudioReady, isPlaying]);
 
 
 

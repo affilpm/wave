@@ -43,7 +43,7 @@ class Music(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     is_public = models.BooleanField(default=False, help_text="Whether this music is publicly available")
-
+    
     def __str__(self):
         return f"{self.name} by {self.artist.user.email}"
     
@@ -58,6 +58,10 @@ class Music(models.Model):
             file_name, file_extension = os.path.splitext(self.cover_photo.name)
             if len(file_name) > 100:
                 self.cover_photo.name = file_name[:100] + file_extension
+                
+            if hasattr(self, 'duration') and self.duration is not None:
+                print("Saving duration:", self.duration)  # Debug print
+    
         super().save(*args, **kwargs)
         
         
@@ -125,3 +129,16 @@ class StreamingSession(models.Model):
             models.Index(fields=['user', 'music', 'started_at'])
         ]
         
+        
+        
+        
+class MusicPlayHistory(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="play_history")
+    music = models.ForeignKey('Music', on_delete=models.CASCADE, related_name="play_history")
+    played_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-played_at']
+
+    def __str__(self):
+        return f"{self.user.email} played {self.music.name} at {self.played_at}"        

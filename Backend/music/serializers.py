@@ -19,6 +19,7 @@ class MusicSerializer(serializers.ModelSerializer):
     genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
     album_id = serializers.IntegerField(required=False, write_only=True)
     track_number = serializers.IntegerField(required=False, write_only=True)
+    duration = serializers.DurationField(required=False)  # Add this line
 
     class Meta:
         model = Music
@@ -33,10 +34,9 @@ class MusicSerializer(serializers.ModelSerializer):
         album_id = validated_data.pop('album_id', None)
         track_number = validated_data.pop('track_number', None)
         
-        # Create the music track
+        # Create the music track with duration included
         music = super().create(validated_data)
         
-        # If album_id is provided, create the album track association
         if album_id and track_number:
             try:
                 album = Album.objects.get(id=album_id)
@@ -49,7 +49,6 @@ class MusicSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'album_id': 'Album not found'})
             
         return music
-
  
 # In your view
 from rest_framework import generics

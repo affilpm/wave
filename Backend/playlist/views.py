@@ -12,7 +12,7 @@ from .serializers import MusicSerializer
 logger = logging.getLogger(__name__)
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-
+from django.db import transaction
 # this view is used search music and add to playlist
 class MusicService(viewsets.ModelViewSet):
     serializer_class = MusicSerializer
@@ -156,54 +156,77 @@ class PlaylistViewSet(viewsets.ModelViewSet):
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
+            
     @action(detail=True, methods=['post'])
     def remove_tracks(self, request, pk=None):
         playlist = self.get_object()
         
+        # Check permissions
         if playlist.created_by != request.user:
             return Response(
                 {'error': 'You do not have permission to modify this playlist'},
                 status=status.HTTP_403_FORBIDDEN
             )
         
+        # Get track IDs from request
         track_ids = request.data.get('track_ids', [])
+        if not track_ids:
+            return Response(
+                {'error': 'No track IDs provided'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         
         try:
+            # Query tracks to remove
             tracks_to_remove = PlaylistTrack.objects.filter(
                 playlist=playlist,
-                id__in=track_ids
+                music_id__in=track_ids  # Changed from id__in to music_id__in
             )
             
-            # Convert duration to seconds before subtraction
+            if not tracks_to_remove.exists():
+                return Response(
+                    {'error': 'No matching tracks found'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Calculate duration reduction
             duration_reduction = sum(
-                track.music.duration.total_seconds() 
+                int(track.music.duration.total_seconds())
                 for track in tracks_to_remove 
-                if track.music.duration
+                if track.music and track.music.duration
             )
             
             # Update playlist duration
             if playlist.duration:
-                playlist.duration = max(0, playlist.duration - int(duration_reduction))
+                new_duration = max(0, playlist.duration - duration_reduction)
+                playlist.duration = new_duration
                 playlist.save()
             
-            tracks_to_remove.delete()
+            # Delete the tracks
+            deleted_count = tracks_to_remove.delete()[0]
             
             # Reorder remaining tracks
-            remaining_tracks = PlaylistTrack.objects.filter(playlist=playlist).order_by('track_number')
-            for index, track in enumerate(remaining_tracks, start=1):
-                track.track_number = index
-                track.save()
+            with transaction.atomic():
+                remaining_tracks = PlaylistTrack.objects.filter(
+                    playlist=playlist
+                ).order_by('track_number')
                 
-            return Response(status=status.HTTP_204_NO_CONTENT)
+                for index, track in enumerate(remaining_tracks, start=1):
+                    if track.track_number != index:
+                        track.track_number = index
+                        track.save()
+            
+            return Response({
+                'message': f'Successfully removed {deleted_count} tracks',
+                'new_duration': playlist.duration
+            }, status=status.HTTP_200_OK)
             
         except Exception as e:
-            logger.error(f"Error removing tracks: {str(e)}")
+            logger.error(f"Error removing tracks from playlist {playlist.id}: {str(e)}")
             return Response(
-                {'error': str(e)},
+                {'error': 'Failed to remove tracks'},
                 status=status.HTTP_400_BAD_REQUEST
             )
- 
- 
  
     @action(detail=False, methods=['post'])
     def like_Songs(self, request):
