@@ -5,6 +5,8 @@ import os
 import uuid
 from django.db import models
 from django.core.validators import FileExtensionValidator
+from users.models import CustomUser        
+
 
 class Genre(models.Model):
     name = models.CharField(max_length=50, unique=True)
@@ -113,7 +115,24 @@ class AlbumTrack(models.Model):
         ordering = ['track_number']
         unique_together = ['album', 'track_number']        
         
-from users.models import CustomUser        
+
+        
+        
+        
+        
+class MusicPlayHistory(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="play_history")
+    music = models.ForeignKey('Music', on_delete=models.CASCADE, related_name="play_history")
+    played_at = models.DateTimeField(auto_now_add=True)
+    duration_played = models.PositiveIntegerField(default=0)  
+    class Meta:
+        ordering = ['-played_at']
+
+    def __str__(self):
+        return f"{self.user.email} played {self.music.name} at {self.played_at}"        
+    
+   
+   
         
 class StreamingSession(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
@@ -127,18 +146,4 @@ class StreamingSession(models.Model):
     class Meta:
         indexes = [
             models.Index(fields=['user', 'music', 'started_at'])
-        ]
-        
-        
-        
-        
-class MusicPlayHistory(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="play_history")
-    music = models.ForeignKey('Music', on_delete=models.CASCADE, related_name="play_history")
-    played_at = models.DateTimeField(auto_now_add=True)
-
-    class Meta:
-        ordering = ['-played_at']
-
-    def __str__(self):
-        return f"{self.user.email} played {self.music.name} at {self.played_at}"        
+        ]    

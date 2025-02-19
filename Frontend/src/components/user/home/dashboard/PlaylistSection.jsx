@@ -14,7 +14,6 @@ import { handlePlaybackAction } from "../playlist/your-playlist-page/music-playe
 
 
 
-
 const PlaylistSection = ({ title }) => {
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
@@ -37,6 +36,7 @@ const PlaylistSection = ({ title }) => {
     const fetchPlaylistData = async () => {
       try {
         const playlistResponse = await api.get("/api/home/playlist/");
+        console.log(playlistResponse.data)
         setPlaylistData(playlistResponse.data);
       } catch (err) {
         setError("Failed to load playlists");

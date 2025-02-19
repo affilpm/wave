@@ -38,7 +38,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
     const fetchPlaylists = async () => {
       try {
         // Fetch user's own playlists
-        const ownPlaylistsResponse = await api.get('/api/playlist/playlists/');
+        const ownPlaylistsResponse = await api.get('/api/playlist/playlist_data/');
         
         // First, remove "Liked Songs" from the response data if it exists
         const regularPlaylists = ownPlaylistsResponse.data.filter(
@@ -80,6 +80,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
         }
 
         const libraryPlaylistsResponse = await api.get('/api/library/playlists/');
+        console.log('lib', libraryPlaylistsResponse.data)
         const formattedLibraryPlaylists = libraryPlaylistsResponse.data.map(playlist => ({
           id: playlist.id,
           name: playlist.name,

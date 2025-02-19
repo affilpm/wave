@@ -48,7 +48,6 @@ export const handlePlaybackAction = async ({
     return;
   }
 
-  // Always fetch fresh track data when not provided
   let playlistTracks = tracks;
   if (!playlistTracks) {
     try {
@@ -74,21 +73,17 @@ export const handlePlaybackAction = async ({
 
   // Clear existing queue before setting new one
   dispatch(clearQueue());
-  
-  // Set current playlist ID first
   dispatch(setCurrentPlaylistId(playlistId));
-  
-  // Set up the new queue
   dispatch(setQueue({ 
     tracks: formattedTracks,
     playlistId 
   }));
 
-  // Start playback with slight delay to ensure state updates are complete
-  setTimeout(() => {
+  // Set track and start playing immediately without timeout
+  if (formattedTracks.length > 0) {
     dispatch(setMusicId(formattedTracks[0].id));
     if (startPlaying) {
       dispatch(setIsPlaying(true));
     }
-  }, 100);
+  }
 };
