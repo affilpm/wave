@@ -21,7 +21,7 @@ class Playlist_ListSerializer(serializers.ModelSerializer):
     cover_photo = serializers.ImageField()  # To show the image URL
     duration = serializers.IntegerField()  # Total duration in seconds
     name = serializers.CharField()  # Playlist name
-
+    
     class Meta:
         model = Playlist
         fields = ['created_by', 'cover_photo', 'duration', 'name', 'id']        

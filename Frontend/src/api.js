@@ -109,6 +109,10 @@ export class api {
       const newToken = await this.refreshPromise;
       config.headers.Authorization = `${this.config.tokenType} ${newToken}`;
       return config;
+    } catch (error) {
+      console.error('Token refresh failed in request interceptor:', error);
+      this.handleLogout();
+      throw error;
     } finally {
       this.refreshPromise = null;
     }

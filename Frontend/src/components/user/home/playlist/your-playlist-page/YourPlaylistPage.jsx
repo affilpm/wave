@@ -81,7 +81,6 @@ const PlaylistPage = () => {
     duration: track.music_details.duration
   });
   
-console.log(prepareTrackForPlayer)
 const isCurrentTrackFromPlaylist = () => {
   if (!playlist?.tracks || !musicId) return false;
   
@@ -92,46 +91,45 @@ const isCurrentTrackFromPlaylist = () => {
   return playlist.tracks.some(track => track.music_details.id === musicId);
 };
 
-const handlePlayPlaylist = async () => {
-  if (playlist?.tracks?.length) {
-    const formattedTracks = playlist.tracks.map(prepareTrackForPlayer);
+const handlePlayPlaylist = () => {
+  if (!playlist?.tracks?.length) return;
 
-    if (isCurrentTrackFromPlaylist()) {
-      dispatch(setIsPlaying(!isPlaying));
-      return;
-    }
-    await handlePlaybackAction({
-      tracks: playlist.tracks.music_details, // We already have the tracks here
-      playlistId: playlist.id,
-      dispatch,
-      currentState: { musicId, isPlaying, queue, currentPlaylistId }
-    });
-
-
-    // Clear existing queue and set new one with playlist ID
-    dispatch(clearQueue());
-    dispatch(setQueue({ 
-      tracks: formattedTracks,
-      playlistId: playlist.id 
-    }));
-    
-    setTimeout(() => {
-      dispatch(setMusicId(formattedTracks[0].id));
-      dispatch(setIsPlaying(true));
-    }, 100);
-  }
-};
-
-const handlePlayTrack = (track, index) => {
-  const formattedTrack = prepareTrackForPlayer(track);
-  
-  if (musicId === formattedTrack.id && currentPlaylistId === playlist.id) {
+  // Check if we're already playing this playlist
+  if (isCurrentTrackFromPlaylist()) {
+    // Just toggle play state if it's the same playlist
     dispatch(setIsPlaying(!isPlaying));
     return;
   }
 
+  // This is a new playlist or a reset - load it
   const formattedTracks = playlist.tracks.map(prepareTrackForPlayer);
+  
+  // Clear existing queue and set new one
+  dispatch(clearQueue());
+  dispatch(setQueue({ 
+    tracks: formattedTracks,
+    playlistId: playlist.id 
+  }));
+  
+  // Set the first track and start playing
+  if (formattedTracks.length > 0) {
+    dispatch(setMusicId(formattedTracks[0].id));
+    dispatch(setIsPlaying(true));
+  }
+};
 
+const handlePlayTrack = (track, index) => {
+  const formattedTracks = playlist.tracks.map(prepareTrackForPlayer);
+  const formattedTrack = formattedTracks[index];
+  
+  // Check if this is the currently playing track
+  if (musicId === formattedTrack.id && currentPlaylistId === playlist.id) {
+    // Just toggle playback
+    dispatch(setIsPlaying(!isPlaying));
+    return;
+  }
+
+  // If we're playing a different playlist, update the queue
   if (currentPlaylistId !== playlist.id) {
     dispatch(clearQueue());
     dispatch(setQueue({ 
@@ -140,10 +138,9 @@ const handlePlayTrack = (track, index) => {
     }));
   }
 
+  // Set the track ID and start playing
   dispatch(setMusicId(formattedTrack.id));
-  setTimeout(() => {
-    dispatch(setIsPlaying(true));
-  }, 100);
+  dispatch(setIsPlaying(true));
 };
 
   // Handle shuffle
@@ -153,7 +150,6 @@ const handlePlayTrack = (track, index) => {
       dispatch(setIsPlaying(true));
     }
   };
-  console.log('rrre',playlist)
 
   useEffect(() => {
     const calculateTotalDuration = () => {

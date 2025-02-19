@@ -1,43 +1,28 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
-import { setCurrentTrack } from "../../../../slices/user/playerSlice";
+import { setCurrentTrack, setQueue, reorderQueue } from "../../../../slices/user/playerSlice";
 import { useNavigate } from "react-router-dom";
 import api from "../../../../api";
-import {   
-  setMusicId,
-  setIsPlaying,
-  setChangeComplete,
-  setQueue,
-  addToQueue,
-  removeFromQueue,
-  clearQueue,
-  playNext,
-  playPrevious,
-  toggleShuffle,
-  setRepeat,
-  moveTrack,
-  markAsPlayed 
-} from "../../../../slices/user/musicPlayerSlice";
+import { setMusicId, setIsPlaying, setChangeComplete } from "../../../../slices/user/musicPlayerSlice";
 
 const MusicSection = ({ title }) => {
   const dispatch = useDispatch();
   const currentTrack = useSelector((state) => state.player.currentTrack);
+  const isPlaying = useSelector((state) => state.musicPlayer.isPlaying);
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
   const [musiclistData, setMusiclistData] = useState([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { musicId, isPlaying, isChanging, queue, currentIndex, repeat, shuffle, playedTracks } = useSelector((state) => state.musicPlayer);
-  
-  
+
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         const musiclistResponse = await api.get("/api/home/musiclist/?top10=true");
         setMusiclistData(musiclistResponse.data);
-        // console.log('d',musiclistResponse.data)
+        console.log('d',musiclistResponse.data)
       } catch (error) {
         console.error("Error fetching music data:", error);
       } finally {

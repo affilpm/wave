@@ -50,8 +50,8 @@ const HomePage = () => {
       </div>
 
       {/* Music Player - Fixed at bottom with backdrop blur */}
-      <div className="sticky bottom-0 z-100">
-        <div className="h-24"> {/* Fixed height for music player */}
+      <div className="sticky bottom-0 ">
+        <div className="h-13"> {/* Fixed height for music player */}
           
           <MusicPlayer
             isPlaying={isPlaying}
