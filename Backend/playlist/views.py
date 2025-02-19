@@ -41,7 +41,8 @@ class PlaylistData(viewsets.ModelViewSet):
     
     def get_queryset(self):
         # Fetch playlists created by the authenticated user
-        return Playlist.objects.all()
+        return Playlist.objects.filter(created_by_id=self.request.user)
+        
         
 # used to manage playlist    
 class PlaylistViewSet(viewsets.ModelViewSet):
@@ -50,7 +51,7 @@ class PlaylistViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         # Fetch playlists created by the authenticated user
-        return Playlist.objects.filter(created_by_id=self.request.user)
+        return Playlist.objects.all()
     
 
     
@@ -265,7 +266,7 @@ class PlaylistViewSet(viewsets.ModelViewSet):
             )    
  
     @action(detail=False, methods=['post'])
-    def like_Songs(self, request):
+    def like_songs(self, request):
         """
         Add or remove a track from the user's Liked Tracks playlist
         """

@@ -343,13 +343,22 @@ def verify_signed_token(signed_token, music_id, secret_key):
 
 print("Verification result:", verify_signed_token(token, 5, settings.SECRET_KEY))
 
+
+from users.models import CustomUser
+
+
+
 class MusicStreamView(APIView):
     # Allow all users, we'll check our signed token manually
     permission_classes = [AllowAny]  
     CHUNK_SIZE = 8192  # 8KB chunks
     RATE_LIMIT_REQUESTS = 2100
     RATE_LIMIT_DURATION = 3600  # 1 hour
-
+    def save_play_history(self, user_id, music):
+        """Logs the music playback event in the database."""
+        user = get_object_or_404(CustomUser, pk=user_id)
+        MusicPlayHistory.objects.create(user=user, music=music, duration_played=0)
+        
     def get_content_type(self, file_path):
         ext = os.path.splitext(file_path)[1].lower()
         content_types = {
@@ -415,6 +424,10 @@ class MusicStreamView(APIView):
             if not os.path.exists(path):
                 return Response({'error': 'Audio file not found'}, status=404)
 
+            if not hasattr(request, '_play_history_saved'):
+                self.save_play_history(token_user_id, music)
+                request._play_history_saved = True
+
             file_size = os.path.getsize(path)
             content_type = self.get_content_type(path)
 
@@ -464,9 +477,38 @@ class MusicStreamView(APIView):
         response['Access-Control-Allow-Headers'] = 'Range, Authorization'
         return response
 
- # For WAV files
-# Add more format handlers if needed
-# from mutagen.mp3 import MP3
+
+        
+# Recently Played
+
+from django.db.models import Count
+
+class RecentlyPlayedView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        recent_plays = (
+            MusicPlayHistory.objects
+            .filter(user=request.user)
+            .values('music__id', 'music__name', 'music__artist__user__email')
+            .annotate(play_count=Count('id'))
+            .order_by('-played_at')[:10]
+        )
+
+        data = [
+            {
+                "music_id": play["music__id"],
+                "title": play["music__name"],
+                "artist": play["music__artist__user__email"],
+                "play_count": play["play_count"],
+            }
+            for play in recent_plays
+        ]
+        print(data)
+        return Response(data)
+    
+    
+
 
 
 class MusicMetadataView(APIView):
@@ -493,24 +535,4 @@ class MusicMetadataView(APIView):
             return Response({"error": str(e)}, status=500)
         
         
-        
-        
-# Recently Played
-
-class RecentlyPlayedView(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def get(self,request):
-        recent_plays = MusicPlayHistory.objects.filter(user = request.user).select_related('music').order_by('-played_at')[:10]
-        
-        data = [
-            {
-                "music_id": play.music.id,
-                "title": play.music.name,
-                "artist": play.music.artist.user.email,
-                "played_at": play.played_at,
-            }
-            for play in recent_plays
-        ]
-        
-        return Response(data)
+            

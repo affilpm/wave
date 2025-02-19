@@ -90,10 +90,10 @@ const MusicPlayer = () => {
     fetchMetadata();
   }, [musicId]);
 
-  
   const handlelike = async () => {
     try {
-      const response = await api.post(`/api/playlist/playlists/like_songs/?music_id=${musicId}`);
+      const response = await api.post(`/api/playlist/playlists/like_songs/`, { music_id: musicId });
+      console.log(response.data)
       setIsLiked(response.data.liked);
     } catch (error) {
       console.error("Failed to toggle like status:", error);
@@ -109,7 +109,6 @@ const MusicPlayer = () => {
       dispatch(setMusicId(currentTrack.id));
     }
   }, [queue, currentIndex]);
-
 
   // Fetch signed token for streaming
   useEffect(() => {
@@ -212,7 +211,6 @@ const MusicPlayer = () => {
     };
   }, [musicId, signedToken, metadata, dispatch]);
   
-
   const updateSeeker = () => {
     if (!howlRef.current || isSeeking) return;
   
@@ -411,7 +409,6 @@ const MusicPlayer = () => {
               <button 
                 onClick={handlePrevious}
                 className="text-gray-300"
-                disabled={currentIndex === 0 && repeat !== 'all'}
               >
                 <SkipBack className="w-5 h-5" />
               </button>
@@ -419,7 +416,7 @@ const MusicPlayer = () => {
               <button 
                 onClick={togglePlayPause}
                 className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center shadow-md disabled:opacity-50"
-                disabled={playerState.loading || isChanging}
+                disabled={playerState.loading}
               >
                 {isPlaying ? (
                   <Pause className="w-5 h-5 text-white" />
@@ -431,7 +428,6 @@ const MusicPlayer = () => {
               <button 
                 onClick={handleNext}
                 className="text-gray-300"
-                disabled={currentIndex === queue.length - 1 && repeat !== 'all'}
               >
                 <SkipForward className="w-5 h-5" />
               </button>
@@ -489,7 +485,6 @@ const MusicPlayer = () => {
               <button 
                 onClick={handlePrevious}
                 className="text-gray-300"
-                disabled={currentIndex === 0 && repeat !== 'all'}
               >
                 <SkipBack className="w-5 h-5" />
               </button>
@@ -497,7 +492,7 @@ const MusicPlayer = () => {
               <button 
                 onClick={togglePlayPause}
                 className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center shadow-md disabled:opacity-50"
-                disabled={playerState.loading || isChanging}
+                disabled={playerState.loading}
               >
                 {isPlaying ? (
                   <Pause className="w-5 h-5 text-white" />
@@ -509,7 +504,6 @@ const MusicPlayer = () => {
               <button 
                 onClick={handleNext}
                 className="text-gray-300"
-                disabled={currentIndex === queue.length - 1 && repeat !== 'all'}
               >
                 <SkipForward className="w-5 h-5" />
               </button>
@@ -656,6 +650,5 @@ const MusicPlayer = () => {
     </div>
   );
 };
-
 
 export default MusicPlayer;

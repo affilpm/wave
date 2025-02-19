@@ -2,45 +2,127 @@ import React, { useState, useEffect } from "react";
 import { Play, Pause, Clock, Share2, Shuffle } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from 'react-redux';
-import { 
-  setQueue, 
-  setCurrentTrack, 
-  setIsPlaying,
-  reorderQueue 
-} from "../../../../../slices/user/playerSlice";
 import api from "../../../../../api";
 import {
   formatDuration,
   convertToSeconds,
   convertToHrMinFormat,
 } from "../../../../../utils/formatters";
+import {   
+  setMusicId,
+  setIsPlaying,
+  setQueue,
+  clearQueue,
+  toggleShuffle
+} from "../../../../../slices/user/musicPlayerSlice";
 
 const PlaylistPage = () => {
   const dispatch = useDispatch();
-  const { currentTrack, isPlaying, queue } = useSelector((state) => state.player);
+  const { musicId, isPlaying, queue, shuffle, currentPlaylistId } = useSelector((state) => state.musicPlayer);
   
   const [playlist, setPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isShuffling, setIsShuffling] = useState(false);
+  const [totalDuration, setTotalDuration] = useState("");
   const { playlistId } = useParams();
   const navigate = useNavigate();
-  const [totalDuration, setTotalDuration] = useState("");
+
+  // Transform track data for player
+  const prepareTrackForPlayer = (track) => ({
+    id: Number(track.music_details.id), // Ensure ID is a number
+    name: track.music_details.name,
+    artist: track.music_details.artist_username,
+    artist_full: track.music_details.artist_full_name,
+    cover_photo: track.music_details.cover_photo,
+    audio_file: track.music_details.audio_file,
+    duration: track.music_details.duration,
+    release_date: track.music_details.release_date
+
+  });
 
   const isCurrentTrackFromPlaylist = () => {
-    if (!playlist?.tracks || !currentTrack) return false;
+    if (!playlist?.tracks || !musicId) return false;
+    
+    // Check if current playlist ID matches
+    if (Number(currentPlaylistId) !== Number(playlist.id)) return false;
     
     // Check if current track exists in playlist
-    const trackExistsInPlaylist = playlist.tracks.some(track => track.id === currentTrack.id);
-    
-    // Check if current queue matches playlist tracks
-    const isQueueFromPlaylist = queue.length === playlist.tracks.length && 
-      queue.every(queueTrack => 
-        playlist.tracks.some(playlistTrack => playlistTrack.id === queueTrack.id)
-      );
-    
-    return trackExistsInPlaylist && isQueueFromPlaylist;
+    return playlist.tracks.some(track => Number(track.music_details.id) === Number(musicId));
   };
+
+
+  const handlePlayPlaylist = () => {
+    if (!playlist?.tracks?.length) return;
+
+    // Check if we're already playing this playlist
+    if (isCurrentTrackFromPlaylist()) {
+      // Just toggle play state if it's the same playlist
+      dispatch(setIsPlaying(!isPlaying));
+      return;
+    }
+
+    // This is a new playlist or a reset - load it
+    const formattedTracks = playlist.tracks.map(prepareTrackForPlayer);
+    
+    // Clear existing queue and set new one
+    dispatch(clearQueue());
+    dispatch(setQueue({ 
+      tracks: formattedTracks,
+      playlistId: Number(playlist.id) // Ensure playlistId is a number
+    }));
+    
+    // Set the first track and start playing
+    if (formattedTracks.length > 0) {
+      dispatch(setMusicId(formattedTracks[0].id));
+      dispatch(setIsPlaying(true));
+    }
+  };
+
+  const handlePlayTrack = (track) => {
+    // First, prepare all tracks to ensure consistent data format
+    const formattedTracks = playlist.tracks.map(prepareTrackForPlayer);
+    const currentTrackId = Number(track.music_details.id);
+    
+    // Check if this is the currently playing track
+    const isCurrentTrack = Number(musicId) === currentTrackId && 
+                          Number(currentPlaylistId) === Number(playlist.id);
+
+    if (isCurrentTrack) {
+      // Just toggle playback if it's the same track
+      dispatch(setIsPlaying(!isPlaying));
+      return;
+    }
+
+    // If we're playing a different playlist or no playlist is currently set
+    if (Number(currentPlaylistId) !== Number(playlist.id)) {
+      dispatch(clearQueue());
+      dispatch(setQueue({ 
+        tracks: formattedTracks,
+        playlistId: Number(playlist.id)
+      }));
+    }
+
+    // Find the index of the clicked track in the formatted tracks
+    const trackIndex = formattedTracks.findIndex(t => Number(t.id) === currentTrackId);
+    
+    if (trackIndex !== -1) {
+      // Set the track ID and start playing
+      dispatch(setMusicId(currentTrackId));
+      dispatch(setIsPlaying(true));
+    }
+  };
+
+
+
+
+  // Handle shuffle
+  const handleShuffle = () => {
+    dispatch(toggleShuffle());
+    if (!isPlaying && playlist?.tracks?.length) {
+      dispatch(setIsPlaying(true));
+    }
+  };
+
 
   useEffect(() => {
     const calculateTotalDuration = () => {
@@ -57,83 +139,12 @@ const PlaylistPage = () => {
     calculateTotalDuration();
   }, [playlist]);
 
-  // Transform track data for player
-  const prepareTrackForPlayer = (track) => ({
-    id: track.id,
-    name: track.music_details.name,
-    artist: track.music_details.artist_username,
-    artist_full: track.music_details.artist_full_name,
-    cover_photo: track.music_details.cover_photo,
-    audio_file: track.music_details.audio_file,
-    duration: track.music_details.duration
-  });
-
-  // Handle playing entire playlist
-  const handlePlayPlaylist = () => {
-    if (playlist?.tracks?.length) {
-      const formattedTracks = playlist.tracks.map(prepareTrackForPlayer);
-      
-      // If already playing from this playlist, just toggle play state
-      if (isCurrentTrackFromPlaylist()) {
-        dispatch(setIsPlaying(!isPlaying));
-        return;
-      }
-      
-      // Otherwise, set new queue and start playing
-      dispatch(setQueue(formattedTracks));
-      dispatch(setCurrentTrack(formattedTracks[0]));
-      dispatch(setIsPlaying(true));
-    }
-  };
-
-  // Handle playing individual track
-  const handlePlayTrack = (track, index) => {
-    const formattedTrack = prepareTrackForPlayer(track);
-    
-    // If clicking the current track, just toggle play state
-    if (currentTrack?.id === formattedTrack.id) {
-      dispatch(setIsPlaying(!isPlaying));
-      return;
-    }
-
-    // If the queue is not this playlist, set it first
-    const formattedTracks = playlist.tracks.map(prepareTrackForPlayer);
-    if (queue.length !== formattedTracks.length || 
-        queue[0].id !== formattedTracks[0].id) {
-      dispatch(setQueue(formattedTracks));
-    }
-    
-    // Start playing from the clicked track
-    dispatch(reorderQueue({ startIndex: index }));
-    dispatch(setIsPlaying(true));
-  };
-
-  // Handle shuffle
-  const handleShuffle = () => {
-    if (!playlist?.tracks?.length) return;
-    
-    setIsShuffling(!isShuffling);
-    const formattedTracks = [...playlist.tracks].map(prepareTrackForPlayer);
-    
-    if (!isShuffling) {
-      // Shuffle the tracks
-      const shuffledTracks = [...formattedTracks].sort(() => Math.random() - 0.5);
-      dispatch(setQueue(shuffledTracks));
-      dispatch(setCurrentTrack(shuffledTracks[0]));
-    } else {
-      // Restore original order
-      dispatch(setQueue(formattedTracks));
-      dispatch(setCurrentTrack(formattedTracks[0]));
-    }
-    dispatch(setIsPlaying(true));
-  };
-
   useEffect(() => {
     const fetchPlaylist = async () => {
       try {
-        const response = await api.get(`/api/playlist/playlist_data/${playlistId}/`);
+        const response = await api.get(`/api/playlist/playlists/${playlistId}/`);
+        console.log(response.data, 'sdfas')
         setPlaylist(response.data);
-        console.log(response.data)
       } catch (err) {
         setError("Failed to load playlist");
       } finally {
@@ -155,7 +166,8 @@ const PlaylistPage = () => {
   }
 
   const TrackRow = ({ track, index }) => {
-    const isThisTrackPlaying = currentTrack?.id === track.id && isCurrentTrackFromPlaylist();
+    const isThisTrackPlaying = Number(musicId) === Number(track.music_details.id) && 
+                              isCurrentTrackFromPlaylist();
 
     return (
       <tr
@@ -249,7 +261,7 @@ const PlaylistPage = () => {
 
         <button
           className={`p-2 text-gray-400 hover:text-white transition-colors ${
-            isShuffling ? "text-green-500" : ""
+            shuffle ? "text-green-500" : ""
           }`}
           onClick={handleShuffle}
         >

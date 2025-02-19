@@ -13,7 +13,7 @@ class MusicInPlaylistSerializer(serializers.ModelSerializer):
         model = Music
         fields = [
             'id', 'name', 'duration', 'artist_name', 
-            'album_name', 'cover_photo', 'audio_file'
+            'album_name', 'cover_photo',
         ]
 
 # # Playlist Serializer for basic playlist data

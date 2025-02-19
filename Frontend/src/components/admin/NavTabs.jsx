@@ -1,9 +1,14 @@
 // components/NavTabs.js
 import React from 'react';
-import { Users, CheckCircle, Music } from 'lucide-react';
+import { Users, CheckCircle, Music , LayoutDashboard} from 'lucide-react';
 
 export const NavTabs = ({ activeTab, setActiveTab }) => {
   const tabs = [
+    {
+      id: 'dashboard',
+      label: 'Dashboard',
+      icon: LayoutDashboard,
+    },
     {
       id: 'users',
       label: 'Users',

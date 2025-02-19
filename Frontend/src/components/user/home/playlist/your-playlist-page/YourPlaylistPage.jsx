@@ -30,17 +30,15 @@ import {
   toggleShuffle,
   setRepeat,
   moveTrack,
-  markAsPlayed
+  markAsPlayed,
+  setCurrentPlaylistId
  } from "../../../../../slices/user/musicPlayerSlice";
 
-import PlaylistPlayButton from "../../dashboard/PLaylistPlayButton";
-import { handlePlaybackAction } from "./music-player-utils";
 
 
 
 const PlaylistPage = () => {
   const dispatch = useDispatch();
-
   
   const [playlist, setPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,6 +49,7 @@ const PlaylistPage = () => {
   const navigate = useNavigate();
   const [totalDuration, setTotalDuration] = useState("");
   const { musicId, isPlaying, isChanging, queue, currentIndex, repeat, shuffle, playedTracks, currentPlaylistId, } = useSelector((state) => state.musicPlayer);
+  console.log(currentPlaylistId)
 
 
   // const isCurrentTrackFromPlaylist = () => {
@@ -67,7 +66,15 @@ const PlaylistPage = () => {
     
   //   return trackExistsInPlaylist && isQueueFromPlaylist;
   // };
-
+  const isCurrentTrackFromPlaylist = () => {
+    if (!playlist?.tracks || !musicId) return false;
+    
+    // Make sure we're playing from this specific playlist
+    if (currentPlaylistId !== playlist.id) return false;
+    
+    // Check if current track exists in this playlist
+    return playlist.tracks.some(track => track.music_details.id === musicId);
+  };
 
 
   // Transform track data for player
@@ -81,15 +88,6 @@ const PlaylistPage = () => {
     duration: track.music_details.duration
   });
   
-const isCurrentTrackFromPlaylist = () => {
-  if (!playlist?.tracks || !musicId) return false;
-  
-  // Check if current playlist ID matches
-  if (currentPlaylistId !== playlist.id) return false;
-  
-  // Check if current track exists in playlist
-  return playlist.tracks.some(track => track.music_details.id === musicId);
-};
 
 const handlePlayPlaylist = () => {
   if (!playlist?.tracks?.length) return;
@@ -121,7 +119,7 @@ const handlePlayPlaylist = () => {
 const handlePlayTrack = (track, index) => {
   const formattedTracks = playlist.tracks.map(prepareTrackForPlayer);
   const formattedTrack = formattedTracks[index];
-  
+  console.log(playlist.id,'dfs')
   // Check if this is the currently playing track
   if (musicId === formattedTrack.id && currentPlaylistId === playlist.id) {
     // Just toggle playback
@@ -139,6 +137,8 @@ const handlePlayTrack = (track, index) => {
   }
 
   // Set the track ID and start playing
+  
+  dispatch(setCurrentPlaylistId(playlist.id))
   dispatch(setMusicId(formattedTrack.id));
   dispatch(setIsPlaying(true));
 };
