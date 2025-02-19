@@ -227,6 +227,42 @@ class PlaylistViewSet(viewsets.ModelViewSet):
                 {'error': 'Failed to remove tracks'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+            
+            
+    @action(detail=False, methods=['get'])
+    def is_liked(self, request):
+        """
+        Check if a track is already in a users liked playlist
+        """        
+        try:
+            music_id = request.query_params.get('music_id')
+            if not music_id:
+                return Response(
+                    {'error': 'Music ID is required'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            liked_playlist = Playlist.objects.filter(
+                created_by = request.user,
+                name='Liked Songs'
+            ).first()
+            
+            if not liked_playlist:
+                return Response({'liked': False}, status=status.HTTP_200_OK)
+            
+            is_liked = PlaylistTrack.objects.filter(
+                playlist = liked_playlist,
+                music_id = music_id
+                
+            ).exists()
+            
+            return Response({'liked': is_liked}, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )    
  
     @action(detail=False, methods=['post'])
     def like_Songs(self, request):

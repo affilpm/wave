@@ -11,6 +11,7 @@ const initialState = {
   originalQueue: [], 
   playedTracks: [],
   currentPlaylistId: null,
+  isLiked: true,
 };
 
 const musicPlayerSlice = createSlice({
@@ -18,22 +19,30 @@ const musicPlayerSlice = createSlice({
   initialState,
   reducers: {
     setMusicId: (state, action) => {
-      const newMusicId = Number(action.payload);
-      const newIndex = state.queue.findIndex(track => track.id === newMusicId);
-      
-      if (newIndex !== -1) {
+        const newMusicId = Number(action.payload);
+        const newIndex = state.queue.findIndex(track => track.id === newMusicId);
+        
+        if (newIndex !== -1) {
           state.currentIndex = newIndex;
+          state.musicId = newMusicId;
+        } else {
+          // If track not in queue, don't change state
+          return;
         }
-      
-      state.musicId = newMusicId;
-      state.isChanging = true;
-    },
+        
+        state.isChanging = true;
+        // Don't auto-play when changing tracks - let play/pause handle this
+      },
     setCurrentPlaylistId: (state, action) => {
         state.currentPlaylistId = action.payload;
       },
-    setIsPlaying: (state, action) => {
-      state.isPlaying = action.payload;
-    },
+    setIsLiked: (state, action) => {
+        state.isLiked = action.type
+    },  
+      setIsPlaying: (state, action) => {
+        state.isPlaying = action.payload;
+      },
+  
     setChangeComplete: (state) => {
       state.isChanging = false;
     },
@@ -74,40 +83,40 @@ const musicPlayerSlice = createSlice({
     },
 
     playNext: (state) => {
-        if (!state.queue || state.queue.length === 0) {
-            console.warn("Cannot play next: Queue is empty.");
-            // Don't set isPlaying to false here
-            return;
-        }
-    
-        let nextIndex = state.currentIndex + 1;
-    
-        if (nextIndex >= state.queue.length) {
-            if (state.repeat === "all") {
-                nextIndex = 0; // Loop back to first track
+        if (!state.queue || state.queue.length === 0) return;
+        
+        let nextIndex = state.currentIndex;
+        
+        if (state.repeat === 'one') {
+          // Stay on current track
+          nextIndex = state.currentIndex;
+        } else {
+          // Move to next track
+          nextIndex = state.currentIndex + 1;
+          
+          // Handle end of queue
+          if (nextIndex >= state.queue.length) {
+            if (state.repeat === 'all') {
+              nextIndex = 0;
             } else {
-                console.warn("End of queue reached.");
-                // Keep playing the current track instead of stopping
-                return;
+              // End of queue reached with no repeat
+              state.isPlaying = false;
+              return;
             }
+          }
         }
+  
     
-        // Move current track to playedTracks
         if (state.queue[state.currentIndex]) {
             state.playedTracks.push(state.queue[state.currentIndex].id);
-        }
+          }
     
-        // Update to next track
-        state.currentIndex = nextIndex;
-        state.musicId = state.queue[nextIndex]?.id || null;
-    
-        console.log("Switching to next song:", state.musicId);
-    
-        // Ensure playback continues
-        state.isChanging = true;
-        state.isPlaying = true;  // Always keep this true for continuous playback
-    },
-
+          // Update state
+          state.currentIndex = nextIndex;
+          state.musicId = state.queue[nextIndex].id;
+          state.isChanging = true;
+          // Maintain current play state
+        },
 
         
     playPrevious: (state) => {
@@ -200,6 +209,7 @@ export const {
   markAsPlayed,
   clearPlayedTracks,
   setCurrentPlaylistId, 
+  setIsLiked,
 } = musicPlayerSlice.actions;
 
 export default musicPlayerSlice.reducer;

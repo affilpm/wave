@@ -157,6 +157,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',  # Make sure this is included
     'csp.middleware.CSPMiddleware',
     
+    
 ]
 
 
