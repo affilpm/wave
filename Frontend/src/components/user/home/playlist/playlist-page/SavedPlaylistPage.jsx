@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Play, Pause, Clock, Share2, Shuffle } from "lucide-react";
+import { Play, Pause, Clock, Share2, Shuffle, Plus } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from 'react-redux';
 import api from "../../../../../api";
@@ -16,7 +16,7 @@ import {
   toggleShuffle
 } from "../../../../../slices/user/musicPlayerSlice";
 
-const PlaylistPage = () => {
+const SavedPlaylistPage = () => {
   const dispatch = useDispatch();
   const { musicId, isPlaying, queue, shuffle, currentPlaylistId } = useSelector((state) => state.musicPlayer);
   
@@ -267,6 +267,9 @@ const PlaylistPage = () => {
         >
           <Shuffle className="h-6 w-6" />
         </button>
+        <button className="group p-1 border-2 border-gray-400 rounded-full w-8 h-8 flex items-center justify-center transition-all duration-200 transform group-hover:scale-90 hover:border-gray-100 hover:bg-transparent">
+          <Plus className="h-6 w-6 text-gray-400 group-hover:text-white transition-colors" />
+        </button>
 
         <button className="p-2 text-gray-400 hover:text-white transition-colors">
           <Share2 className="h-6 w-6" />
@@ -302,4 +305,4 @@ const PlaylistPage = () => {
   );
 };
 
-export default PlaylistPage;
+export default SavedPlaylistPage;

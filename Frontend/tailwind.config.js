@@ -1,4 +1,3 @@
-
 const plugin = require('tailwindcss/plugin');
 
 module.exports = {
@@ -25,6 +24,8 @@ module.exports = {
     plugin(function ({ addUtilities }) {
       addUtilities({
         '.scrollbar-default': {
+          'scrollbar-width': 'thin', /* Firefox */
+          'scrollbar-color': '#888 #f1f1f1', /* Firefox */
           '&::-webkit-scrollbar': {
             width: '8px',
           },
@@ -35,6 +36,7 @@ module.exports = {
           '&::-webkit-scrollbar-thumb:hover': {
             background: '#555',
           },
+          '-ms-overflow-style': 'auto', /* IE and Edge */
         },
         '.scrollbar-hidden': {
           '&::-webkit-scrollbar': {
@@ -43,7 +45,7 @@ module.exports = {
           '-ms-overflow-style': 'none', /* IE and Edge */
           'scrollbar-width': 'none', /* Firefox */
         },
-      });
+      }, { variants: ['responsive'] });
     }),
   ],
 };

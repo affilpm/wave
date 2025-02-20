@@ -11,24 +11,59 @@ const MusicManagement = () => {
   const [selectedTrackId, setSelectedTrackId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  
   useEffect(() => {
-    fetchTracks();
-  }, []);
-
+      fetchTracks();
+  }, [currentPage, searchTerm]);
+  
   const fetchTracks = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/music/music/');
-      // Ensure we're getting an array from the response
-      const musicData = Array.isArray(response.data) ? response.data : response.data.results || [];
-      setTracks(musicData);
+  
+      // Prepare parameters
+      const params = { search: searchTerm, page_size: 8 };
+  
+      // Only add `page` if search term is empty or when searching
+      if (searchTerm) {
+        params.page = 1; // Always show the first page for search results
+        setCurrentPage(1)
+      } else {
+        params.page = currentPage <= totalPages ? currentPage : totalPages;
+      }
+  
+      const response = await api.get('/api/music/music/', { params });
+  
+      // For search results, we handle pagination independently
+      if (searchTerm) {
+        const musicData = Array.isArray(response.data) ? response.data : response.data.results || [];
+        setTracks(musicData);
+        setTotalPages(Math.ceil(response.data.count / 8)); // Calculate total pages for search results
+      } else {
+        // For non-search queries, handle normal pagination
+        const musicData = Array.isArray(response.data) ? response.data : response.data.results || [];
+        setTracks(musicData);
+        setTotalPages(Math.ceil(response.data.count / 8)); // Calculate total pages
+      }
+      
     } catch (err) {
       setError('Failed to load tracks');
       console.error('API Error:', err);
-      setTracks([]); // Set empty array on error
+      setTracks([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage > 0 && newPage <= totalPages) {
+      setCurrentPage(newPage);
+    } else {
+      // Handle edge case where user tries to go beyond the valid page range
+      if (newPage > totalPages) {
+        setCurrentPage(totalPages); // Set to the last page if exceeded
+      }
     }
   };
 
@@ -226,6 +261,26 @@ const MusicManagement = () => {
             </div>
         </div>
         )}
+        <div className="flex justify-between items-center mt-4">
+    <button
+        onClick={() => handlePageChange(currentPage - 1)}
+        disabled={currentPage === 1}
+        className="px-4 py-2 bg-gray-700 text-white rounded-md text-sm font-medium hover:bg-gray-600 transition disabled:opacity-50"
+    >
+        Previous
+    </button>
+    <span className="text-gray-400">
+        Page {currentPage} of {totalPages}
+    </span>
+    
+    <button
+      onClick={() => handlePageChange(currentPage + 1)}
+      disabled={currentPage === totalPages || filteredTracks.length === 0}
+      className="px-4 py-2 bg-gray-700 text-white rounded-md text-sm font-medium hover:bg-gray-600 transition disabled:opacity-50"
+    >
+      Next
+    </button>
+</div>
     </div>
   );
 };

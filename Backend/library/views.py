@@ -46,6 +46,12 @@ class LibraryViewSet(viewsets.ViewSet):
         serializer = LibraryPlaylistSerializer(playlists, many=True)
         return Response(serializer.data)
     
+    @action(detail=False, methods=['GET'], url_path='check-playlist/(?P<playlist_id>[^/.]+)')
+    def check_playlist_in_library(self, request, playlist_id=None):
+        library = get_object_or_404(Library, user=request.user)
+        is_in_library = library.playlists.filter(id=playlist_id).exists()
+        return Response({'is_in_library': is_in_library}, status=status.HTTP_200_OK)
+    
     @action(detail=False, methods=['post'])
     def add_playlist(self, request):
         playlist_id = request.data.get('playlist_id')

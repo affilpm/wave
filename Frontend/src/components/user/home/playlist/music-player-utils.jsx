@@ -15,9 +15,9 @@ import {
   moveTrack,
   markAsPlayed,
   setCurrentPlaylistId
- } from "../../../../../slices/user/musicPlayerSlice";
+ } from "../../../../slices/user/musicPlayerSlice";
 
-import api from "../../../../../api";
+import api from "../../../../api";
 
 export const fetchPlaylistTracks = async (playlistId) => {
   try {

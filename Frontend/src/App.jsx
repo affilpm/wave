@@ -17,14 +17,16 @@ import EditAlbum from './components/artist/studio/EditAlbum';
 import MultiStepRegister from './components/user/register/MultiStepRegister';
 import LoginPage from './components/user/login/Login';
 import Dashboard from './components/user/home/dashboard/Dashboard';
-import PlaylistPage from './components/user/home/playlist/your-playlist-page/YourPlaylistPage'; 
+import YourPlaylistPage from './components/user/home/playlist/your-playlist-page/YourPlaylistPage'; 
 import Premium from './components/user/home/header/Premium';
 import MusicShowMorePage from './components/user/home/dashboard/MusicShowMorePage';
-import SavedPlaylistPage from './components/user/home/playlist/playlist-page/PlaylistPage';
+import SavedPlaylistPage from './components/user/home/playlist/playlist-page/SavedPlaylistPage';
 import { Navigate } from 'react-router-dom';
 import AlbumPage from './components/user/home/album/AlbumPage';
 import UsernameSelectionPage from './components/user/register/UsernameSelectionPage';
 import GenrePage from './components/user/home/dashboard/GenrePage';
+import Profile from './components/user/home/header/settings/Profile';
+import MonetizationPage from './components/artist/studio/Monetization';
 // import { apiInstance } from './api';
 // import { musicStreamService } from './services/user/musicService';
 
@@ -80,11 +82,14 @@ function App() {
 
           <Route path="/" element={<HomePage />}>
               <Route path="/home" element={<Dashboard/>} />
-              <Route path="/playlist/:playlistId" element={<PlaylistPage/>} />
+              <Route path="/playlist/:playlistId" element={<YourPlaylistPage/>} />
               <Route path="/saved-playlist/:playlistId" element={<SavedPlaylistPage />} />
               <Route path="/music-show-more" element={<MusicShowMorePage/>} />
               <Route path="/album/:albumId" element={<AlbumPage/>} />
               <Route path="/genres/:genreId" element={<GenrePage/>} />
+              <Route path="/profile" element={<Profile/>} />
+              <Route path="/monetization" element={<MonetizationPage/>} />
+
 
 
 

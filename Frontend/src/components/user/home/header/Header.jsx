@@ -103,7 +103,7 @@ const Header = () => {
           </button>
           {showProfileMenu && (
             <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-md shadow-lg py-1">
-              {['Profile', 'Settings', isArtist && 'Studio', 'Log out'].map(
+              {['Profile', 'Settings','Monetization', isArtist && 'Studio', 'Log out'].map(
                 (item, idx) =>
                   item && (
                     <button

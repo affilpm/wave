@@ -1,14 +1,19 @@
-// PlaylistMenu.js
 import React, { useState, useRef, useEffect } from 'react';
-import { MoreVertical, Library } from 'lucide-react';
+import { MoreVertical, Library, Trash2, CheckCircle, Plus } from 'lucide-react';
 import api from "../../../../api";
+import toast from 'react-hot-toast';
+
+
 
 const PlaylistSectionMenuModal = ({ playlist, onSuccess }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isInLibrary, setIsInLibrary] = useState(false);
   const menuRef = useRef(null);
+  const [toastMessage, setToastMessage] = useState(null);
+
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -21,13 +26,31 @@ const PlaylistSectionMenuModal = ({ playlist, onSuccess }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleAddToLibrary = async () => {
-    // Debug log to verify playlist data
-    console.log('Adding playlist to library:', playlist);
+  useEffect(() => {
+    const checkIfInLibrary = async () => {
+        try {
+            const response = await api.get(`/api/library/library/check-playlist/${playlist.id}/`);
+            setIsInLibrary(response.data?.is_in_library || false);
+        } catch (err) {
+            console.error('Failed to check if playlist is in library:', err);
+        }
+    };
 
+    if (playlist?.id) {
+        checkIfInLibrary();
+    }
+}, [playlist.id]);
+
+
+const showToast = (message) => {
+  setToastMessage(message);
+  setTimeout(() => setToastMessage(null), 3000); // Toast disappears after 3 seconds
+};
+
+
+  const handleAddToLibrary = async () => {
     if (!playlist?.id) {
       setError('Invalid playlist ID');
-      console.error('Missing playlist ID:', playlist);
       return;
     }
 
@@ -40,21 +63,42 @@ const PlaylistSectionMenuModal = ({ playlist, onSuccess }) => {
         playlist_id: playlist.id
       });
       
-      console.log('API Response:', response.data);
-      
       if (response.data.message) {
-        setShowModal(true);
-        if (onSuccess) {
-          onSuccess();
-        }
+        // setShowModal(true);
+        setIsInLibrary(true);
+        if (onSuccess) onSuccess();
+        showToast(`"${playlist.name}" added to your library`)
       }
     } catch (err) {
-      console.error('Error adding playlist:', err.response || err);
-      setError(
-        err.response?.data?.error || 
-        err.response?.data?.message || 
-        'Failed to add playlist to library'
-      );
+      console.error('Error adding playlist:', err);
+      setError('Failed to add playlist to library');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRemoveFromLibrary = async () => {
+    if (!playlist?.id) {
+      setError('Invalid playlist ID');
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      setIsMenuOpen(false);
+
+      await api.post('/api/library/remove_playlist/', {
+        playlist_id: playlist.id 
+      });
+
+      // setShowModal(true);
+      setIsInLibrary(false);
+      if (onSuccess) onSuccess();
+      showToast(`"${playlist.name}" removed from your library`)
+    } catch (err) {
+      console.error('Error removing playlist:', err);
+      setError('Failed to remove playlist from library');
     } finally {
       setIsLoading(false);
     }
@@ -77,16 +121,31 @@ const PlaylistSectionMenuModal = ({ playlist, onSuccess }) => {
           className="absolute top-14 right-1 w-40 bg-gray-800 rounded-md shadow-lg py-0 z-[1000]"
           onClick={(e) => e.stopPropagation()}
         >
-          <button
-            onClick={handleAddToLibrary}
-            disabled={isLoading}
-            className={`w-full px-3 py-2 text-sm text-white hover:bg-gray-700 rounded-md flex items-center gap-2 ${
-              isLoading ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
-          >
-            <Library className="w-4 h-4" />
-            {isLoading ? 'Adding...' : 'Add to Library'}
-          </button>
+          {isInLibrary ? (
+            <button
+              onClick={handleRemoveFromLibrary}
+              disabled={isLoading}
+              className={`w-full px-3 py-2 text-sm text-white hover:bg-gray-700 rounded-md flex items-center  ${
+                isLoading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+            <CheckCircle className="h-5 w-5 text-green-500" />
+              {isLoading ? 'Removing...' : 'Remove from Library'}
+            </button>
+          ) : (
+            <button
+              onClick={handleAddToLibrary}
+              disabled={isLoading}
+              className={`w-full px-3 py-2 text-sm text-white hover:bg-gray-700 rounded-md flex items-center gap-2 ${
+                isLoading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+  <div className="flex items-center justify-center w-6 h-6 bg-gray-600 rounded-full">
+    <Plus className="h-5 w-5 text-gray-100 " />
+  </div>
+              {isLoading ? 'Adding...' : 'Add to Library'}
+            </button>
+          )}
         </div>
       )}
 
@@ -96,33 +155,25 @@ const PlaylistSectionMenuModal = ({ playlist, onSuccess }) => {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-semibold text-white mb-2">Added to Library</h3>
-            <p className="text-gray-300 mb-4">"{playlist.name}" has been added to your library.</p>
+            <h3 className="text-lg font-semibold text-white mb-2">
+              {isInLibrary ?  'Added to Library' : 'Removed from Library' }
+            </h3>
+            <p className="text-gray-300 mb-4">
+              "{playlist.name}" has been {isInLibrary ?  'added to' : 'removed from' } your library.
+            </p>
             <button
               onClick={() => setShowModal(false)}
-              className="w-full bg-green-500 text-white rounded-md py-2 hover:bg-green-600 transition-colors"
+              className="w-full bg-green-500 text-white rounded-md py-2 hover:bg-green-600 transition"
             >
-              Close
+              OK
             </button>
           </div>
         </div>
       )}
-
-      {error && (
-        <div 
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <div className="bg-gray-800 rounded-lg p-6 max-w-sm w-full mx-4">
-            <h3 className="text-lg font-semibold text-white mb-2">Error</h3>
-            <p className="text-gray-300 mb-4">{error}</p>
-            <button
-              onClick={() => setError(null)}
-              className="w-full bg-red-500 text-white rounded-md py-2 hover:bg-red-600 transition-colors"
-            >
-              Close
-            </button>
-          </div>
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-20 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white py-2 px-4 rounded-md shadow-lg z-50">
+          {toastMessage}
         </div>
       )}
     </div>

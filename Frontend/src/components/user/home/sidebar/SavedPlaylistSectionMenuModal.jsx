@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Delete, MoreVertical } from "lucide-react";
+import { Delete, MoreVertical, Plus, CheckCircle } from "lucide-react";
 
 const SavedPlaylistSectionMenuModal = ({ playlist, handleMenuAction }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -48,9 +48,9 @@ const SavedPlaylistSectionMenuModal = ({ playlist, handleMenuAction }) => {
                 e.stopPropagation();
                 handleMenuClick('delete');
               }}
-              className="flex items-center w-full px-4 py-2 text-sm text-red-400 hover:bg-gray-700"
+              className="flex items-center w-full px-4 py-2 text-white text-sm hover:bg-gray-700"
             >
-              <Delete className="h-4 w-4 mr-3" />
+              <CheckCircle className="h-4 w-4 mr-3 text-green-500" />
               Remove from library
             </button>
           </div>

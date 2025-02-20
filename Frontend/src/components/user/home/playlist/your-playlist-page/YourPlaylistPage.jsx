@@ -37,7 +37,7 @@ import {
 
 
 
-const PlaylistPage = () => {
+const YourPlaylistPage = () => {
   const dispatch = useDispatch();
   
   const [playlist, setPlaylist] = useState(null);
@@ -360,9 +360,9 @@ const handlePlayTrack = (track, index) => {
           <Shuffle className="h-6 w-6" />
         </button>
 
-        <button className="group p-1 border-2 border-gray-400 rounded-full w-8 h-8 flex items-center justify-center transition-all duration-200 transform group-hover:scale-90 hover:border-gray-100 hover:bg-transparent">
+        {/* <button className="group p-1 border-2 border-gray-400 rounded-full w-8 h-8 flex items-center justify-center transition-all duration-200 transform group-hover:scale-90 hover:border-gray-100 hover:bg-transparent">
           <Plus className="h-6 w-6 text-gray-400 group-hover:text-white transition-colors" />
-        </button>
+        </button> */}
 
         <button className="p-2 text-gray-400 hover:text-white transition-colors">
           <Share2 className="h-6 w-6" />
@@ -418,4 +418,4 @@ const handlePlayTrack = (track, index) => {
   );
 };
 
-export default PlaylistPage;
+export default YourPlaylistPage;
