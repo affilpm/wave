@@ -1,15 +1,19 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
-import { setCurrentTrack, setQueue, reorderQueue } from "../../../../slices/user/playerSlice";
 import { useNavigate } from "react-router-dom";
 import api from "../../../../api";
-import { setMusicId, setIsPlaying, setChangeComplete } from "../../../../slices/user/musicPlayerSlice";
+import { 
+  setMusicId,
+  setIsPlaying,
+  setQueue,
+  clearQueue,
+  setCurrentPlaylistId
+} from "../../../../slices/user/musicPlayerSlice";
 
 const MusicSection = ({ title }) => {
   const dispatch = useDispatch();
-  const currentTrack = useSelector((state) => state.player.currentTrack);
-  const isPlaying = useSelector((state) => state.musicPlayer.isPlaying);
+  const { musicId, isPlaying, currentPlaylistId } = useSelector((state) => state.musicPlayer);
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
   const [musiclistData, setMusiclistData] = useState([]);
@@ -22,7 +26,6 @@ const MusicSection = ({ title }) => {
         setLoading(true);
         const musiclistResponse = await api.get("/api/home/musiclist/?top10=true");
         setMusiclistData(musiclistResponse.data);
-        console.log('d',musiclistResponse.data)
       } catch (error) {
         console.error("Error fetching music data:", error);
       } finally {
@@ -44,33 +47,47 @@ const MusicSection = ({ title }) => {
     }
   };
 
-  const handlePlay = async (item, index, e) => {
+  const prepareTrackForPlayer = (track) => ({
+    id: track.id,
+    name: track.name,
+    artist: track.artist,
+    artist_full: track.artist_full,
+    cover_photo: track.cover_photo,
+    audio_file: track.audio_file,
+    duration: track.duration
+  });
+
+  const handlePlay = async (item, e) => {
     e.stopPropagation();
     
-    if (currentTrack?.id === item.id) {
-      // If clicking the currently playing track, just toggle play/pause
+    const formattedTrack = prepareTrackForPlayer(item);
+    const sectionId = `section-${title.toLowerCase().replace(/\s+/g, '-')}`;
+    
+    // If clicking the currently playing track
+    if (musicId === formattedTrack.id) {
+      // Just toggle play/pause
       dispatch(setIsPlaying(!isPlaying));
-    } else {
-      // First pause current playback and signal track change
-      dispatch(setIsPlaying(false));
-      
-      // Update the queue and current track
-      dispatch(setQueue([item]));
-      dispatch(setCurrentTrack(item));
-      
-      // Set new music ID and wait for a small delay to ensure proper state updates
-      await new Promise(resolve => {
-        dispatch(setMusicId(item.id));
-        setTimeout(resolve, 100); // Small delay to ensure state updates propagate
-      });
-      
-      // Finally start playback
-      dispatch(setIsPlaying(true));
+      return;
     }
+
+    // Playing a new track
+    // Clear existing queue
+    dispatch(clearQueue());
+    
+    // Add only the current track to the queue
+    dispatch(setQueue({
+      tracks: [formattedTrack],
+      playlistId: sectionId
+    }));
+    
+    // Set the new track ID and start playing
+    dispatch(setCurrentPlaylistId(sectionId));
+    dispatch(setMusicId(formattedTrack.id));
+    dispatch(setIsPlaying(true));
   };
 
   const isItemPlaying = (item) => {
-    return currentTrack?.id === item.id && isPlaying;
+    return musicId === item.id && isPlaying;
   };
 
   const handleShowMore = () => {
@@ -140,7 +157,7 @@ const MusicSection = ({ title }) => {
                       className={`absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center ${
                         isItemPlaying(item) ? 'flex' : 'hidden group-hover:flex'
                       } shadow-xl hover:scale-105 transition-all`}
-                      onClick={(e) => handlePlay(item, index, e)}
+                      onClick={(e) => handlePlay(item, e)}
                       aria-label={isItemPlaying(item) ? "Pause" : "Play"}
                     >
                       {isItemPlaying(item) ? (

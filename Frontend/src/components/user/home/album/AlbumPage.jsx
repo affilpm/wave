@@ -3,11 +3,12 @@ import { Play, Pause, Clock, Share2, Shuffle } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from 'react-redux';
 import { 
-  setQueue, 
-  setCurrentTrack, 
+  setMusicId,
   setIsPlaying,
-  reorderQueue 
-} from "../../../../slices/user/playerSlice";
+  setQueue,
+  clearQueue,
+  toggleShuffle
+} from "../../../../slices/user/musicPlayerSlice";
 import api from "../../../../api";
 import {
   formatDuration,
@@ -15,39 +16,113 @@ import {
   convertToHrMinFormat,
 } from "../../../../utils/formatters";
 
-
-
-
 const AlbumPage = () => {
   const dispatch = useDispatch();
-  const { currentTrack, isPlaying, queue } = useSelector((state) => state.player);
-  const audioRef = useRef(null);
+  const { musicId, isPlaying, queue, shuffle, currentPlaylistId } = useSelector((state) => state.musicPlayer);
+  
   const [album, setAlbum] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isShuffling, setIsShuffling] = useState(false);
+  const [totalDuration, setTotalDuration] = useState("");
   const { albumId } = useParams();
   const navigate = useNavigate();
-  const [totalDuration, setTotalDuration] = useState("");
+
+  // Transform track data for player
+  const prepareTrackForPlayer = (track) => ({
+    id: Number(track.music_details.id),
+    name: track.music_details.name,
+    artist: track.music_details.artist_username,
+    artist_full: track.music_details.artist_full_name,
+    cover_photo: track.music_details.cover_photo,
+    audio_file: track.music_details.audio_file,
+    duration: track.music_details.duration,
+    release_date: track.music_details.release_date
+  });
 
   const isCurrentTrackFromAlbum = () => {
-    if (!album?.tracks || !currentTrack) return false;
+    if (!album?.tracks || !musicId) return false;
     
-    // Check if current track exists in album
-    const trackExistsInAlbum = album.tracks.some(track => track.id === currentTrack.id);
+    // Check if current album ID matches
+    if (Number(currentPlaylistId) !== Number(album.id)) return false;
     
-    // Check if current queue matches album tracks
-    const isQueueFromAlbum = queue.length === album.tracks.length && 
-      queue.every(queueTrack => 
-        album.tracks.some(albumTrack => albumTrack.id === queueTrack.id)
-      );
+    // Check if current track exists in album - Fixed ID comparison
+    return album.tracks.some(track => Number(track.music_details.id) === Number(musicId));
+  };
+
+
+
+  const handlePlayAlbum = () => {
+    if (!album?.tracks?.length) return;
+
+    // Check if we're already playing this album
+    if (isCurrentTrackFromAlbum()) {
+      // Just toggle play state if it's the same album
+      dispatch(setIsPlaying(!isPlaying));
+      return;
+    }
+
+    // This is a new album - load it
+    const formattedTracks = album.tracks.map(prepareTrackForPlayer);
     
-    return trackExistsInAlbum && isQueueFromAlbum;
+    // Clear existing queue and set new one
+    dispatch(clearQueue());
+    dispatch(setQueue({ 
+      tracks: formattedTracks,
+      playlistId: Number(album.id) // Use album ID as playlistId
+    }));
+    
+    // Set the first track and start playing
+    if (formattedTracks.length > 0) {
+      dispatch(setMusicId(formattedTracks[0].id));
+      dispatch(setIsPlaying(true));
+    }
+  };
+
+  const handlePlayTrack = (track) => {
+    // First, prepare all tracks to ensure consistent data format
+    const formattedTracks = album.tracks.map(prepareTrackForPlayer);
+    const currentTrackId = Number(track.music_details.id); // Fixed ID reference
+    
+    // Check if this is the currently playing track
+    const isCurrentTrack = Number(musicId) === currentTrackId && 
+                          Number(currentPlaylistId) === Number(album.id);
+
+    if (isCurrentTrack) {
+      // Just toggle playback if it's the same track
+      dispatch(setIsPlaying(!isPlaying));
+      return;
+    }
+
+    // If we're playing a different album or no album is currently set
+    if (Number(currentPlaylistId) !== Number(album.id)) {
+      dispatch(clearQueue());
+      dispatch(setQueue({ 
+        tracks: formattedTracks,
+        playlistId: Number(album.id)
+      }));
+    }
+
+    // Find the index of the clicked track in the formatted tracks
+    const trackIndex = formattedTracks.findIndex(t => Number(t.id) === currentTrackId);
+    
+    if (trackIndex !== -1) {
+      // Set the track ID and start playing
+      dispatch(setMusicId(currentTrackId));
+      dispatch(setIsPlaying(true));
+    }
+  };
+
+  // Handle shuffle
+  const handleShuffle = () => {
+    dispatch(toggleShuffle());
+    if (!isPlaying && album?.tracks?.length) {
+      dispatch(setIsPlaying(true));
+    }
   };
 
   useEffect(() => {
     const calculateTotalDuration = () => {
-      if (album?.tracks?.length && audioRef.current) {
+      if (album?.tracks?.length) {
         const totalSeconds = album.tracks.reduce((acc, track) => {
           const trackDuration = track.music_details?.duration || "00:00:00";
           return acc + convertToSeconds(trackDuration);
@@ -60,98 +135,12 @@ const AlbumPage = () => {
     calculateTotalDuration();
   }, [album]);
 
-  // Transform track data for player
-  const prepareTrackForPlayer = (track) => ({
-    id: track.id,
-    name: track.music_details.name,
-    artist: track.music_details.artist_username,
-    artist_full: track.music_details.artist_full_name,
-    cover_photo: track.music_details.cover_photo,
-    audio_file: track.music_details.audio_file,
-    duration: track.music_details.duration
-  });
-
-  // Handle playing entire album
-  const handlePlayAlbum = () => {
-    if (album?.tracks?.length) {
-      const formattedTracks = album.tracks.map(prepareTrackForPlayer);
-      
-      // If already playing from this album, just toggle play state
-      if (isCurrentTrackFromAlbum()) {
-        dispatch(setIsPlaying(!isPlaying));
-        return;
-      }
-      
-      // Otherwise, set new queue and start playing
-      dispatch(setQueue(formattedTracks));
-      dispatch(setCurrentTrack(formattedTracks[0]));
-      // dispatch(setIsPlaying(true));
-      try {
-        // Only attempt to play if there's been user interaction
-        if (document.body.hasInteracted) {
-          dispatch(setIsPlaying(true));
-        } else {
-          // Just queue it up without playing
-          dispatch(setIsPlaying(false));
-        }
-      } catch (error) {
-        console.warn('Playback failed:', error);
-        dispatch(setIsPlaying(false));
-      }
-    }
-  };
-  
-  // Handle playing individual track
-  const handlePlayTrack = (track, index) => {
-    const formattedTrack = prepareTrackForPlayer(track);
-    
-    // If clicking the current track, just toggle play state
-    if (currentTrack?.id === formattedTrack.id) {
-      dispatch(setIsPlaying(!isPlaying));
-      return;
-    }
-
-    // If the queue is not this album, set it first
-    const formattedTracks = album.tracks.map(prepareTrackForPlayer);
-    if (queue.length !== formattedTracks.length || 
-        queue[0].id !== formattedTracks[0].id) {
-      dispatch(setQueue(formattedTracks));
-    }
-    
-    try {
-      dispatch(reorderQueue({ startIndex: index }));
-      // Since this is triggered by a click, it's safe to play
-      dispatch(setIsPlaying(true));
-    } catch (error) {
-      console.warn('Playback failed:', error);
-      dispatch(setIsPlaying(false));
-    }
-  };
-  // Handle shuffle
-  const handleShuffle = () => {
-    if (!album?.tracks?.length) return;
-    
-    setIsShuffling(!isShuffling);
-    const formattedTracks = [...album.tracks].map(prepareTrackForPlayer);
-    
-    if (!isShuffling) {
-      // Shuffle the tracks
-      const shuffledTracks = [...formattedTracks].sort(() => Math.random() - 0.5);
-      dispatch(setQueue(shuffledTracks));
-      dispatch(setCurrentTrack(shuffledTracks[0]));
-    } else {
-      // Restore original order
-      dispatch(setQueue(formattedTracks));
-      dispatch(setCurrentTrack(formattedTracks[0]));
-    }
-    dispatch(setIsPlaying(true));
-  };
-
   useEffect(() => {
     const fetchAlbum = async () => {
       try {
         const response = await api.get(`/api/album/album_data/${albumId}/`);
         setAlbum(response.data);
+        console.log(response.data)
       } catch (err) {
         setError("Failed to load album");
       } finally {
@@ -173,7 +162,8 @@ const AlbumPage = () => {
   }
 
   const TrackRow = ({ track, index }) => {
-    const isThisTrackPlaying = currentTrack?.id === track.id && isCurrentTrackFromAlbum();
+    const isThisTrackPlaying = Number(musicId) === Number(track.music_details.id) && 
+                              isCurrentTrackFromAlbum();
 
     return (
       <tr
@@ -186,7 +176,7 @@ const AlbumPage = () => {
             <span className="group-hover:hidden">{index + 1}</span>
             <button
               className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
-              onClick={() => handlePlayTrack(track, index)}
+              onClick={() => handlePlayTrack(track)}
             >
               {isThisTrackPlaying && isPlaying ? (
                 <Pause className="h-4 w-4" />
@@ -197,29 +187,30 @@ const AlbumPage = () => {
           </div>
         </td>
         <td className="py-3 pl-3">
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={track.music_details.cover_photo || "/api/placeholder/40/40"}
-                      alt={track.music_details.name}
-                      className="w-10 h-10 rounded-md"
-                    />
-                    <span className="font-medium">
-                      {track.music_details.name}
-                    </span>
-                  </div>
-                </td>
-                <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
-                  {track.music_details.artist_full_name}
-                </td>
-                <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
-                  {new Date(track.music_details.release_date).toLocaleDateString()}
-                </td>
-                <td className="py-3 text-center text-gray-400 w-20">
-                  {formatDuration(track.music_details.duration)}
-          </td>
+          <div className="flex items-center gap-3">
+            <img
+              src={track.music_details.cover_photo || "/api/placeholder/40/40"}
+              alt={track.music_details.name}
+              className="w-10 h-10 rounded-md"
+            />
+            <span className="font-medium">
+              {track.music_details.name}
+            </span>
+          </div>
+        </td>
+        <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
+          {track.music_details.artist_full_name}
+        </td>
+        <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
+          {new Date(track.music_details.release_date).toLocaleDateString()}
+        </td>
+        <td className="py-3 text-center text-gray-400 w-20">
+          {formatDuration(track.music_details.duration)}
+        </td>
       </tr>
     );
   };
+
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 via-black to-black text-white">
       {/* Header Section */}
@@ -266,7 +257,7 @@ const AlbumPage = () => {
 
         <button
           className={`p-2 text-gray-400 hover:text-white transition-colors ${
-            isShuffling ? "text-green-500" : ""
+            shuffle ? "text-green-500" : ""
           }`}
           onClick={handleShuffle}
         >

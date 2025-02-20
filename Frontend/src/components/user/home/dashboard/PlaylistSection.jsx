@@ -10,7 +10,7 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from "react-router-dom";
 import api from "../../../../api";
-import { handlePlaybackAction } from "../playlist/your-playlist-page/music-player-utils";
+import { handlePlaybackAction } from "../playlist/music-player-utils";
 
 
 

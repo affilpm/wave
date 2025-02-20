@@ -41,10 +41,17 @@ class MusicListView(generics.ListAPIView):
     
     
 class PlaylistView(generics.ListAPIView):
-    queryset = Playlist.objects.filter(is_public=True).exclude(tracks = None) # Fetch public playlists
     serializer_class = Playlist_ListSerializer # Serialize the data
     permission_classes = [IsAuthenticated] # Ensure the user is authenticated
     
+    def get_queryset(self):
+        return Playlist.objects.filter(
+            is_public=True
+        ).exclude(
+            tracks=None
+        ).exclude(
+            created_by=self.request.user  
+        )
 
 
 class AlbumListView(generics.ListAPIView):

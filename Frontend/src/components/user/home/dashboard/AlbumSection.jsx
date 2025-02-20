@@ -1,11 +1,22 @@
 import React, { useRef, useState } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from 'react-redux';
+import { handleAlbumPlaybackAction } from "../album/album-playback-utils";
 
-const AlbumSection = ({ title, items, isPlaying, setIsPlaying, currentAlbum, onAlbumPlay, onAlbumClick}) => {
+const AlbumSection = ({ title, items }) => {
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  // Get necessary state from Redux
+  const { 
+    musicId, 
+    isPlaying, 
+    queue, 
+    currentPlaylistId 
+  } = useSelector((state) => state.musicPlayer);
 
   const handleScroll = (direction) => {
     const container = scrollContainerRef.current;
@@ -18,17 +29,29 @@ const AlbumSection = ({ title, items, isPlaying, setIsPlaying, currentAlbum, onA
     }
   };
 
-  const handlePlay = (item, index, e) => {
+  const handlePlay = async (item, e) => {
     e.stopPropagation();
-    if (currentAlbum?.id === item.id) {
-      setIsPlaying(!isPlaying);
-    } else {
-      onAlbumPlay(item);
-    }
+    
+    // Use the same pattern as AlbumPage
+    await handleAlbumPlaybackAction({
+      albumId: item.id,
+      dispatch,
+      currentState: { 
+        musicId, 
+        isPlaying, 
+        queue, 
+        currentPlaylistId 
+      }
+    });
   };
 
   const isItemPlaying = (item) => {
-    return currentAlbum?.id === item.id && isPlaying;
+    // Match the check in AlbumPage
+    return Number(currentPlaylistId) === Number(item.id) && isPlaying;
+  };
+
+  const handleAlbumClick = (albumId) => {
+    navigate(`/album/${albumId}`);
   };
 
   const handleShowMore = () => {
@@ -80,7 +103,7 @@ const AlbumSection = ({ title, items, isPlaying, setIsPlaying, currentAlbum, onA
               <div
                 key={index}
                 className="flex-none w-40"
-                onClick={() => onAlbumClick(item.id)}
+                onClick={() => handleAlbumClick(item.id)}
               >
                 <div className="relative group">
                   <img
@@ -93,7 +116,7 @@ const AlbumSection = ({ title, items, isPlaying, setIsPlaying, currentAlbum, onA
                       className={`absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center ${
                         isItemPlaying(item) ? 'flex' : 'hidden group-hover:flex'
                       } shadow-xl hover:scale-105 transition-all`}
-                      onClick={(e) => handlePlay(item, index, e)}
+                      onClick={(e) => handlePlay(item, e)}
                     >
                       {isItemPlaying(item) ? (
                         <Pause className="w-6 h-6 text-black" />

@@ -42,11 +42,23 @@ class GenreViewSet(viewsets.ReadOnlyModelViewSet):
 
 ##
 
+from rest_framework.pagination import PageNumberPagination
+from django.db.models import Q
 
+
+
+class MusicPagination(PageNumberPagination):
+    page_size = 8
+    page_size_query_param = 'page_size'
+    max_page_size = 100
+    
+    
 class MusicViewSet(ModelViewSet):
     queryset = Music.objects.all()
     serializer_class = MusicSerializer
     parser_classes = (MultiPartParser, FormParser)
+    pagination_class = MusicPagination  
+
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
@@ -163,11 +175,14 @@ class MusicViewSet(ModelViewSet):
         })
         
     def get_queryset(self):
-        queryset = Music.objects.filter(
-            artist__user=self.request.user,
-        ).select_related('artist__user').prefetch_related('genres').order_by('-created_at')
+        search_term = self.request.query_params.get('search', '')
+        queryset = Music.objects.filter(artist__user=self.request.user)
+        
+        if search_term:
+            queryset = queryset.filter(
+                Q(name__icontains=search_term)  # Search by track name
+            ).distinct()
 
-        print(f"Queryset for user {self.request.user}: {queryset}")
         return queryset
         
         
@@ -275,6 +290,12 @@ def get_music_by_genre(request, genre_id):
 
 
 
+
+
+
+
+
+####################streaming$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 from rest_framework.decorators import api_view, permission_classes
 
 @api_view(['GET'])
