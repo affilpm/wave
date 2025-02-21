@@ -4,6 +4,7 @@ import { Music, Image as ImageIcon, X, ChevronDown, ChevronUp, Search,  Edit2 } 
 import api from '../../../../api';
 import { openModal, closeModal } from '../../../../slices/artist/modalSlice'; // Import actions
 import { debounce } from 'lodash';
+import AlbumSelector from './AlbumSelector';
 // import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import { toast } from 'react-toastify';
 import ImageCropper from './ImageCropper';
@@ -65,7 +66,7 @@ const MusicUpload = () => {
     const [albums, setAlbums] = useState([]);
     const [selectedAlbum, setSelectedAlbum] = useState('');
     const [trackNumber, setTrackNumber] = useState('');
-    const [showAlbumSection, setShowAlbumSection] = useState(false);
+    // const [showAlbumSection, setShowAlbumSection] = useState(false);
   
 
     useEffect(() => {
@@ -522,77 +523,6 @@ const MusicUpload = () => {
     };
   
 
-
-    const renderAlbumSection = () => (
-      <div className="space-y-4 mt-6">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-medium text-white">Add to Album</h3>
-        <button
-          type="button"
-          onClick={() => setShowAlbumSection(!showAlbumSection)}
-          className="text-blue-500 hover:text-blue-400"
-        >
-          {showAlbumSection ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-        </button>
-      </div>
-
-      {showAlbumSection && (
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-white mb-1">
-                Select Album (Optional)
-              </label>
-              <select
-                value={selectedAlbum}
-                onChange={(e) => {
-                  setSelectedAlbum(e.target.value);
-                  if (e.target.value) {
-                    // Get the next available track number for this album
-                    const album = albums.find(a => a.id.toString() === e.target.value);
-                    const maxTrackNumber = album?.tracks?.reduce(
-                      (max, track) => Math.max(max, track.track_number),
-                      0
-                    ) || 0;
-                    setTrackNumber((maxTrackNumber + 1).toString());
-                  } else {
-                    setTrackNumber('');
-                  }
-                }}
-                className="w-full p-2 border rounded-md bg-gray-700 text-white border-gray-600"
-              >
-                <option value="">Select an album...</option>
-                {albums.map((album) => (
-                  <option key={album.id} value={album.id}>
-                    {album.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {selectedAlbum && (
-              <div>
-                <label className="block text-sm font-medium text-white mb-1">
-                  Track Number
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={trackNumber}
-                  onChange={(e) => setTrackNumber(e.target.value)}
-                  className="w-full p-2 border rounded-md bg-gray-700 text-white border-gray-600"
-                  required={!!selectedAlbum}
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-
-
-
   
     // For the image preview CSP issue, use data URLs instead of blob URLs
     const getImagePreview = (file) => {
@@ -631,6 +561,8 @@ const MusicUpload = () => {
         formData.selectedGenres.length > 0 &&
         formData.selectedGenres.every(id => id && id !== 'undefined') &&
         formData.releaseDate &&
+        selectedAlbum &&
+        trackNumber &&
         // !fileErrors.cover &&
         !nameValidation.isChecking &&
         !nameValidation.error
@@ -996,7 +928,12 @@ const MusicUpload = () => {
         )}
 
 
-{renderAlbumSection()}
+<AlbumSelector 
+  selectedAlbum={selectedAlbum}
+  setSelectedAlbum={setSelectedAlbum}
+  trackNumber={trackNumber}
+  setTrackNumber={setTrackNumber}
+/>
 
 
 

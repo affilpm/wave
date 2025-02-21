@@ -116,6 +116,7 @@ INSTALLED_APPS = [
     'home',
     'library',
     'premium',
+    'listening_history'
     # 'csp',
     # 'django_csp', 
 ]
