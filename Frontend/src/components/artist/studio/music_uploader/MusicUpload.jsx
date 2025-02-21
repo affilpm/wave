@@ -72,10 +72,12 @@ const MusicUpload = () => {
     useEffect(() => {
       const fetchAlbums = async () => {
         try {
-          const response = await api.get('/api/album/album_data');
-          // Filter to only show public albums or those belonging to the user
+          const response = await api.get('/api/album/albums');
+          const currentUsername = localStorage.getItem('username');
+          
+          // Include ALL albums that belong to the current user, plus public albums from others
           const filteredAlbums = response.data.filter(album => 
-            album.is_public || album.artist_username === localStorage.getItem('username')
+            album.is_public || album.artist_username === currentUsername
           );
           setAlbums(filteredAlbums);
         } catch (err) {
@@ -83,10 +85,9 @@ const MusicUpload = () => {
           toast.error('Failed to load albums');
         }
       };
-  
+    
       fetchAlbums();
     }, []);
-
     
     // Create a debounced function to check track name
     const checkTrackName = debounce(async (name) => {

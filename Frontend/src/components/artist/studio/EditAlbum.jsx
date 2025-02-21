@@ -1,6 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, X, ImageIcon, Music, Plus, Trash2, Search as SearchIcon } from 'lucide-react';
+import { AlertCircle, X, ImageIcon } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 import api from '../../../api';
 
@@ -8,9 +7,6 @@ const MIN_IMAGE_SIZE = 500;
 const TARGET_SIZE = 500;
 const COVER_ASPECT = 1; // Square for cover
 const BANNER_ASPECT = 16 / 9; // Widescreen for banner
-
-
-
 
 const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
   const [originalAlbum, setOriginalAlbum] = useState(null);
@@ -22,16 +18,12 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
     tracks: []
   });
   
-  const [availableTracks, setAvailableTracks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [coverPreview, setCoverPreview] = useState(null);
   const [bannerPreview, setBannerPreview] = useState(null);
-  const [selectedTrack, setSelectedTrack] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filteredTracks, setFilteredTracks] = useState([]);
-const [albumData, setAlbumData] = useState([])
+  const [albumData, setAlbumData] = useState([]);
   const [coverPhotoError, setCoverPhotoError] = useState('');
   const [bannerImgError, setBannerImgError] = useState('');
   const [coverPreviewUrl, setCoverPreviewUrl] = useState(null);
@@ -48,25 +40,11 @@ const [albumData, setAlbumData] = useState([])
   const [bannerCroppedAreaPixels, setBannerCroppedAreaPixels] = useState(null);
 
   useEffect(() => {
-    const filtered = availableTracks
-      .filter(track => 
-        !album.tracks.some(t => t.track === track.id) &&
-        track.name.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    setFilteredTracks(filtered);
-  }, [searchQuery, availableTracks, album.tracks]);
-
-  useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [tracksResponse] = await Promise.all([
-          api.get('/api/album/music/')
-        ]);
-console.log(tracksResponse.data)
         setOriginalAlbum(initialAlbum);
         setAlbum(initialAlbum);
-        setAvailableTracks(tracksResponse.data);
 
         // Update image previews with full URLs
         if (initialAlbum.cover_photo) {
@@ -94,29 +72,22 @@ console.log(tracksResponse.data)
     fetchData();
   }, [initialAlbum]);
 
-
-
   const getChangedData = () => {
     if (!originalAlbum) return { changes: new FormData(), hasChanges: false };
   
     const changes = new FormData();
     let hasChanges = false;
   
-    const tracksChanged = hasTracksChanged(originalAlbum.tracks, album.tracks);
+    // Only check for track order changes
+    const tracksOrderChanged = hasTrackOrderChanged(originalAlbum.tracks, album.tracks);
   
-    if (tracksChanged) {
+    if (tracksOrderChanged) {
       const tracksData = album.tracks.map((track, index) => ({
         track: track.track,
         track_number: index + 1
       }));
       changes.append('tracks', JSON.stringify(tracksData));
       hasChanges = true;
-    } else {
-      const tracksData = originalAlbum.tracks.map((track, index) => ({
-        track: track.track,
-        track_number: index + 1
-      }));
-      changes.append('tracks', JSON.stringify(tracksData));
     }
   
     if (album.name !== originalAlbum.name) {
@@ -142,15 +113,14 @@ console.log(tracksResponse.data)
     return { changes, hasChanges };
   };
 
-  const hasTracksChanged = (originalTracks, currentTracks) => {
+  // Modified to only check if track order has changed
+  const hasTrackOrderChanged = (originalTracks, currentTracks) => {
     if (originalTracks.length !== currentTracks.length) {
       return true;
     }
     
-    const originalTrackIds = originalTracks.map(track => track.track).sort();
-    const currentTrackIds = currentTracks.map(track => track.track).sort();
-    
-    return originalTrackIds.some((trackId, index) => trackId !== currentTrackIds[index]);
+    // Check if the track order has changed
+    return originalTracks.some((track, index) => track.track !== currentTracks[index].track);
   };
 
   const createImage = (url) =>
@@ -234,7 +204,7 @@ console.log(tracksResponse.data)
       } else {
         setBannerImgError(err.message);
       }
-      toast.error(err.message);
+      console.error(err.message);
     }
   };
 
@@ -290,18 +260,17 @@ console.log(tracksResponse.data)
         });
 
         if (isCover) {
-          setAlbumData(prev => ({ ...prev, coverPhoto: croppedFile }));
+          setAlbum(prev => ({ ...prev, cover_photo: croppedFile }));
           setCoverPreviewUrl(URL.createObjectURL(blob));
           setShowCoverCropper(false);
         } else {
-          setAlbumData(prev => ({ ...prev, bannerImg: croppedFile }));
+          setAlbum(prev => ({ ...prev, banner_img: croppedFile }));
           setBannerPreviewUrl(URL.createObjectURL(blob));
           setShowBannerCropper(false);
         }
       }, 'image/jpeg', 0.95);
     } catch (error) {
       console.error('Error cropping image:', error);
-      toast.error('Failed to crop image. Please try again.');
       if (isCover) {
         setCoverPhotoError('Failed to crop image');
       } else {
@@ -383,38 +352,38 @@ console.log(tracksResponse.data)
     );
   };
 
-  const addTrack = () => {
-    if (!selectedTrack) return;
+  // New function to move track up in the order
+  const moveTrackUp = (index) => {
+    if (index === 0) return; // Already at the top
     
-    const trackToAdd = availableTracks.find(t => t.id.toString() === selectedTrack);
-    if (!trackToAdd) return;
-  
-    setAlbum(prev => ({
-      ...prev,
-      tracks: [
-        ...prev.tracks,
-        {
-          id: Date.now(),
-          track: trackToAdd.id,
-          track_number: prev.tracks.length + 1,
-          name: trackToAdd.name
-        }
-      ]
-    }));
+    const newTracks = [...album.tracks];
+    const temp = newTracks[index];
+    newTracks[index] = newTracks[index - 1];
+    newTracks[index - 1] = temp;
     
-    setSelectedTrack('');
+    // Update track numbers
+    newTracks.forEach((track, idx) => {
+      track.track_number = idx + 1;
+    });
+    
+    setAlbum(prev => ({ ...prev, tracks: newTracks }));
   };
 
-  const removeTrack = (trackToRemove) => {
-    setAlbum(prev => ({
-      ...prev,
-      tracks: prev.tracks
-        .filter(track => track.id !== trackToRemove.id)
-        .map((track, index) => ({
-          ...track,
-          track_number: index + 1
-        }))
-    }));
+  // New function to move track down in the order
+  const moveTrackDown = (index) => {
+    if (index === album.tracks.length - 1) return; // Already at the bottom
+    
+    const newTracks = [...album.tracks];
+    const temp = newTracks[index];
+    newTracks[index] = newTracks[index + 1];
+    newTracks[index + 1] = temp;
+    
+    // Update track numbers
+    newTracks.forEach((track, idx) => {
+      track.track_number = idx + 1;
+    });
+    
+    setAlbum(prev => ({ ...prev, tracks: newTracks }));
   };
 
   const handleSubmit = async (e) => {
@@ -458,31 +427,11 @@ console.log(tracksResponse.data)
     );
   }
 
-
-  const validateAlbumName = async (name) => {
-    try {
-      const response = await api.get('/api/album/validate_album_name/', {
-        params: {
-          name,
-          id: album.id
-        }
-      });
-      return response.data;
-    } catch (error) {
-      console.error("Error validating album name:", error);
-      return { exists: false, message: "Error occurred during validation" };
-    }
-  };
-
-
-
-
-  
-
   return (
     <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {showCoverCropper && renderCropper(true)}
-            {showBannerCropper && renderCropper(false)}
+      {showCoverCropper && renderCropper(true)}
+      {showBannerCropper && renderCropper(false)}
+      
       {error && (
         <div className="p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 flex items-center gap-2">
           <AlertCircle className="h-5 w-5" />
@@ -607,98 +556,56 @@ console.log(tracksResponse.data)
           </div>
         </div>
 
-      {/* Tracks Section */}
-      <div>
-        <label className="block text-sm font-medium text-gray-300 mb-4">
-          Current Tracks
-        </label>
-        
-        {/* Existing Tracks List */}
-        <div className="mb-8 space-y-4">
-          {album.tracks.length > 0 ? (
-            album.tracks.map((track, index) => (
-              <div key={track.id} className="flex items-center gap-4 bg-gray-700 p-4 rounded-lg">
-                <div className="flex-none w-8 h-8 flex items-center justify-center bg-gray-600 rounded-lg text-gray-300">
-                  {index + 1}
-                </div>
-                <Music className="h-5 w-5 text-gray-400" />
-                <span className="flex-1 text-white">{track.music_details.name}</span>
-                <button
-                  type="button"
-                  onClick={() => removeTrack(track)}
-                  className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"
-                >
-                  <Trash2 className="h-4 w-4" />
-                  <span>Remove</span>
-                </button>
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-8 text-gray-400">
-              No tracks in this album yet.
-            </div>
-          )}
-        </div>
-
-        {/* Add New Tracks Section */}
-        <div className="mt-6">
+        {/* Track Reordering Section */}
+        <div>
           <label className="block text-sm font-medium text-gray-300 mb-4">
-            Add New Tracks
+            Reorder Tracks
           </label>
           
-          {/* Search Input */}
-          <div className="relative mb-4">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <SearchIcon className="h-5 w-5 text-gray-400" />
-            </div>
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search tracks..."
-              className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-            />
-          </div>
-
-          {/* Scrollable Track List */}
-          <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-600">
-            {filteredTracks.length > 0 ? (
-              filteredTracks.map(track => (
-                <div
-                  key={track.id}
-                  className="flex items-center gap-4 p-4 hover:bg-gray-700 cursor-pointer border-b border-gray-600 last:border-b-0"
-                  onClick={() => {
-                    setAlbum(prev => ({
-                      ...prev,
-                      tracks: [
-                        ...prev.tracks,
-                        {
-                          id: Date.now(),
-                          track: track.id,
-                          track_number: prev.tracks.length + 1,
-                          name: track.name
-                        }
-                      ]
-                    }));
-                  }}
-                >
-                  <Music className="h-5 w-5 text-gray-400" />
-                  <span className="flex-1 text-white">{track.name}</span>
-                  <Plus className="h-5 w-5 text-blue-400" />
+          {/* Existing Tracks List with Reordering Controls */}
+          <div className="mb-8 space-y-4">
+            {album.tracks.length > 0 ? (
+              album.tracks.map((track, index) => (
+                <div key={track.id} className="flex items-center gap-4 bg-gray-700 p-4 rounded-lg">
+                  <div className="flex-none w-8 h-8 flex items-center justify-center bg-gray-600 rounded-lg text-gray-300">
+                    {index + 1}
+                  </div>
+                  <span className="flex-1 text-white">{track.music_details.name}</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => moveTrackUp(index)}
+                      disabled={index === 0}
+                      className={`p-2 rounded-lg transition-colors ${
+                        index === 0 
+                          ? 'text-gray-500 cursor-not-allowed' 
+                          : 'text-blue-400 hover:bg-blue-500/20'
+                      }`}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => moveTrackDown(index)}
+                      disabled={index === album.tracks.length - 1}
+                      className={`p-2 rounded-lg transition-colors ${
+                        index === album.tracks.length - 1
+                          ? 'text-gray-500 cursor-not-allowed' 
+                          : 'text-blue-400 hover:bg-blue-500/20'
+                      }`}
+                    >
+                      ↓
+                    </button>
+                  </div>
                 </div>
               ))
             ) : (
               <div className="text-center py-8 text-gray-400">
-                {searchQuery ? 'No matching tracks found' : 'No available tracks'}
+                No tracks in this album yet.
               </div>
             )}
           </div>
-          
-          <div className="mt-4 text-sm text-gray-400">
-            Click on a track to add it to the album
-          </div>
         </div>
-      </div>
       </div>
 
       <div className="flex justify-end gap-4 mt-8 pt-6 border-t border-gray-700">
@@ -721,5 +628,4 @@ console.log(tracksResponse.data)
   );
 };
 
-
-export default EditAlbum
+export default EditAlbum;
