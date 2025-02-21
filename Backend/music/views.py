@@ -1,5 +1,5 @@
 from django.shortcuts import render, get_object_or_404
-from .models import Genre, Music, MusicPlayHistory
+from .models import Genre, Music
 from .serializers import GenreSerializer, MusicSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
@@ -13,7 +13,7 @@ from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from django.db import transaction
-from .models import Album, StreamingSession
+from .models import Album
 # from .serializers import AlbumSerializer
 from mutagen.mp3 import MP3
 from mutagen.wavpack import WavPack
@@ -25,8 +25,16 @@ from django.db import IntegrityError
 import json
 from django.http import HttpResponse, FileResponse
 from django.utils import timezone
-
-
+import os
+import time
+import hmac
+import hashlib
+from datetime import datetime, timedelta
+from django.conf import settings
+from django.core.cache import cache
+from django.http import StreamingHttpResponse
+from rest_framework.permissions import AllowAny  
+from listening_history.models import PlayCount, PlayHistory
 
 
 
@@ -211,66 +219,12 @@ class MusicViewSet(ModelViewSet):
 ###
          
 
-
     
     
     
-    
-    
-##   admin side 
     
     
 
-class MusicVerificationViewSet(viewsets.ModelViewSet):
-    serializer_class = MusicVerificationSerializer
-    permission_classes = [IsAdminUser]
-    
-    def get_queryset(self):
-        return Music.objects.select_related(
-            'artist', 
-            'artist__user'
-        ).prefetch_related(
-            'genres'
-        ).order_by('-created_at')
-    
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['request'] = self.request
-        return context
-
-    @action(detail=True, methods=['post'])
-    def approve(self, request, pk=None):
-        try:
-            music = self.get_object()
-            music.approval_status = MusicApprovalStatus.APPROVED
-            # music.is_public = True
-            music.save()
-            
-            # Re-serialize the updated object
-            serializer = self.get_serializer(music)
-            return Response(serializer.data)
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-    
-    @action(detail=True, methods=['post'])
-    def reject(self, request, pk=None):
-        try:
-            music = self.get_object()
-            music.approval_status = MusicApprovalStatus.REJECTED
-            music.save()
-            
-            # Re-serialize the updated object
-            serializer = self.get_serializer(music)
-            return Response(serializer.data)
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
 
 import re
 import os
@@ -304,19 +258,7 @@ def get_signed_token(request, music_id):
     from django.conf import settings
     signed_token = generate_signed_token(request.user.id, music_id, settings.SECRET_KEY, expiry_seconds=3600)
     return Response({'token': signed_token})
-import os
-import time
-import hmac
-import hashlib
-from datetime import datetime, timedelta
 
-from django.conf import settings
-from django.core.cache import cache
-from django.shortcuts import get_object_or_404
-from django.http import StreamingHttpResponse
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import AllowAny  # Changed from IsAuthenticated
 
 
 # Helper functions (same as before)
@@ -332,7 +274,7 @@ def generate_signed_token(user_id, music_id, secret_key, expiry_seconds=3600):
 
 # Generate token
 token = generate_signed_token(3, 5, settings.SECRET_KEY)
-print("Generated Token:", token)
+# print("Generated Token:", token)
 
 # Verify token
 def verify_signed_token(signed_token, music_id, secret_key):
@@ -362,7 +304,7 @@ def verify_signed_token(signed_token, music_id, secret_key):
         print("Exception during token verification:", str(e))
         return False
 
-print("Verification result:", verify_signed_token(token, 5, settings.SECRET_KEY))
+# print("Verification result:", verify_signed_token(token, 5, settings.SECRET_KEY))
 
 
 from users.models import CustomUser
@@ -375,10 +317,25 @@ class MusicStreamView(APIView):
     CHUNK_SIZE = 8192  # 8KB chunks
     RATE_LIMIT_REQUESTS = 2100
     RATE_LIMIT_DURATION = 3600  # 1 hour
+    
+    
     def save_play_history(self, user_id, music):
         """Logs the music playback event in the database."""
         user = get_object_or_404(CustomUser, pk=user_id)
-        MusicPlayHistory.objects.create(user=user, music=music, duration_played=0)
+        
+        PlayHistory.objects.create(user=user, music=music)
+        
+        play_count, created = PlayCount.objects.get_or_create(
+            user=user,
+            music=music,
+            defaults={'count':1, 'last_played': timezone.now()},
+        )
+        
+        if not created:
+            play_count.count += 1
+            play_count.last_played = timezone.now()
+            play_count.save()
+            
         
     def get_content_type(self, file_path):
         ext = os.path.splitext(file_path)[1].lower()
@@ -500,34 +457,7 @@ class MusicStreamView(APIView):
 
 
         
-# Recently Played
 
-from django.db.models import Count
-
-class RecentlyPlayedView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        recent_plays = (
-            MusicPlayHistory.objects
-            .filter(user=request.user)
-            .values('music__id', 'music__name', 'music__artist__user__email')
-            .annotate(play_count=Count('id'))
-            .order_by('-played_at')[:10]
-        )
-
-        data = [
-            {
-                "music_id": play["music__id"],
-                "title": play["music__name"],
-                "artist": play["music__artist__user__email"],
-                "play_count": play["play_count"],
-            }
-            for play in recent_plays
-        ]
-        print(data)
-        return Response(data)
-    
     
 
 
@@ -557,3 +487,62 @@ class MusicMetadataView(APIView):
         
         
             
+            
+            
+            
+            
+            
+##   admin side 
+    
+    
+
+class MusicVerificationViewSet(viewsets.ModelViewSet):
+    serializer_class = MusicVerificationSerializer
+    permission_classes = [IsAdminUser]
+    
+    def get_queryset(self):
+        return Music.objects.select_related(
+            'artist', 
+            'artist__user'
+        ).prefetch_related(
+            'genres'
+        ).order_by('-created_at')
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        try:
+            music = self.get_object()
+            music.approval_status = MusicApprovalStatus.APPROVED
+            # music.is_public = True
+            music.save()
+            
+            # Re-serialize the updated object
+            serializer = self.get_serializer(music)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        try:
+            music = self.get_object()
+            music.approval_status = MusicApprovalStatus.REJECTED
+            music.save()
+            
+            # Re-serialize the updated object
+            serializer = self.get_serializer(music)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+                    

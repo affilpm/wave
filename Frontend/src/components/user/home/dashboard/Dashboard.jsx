@@ -9,7 +9,7 @@ import { useSelector } from "react-redux";
 import GenreDiscovery from "./GenreDiscovery";
 import { Shuffle, PauseCircle, PlayCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-
+import RecentlyPlayedSection from "./RecentlyPlayedSection";
 
 const ShufflingDashboard = ({ children }) => {
   const [sections, setSections] = useState([]);
@@ -116,19 +116,19 @@ const ShufflingDashboard = ({ children }) => {
         {wrappedSections}
       </AnimatePresence>
 
-      {/* <GenreDiscovery /> */}
+      <GenreDiscovery />
     </div>
   );
 };
 
-
-// Updated Dashboard component
+// Dashboard component update
 const Dashboard = () => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [filter, setFilter] = useState("all");
   const [musiclistData, setMusiclistData] = useState([]);
   const [playlistData, setPlaylistData] = useState([]);
   const [AlbumlistData, setAlbumlistData] = useState([]);
+  const [recentlyPlayedData, setRecentlyPlayedData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -138,14 +138,17 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const musiclistResponse = await api.get("/api/home/musiclist/");
-        setMusiclistData(musiclistResponse.data);
+        const [musiclistResponse, playlistResponse, albumlistResponse, recentlyPlayedResponse] = await Promise.all([
+          api.get("/api/home/musiclist/"),
+          api.get("/api/home/playlist/"),
+          api.get("/api/home/albumlist/"),
+          api.get("/api/listening_history/recently-played/")
+        ]);
 
-        const playlistResponse = await api.get("/api/home/playlist/");
+        setMusiclistData(musiclistResponse.data);
         setPlaylistData(playlistResponse.data);
-console.log(playlistResponse)
-        const AlbumlistResponse = await api.get("/api/home/albumlist/");
-        setAlbumlistData(AlbumlistResponse.data);
+        setAlbumlistData(albumlistResponse.data);
+        setRecentlyPlayedData(recentlyPlayedResponse.data);
 
       } catch (err) {
         setError("Failed to load data.");
@@ -162,23 +165,27 @@ console.log(playlistResponse)
     if (playlist && playlist.created_by === username) {
       navigate(`/playlist/${playlistId}`);
     } else {
-        navigate(`/saved-playlist/${playlistId}`);
+      navigate(`/saved-playlist/${playlistId}`);
     }
   };
 
-
   const handleAlbumClick = (albumId) => {
-        navigate(`/album/${albumId}`);
+    navigate(`/album/${albumId}`);
   };
 
   const filteredItems = (items) =>
     filter === "all" ? items : items.filter((item) => item.type === filter);
 
-  // if (loading) return <div className="text-white">Loading...</div>;
   if (error) return <div className="text-white">{error}</div>;
 
   return (
     <ShufflingDashboard>
+      {recentlyPlayedData.length > 0 && (
+        <RecentlyPlayedSection
+          title="Recently Played"
+          items={recentlyPlayedData}
+        />
+      )}
       {filteredItems(musiclistData).length > 0 && (
         <MusicSection
           title="Music"

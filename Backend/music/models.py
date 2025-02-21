@@ -119,31 +119,3 @@ class AlbumTrack(models.Model):
         
         
         
-        
-class MusicPlayHistory(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="play_history")
-    music = models.ForeignKey('Music', on_delete=models.CASCADE, related_name="play_history")
-    played_at = models.DateTimeField(auto_now_add=True)
-    duration_played = models.PositiveIntegerField(default=0)  
-    class Meta:
-        ordering = ['-played_at']
-
-    def __str__(self):
-        return f"{self.user.email} played {self.music.name} at {self.played_at}"        
-    
-   
-   
-        
-class StreamingSession(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    music = models.ForeignKey('Music', on_delete=models.CASCADE)
-    session_id = models.UUIDField(default=uuid.uuid4, editable=False)
-    started_at = models.DateTimeField(auto_now_add=True)
-    ended_at = models.DateTimeField(null=True, blank=True)
-    last_position = models.PositiveIntegerField(default=0)  # in seconds
-    completed = models.BooleanField(default=False)
-    
-    class Meta:
-        indexes = [
-            models.Index(fields=['user', 'music', 'started_at'])
-        ]    
