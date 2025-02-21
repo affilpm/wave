@@ -38,9 +38,9 @@ class AlbumViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return Album.objects.filter(artist=self.request.user.artist_profile)
-    def perform_create(self, serializer):
-        serializer.save(artist=self.request.user.artist)
+        return Album.objects.filter(artist__user=self.request.user)
+    # def perform_create(self, serializer):
+    #     serializer.save(artist__user=self.request.user)
         
     def destroy(self, request, *args, **kwargs):
         """

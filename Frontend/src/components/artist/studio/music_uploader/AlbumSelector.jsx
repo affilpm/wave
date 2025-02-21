@@ -17,10 +17,8 @@ const AlbumSelector = ({ selectedAlbum, setSelectedAlbum, trackNumber, setTrackN
     const fetchAlbums = async () => {
       try {
         const response = await api.get('/api/album/albums');
-        const filteredAlbums = response.data.filter(album => 
-          album.is_public || album.artist_username === localStorage.getItem('username')
-        );
-        setAlbums(filteredAlbums);
+
+        setAlbums(response.data);
       } catch (err) {
         console.error('Error fetching albums:', err);
         toast.error('Failed to load albums');

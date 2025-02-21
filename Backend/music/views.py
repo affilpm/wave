@@ -184,7 +184,7 @@ class MusicViewSet(ModelViewSet):
         
     def get_queryset(self):
         search_term = self.request.query_params.get('search', '')
-        queryset = Music.objects.filter(artist__user=self.request.user)
+        queryset = Music.objects.filter(artist__user=self.request.user).order_by('-created_at')
         
         if search_term:
             queryset = queryset.filter(
