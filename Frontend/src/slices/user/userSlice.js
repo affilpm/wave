@@ -27,10 +27,12 @@ const userSlice = createSlice({
       state.isAuthenticated = true; // Set isAuthenticated to true when user data is set
     },
     
-    updateUserImage: (state, action) => {
-      state.image = action.payload;
-    },
 
+    updateUserProfile: (state, action) => {
+      state.username = action.payload.username;
+      state.image = action.payload.profile_photo || '';
+    },
+    
     clearUserData: (state) => {
       state.email = ''; // Reset to empty string
       state.user_id= '',
@@ -44,7 +46,7 @@ const userSlice = createSlice({
 });
 
 // Export actions for use in components
-export const { setUserData, updateUserImage, clearUserData } = userSlice.actions;
+export const { setUserData, clearUserData, updateUserProfile } = userSlice.actions;
 
 // Export the reducer to be added to the store
 export default userSlice.reducer;

@@ -1,7 +1,6 @@
 from rest_framework import serializers
 from .models import Artist
-from rest_framework import serializers
-from .models import Artist
+
 
 class ArtistSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source='user.email', read_only=True)

@@ -2,14 +2,14 @@ import React, { useState, useEffect, useRef } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import api from "../../../../api";
+import api from "../../../../../api";
 import { 
   setMusicId,
   setIsPlaying,
   setQueue,
   clearQueue,
   setCurrentPlaylistId
-} from "../../../../slices/user/musicPlayerSlice";
+} from "../../../../../slices/user/musicPlayerSlice";
 
 const MusicSection = ({ title }) => {
   const dispatch = useDispatch();
@@ -24,8 +24,10 @@ const MusicSection = ({ title }) => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const musiclistResponse = await api.get("/api/home/musiclist/?top10=true");
-        setMusiclistData(musiclistResponse.data);
+        const musiclistResponse = await api.get(`/api/home/musiclist/?top10=true`);
+
+        setMusiclistData(musiclistResponse.data.results || []);
+        
       } catch (error) {
         console.error("Error fetching music data:", error);
       } finally {

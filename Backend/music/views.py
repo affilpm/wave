@@ -1,6 +1,6 @@
 from django.shortcuts import render, get_object_or_404
 from .models import Genre, Music
-from .serializers import GenreSerializer, MusicSerializer
+from .serializers import GenreSerializer, MusicSerializer, MusicDataSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -35,6 +35,11 @@ from django.core.cache import cache
 from django.http import StreamingHttpResponse
 from rest_framework.permissions import AllowAny  
 from listening_history.models import PlayCount, PlayHistory
+from rest_framework import generics
+from django.db.models import F
+from rest_framework.pagination import PageNumberPagination
+from django.db.models import Q
+from users.models import CustomUser
 
 
 
@@ -44,14 +49,25 @@ class GenreViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     
     
-
-
+class PublicGenresViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Genre.objects.filter(musical_works__is_public=True).distinct()
+    serializer_class = GenreSerializer
 
 
 ##
-
-from rest_framework.pagination import PageNumberPagination
-from django.db.models import Q
+class PublicSongsView(generics.ListAPIView):
+    serializer_class = MusicDataSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return Music.objects.filter(
+            artist__user=self.request.user,
+            is_public=True,
+            approval_status='approved'
+        ).order_by('-release_date')
+        
+        
+        
 
 
 
@@ -152,21 +168,21 @@ class MusicViewSet(ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
             
-    @action(detail=True)
-    def streaming_stats(self, request, pk=None):
-            music = self.get_object()
-            stats = StreamingSession.objects.filter(music=music).aggregate(
-                total_plays=Count('id'),
-                completed_plays=Count('id', filter=Q(completed=True)),
-                average_duration=Avg('last_position')
-            )
+    # @action(detail=True)
+    # def streaming_stats(self, request, pk=None):
+    #         music = self.get_object()
+    #         stats = StreamingSession.objects.filter(music=music).aggregate(
+    #             total_plays=Count('id'),
+    #             completed_plays=Count('id', filter=Q(completed=True)),
+    #             average_duration=Avg('last_position')
+    #         )
             
-            serializer = StreamingStatsSerializer({
-                'id': music.id,
-                'name': music.name,
-                **stats
-            })
-            return Response(serializer.data)    
+    #         serializer = StreamingStatsSerializer({
+    #             'id': music.id,
+    #             'name': music.name,
+    #             **stats
+    #         })
+    #         return Response(serializer.data)    
         
         
         
@@ -222,23 +238,6 @@ class MusicViewSet(ModelViewSet):
     
     
     
-    
-    
-
-
-import re
-import os
-
-@api_view(['GET'])
-def get_music_by_genre(request, genre_id):
-    music = Music.objects.filter(
-        genres__id=genre_id,
-        approval_status=MusicApprovalStatus.APPROVED,
-        is_public=True
-    ).select_related('artist__user').order_by('-created_at')
-    
-    serializer = MusicSerializer(music, many=True)
-    return Response(serializer.data)
 
 
 
@@ -274,7 +273,6 @@ def generate_signed_token(user_id, music_id, secret_key, expiry_seconds=3600):
 
 # Generate token
 token = generate_signed_token(3, 5, settings.SECRET_KEY)
-# print("Generated Token:", token)
 
 # Verify token
 def verify_signed_token(signed_token, music_id, secret_key):
@@ -304,38 +302,43 @@ def verify_signed_token(signed_token, music_id, secret_key):
         print("Exception during token verification:", str(e))
         return False
 
-# print("Verification result:", verify_signed_token(token, 5, settings.SECRET_KEY))
 
 
-from users.models import CustomUser
 
 
 
 class MusicStreamView(APIView):
-    # Allow all users, we'll check our signed token manually
+
     permission_classes = [AllowAny]  
     CHUNK_SIZE = 8192  # 8KB chunks
     RATE_LIMIT_REQUESTS = 2100
     RATE_LIMIT_DURATION = 3600  # 1 hour
     
     
+    @classmethod
+    @transaction.atomic
     def save_play_history(self, user_id, music):
-        """Logs the music playback event in the database."""
+        """
+        Logs the music playback event in the database using atomic transaction.
+        """
         user = get_object_or_404(CustomUser, pk=user_id)
         
-        PlayHistory.objects.create(user=user, music=music)
-        
-        play_count, created = PlayCount.objects.get_or_create(
-            user=user,
-            music=music,
-            defaults={'count':1, 'last_played': timezone.now()},
-        )
-        
-        if not created:
-            play_count.count += 1
-            play_count.last_played = timezone.now()
-            play_count.save()
+        with transaction.atomic():
+            # Create play history entry
+            PlayHistory.objects.create(user=user, music=music)
             
+            # Update or create play count
+            play_count, created = PlayCount.objects.select_for_update().get_or_create(
+                user=user,
+                music=music,
+                defaults={'count': 1, 'last_played': timezone.now()}
+            )
+            
+            if not created:
+                PlayCount.objects.filter(pk=play_count.pk).update(
+                    count=F('count') + 1,
+                    last_played=timezone.now()
+                )
         
     def get_content_type(self, file_path):
         ext = os.path.splitext(file_path)[1].lower()
@@ -405,6 +408,7 @@ class MusicStreamView(APIView):
             if not hasattr(request, '_play_history_saved'):
                 self.save_play_history(token_user_id, music)
                 request._play_history_saved = True
+
 
             file_size = os.path.getsize(path)
             content_type = self.get_content_type(path)

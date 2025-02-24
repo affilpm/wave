@@ -27,19 +27,27 @@ const PlaylistSectionMenuModal = ({ playlist, onSuccess }) => {
   }, []);
 
   useEffect(() => {
+    let isMounted = true; // To prevent state updates if component is unmounted
+
     const checkIfInLibrary = async () => {
+        if (!playlist?.id) return; // Guard clause to prevent unnecessary API call
+
         try {
             const response = await api.get(`/api/library/library/check-playlist/${playlist.id}/`);
-            setIsInLibrary(response.data?.is_in_library || false);
+            if (isMounted) {
+                setIsInLibrary(response.data?.is_in_library || false);
+            }
         } catch (err) {
             console.error('Failed to check if playlist is in library:', err);
         }
     };
 
-    if (playlist?.id) {
-        checkIfInLibrary();
-    }
-}, [playlist.id]);
+    checkIfInLibrary();
+
+    return () => {
+        isMounted = false; // Cleanup function to avoid setting state on unmounted component
+    };
+}, [playlist?.id]);
 
 
 const showToast = (message) => {

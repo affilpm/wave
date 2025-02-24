@@ -19,16 +19,20 @@ import LoginPage from './components/user/login/Login';
 import Dashboard from './components/user/home/dashboard/Dashboard';
 import YourPlaylistPage from './components/user/home/playlist/your-playlist-page/YourPlaylistPage'; 
 import Premium from './components/user/home/header/Premium';
-import MusicShowMorePage from './components/user/home/dashboard/MusicShowMorePage';
+import MusicShowMorePage from './components/user/home/dashboard/Music-section/MusicShowMorePage';
 import SavedPlaylistPage from './components/user/home/playlist/playlist-page/SavedPlaylistPage';
 import { Navigate } from 'react-router-dom';
 import AlbumPage from './components/user/home/album/AlbumPage';
 import UsernameSelectionPage from './components/user/register/UsernameSelectionPage';
 import GenrePage from './components/user/home/dashboard/GenrePage';
-import Profile from './components/user/home/header/settings/Profile';
+import Profile from './components/user/home/header/Profile';
 import MonetizationPage from './components/artist/studio/Monetization';
 // import { apiInstance } from './api';
 // import { musicStreamService } from './services/user/musicService';
+import PlaylistShowMorePage from './components/user/home/dashboard/Playlist-section/PlaylistShowMore';
+import AlbumShowMorePage from './components/user/home/dashboard/Album-section/AlbumShowMore';
+
+
 
 export const logout= () => {
   // Completely clear all data from localStorage
@@ -89,6 +93,10 @@ function App() {
               <Route path="/genres/:genreId" element={<GenrePage/>} />
               <Route path="/profile" element={<Profile/>} />
               <Route path="/monetization" element={<MonetizationPage/>} />
+              <Route path="/playlist-show-more" element={<PlaylistShowMorePage/>} />
+              <Route path="/albums-show-more" element={<AlbumShowMorePage/>} />
+
+
 
 
 

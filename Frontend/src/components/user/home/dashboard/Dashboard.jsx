@@ -1,15 +1,17 @@
 // Home.js
 import React, { useState, useEffect, useCallback} from "react";
-import MusicSection from "./MusicSection";
-import PlaylistSection from "./PlaylistSection";
+import MusicSection from "./Music-section/MusicSection";
+import PlaylistSection from "./Playlist-section/PlaylistSection";
 import api from "../../../../api";
-import AlbumSection from "./AlbumSection";
+import AlbumSection from "./Album-section/AlbumSection";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import GenreDiscovery from "./GenreDiscovery";
 import { Shuffle, PauseCircle, PlayCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import RecentlyPlayedSection from "./RecentlyPlayedSection";
+import ArtistSection from "./ArtistSection";
+
 
 const ShufflingDashboard = ({ children }) => {
   const [sections, setSections] = useState([]);
@@ -138,16 +140,18 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        const page=1
+        const limit = 10
         const [musiclistResponse, playlistResponse, albumlistResponse, recentlyPlayedResponse] = await Promise.all([
-          api.get("/api/home/musiclist/"),
-          api.get("/api/home/playlist/"),
-          api.get("/api/home/albumlist/"),
+          api.get(`/api/home/musiclist/?top10=true`),
+          api.get("/api/home/playlist/?top10=true"),
+          api.get("/api/home/albumlist/?top10=true"),
           api.get("/api/listening_history/recently-played/")
         ]);
 
-        setMusiclistData(musiclistResponse.data);
-        setPlaylistData(playlistResponse.data);
-        setAlbumlistData(albumlistResponse.data);
+        setMusiclistData(musiclistResponse.data.results);
+        setPlaylistData(playlistResponse.data.results);
+        setAlbumlistData(albumlistResponse.data.results);
         setRecentlyPlayedData(recentlyPlayedResponse.data);
 
       } catch (err) {
@@ -175,7 +179,7 @@ const Dashboard = () => {
 
   const filteredItems = (items) =>
     filter === "all" ? items : items.filter((item) => item.type === filter);
-
+  console.log(filteredItems(musiclistData));
   if (error) return <div className="text-white">{error}</div>;
 
   return (
@@ -186,6 +190,12 @@ const Dashboard = () => {
           items={recentlyPlayedData}
         />
       )}
+      {filteredItems(musiclistData).length > 0 && (
+  <ArtistSection
+    title="Artists"
+    items={filteredItems(musiclistData)}
+  />
+)}
       {filteredItems(musiclistData).length > 0 && (
         <MusicSection
           title="Music"

@@ -1,20 +1,20 @@
 import React, { useRef, useState, useEffect } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
-import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
+import PlaylistSectionMenuModal from "../PlaylistSectionMenuModal";
 import { 
   setMusicId,
   setIsPlaying,
   setQueue,
   setCurrentPlaylistId,
-} from "../../../../slices/user/musicPlayerSlice";
+} from "../../../../../slices/user/musicPlayerSlice";
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from "react-router-dom";
-import api from "../../../../api";
-import { handlePlaybackAction } from "../playlist/music-player-utils";
+import api from "../../../../../api";
+import { handlePlaybackAction } from "../../playlist/music-player-utils";
 
 
 
-const PlaylistSection = ({ title }) => {
+const PlaylistSection = ({ title,  onLengthChange  }) => {
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
   const [playlistData, setPlaylistData] = useState([]);
@@ -35,9 +35,10 @@ const PlaylistSection = ({ title }) => {
   useEffect(() => {
     const fetchPlaylistData = async () => {
       try {
-        const playlistResponse = await api.get("/api/home/playlist/");
-        console.log(playlistResponse.data)
-        setPlaylistData(playlistResponse.data);
+        const playlistResponse = await api.get("/api/home/playlist/?top10=true");
+        setPlaylistData(playlistResponse.data.results);
+
+        
       } catch (err) {
         setError("Failed to load playlists");
       } finally {
@@ -46,7 +47,7 @@ const PlaylistSection = ({ title }) => {
     };
 
     fetchPlaylistData();
-  }, []);
+  }, [onLengthChange]);
 
   const handlePlaylistClick = (playlistId) => {
     const playlist = playlistData.find((item) => item.id === playlistId);
@@ -87,6 +88,10 @@ const PlaylistSection = ({ title }) => {
     }
   };
 
+  const handleShowMore = () => {
+    navigate("/playlist-show-more", { state: { title } });
+  };
+
   if (loading) return <div className="text-white">Loading playlists...</div>;
   if (error) return <div className="text-white">{error}</div>;
   if (!playlistData.length) return null;
@@ -95,6 +100,12 @@ const PlaylistSection = ({ title }) => {
     <section className="mb-8 relative">
       <div className="flex justify-between items-center mb-4 px-4">
         <h2 className="text-2xl font-bold">{title}</h2>
+        <button
+          onClick={handleShowMore}
+          className="text-sm text-gray-400 hover:text-white transition-colors"
+        >
+          Show all
+        </button>
       </div>
 
       <div 

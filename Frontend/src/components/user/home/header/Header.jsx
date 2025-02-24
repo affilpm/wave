@@ -12,7 +12,7 @@ const Header = () => {
   const [isPremium, setIsPremium] = useState(false);
   const navigate = useNavigate();
 
-  const { username, photo } = useSelector((state) => state.user);
+  const { username, photo, image } = useSelector((state) => state.user);
   const { isArtist } = useArtistStatus();
 
 
@@ -86,14 +86,14 @@ const Header = () => {
             onClick={() => setShowProfileMenu((prev) => !prev)}
           >
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center ${photo ? '' : 'bg-gray-500'}`}
+              className={`w-8 h-8 rounded-full flex items-center justify-center ${image ? '' : 'bg-gray-500'}`}
               style={{
-                backgroundImage: photo ? `url(${photo})` : 'none',
+                backgroundImage: image ? `url(${image})` : 'none',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
               }}
             >
-              {!photo && username && (
+              {!image && username && (
                 <span className="text-white text-lg font-bold">
                   {username.charAt(0).toUpperCase()}
                 </span>

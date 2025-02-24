@@ -124,7 +124,12 @@ def login_verify_otp(request):
             access_token['user_id'] = user.id
             access_token['first_name'] = user.first_name
             access_token['last_name'] = user.last_name
-
+            if user.profile_photo:
+                request_url = request.build_absolute_uri(user.profile_photo.url)
+                access_token['profile_photo'] = request_url
+            else:
+                access_token['profile_photo'] = None
+                
             # Clear OTP from cache after successful verification
             cache.delete(cache_key)
 
@@ -272,6 +277,12 @@ def google_auth(request):
         access_token['user_id'] = user.id
         access_token['first_name'] = user.first_name
         access_token['last_name'] = user.last_name
+        if user.profile_photo:
+            request_url = request.build_absolute_uri(user.profile_photo.url)
+            access_token['profile_photo'] = request_url
+        else:
+            access_token['profile_photo'] = None
+        
 
         # Return the tokens
         return Response({
@@ -328,6 +339,8 @@ def google_pre_register(request):
 
     except Exception as e:
         return Response({'message': str(e)}, status=400)
+    
+    
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -465,6 +478,8 @@ def initiate_registration(request):
             {'error': 'Failed to send OTP'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+        
+        
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -596,4 +611,91 @@ def complete_registration(request):
         status=status.HTTP_400_BAD_REQUEST
     )
     
+# views.py
+from rest_framework import viewsets, status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.db.models import Count, F
+from .models import CustomUser
+from playlist.models import Playlist
+from .serializers import UserProfileSerializer, PlaylistSerializer
 
+@api_view(['GET', 'PATCH'])
+@permission_classes([IsAuthenticated])
+def user_profile_view(request):
+    """
+    GET: Retrieves the current user's profile
+    PATCH: Updates the current user's profile
+    """
+    user = request.user
+    
+    if request.method == 'GET':
+        serializer = UserProfileSerializer(user)
+        return Response(serializer.data)
+    
+    elif request.method == 'PATCH':
+        serializer = UserProfileSerializer(user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def user_playlists_view(request):
+    """
+    GET: Retrieves all playlists created by the current user
+    """
+    playlists = Playlist.objects.filter(created_by=request.user).annotate(
+        tracks_count=Count('tracks')
+    )
+    serializer = PlaylistSerializer(playlists, many=True)
+    return Response(serializer.data)
+
+
+# views.py
+from django.shortcuts import get_object_or_404
+from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework import status
+from .models import CustomUser
+from .serializers import UserSerializer
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user(request):
+    """Get current user data"""
+    serializer = UserSerializer(request.user, context={'request': request})
+    return Response(serializer.data)
+
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+@parser_classes([MultiPartParser, FormParser])
+def update_user(request):
+    """Update user profile"""
+    user = request.user
+    serializer = UserSerializer(
+        user,
+        data=request.data,
+        partial=True,
+        context={'request': request}
+    )
+
+    if serializer.is_valid():
+        try:
+            # Save the user instance
+            serializer.save()
+            print(serializer.data)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
+    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

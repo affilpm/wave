@@ -1,8 +1,18 @@
-from django.urls import path
+from django.urls import path, include
 from . import views  # Correct import for views from the same app
 from rest_framework_simplejwt.views import TokenRefreshView
+from rest_framework.routers import DefaultRouter
+
+
+
+router = DefaultRouter()
+
+
 
 urlpatterns = [
+    path('', include(router.urls)),
+    path('user/', views.get_user, name='get-user'),
+    path('update/', views.update_user, name='update-user'),
     # path('register/', RegisterView.as_view(), name='register'),
     # path('verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
     # path('resend-otp/', ResendOTPView.as_view(), name='resend-otp'),
