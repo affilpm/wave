@@ -1,20 +1,26 @@
 from rest_framework import serializers
 from .models import Genre, Music
 from artists.models import Artist
-from users.serializers import UserSerializer
 from .models import Album, AlbumTrack, Music
+from users.models import CustomUser
+
 import os
 
 class GenreSerializer(serializers.ModelSerializer):
     class Meta:
         model = Genre
         fields = ['id', 'name', 'description']
+        
 class MusicMetadataSerializer(serializers.Serializer):
     duration = serializers.FloatField()
     title = serializers.CharField()
     artist = serializers.CharField(source="artist.email")  # Adjust this based on what you need
     format = serializers.CharField()        
 
+
+
+        
+        
 class MusicSerializer(serializers.ModelSerializer):
     genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
     album_id = serializers.IntegerField(required=False, write_only=True)
@@ -60,8 +66,15 @@ class PublicMusicListView(generics.ListAPIView):
         return Music.objects.filter(is_public=True)    
     
 
+
+class UserSerializer(serializers.ModelSerializer):
     
     
+    class Meta:
+        model = CustomUser
+        fields = ['id', 'email', 'username', 'first_name', 'last_name']
+    
+        
 class ArtistSerializer(serializers.ModelSerializer):
     user = UserSerializer()  # Include user data
     
@@ -73,6 +86,21 @@ class ArtistSerializer(serializers.ModelSerializer):
     
 #
 
+class MusicDataSerializer(serializers.ModelSerializer):
+    artist = ArtistSerializer()  # Make sure this includes user data
+    genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
+    duration = serializers.DurationField(required=False)  # Add this line
+
+    class Meta:
+        model = Music
+        fields = [
+            'id', 'name', 'cover_photo', 'genres', 'release_date',
+            'duration', 'artist'
+        ]
+        
+        
+        
+        
     
 class MusicVerificationSerializer(serializers.ModelSerializer):
     artist = ArtistSerializer()  # Make sure this includes user data

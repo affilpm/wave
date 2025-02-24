@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.db import transaction
+
+
 # this view is used search music and add to playlist
 class MusicService(viewsets.ModelViewSet):
     serializer_class = MusicSerializer
@@ -40,19 +42,82 @@ class PlaylistData(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        # Fetch playlists created by the authenticated user
-        return Playlist.objects.filter(created_by_id=self.request.user)
+        """
+        Fetch playlists created by the authenticated user
+        that only contain public music
+        """
+        user = self.request.user
+        
+        # Get all playlists created by the current user
+        queryset = Playlist.objects.filter(created_by=user)
+        
+        # Prefetch related tracks, filtering for only public music
+        queryset = queryset.prefetch_related(
+            Prefetch(
+                'playlisttrack_set',
+                queryset=PlaylistTrack.objects.filter(music__is_public=True)
+            )
+        )
+        
+        return queryset
         
         
+        
+class PublicPlaylistData(viewsets.ModelViewSet):
+    serializer_class = PlaylistSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """
+        Fetch playlists created by the authenticated user that are public
+        and contain only public music.
+        """
+        user = self.request.user
+        
+        # Get all public playlists created by the current user
+        queryset = Playlist.objects.filter(created_by=user, is_public=True)
+        
+        # Prefetch related tracks, filtering for only public music
+        queryset = queryset.prefetch_related(
+            Prefetch(
+                'playlisttrack_set',
+                queryset=PlaylistTrack.objects.filter(music__is_public=True)
+            )
+        )
+        
+        return queryset
+    
+    
+            
 # used to manage playlist    
 class PlaylistViewSet(viewsets.ModelViewSet):
     serializer_class = PlaylistSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        # Fetch playlists created by the authenticated user
-        return Playlist.objects.all()
-    
+        """
+        Fetch playlists with proper music visibility rules:
+        - For users' playlists, only show public playlists with public tracks
+        """
+        user = self.request.user
+        
+        # Base queryset - user can see all their playlists plus public playlists from others
+        queryset = Playlist.objects.filter(
+            Q(created_by=user) | Q(is_public=True)
+        )
+        
+        # Prefetch related tracks with proper visibility rules
+        queryset = queryset.prefetch_related(
+            Prefetch(
+                'playlisttrack_set',
+                queryset=PlaylistTrack.objects.filter(
+                    
+                    music__is_public=True
+                )
+            )
+        )
+        
+        return queryset
 
     
     def create(self, request, *args, **kwargs):
@@ -328,17 +393,17 @@ class PlaylistViewSet(viewsets.ModelViewSet):
             
             
             
-# this view is used to list all the tracks in a playlist           
-class PlaylistTrackViewSet(viewsets.ModelViewSet):
-   serializer_class = PlaylistTrackSerializer
-   permission_classes = [IsAuthenticated]
+# # this view is used to list all the tracks in a playlist           
+# class PlaylistTrackViewSet(viewsets.ModelViewSet):
+#    serializer_class = PlaylistTrackSerializer
+#    permission_classes = [IsAuthenticated]
    
-   def get_queryset(self):
-        queryset = PlaylistTrack.objects.filter(playlist__created_by=self.request.user)
-        playlist_id = self.request.query_params.get('playlist', None)
-        if playlist_id:
-            queryset = queryset.filter(playlist_id=playlist_id)
-        return queryset
+#    def get_queryset(self):
+#         queryset = PlaylistTrack.objects.filter(playlist__created_by=self.request.user)
+#         playlist_id = self.request.query_params.get('playlist', None)
+#         if playlist_id:
+#             queryset = queryset.filter(playlist_id=playlist_id)
+#         return queryset
     
     
     

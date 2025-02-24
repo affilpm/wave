@@ -41,3 +41,20 @@ class Album_ListSerializer(serializers.ModelSerializer):
         
         
     
+    
+
+class ArtistSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField(source='user.email', read_only=True)
+    first_name = serializers.CharField(source='user.first_name', read_only=True)
+    last_name = serializers.CharField(source='user.last_name', read_only=True)
+    profile_photo = serializers.ImageField(source='user.profile_photo', read_only=True)
+    
+    
+    class Meta:
+        model = Artist
+        fields = ['id', 'email', 'first_name', 'last_name', 'bio', 'status', 'profile_photo', 'submitted_at', 'updated_at']
+        read_only_fields = ['status', 'submitted_at', 'updated_at']
+
+
+
+    

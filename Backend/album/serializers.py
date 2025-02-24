@@ -5,7 +5,6 @@ import os
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import viewsets
 from artists.serializers import ArtistSerializer
-from music.models import Music
  
 
 class MusicSerializer(serializers.ModelSerializer):

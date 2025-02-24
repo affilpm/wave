@@ -1,33 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
-import { Play, Pause, Clock, Share2, Shuffle } from 'lucide-react';
+import { Play, Pause, Clock, Share2, Shuffle, Music, Headphones, Radio, Mic, Guitar, Stars } from 'lucide-react';
 import { useDispatch, useSelector } from 'react-redux';
-import { setQueue, setCurrentTrack, setIsPlaying, reorderQueue } from '../../../../slices/user/playerSlice';
+import { 
+  setMusicId,
+  setQueue,
+  setIsPlaying,
+  toggleShuffle,
+  setCurrentPlaylistId
+} from '../../../../slices/user/musicPlayerSlice';
 import api from '../../../../api';
 import { formatDuration, convertToSeconds, convertToHrMinFormat } from '../../../../utils/formatters';
 
 const GenrePage = () => {
   const dispatch = useDispatch();
-  const { currentTrack, isPlaying, queue } = useSelector((state) => state.player);
+  const { musicId, isPlaying, currentPlaylistId } = useSelector((state) => state.musicPlayer);
   const [genreData, setGenreData] = useState(null);
   const [tracks, setTracks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isShuffling, setIsShuffling] = useState(false);
   const { genreId } = useParams();
   const [totalDuration, setTotalDuration] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1)
+
+
+  const genreIcons = {
+    'Pop': { icon: <Music size={36} className="text-white mb-2" />, color: 'bg-pink-500' },
+    'Electronic': { icon: <Headphones size={36} className="text-white mb-2" />, color: 'bg-purple-500' },
+    'Rock': { icon: <Guitar size={36} className="text-white mb-2" />, color: 'bg-red-500' },
+    'Hip Hop': { icon: <Mic size={36} className="text-white mb-2" />, color: 'bg-blue-500' },
+    'Jazz': { icon: <Radio size={36} className="text-white mb-2" />, color: 'bg-yellow-500' },
+    'Indie': { icon: <Stars size={36} className="text-white mb-2" />, color: 'bg-green-500' }
+  };
 
   useEffect(() => {
     const fetchGenreData = async () => {
       try {
         const [genreResponse, tracksResponse] = await Promise.all([
-          api.get(`/api/music/genres/${genreId}/`),
-          api.get(`/api/music/by-genre/${genreId}/`)
+          api.get(`/api/home/public_genres/${genreId}/`),
+          api.get(`/api/home/by-genre/${genreId}/?page=${currentPage}`)
         ]);
         setGenreData(genreResponse.data);
-        setTracks(tracksResponse.data);
+        setTracks(tracksResponse.data.results);
         
-        // Calculate total duration
-        const seconds = tracksResponse.data.reduce((acc, track) => 
+        // Set total pages from the response
+        setTotalPages(Math.ceil(tracksResponse.data.count / 10));  // Assuming 10 items per page
+  
+        const seconds = tracksResponse.data.results.reduce((acc, track) => 
           acc + convertToSeconds(track.duration), 0);
         setTotalDuration(convertToHrMinFormat(seconds));
       } catch (err) {
@@ -36,56 +55,73 @@ const GenrePage = () => {
         setIsLoading(false);
       }
     };
-
+  
     fetchGenreData();
-  }, [genreId]);
+  }, [genreId, currentPage]);  // Make sure currentPage is in the dependency array
 
   const prepareTrackForPlayer = (track) => ({
     id: track.id,
     name: track.name,
-    artist: track.artist.username,
-    artist_full: track.artist.full_name,
+    artist: track.artist?.user?.username || 'Unknown Artist', // Update to use username
+    artist_full: track.artist?.full_name,
     cover_photo: track.cover_photo,
-    audio_file: track.audio_file,
     duration: track.duration
   });
 
   const handlePlayGenre = () => {
     if (!tracks.length) return;
+    
     const formattedTracks = tracks.map(prepareTrackForPlayer);
-    dispatch(setQueue(formattedTracks));
-    dispatch(setCurrentTrack(formattedTracks[0]));
-    dispatch(setIsPlaying(true));
+    
+    if (currentPlaylistId === genreId && isPlaying) {
+      // If current playlist is playing, pause it
+      dispatch(setIsPlaying(false));
+    } else {
+      // Start playing this playlist
+      dispatch(setQueue({
+        tracks: formattedTracks,
+        playlistId: genreId
+      }));
+      dispatch(setMusicId(formattedTracks[0].id));
+      dispatch(setIsPlaying(true));
+      dispatch(setCurrentPlaylistId(genreId));
+    }
   };
 
   const handlePlayTrack = (track, index) => {
     const formattedTrack = prepareTrackForPlayer(track);
-    if (currentTrack?.id === formattedTrack.id) {
+    if (musicId === formattedTrack.id) {
       dispatch(setIsPlaying(!isPlaying));
       return;
     }
 
     const formattedTracks = tracks.map(prepareTrackForPlayer);
-    dispatch(setQueue(formattedTracks));
-    dispatch(reorderQueue({ startIndex: index }));
+    dispatch(setQueue({
+      tracks: formattedTracks,
+      playlistId: genreId
+    }));
+    dispatch(setMusicId(formattedTrack.id));
     dispatch(setIsPlaying(true));
+    dispatch(setCurrentPlaylistId(genreId));
   };
 
   const handleShuffle = () => {
-    setIsShuffling(!isShuffling);
-    const formattedTracks = tracks.map(prepareTrackForPlayer);
-    
-    if (!isShuffling) {
-      const shuffledTracks = [...formattedTracks].sort(() => Math.random() - 0.5);
-      dispatch(setQueue(shuffledTracks));
-      dispatch(setCurrentTrack(shuffledTracks[0]));
-    } else {
-      dispatch(setQueue(formattedTracks));
-      dispatch(setCurrentTrack(formattedTracks[0]));
-    }
-    dispatch(setIsPlaying(true));
+    dispatch(toggleShuffle());
   };
 
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage-1)
+    }
+  };
+
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage+1)
+    }
+  }
   if (isLoading) {
     return (
       <div className="p-6 space-y-4">
@@ -96,7 +132,7 @@ const GenrePage = () => {
   }
 
   const TrackRow = ({ track, index }) => {
-    const isCurrentlyPlaying = currentTrack?.id === track.id && isPlaying;
+    const isCurrentlyPlaying = musicId === track.id && isPlaying;
 
     return (
       <tr className="group hover:bg-white/10 transition-colors">
@@ -118,7 +154,11 @@ const GenrePage = () => {
         <td className="py-3 pl-3">
           <div className="flex items-center gap-3">
             <img
-              src={track.cover_photo || "/api/placeholder/40/40"}
+              src={
+                track.cover_photo
+                  ? `http://localhost:8000/${track.cover_photo}?token=abc123&format=webp`
+                  : "/api/placeholder/40/40"
+              }
               alt={track.name}
               className="w-10 h-10 rounded-md"
             />
@@ -126,7 +166,7 @@ const GenrePage = () => {
           </div>
         </td>
         <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
-          {track.artist.full_name}
+          {track.artist?.user?.username || 'Unknown Artist'} {/* Update to show username */}
         </td>
         <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
           {new Date(track.release_date).toLocaleDateString()}
@@ -138,11 +178,16 @@ const GenrePage = () => {
     );
   };
 
+  const genreStyle = genreIcons[genreData?.name] || { icon: <Music size={48} className="text-white" />, color: 'bg-gray-700' };
+
+  const isGenrePlaying = currentPlaylistId === genreId && isPlaying;
+
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 via-black to-black text-white">
       <div className="flex flex-col md:flex-row items-end gap-6 p-6">
-        <div className={`w-48 h-48 flex-shrink-0 rounded-lg ${genreData?.color || 'bg-gray-700'} flex items-center justify-center`}>
-          {genreData?.icon}
+        <div className={`w-48 h-48 flex-shrink-0 rounded-lg ${genreStyle.color} flex flex-col items-center justify-center`}>
+          {genreStyle.icon}
+          <span className="text-white text-lg font-semibold">{genreData?.name}</span>
         </div>
 
         <div className="flex flex-col gap-4">
@@ -165,13 +210,15 @@ const GenrePage = () => {
           className="w-14 h-14 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors"
           onClick={handlePlayGenre}
         >
-          <Play className="h-6 w-6 text-black ml-1" />
+          {isGenrePlaying ? (
+            <Pause className="h-6 w-6 text-black" />
+          ) : (
+            <Play className="h-6 w-6 text-black ml-1" />
+          )}
         </button>
 
         <button
-          className={`p-2 text-gray-400 hover:text-white transition-colors ${
-            isShuffling ? "text-green-500" : ""
-          }`}
+          className={`p-2 text-gray-400 hover:text-white transition-colors ffle `}
           onClick={handleShuffle}
         >
           <Shuffle className="h-6 w-6" />
@@ -205,7 +252,27 @@ const GenrePage = () => {
             ))}
           </tbody>
         </table>
+        <div className="flex items-center justify-between p-6">
+        <button 
+          onClick={handlePreviousPage} 
+          disabled={currentPage === 1} 
+          className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50" 
+        >
+          Previous
+        </button>
+        <span className="">
+          Page {currentPage} of {totalPages}
+        </span>
+        <button 
+          onClick={handleNextPage} 
+          disabled={currentPage === totalPages} 
+          className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50" 
+        >
+          Next
+        </button>
       </div>
+      </div>
+      
     </div>
   );
 };

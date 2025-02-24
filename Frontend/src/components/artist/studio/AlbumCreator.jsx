@@ -33,98 +33,11 @@ const AlbumCreator = () => {
   const [selectedTracks, setSelectedTracks] = useState([]);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [tracksList, setTracksList] = useState([]);
   const [successMessage, setSuccessMessage] = useState([]);
   const [albumNameError, setAlbumNameError] = useState('');
-  const [isTrackDropdownOpen, setIsTrackDropdownOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [focusedTrackIndex, setFocusedTrackIndex] = useState(-1);
-  const [sortOrder, setSortOrder] = useState('asc'); // 'asc' or 'desc'
 
 
 
-  useEffect(() => {
-    fetchUserTracks();
-
-    // Add click outside listener
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsTrackDropdownOpen(false);
-        setFocusedTrackIndex(-1);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Reset focused index when dropdown closes
-  useEffect(() => {
-    if (!isTrackDropdownOpen) {
-      setFocusedTrackIndex(-1);
-      setSearchQuery('');
-    } else if (searchInputRef.current) {
-      searchInputRef.current.focus();
-    }
-  }, [isTrackDropdownOpen]);
-
-  const fetchUserTracks = async () => {
-    try {
-      const response = await api.get('/api/album/music/');
-      setTracksList(response.data);
-    } catch (err) {
-      setError('Failed to load tracks: ' + (err.response?.data?.error || err.message));
-    }
-  };
-
-  // Get filtered and sorted tracks
-  const getFilteredTracks = () => {
-    return tracksList
-      .filter(track => 
-        !selectedTracks.some(selected => selected.id === track.id) &&
-        track.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
-      .sort((a, b) => {
-        const comparison = a.name.localeCompare(b.name);
-        return sortOrder === 'asc' ? comparison : -comparison;
-      });
-  };
-
-  const handleKeyDown = (e) => {
-    if (!isTrackDropdownOpen) return;
-
-    const filteredTracks = getFilteredTracks();
-    const tracksLength = filteredTracks.length;
-
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault();
-        setFocusedTrackIndex(prev => 
-          prev < tracksLength - 1 ? prev + 1 : prev
-        );
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setFocusedTrackIndex(prev => prev > 0 ? prev - 1 : prev);
-        break;
-      case 'Enter':
-        e.preventDefault();
-        if (focusedTrackIndex >= 0 && focusedTrackIndex < tracksLength) {
-          handleTrackSelection(filteredTracks[focusedTrackIndex]);
-        }
-        break;
-      case 'Escape':
-        e.preventDefault();
-        setIsTrackDropdownOpen(false);
-        break;
-      default:
-        break;
-    }
-  };
-
-  const toggleSortOrder = () => {
-    setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
-  };
 
 
 
@@ -185,36 +98,6 @@ const AlbumCreator = () => {
     }
   };
 
-  const handleTrackSelection = (track) => {
-    setSelectedTracks((prev) => {
-      const trackExists = prev.some((t) => t.id === track.id);
-      if (trackExists) {
-        return prev;
-      } else {
-        return [
-          ...prev,
-          {
-            id: track.id,
-            track_number: prev.length + 1,
-            track_details: track,
-          },
-        ];
-      }
-    });
-    setIsTrackDropdownOpen(false);
-    setError('');
-  };
-
-  const handleTrackRemove = (trackId) => {
-    setSelectedTracks((prev) => {
-      const filteredTracks = prev.filter((t) => t.id !== trackId);
-      // Reorder remaining tracks
-      return filteredTracks.map((track, index) => ({
-        ...track,
-        track_number: index + 1,
-      }));
-    });
-  };
 
 
 
@@ -475,18 +358,14 @@ const handleSubmit = async (e) => {
     if (dateError) {
       throw new Error(dateError);
     }
-    if (!selectedTracks.length) {
-      throw new Error('Please select at least one track');
-    }
+    // if (!selectedTracks.length) {
+    //   throw new Error('Please select at least one track');
+    // }
     if (albumNameError) {
       throw new Error('Please fix the album name error before submitting');
     }
 
-    // Format tracks data
-    const formattedTracks = selectedTracks.map((track, index) => ({
-      track: track.id,
-      track_number: index + 1,
-    }));
+
 
     // Create submission data
     const submissionData = {
@@ -494,7 +373,6 @@ const handleSubmit = async (e) => {
       description: albumData.description.trim(),
       releaseDate: albumData.releaseDate,
       is_public: albumData.is_public,
-      tracks: formattedTracks,
       coverPhoto: albumData.coverPhoto,
       bannerImg: albumData.bannerImg
     };
@@ -538,11 +416,10 @@ const isFormValid = React.useMemo(() => {
     albumData.coverPhoto &&
     albumData.releaseDate &&
     albumData.description.trim() &&
-    selectedTracks.length > 0 &&
     !albumNameError &&
     !isLoading
   );
-}, [albumData, selectedTracks, albumNameError, isLoading]);
+}, [albumData, albumNameError, isLoading]);
 
 
 return (
@@ -678,98 +555,9 @@ return (
               <p className="text-xs text-gray-400 mt-2">Select the release date and time for your album.</p>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2 text-white">
-                Select Tracks <span className="text-red-500">*</span>
-              </label>
+
               
-              {/* Selected Tracks Display */}
-              <div className="flex flex-wrap gap-2 mb-2">
-                {selectedTracks.map((track) => (
-                  <span
-                    key={track.id}
-                    className="bg-blue-500 text-white px-3 py-1 rounded-full text-sm flex items-center gap-2"
-                  >
-                    {track.track_details.name}
-                    <button
-                      type="button"
-                      onClick={() => handleTrackRemove(track.id)}
-                      className="hover:text-red-200"
-                    >
-                      <X size={14} />
-                    </button>
-                  </span>
-                ))}
-              </div>
 
-              {/* Track Dropdown */}
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsTrackDropdownOpen(!isTrackDropdownOpen)}
-                  className="w-full p-2 border rounded-md bg-gray-700 text-white text-left flex items-center justify-between"
-                >
-                  <div className="flex items-center">
-                    <Music className="h-5 w-5 mr-2" />
-                    <span>Select tracks...</span>
-                  </div>
-                  {isTrackDropdownOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                </button>
-
-                {isTrackDropdownOpen && (
-                  <div className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg">
-                    {/* Search and Sort Controls */}
-                    <div className="p-2 border-b border-gray-700">
-                      <div className="relative">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                        <input
-                          ref={searchInputRef}
-                          type="text"
-                          value={searchQuery}
-                          onChange={(e) => setSearchQuery(e.target.value)}
-                          onKeyDown={handleKeyDown}
-                          placeholder="Search tracks..."
-                          className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-md text-white text-sm focus:outline-none focus:border-blue-500"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        onClick={toggleSortOrder}
-                        className="mt-2 px-3 py-1 text-sm text-gray-300 hover:text-white flex items-center gap-1"
-                      >
-                        Sort {sortOrder === 'asc' ? '↑' : '↓'}
-                      </button>
-                    </div>
-
-                    {/* Tracks List */}
-                    <div className="max-h-48 overflow-y-auto">
-                      {getFilteredTracks().map((track, index) => (
-                        <button
-                          key={track.id}
-                          type="button"
-                          onClick={() => handleTrackSelection(track)}
-                          onMouseEnter={() => setFocusedTrackIndex(index)}
-                          className={`w-full px-4 py-2 text-left text-white hover:bg-gray-700 flex items-center justify-between ${
-                            focusedTrackIndex === index ? 'bg-gray-700' : ''
-                          }`}
-                        >
-                          <div className="flex items-center">
-                            <Music className="h-4 w-4 mr-2" />
-                            {track.name}
-                          </div>
-                          <span className="text-xs text-gray-400">Click to add</span>
-                        </button>
-                      ))}
-                      {getFilteredTracks().length === 0 && (
-                        <div className="px-4 py-2 text-gray-400 text-center">
-                          No tracks found
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
           </div>
 
           <div className="flex justify-end space-x-4">

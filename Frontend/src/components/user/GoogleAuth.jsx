@@ -102,7 +102,7 @@ const GoogleAuthButton = () => {
         user_id: decodeToken.user_id,
         first_name: decodedToken.first_name,
         last_name: decodedToken.last_name,
-        image: decodedToken.image || null,
+        image: decodedToken.profile_photo || null,
         isAuthenticated: true,
       }));
 
@@ -111,7 +111,7 @@ const GoogleAuthButton = () => {
         email: decodedToken.email,
         first_name: decodedToken.first_name,
         last_name: decodedToken.last_name,
-        image: decodedToken.image || null,
+        image: decodedToken.profile_photo || null,
       }));
 
       

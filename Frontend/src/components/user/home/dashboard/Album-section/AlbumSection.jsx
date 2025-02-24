@@ -2,7 +2,7 @@ import React, { useRef, useState } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from 'react-redux';
-import { handleAlbumPlaybackAction } from "../album/album-playback-utils";
+import { handleAlbumPlaybackAction } from "../../album/album-playback-utils";
 
 const AlbumSection = ({ title, items }) => {
   const scrollContainerRef = useRef(null);

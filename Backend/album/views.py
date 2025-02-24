@@ -19,6 +19,8 @@ from rest_framework.parsers import JSONParser
 from music.serializers import  MusicSerializer
 from rest_framework.viewsets import ModelViewSet
 from music.models import Music, MusicApprovalStatus
+from django.db.models import Q, Prefetch
+
 
 
 
@@ -28,8 +30,30 @@ class AlbumData(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        # Fetch album created by the authenticated user
-        return Album.objects.all()
+        """
+        Fetch albums with proper music visibility rules:
+        - For users' albums, only show public tracks
+        - For other users' albums, only show public albums with public tracks
+        """
+        user = self.request.user
+        
+        # Base queryset - user can see all their albums plus public albums from others
+        queryset = Album.objects.filter(
+            is_public=True
+        )
+        
+        # Prefetch related tracks with proper visibility rules
+        queryset = queryset.prefetch_related(
+            Prefetch(
+                'albumtrack_set',
+                queryset=AlbumTrack.objects.filter(
+                    track__is_public=True
+                ).select_related('track')
+            )
+        )
+        
+        return queryset
+
         
         
 class AlbumViewSet(viewsets.ModelViewSet):
@@ -39,8 +63,9 @@ class AlbumViewSet(viewsets.ModelViewSet):
     
     def get_queryset(self):
         return Album.objects.filter(artist__user=self.request.user)
-    # def perform_create(self, serializer):
-    #     serializer.save(artist__user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(artist__user=self.request.user)
         
     def destroy(self, request, *args, **kwargs):
         """

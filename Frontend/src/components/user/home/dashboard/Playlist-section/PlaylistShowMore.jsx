@@ -2,16 +2,16 @@ import React, { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { Play, Pause } from "lucide-react";
-import api from "../../../../api";
+import api from "../../../../../api";
 import { 
   setMusicId,
   setIsPlaying,
   setQueue,
   clearQueue,
   setCurrentPlaylistId
-} from "../../../../slices/user/musicPlayerSlice";
+} from "../../../../../slices/user/musicPlayerSlice";
 
-const ShowMorePage = () => {
+const PlaylistShowMorePage = () => {
   const location = useLocation();
   const { title } = location.state || {};
   const dispatch = useDispatch();
@@ -19,13 +19,18 @@ const ShowMorePage = () => {
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [totalPages, setTotalPages] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const musiclistResponse = await api.get("/api/home/musiclist/?all_songs");
-        setItems(musiclistResponse.data);
+        const musiclistResponse = await api.get(`/api/home/playlist/?all_songs&page=${page}`);
+        setItems(musiclistResponse.data.results);
+        setHasNextPage(!!musiclistResponse.data.next);
+        setTotalPages(Math.ceil(musiclistResponse.data.count / musiclistResponse.data.page_size)); // Assuming count and page_size are provided in the response
       } catch (error) {
         console.error("Error fetching music data:", error);
       } finally {
@@ -34,7 +39,7 @@ const ShowMorePage = () => {
     };
 
     fetchData();
-  }, []);
+  }, [page]);
 
   const prepareTrackForPlayer = (track) => ({
     id: track.id,
@@ -52,32 +57,26 @@ const ShowMorePage = () => {
     const formattedTrack = prepareTrackForPlayer(item);
     const pageId = `show-more-${title.toLowerCase().replace(/\s+/g, '-')}`;
     
-    // If clicking the currently playing track
     if (musicId === formattedTrack.id) {
-      // Just toggle play/pause
       dispatch(setIsPlaying(!isPlaying));
       return;
     }
 
-    // Playing a new track
-    // Clear existing queue
     dispatch(clearQueue());
-    
-    // Add only the current track to the queue
     dispatch(setQueue({
       tracks: [formattedTrack],
       playlistId: pageId
     }));
     
-    // Set the new track ID and start playing
     dispatch(setCurrentPlaylistId(pageId));
     dispatch(setMusicId(formattedTrack.id));
     dispatch(setIsPlaying(true));
   };
 
-  const isItemPlaying = (item) => {
-    return musicId === item.id && isPlaying;
-  };
+  const isItemPlaying = (item) => musicId === item.id && isPlaying;
+
+  const handleNextPage = () => setPage((prev) => prev + 1);
+  const handlePrevPage = () => setPage((prev) => Math.max(prev - 1, 1));
 
   if (loading) {
     return <div>Loading...</div>;
@@ -117,10 +116,6 @@ const ShowMorePage = () => {
                   </div>
                 </div>
                 <h3 className="font-bold mb-1 truncate">{item.name}</h3>
-                {item.owner && <p className="text-sm text-gray-400 truncate">{item.owner}</p>}
-                {item.description && (
-                  <p className="text-sm text-gray-400 truncate">{item.description}</p>
-                )}
                 {item.artist && (
                   <p className="text-sm text-gray-400 truncate">{item.artist}</p>
                 )}
@@ -128,10 +123,28 @@ const ShowMorePage = () => {
             ))}
           </div>
         </div>
+        <div className="flex justify-between mt-4 items-center">
+          <button 
+            className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50" 
+            onClick={handlePrevPage} 
+            disabled={page === 1}
+          >
+            Previous
+          </button>
+          {/* <span className="text-white">
+            Page {page} of {totalPages}
+          </span> */}
+          <button 
+            className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50" 
+            onClick={handleNextPage} 
+            disabled={!hasNextPage}
+          >
+            Next
+          </button>
+        </div>
       </section>
     </div>
   );
 };
 
-export default ShowMorePage;
-
+export default PlaylistShowMorePage;

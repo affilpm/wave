@@ -27,7 +27,7 @@ class PlayCount(models.Model):
     count = models.PositiveIntegerField(default=1)
     last_played = models.DateTimeField(auto_now=True)
     
-    class meta:
+    class Meta:
         unique_together = ('user', 'music')
         indexes = [
             models.Index(fields=['user', 'last_played']),

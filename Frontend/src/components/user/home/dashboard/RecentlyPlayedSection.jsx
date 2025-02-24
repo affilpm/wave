@@ -10,7 +10,7 @@ import {
   setCurrentPlaylistId
 } from "../../../../slices/user/musicPlayerSlice";
 
-const RecentlyPlayedSection = ({ title = "Recently Played" }) => {
+const RecentlyPlayedSection = ({ title }) => {
   const dispatch = useDispatch();
   const { musicId, isPlaying } = useSelector((state) => state.musicPlayer);
   const scrollContainerRef = useRef(null);

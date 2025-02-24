@@ -76,7 +76,7 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
               username: decodedToken.username,
               first_name: decodedToken.first_name,
               last_name: decodedToken.last_name,
-              image: decodedToken.image || null,
+              image: decodedToken.profile_photo || null,
               isAuthenticated: true,
           }));
   
@@ -87,7 +87,7 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
               username: decodedToken.username,
               first_name: decodedToken.first_name,
               last_name: decodedToken.last_name,
-              image: decodedToken.image || null,
+              image: decodedToken.profile_photo || null,
           }));
           localStorage.setItem('isAuthenticated', 'true');
   
