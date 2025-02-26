@@ -142,6 +142,11 @@ class ArtistOnlyView(APIView):
         if artist_id:
             try:
                 artist = Artist.objects.get(id=artist_id)
+                if artist.user == request.user:
+                        return Response(
+                        {"error": "You cannot view your own artist data."}, 
+                        status=status.HTTP_403_FORBIDDEN
+                    )
                 serializer = ArtistSerializer(artist, context={'request': request})
                 return Response(serializer.data, status=status.HTTP_200_OK)
             except Artist.DoesNotExist:
@@ -150,12 +155,12 @@ class ArtistOnlyView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
         else:
-            artists = Artist.objects.all()
+            artists = Artist.objects.exclude(user=request.user)
             serializer = ArtistSerializer(artists, many=True, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
     
     
-    
+   
     
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
