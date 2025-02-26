@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import api from "../../../../api";
@@ -10,31 +10,44 @@ import {
   setCurrentPlaylistId
 } from "../../../../slices/user/musicPlayerSlice";
 
-const RecentlyPlayedSection = ({ title }) => {
+const RecentlyPlayedSection = React.memo(({ title }) => {
   const dispatch = useDispatch();
   const { musicId, isPlaying } = useSelector((state) => state.musicPlayer);
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
   const [recentTracks, setRecentTracks] = useState([]);
   const [loading, setLoading] = useState(false);
+  const prevMusicIdRef = useRef(null);
 
-  useEffect(() => {
-    const fetchRecentlyPlayed = async () => {
-      try {
-        setLoading(true);
-        const response = await api.get("/api/listening_history/recently-played/");
-        setRecentTracks(response.data);
-      } catch (error) {
-        console.error("Error fetching recently played tracks:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchRecentlyPlayed();
+  // Fetch recently played tracks from API
+  const fetchRecentlyPlayed = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await api.get("/api/listening_history/recently-played/");
+      setRecentTracks(response.data);
+    } catch (error) {
+      console.error("Error fetching recently played tracks:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const handleScroll = (direction) => {
+  // Make API call whenever musicId changes
+  useEffect(() => {
+    // Only make the API call if musicId has actually changed
+    if (prevMusicIdRef.current !== musicId) {
+      fetchRecentlyPlayed();
+      prevMusicIdRef.current = musicId;
+    }
+  }, [musicId, fetchRecentlyPlayed]);
+
+  // Initial data fetch on component mount
+  useEffect(() => {
+    fetchRecentlyPlayed();
+  }, [fetchRecentlyPlayed]);
+
+  // Memoized scroll handler
+  const handleScroll = useCallback((direction) => {
     const container = scrollContainerRef.current;
     if (container) {
       const scrollAmount = 300;
@@ -43,18 +56,20 @@ const RecentlyPlayedSection = ({ title }) => {
         behavior: 'smooth'
       });
     }
-  };
+  }, []);
 
-  const prepareTrackForPlayer = (track) => ({
+  // Memoize track preparation
+  const prepareTrackForPlayer = useMemo(() => (track) => ({
     id: track.music_id,
     name: track.title,
     artist: track.artist,
     cover_photo: track.cover_photo,
     audio_file: track.audio_file,
     play_count: track.play_count
-  });
+  }), []);
 
-  const handlePlay = async (track, e) => {
+  // Memoize play handler with dependencies
+  const handlePlay = useCallback((track, e) => {
     e.stopPropagation();
     
     const formattedTrack = prepareTrackForPlayer(track);
@@ -74,13 +89,55 @@ const RecentlyPlayedSection = ({ title }) => {
     dispatch(setCurrentPlaylistId(sectionId));
     dispatch(setMusicId(formattedTrack.id));
     dispatch(setIsPlaying(true));
-  };
+  }, [dispatch, musicId, isPlaying, prepareTrackForPlayer]);
 
-  const isItemPlaying = (track) => {
+  // Memoize item playing check
+  const isItemPlaying = useCallback((track) => {
     return musicId === track.music_id && isPlaying;
-  };
+  }, [musicId, isPlaying]);
 
-  if (loading) {
+  // Memoize controls visibility handlers
+  const showControlsHandler = useCallback(() => setShowControls(true), []);
+  const hideControlsHandler = useCallback(() => setShowControls(false), []);
+
+  // Memoize the track items
+  const trackItems = useMemo(() => {
+    return recentTracks.map((track, index) => (
+      <div
+        key={`${track.music_id}-${index}-${isItemPlaying(track)}`}
+        className="flex-none w-40"
+      >
+        <div className="relative group">
+          <img
+            src={track.cover_photo || `/api/placeholder/160/160`}
+            alt={track.title}
+            className="w-40 h-40 object-cover rounded-md"
+          />
+          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
+            <button
+              className={`absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center ${
+                isItemPlaying(track) ? 'flex' : 'hidden group-hover:flex'
+              } shadow-xl hover:scale-105 transition-all`}
+              onClick={(e) => handlePlay(track, e)}
+              aria-label={isItemPlaying(track) ? "Pause" : "Play"}
+            >
+              {isItemPlaying(track) ? (
+                <Pause className="w-6 h-6 text-black" />
+              ) : (
+                <Play className="w-6 h-6 text-black" />
+              )}
+            </button>
+          </div>
+        </div>
+        <div className="mt-2">
+          <h3 className="font-bold text-white truncate">{track.title}</h3>
+          <p className="text-sm text-gray-400 truncate">{track.artist}</p>
+        </div>
+      </div>
+    ));
+  }, [recentTracks, isItemPlaying, handlePlay]);
+
+  if (loading && recentTracks.length === 0) {
     return <div className="px-4">Loading recently played tracks...</div>;
   }
 
@@ -99,8 +156,8 @@ const RecentlyPlayedSection = ({ title }) => {
 
       <div 
         className="relative"
-        onMouseEnter={() => setShowControls(true)}
-        onMouseLeave={() => setShowControls(false)}
+        onMouseEnter={showControlsHandler}
+        onMouseLeave={hideControlsHandler}
       >
         {showControls && (
           <>
@@ -128,45 +185,15 @@ const RecentlyPlayedSection = ({ title }) => {
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           <div className="flex gap-4 px-4">
-            {recentTracks.map((track, index) => (
-              <div
-                key={index}
-                className="flex-none w-40"
-              >
-                <div className="relative group">
-                  <img
-                    src={track.cover_photo || `/api/placeholder/160/160`}
-                    alt={track.title}
-                    className="w-40 h-40 object-cover rounded-md"
-                  />
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
-                    <button
-                      className={`absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center ${
-                        isItemPlaying(track) ? 'flex' : 'hidden group-hover:flex'
-                      } shadow-xl hover:scale-105 transition-all`}
-                      onClick={(e) => handlePlay(track, e)}
-                      aria-label={isItemPlaying(track) ? "Pause" : "Play"}
-                    >
-                      {isItemPlaying(track) ? (
-                        <Pause className="w-6 h-6 text-black" />
-                      ) : (
-                        <Play className="w-6 h-6 text-black" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-2">
-                  <h3 className="font-bold text-white truncate">{track.title}</h3>
-                  <p className="text-sm text-gray-400 truncate">{track.artist}</p>
-                  {/* <p className="text-xs text-gray-500">Played {track.play_count} times</p> */}
-                </div>
-              </div>
-            ))}
+            {trackItems}
           </div>
         </div>
       </div>
     </section>
   );
-};
+});
+
+// Set display name for better debugging
+RecentlyPlayedSection.displayName = "RecentlyPlayedSection";
 
 export default RecentlyPlayedSection;

@@ -6,7 +6,7 @@ from .views import PlaylistViewSet, MusicService, PlaylistData, PublicPlaylistDa
 router = DefaultRouter()
 router.register(r'playlists', PlaylistViewSet, basename='playlist')
 router.register(r'playlist_data', PlaylistData, basename='playlistData')
-router.register(r'public_playlist_data', PublicPlaylistData, basename='publicplaylistData')
+# router.register(r'public_playlist_data', PublicPlaylistData, basename='publicplaylistData')
 
 
 router.register(r'music', MusicService, basename='music')
@@ -15,6 +15,7 @@ router.register(r'music', MusicService, basename='music')
 urlpatterns = router.urls
 
 # # Add the search endpoint to urlpatterns
-# urlpatterns += [
-#     path('search/', views.search_music, name='music-search'),
-# ]
+urlpatterns += [
+    path('public_playlist_data/', PublicPlaylistData.as_view({'get': 'list'}), name='public-playlists'),
+    path('public_playlist_data/<int:artistId>/', PublicPlaylistData.as_view({'get': 'list'}), name='artist-music-data'),
+]

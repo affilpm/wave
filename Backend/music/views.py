@@ -66,7 +66,18 @@ class PublicSongsView(generics.ListAPIView):
             approval_status='approved'
         ).order_by('-release_date')
         
-        
+
+class SongsByArtistView(generics.ListAPIView):
+    serializer_class = MusicDataSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        artist_id = self.kwargs.get('artist_id')
+        return Music.objects.filter(
+            artist__id=artist_id,
+            is_public=True,
+            approval_status='approved'
+        ).order_by('-release_date')        
         
 
 

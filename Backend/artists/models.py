@@ -24,3 +24,16 @@ class Artist(models.Model):
     def __str__(self):
         genres = ", ".join(genre.name for genre in self.genres.all())
         return f"Artist: {self.user.email} - {self.status} - Genres: {genres or 'None'}"
+    
+    
+    
+    
+class Follow(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='following_artist')
+    artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name='followers')    
+    
+    class Meta:
+        unique_together = ('user', 'artist')
+        
+    def __str__(self):
+        return f'{self.user.email} follows {self.artist.user.email}'    

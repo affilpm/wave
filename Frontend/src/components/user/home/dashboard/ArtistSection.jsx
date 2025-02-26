@@ -2,17 +2,29 @@ import React, { useRef, useState } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from 'react-redux';
+import {
+    setMusicId,
+    setIsPlaying,
+    setQueue,
+    clearQueue,
+    setCurrentPlaylistId,
+    setCurrentArtistId
+  } from "../../../../slices/user/musicPlayerSlice";
+import api from "../../../../api";
+
 
 const ArtistSection = ({ title, items }) => {
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
-console.log(items)
+  
+  console.log(items);
   const { 
     musicId, 
     isPlaying, 
-    currentArtistId 
+    currentPlaylistId,
+    currentArtistId
   } = useSelector((state) => state.musicPlayer);
 
   const handleScroll = (direction) => {
@@ -28,14 +40,56 @@ console.log(items)
 
   const handlePlayArtist = async (artist, e) => {
     e.stopPropagation();
-    // Implement artist playback logic here
-    // This would typically play the artist's top tracks or latest releases
+    
+    try {
+      // Check if this artist is already playing
+      if (isArtistPlaying(artist)) {
+        // If already playing, just toggle play/pause
+        dispatch(setIsPlaying(!isPlaying));
+        return;
+      }
+      
+      // Fetch the artist's songs from the API
+      const songsResponse = await api.get(`/api/music/artist/${artist.id}/`);
+      const songs = songsResponse.data.results || songsResponse.data;
+      
+      if (songs && songs.length > 0) {
+        // Format the tracks properly before adding to queue
+        const formattedTracks = songs.map(song => ({
+          id: Number(song.id),
+          name: song.title || song.name,
+          artist: artist.username || "",
+          artist_full: artist.full_name || artist.username || "",
+          cover_photo: song.cover_photo,
+          audio_file: song.audio_file,
+          duration: song.duration,
+          release_date: song.release_date
+        }));
+        
+        // Set the queue with the formatted songs
+        dispatch(setQueue({ 
+          tracks: formattedTracks, 
+          playlistId: `artist_${artist.id}`,
+          artistId: artist.id
+        }));
+        
+        // Set the first song to play
+        dispatch(setMusicId(formattedTracks[0].id));
+        
+        // Start playing
+        dispatch(setIsPlaying(true));
+      } else {
+        console.log('No songs found for this artist');
+      }
+    } catch (error) {
+      console.error('Error fetching artist songs:', error);
+    }
   };
-
+  
   const isArtistPlaying = (artist) => {
-    return Number(currentArtistId) === Number(artist.id) && isPlaying;
+    return (currentArtistId === artist.id || currentPlaylistId === `artist_${artist.id}`) && isPlaying;
   };
-
+  
   const handleArtistClick = (artistId) => {
     navigate(`/artist/${artistId}`);
   };
@@ -43,7 +97,24 @@ console.log(items)
   const handleShowMore = () => {
     navigate("/artists-show-more", { state: { title } });
   };
-
+  
+  const colors = [
+    'bg-red-500',
+    'bg-blue-500',
+    'bg-green-500',
+    'bg-yellow-500',
+    'bg-purple-500',
+    'bg-pink-500',
+    'bg-indigo-500',
+    'bg-teal-500',
+  ];
+  
+  const getColor = (username) => {
+    // Generate a consistent color index based on the username
+    const index = username.charCodeAt(0) % colors.length;
+    return colors[index];
+  };
+  
   return (
     <section className="mb-8 relative">
       <div className="flex justify-between items-center mb-4 px-4">
@@ -93,11 +164,19 @@ console.log(items)
               >
                 <div className="relative group">
                   <div className="w-40 h-40 rounded-full overflow-hidden">
+                  {artist.profile_photo ? (
                     <img
-                      src={artist.cover_photo}
-                      alt={artist.name}
-                      className="w-full h-full object-cover transform transition-transform group-hover:scale-105"
+                        src={artist.profile_photo}
+                        alt={artist.name}
+                        className="w-full h-full object-cover transform transition-transform group-hover:scale-105"
                     />
+                    ) : (
+                        <div
+                        className={`w-full h-full flex items-center justify-center ${getColor(artist.username)} text-xl font-bold text-white transform transition-transform group-hover:scale-105`}
+                        >
+                        {artist.username.charAt(0).toUpperCase()}{artist.username.charAt(artist.username.length - 1).toUpperCase()}
+                        </div>
+                    )}
                   </div>
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-full">
                     <button
@@ -115,7 +194,7 @@ console.log(items)
                   </div>
                 </div>
                 <div className="mt-4 text-center">
-                  <h3 className="font-bold text-white truncate">{artist.name}</h3>
+                  <h3 className="font-bold text-white truncate">{artist.username}</h3>
                   <p className="text-sm text-gray-400 truncate">Artist</p>
                 </div>
               </div>

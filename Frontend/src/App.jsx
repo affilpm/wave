@@ -31,6 +31,7 @@ import MonetizationPage from './components/artist/studio/Monetization';
 // import { musicStreamService } from './services/user/musicService';
 import PlaylistShowMorePage from './components/user/home/dashboard/Playlist-section/PlaylistShowMore';
 import AlbumShowMorePage from './components/user/home/dashboard/Album-section/AlbumShowMore';
+import ArtistPage from './components/user/home/dashboard/ArtistPage';
 
 
 
@@ -77,7 +78,6 @@ function App() {
 
         <Route element={<PrivateRoute isAuthenticated={isAuthenticated} />}>
 
-          <Route path="/settings" element={<SettingsPage />} />
           <Route path="/studio" element={<StudioPage/>} />
           <Route path="/musicupload" element={<MusicUpload/>} />
           <Route path="/albumcreator" element={<AlbumCreator/>} />
@@ -86,6 +86,7 @@ function App() {
 
           <Route path="/" element={<HomePage />}>
               <Route path="/home" element={<Dashboard/>} />
+              <Route path="/settings" element={<SettingsPage />} />
               <Route path="/playlist/:playlistId" element={<YourPlaylistPage/>} />
               <Route path="/saved-playlist/:playlistId" element={<SavedPlaylistPage />} />
               <Route path="/music-show-more" element={<MusicShowMorePage/>} />
@@ -95,7 +96,7 @@ function App() {
               <Route path="/monetization" element={<MonetizationPage/>} />
               <Route path="/playlist-show-more" element={<PlaylistShowMorePage/>} />
               <Route path="/albums-show-more" element={<AlbumShowMorePage/>} />
-
+              <Route path="/artist/:artistId" element={<ArtistPage />} />
 
 
 

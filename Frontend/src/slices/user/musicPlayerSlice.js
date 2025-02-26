@@ -11,6 +11,7 @@ const initialState = {
   originalQueue: [], 
   playedTracks: [],
   currentPlaylistId: null,
+  currentArtistId: null, // Added currentArtistId to track the current artist
   isLiked: true,
 };
 
@@ -36,32 +37,36 @@ const musicPlayerSlice = createSlice({
     setCurrentPlaylistId: (state, action) => {
         state.currentPlaylistId = action.payload;
       },
+    setCurrentArtistId: (state, action) => {
+        state.currentArtistId = action.payload;
+      },
     setIsLiked: (state, action) => {
         state.isLiked = action.type
     },  
-      setIsPlaying: (state, action) => {
+    setIsPlaying: (state, action) => {
         state.isPlaying = action.payload;
       },
-  
     setChangeComplete: (state) => {
       state.isChanging = false;
     },
     setQueue: (state, action) => {
-        const { tracks, playlistId } = action.payload;
+        const { tracks, playlistId, artistId } = action.payload;
         state.queue = tracks;
         state.originalQueue = [...tracks];
         state.currentIndex = 0;
         state.currentPlaylistId = playlistId;
+        state.currentArtistId = artistId; // Store artist ID when setting queue
         state.playedTracks = []; // Reset played tracks for new playlist
       },
       
-      clearQueue: (state) => {
+    clearQueue: (state) => {
         state.queue = [];
         state.originalQueue = [];
         state.currentIndex = 0;
         state.musicId = null;
         state.isPlaying = false;
         state.currentPlaylistId = null;
+        state.currentArtistId = null; // Clear artist ID when clearing queue
         state.playedTracks = [];
       },
     addToQueue: (state, action) => {
@@ -208,7 +213,8 @@ export const {
   moveTrack,
   markAsPlayed,
   clearPlayedTracks,
-  setCurrentPlaylistId, 
+  setCurrentPlaylistId,
+  setCurrentArtistId,
   setIsLiked,
 } = musicPlayerSlice.actions;
 

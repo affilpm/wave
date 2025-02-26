@@ -1,81 +1,36 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useState, useRef, useCallback, useMemo } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import PlaylistSectionMenuModal from "../PlaylistSectionMenuModal";
-import { 
-  setMusicId,
-  setIsPlaying,
-  setQueue,
-  setCurrentPlaylistId,
-} from "../../../../../slices/user/musicPlayerSlice";
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from "react-router-dom";
-import api from "../../../../../api";
 import { handlePlaybackAction } from "../../playlist/music-player-utils";
 
-
-
-const PlaylistSection = ({ title,  onLengthChange  }) => {
+const PlaylistSection = ({ title, items, onLengthChange }) => {
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
-  const [playlistData, setPlaylistData] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  
+
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const username = useSelector((state) => state.user.username);
-  const { 
-    musicId, 
-    isPlaying, 
-    queue, 
-    currentPlaylistId 
-  } = useSelector((state) => state.musicPlayer);
+  const { musicId, isPlaying, queue, currentPlaylistId } = useSelector((state) => state.musicPlayer);
 
-  // Fetch playlist data
-  useEffect(() => {
-    const fetchPlaylistData = async () => {
-      try {
-        const playlistResponse = await api.get("/api/home/playlist/?top10=true");
-        setPlaylistData(playlistResponse.data.results);
-
-        
-      } catch (err) {
-        setError("Failed to load playlists");
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchPlaylistData();
-  }, [onLengthChange]);
-
-  const handlePlaylistClick = (playlistId) => {
-    const playlist = playlistData.find((item) => item.id === playlistId);
+  const handlePlaylistClick = useCallback((playlistId) => {
+    const playlist = items.find((item) => item.id === playlistId);
     if (playlist && playlist.created_by === username) {
       navigate(`/playlist/${playlistId}`);
     } else {
       navigate(`/saved-playlist/${playlistId}`);
     }
-  };
+  }, [items, navigate, username]);
 
-  const handlePlayClick = async (e, item) => {
+  const handlePlayClick = useCallback(async (e, item) => {
     e.stopPropagation();
-      
     await handlePlaybackAction({
-      playlistId: item.id, // Only pass playlist ID here
+      playlistId: item.id,
       dispatch,
-      currentState: { 
-        musicId, 
-        isPlaying, 
-        queue, 
-        currentPlaylistId 
-      }
+      currentState: { musicId, isPlaying, queue, currentPlaylistId }
     });
-  };
-  
-  const handlePlaylistAddSuccess = (playlistId) => {
-    console.log("Playlist added to library successfully:", playlistId);
-  };
+  }, [dispatch, musicId, isPlaying, queue, currentPlaylistId]);
 
   const handleScroll = (direction) => {
     const container = scrollContainerRef.current;
@@ -88,13 +43,13 @@ const PlaylistSection = ({ title,  onLengthChange  }) => {
     }
   };
 
+  const memoizedItems = useMemo(() => items, [items]);
+
   const handleShowMore = () => {
     navigate("/playlist-show-more", { state: { title } });
   };
 
-  if (loading) return <div className="text-white">Loading playlists...</div>;
-  if (error) return <div className="text-white">{error}</div>;
-  if (!playlistData.length) return null;
+  if (!memoizedItems.length) return null;
 
   return (
     <section className="mb-8 relative">
@@ -121,7 +76,6 @@ const PlaylistSection = ({ title,  onLengthChange  }) => {
             >
               <ChevronLeft className="h-6 w-6" />
             </button>
-            
             <button
               onClick={() => handleScroll('right')}
               className="absolute right-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2 transition-transform hover:scale-110"
@@ -137,7 +91,7 @@ const PlaylistSection = ({ title,  onLengthChange  }) => {
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           <div className="flex gap-4 px-4">
-            {playlistData.map((item) => (
+            {memoizedItems.map((item) => (
               <div
                 key={item.id}
                 className="flex-none w-40"
@@ -167,7 +121,6 @@ const PlaylistSection = ({ title,  onLengthChange  }) => {
                         id: item.id,
                         name: item.name,
                       }}
-                      onSuccess={() => handlePlaylistAddSuccess(item.id)}
                     />
                   </div>
                 </div>
@@ -189,4 +142,4 @@ const PlaylistSection = ({ title,  onLengthChange  }) => {
   );
 };
 
-export default PlaylistSection;
+export default React.memo(PlaylistSection);

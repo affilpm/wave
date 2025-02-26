@@ -1,5 +1,5 @@
 // Home.js
-import React, { useState, useEffect, useCallback} from "react";
+import React, { useState, useEffect, useCallback, useMemo} from "react";
 import MusicSection from "./Music-section/MusicSection";
 import PlaylistSection from "./Playlist-section/PlaylistSection";
 import api from "../../../../api";
@@ -89,25 +89,27 @@ const ShufflingDashboard = ({ children }) => {
   }, [shuffleSections]);
 
   // Wrap each section with interaction tracking
-  const wrappedSections = sections.map(section => (
-    <motion.div
-      key={`${section.props.title}-${shuffleCount}`}
-      layout
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      transition={{
-        type: "spring",
-        stiffness: 500,
-        damping: 50,
-        mass: 1
-      }}
-      className="mb-8"
-      onViewportEnter={() => trackSectionInteraction(section.props.title)}
-    >
-      {section}
-    </motion.div>
-  ));
+  const wrappedSections = useMemo(() => {
+    return sections.map(section => (
+      <motion.div
+        key={`${section.props.title}-${shuffleCount}`}
+        layout
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -20 }}
+        transition={{
+          type: "spring",
+          stiffness: 500,
+          damping: 50,
+          mass: 1
+        }}
+        className="mb-8"
+        onViewportEnter={() => trackSectionInteraction(section.props.title)}
+      >
+        {section}
+      </motion.div>
+    ));
+  }, [sections, shuffleCount, trackSectionInteraction]);
 
   return (
     <div className="flex-1 p-2 ">
@@ -131,6 +133,7 @@ const Dashboard = () => {
   const [playlistData, setPlaylistData] = useState([]);
   const [AlbumlistData, setAlbumlistData] = useState([]);
   const [recentlyPlayedData, setRecentlyPlayedData] = useState([]);
+  const [artistlist, setArtistlist] = useState([])
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -142,17 +145,21 @@ const Dashboard = () => {
         setLoading(true);
         const page=1
         const limit = 10
-        const [musiclistResponse, playlistResponse, albumlistResponse, recentlyPlayedResponse] = await Promise.all([
+        const [musiclistResponse, playlistResponse, albumlistResponse, recentlyPlayedResponse, artistlistResponse] = await Promise.all([
           api.get(`/api/home/musiclist/?top10=true`),
           api.get("/api/home/playlist/?top10=true"),
           api.get("/api/home/albumlist/?top10=true"),
-          api.get("/api/listening_history/recently-played/")
+          api.get("/api/listening_history/recently-played/"),
+          api.get("/api/home/artistlist/")
         ]);
 
         setMusiclistData(musiclistResponse.data.results);
         setPlaylistData(playlistResponse.data.results);
         setAlbumlistData(albumlistResponse.data.results);
         setRecentlyPlayedData(recentlyPlayedResponse.data);
+        setArtistlist(artistlistResponse.data)
+        console.log(artistlistResponse)
+        console.log(playlistResponse.data.results)
 
       } catch (err) {
         setError("Failed to load data.");
@@ -164,22 +171,10 @@ const Dashboard = () => {
     fetchData();
   }, []);
 
-  const handlePlaylistClick = (playlistId) => {
-    const playlist = playlistData.find((item) => item.id === playlistId);
-    if (playlist && playlist.created_by === username) {
-      navigate(`/playlist/${playlistId}`);
-    } else {
-      navigate(`/saved-playlist/${playlistId}`);
-    }
-  };
 
-  const handleAlbumClick = (albumId) => {
-    navigate(`/album/${albumId}`);
-  };
 
-  const filteredItems = (items) =>
-    filter === "all" ? items : items.filter((item) => item.type === filter);
-  console.log(filteredItems(musiclistData));
+
+  
   if (error) return <div className="text-white">{error}</div>;
 
   return (
@@ -190,32 +185,29 @@ const Dashboard = () => {
           items={recentlyPlayedData}
         />
       )}
-      {filteredItems(musiclistData).length > 0 && (
+      {artistlist.length > 0 && (
   <ArtistSection
     title="Artists"
-    items={filteredItems(musiclistData)}
+    items={artistlist}
   />
 )}
-      {filteredItems(musiclistData).length > 0 && (
+      {musiclistData.length > 0 && (
         <MusicSection
           title="Music"
-          items={filteredItems(musiclistData)}
+          items={musiclistData}
         />
       )}
-      {filteredItems(playlistData).length > 0 && (
+      {playlistData.length > 0 && (
         <PlaylistSection
           title="Playlists"
           items={playlistData}
-          isPlaying={isPlaying}
-          setIsPlaying={setIsPlaying}
-          onPlaylistClick={handlePlaylistClick}
+
         />
       )}
-      {filteredItems(AlbumlistData).length > 0 && (
+      {AlbumlistData.length > 0 && (
         <AlbumSection
           title="Album"
-          items={filteredItems(AlbumlistData)}
-          onAlbumClick={handleAlbumClick}
+          items={AlbumlistData}
         />
       )}
     </ShufflingDashboard>
