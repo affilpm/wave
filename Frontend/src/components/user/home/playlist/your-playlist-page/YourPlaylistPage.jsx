@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Play, Pause, Clock, Plus, Share2, X, Shuffle } from "lucide-react";
+import LikedSongsPlaceholder from "./LikedSongsPlaceholder"; // Import from the correct location
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from 'react-redux';
 import { 
@@ -51,21 +52,6 @@ const YourPlaylistPage = () => {
   const { musicId, isPlaying, isChanging, queue, currentIndex, repeat, shuffle, playedTracks, currentPlaylistId, } = useSelector((state) => state.musicPlayer);
   console.log(currentPlaylistId)
 
-
-  // const isCurrentTrackFromPlaylist = () => {
-  //   if (!playlist?.tracks || !musicId) return false;
-    
-  //   // First check if current musicId exists in playlist
-  //   const trackExistsInPlaylist = playlist.tracks.some(track => track.music_details.id === musicId);
-    
-  //   // Then check if current queue matches playlist tracks
-  //   const isQueueFromPlaylist = queue.length === playlist.tracks.length && 
-  //     queue.every(queueTrack => 
-  //       playlist.tracks.some(playlistTrack => playlistTrack.music_details.id === queueTrack.id)
-  //     );
-    
-  //   return trackExistsInPlaylist && isQueueFromPlaylist;
-  // };
   const isCurrentTrackFromPlaylist = () => {
     if (!playlist?.tracks || !musicId) return false;
     
@@ -75,7 +61,6 @@ const YourPlaylistPage = () => {
     // Check if current track exists in this playlist
     return playlist.tracks.some(track => track.music_details.id === musicId);
   };
-
 
   // Transform track data for player
   const prepareTrackForPlayer = (track) => ({
@@ -244,7 +229,6 @@ const handlePlayTrack = (track, index) => {
   const TrackRow = ({ track, index }) => {
     const isThisTrackPlaying = musicId === track.music_details.id && isCurrentTrackFromPlaylist();
 
-
     return (
       <tr
         className={`group hover:bg-white/10 transition-colors ${
@@ -288,12 +272,14 @@ const handlePlayTrack = (track, index) => {
           {formatDuration(track.music_details.duration)}
         </td>
         <td className="py-3 pr-6 text-right">
-          <button
-            className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-all"
-            onClick={() => handleRemoveTrack(track.music_details.id)}
-          >
-            <X className="h-4 w-4" />
-          </button>
+          {playlist.name !== 'Liked Songs' && (
+            <button
+              className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-all"
+              onClick={() => handleRemoveTrack(track.music_details.id)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </td>
       </tr>
     );
@@ -303,20 +289,27 @@ const handlePlayTrack = (track, index) => {
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 via-black to-black text-white">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row items-end gap-6 p-6">
+
         <div className="relative group w-48 h-48 flex-shrink-0">
-          <img
-            src={playlist.cover_photo || "/api/placeholder/192/192"}
-            alt={playlist.name}
-            className="w-full h-full object-cover rounded-lg shadow-2xl transition-opacity group-hover:opacity-75"
-          />
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-            <button
-              onClick={handleEdit}
-              className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-md backdrop-blur-sm text-sm font-medium transition-colors"
-            >
-              Change Photo
-            </button>
-          </div>
+          {playlist.name === 'Liked Songs' ? (
+            <LikedSongsPlaceholder size={192} />
+          ) : (
+            <img
+              src={playlist.cover_photo || "/api/placeholder/192/192"}
+              alt={playlist.name}
+              className="w-full h-full object-cover rounded-lg shadow-2xl transition-opacity group-hover:opacity-75"
+            />
+          )}
+          {playlist.name !== 'Liked Songs' && (
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={handleEdit}
+                className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-md backdrop-blur-sm text-sm font-medium transition-colors"
+              >
+                Change Photo
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-col gap-4">
@@ -360,20 +353,18 @@ const handlePlayTrack = (track, index) => {
           <Shuffle className="h-6 w-6" />
         </button>
 
-        {/* <button className="group p-1 border-2 border-gray-400 rounded-full w-8 h-8 flex items-center justify-center transition-all duration-200 transform group-hover:scale-90 hover:border-gray-100 hover:bg-transparent">
-          <Plus className="h-6 w-6 text-gray-400 group-hover:text-white transition-colors" />
-        </button> */}
-
         <button className="p-2 text-gray-400 hover:text-white transition-colors">
           <Share2 className="h-6 w-6" />
         </button>
 
-        <PlaylistMenuModal
-          playlist={playlist}
-          onEdit={handleEdit}
-          onTogglePrivacy={handleTogglePrivacy}
-          onDelete={handleDelete}
-        />
+        {playlist.name !== 'Liked Songs' && (
+          <PlaylistMenuModal
+            playlist={playlist}
+            onEdit={handleEdit}
+            onTogglePrivacy={handleTogglePrivacy}
+            onDelete={handleDelete}
+          />
+        )}
       </div>
 
       {/* Track List */}
@@ -402,18 +393,22 @@ const handlePlayTrack = (track, index) => {
           </tbody>
         </table>
 
-        <TrackSearch
-          playlistId={playlistId}
-          onTracksUpdate={handleTracksUpdate}
-        />
+        {playlist.name !== 'Liked Songs' && (
+          <TrackSearch
+            playlistId={playlistId}
+            onTracksUpdate={handleTracksUpdate}
+          />
+        )}
       </div>
 
-      <EditPlaylistModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onEditPlaylist={handleEditPlaylist}
-        playlist={playlist}
-      />
+      {playlist.name !== 'Liked Songs' && (
+        <EditPlaylistModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onEditPlaylist={handleEditPlaylist}
+          playlist={playlist}
+        />
+      )}
     </div>
   );
 };

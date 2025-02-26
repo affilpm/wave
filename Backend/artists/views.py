@@ -259,5 +259,10 @@ class UserFollowingListView(APIView):
         """Get the list of artists the authenticated user is following"""
         following = Follow.objects.filter(user=request.user)
         serializer = FollowSerializer(following, many=True)
-        
+        print(serializer.data)
         return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    
+    
+
+

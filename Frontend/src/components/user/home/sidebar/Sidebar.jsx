@@ -5,6 +5,7 @@ import CreatePlaylistModal from '../playlist/CreatePlaylistModal';
 import api from '../../../../api';
 import YourPlaylistSection from './YourPlaylistSection';
 import SavedPlaylistSection from './SavedPlaylistSection';
+import FollowedArtistsSection from './FollowedArtistsSection';
 
 const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
   // State for managing the search query in the library
@@ -24,6 +25,9 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
 
   // State for managing playlists added to the library
   const [libraryPlaylists, setLibraryPlaylists] = useState([]);
+  
+  // State for managing followed artists
+  const [followedArtists, setFollowedArtists] = useState([]);
 
   // State for modal visibility (create playlist)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -35,7 +39,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchPlaylists = async () => {
+    const fetchData = async () => {
       try {
         // Fetch user's own playlists
         const ownPlaylistsResponse = await api.get('/api/playlist/playlist_data/');
@@ -78,6 +82,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
           setOwnPlaylists(formattedOwnPlaylists);
         }
 
+        // Fetch library playlists
         const libraryPlaylistsResponse = await api.get('/api/library/playlists/');
         
         const formattedLibraryPlaylists = libraryPlaylistsResponse.data.map(playlist => ({
@@ -92,16 +97,25 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
         }));
   
         setLibraryPlaylists(formattedLibraryPlaylists);
+        
+        // Fetch followed artists
+        const followingResponse = await api.get('/api/artists/me/following/');
+        console.log(followingResponse.data)
+        if (followingResponse.data && Array.isArray(followingResponse.data)) {
+          // Extract artist data from the follow relationships
+          const artistsData = followingResponse.data.map(follow => follow.artist);
+          setFollowedArtists(artistsData);
+        }
   
       } catch (err) {
-        console.error('Error fetching playlists:', err);
-        setError('Failed to load playlists');
+        console.error('Error fetching data:', err);
+        setError('Failed to load library data');
       } finally {
         setIsLoading(false);
       }
     };
   
-    fetchPlaylists();
+    fetchData();
   }, []);
 
   // Handle the creation of a new playlist
@@ -118,12 +132,17 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
     }]);
   };
 
-  // Filter playlists based on the search query
+  // Filter playlists and artists based on the search query
   const filteredOwnPlaylists = ownPlaylists.filter(playlist =>
     playlist.name.toLowerCase().includes(librarySearchQuery.toLowerCase())
   );
+  
   const filteredLibraryPlaylists = libraryPlaylists.filter(playlist =>
     playlist.name.toLowerCase().includes(librarySearchQuery.toLowerCase())
+  );
+  
+  const filteredFollowedArtists = followedArtists.filter(artist =>
+    artist && artist.username && artist.username.toLowerCase().includes(librarySearchQuery.toLowerCase())
   );
 
   // Handle navigation to a specific playlist
@@ -200,10 +219,10 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
         )}
       </div>
 
-      {/* Playlist Lists */}
+      {/* Library Content */}
       <div className="flex-1 overflow-y-auto px-2 scrollbar-hidden">
         {isLoading ? (
-          <div className="text-gray-400 text-center py-4">Loading playlists...</div>
+          <div className="text-gray-400 text-center py-4">Loading library...</div>
         ) : error ? (
           <div className="text-red-400 text-center py-4">{error}</div>
         ) : (
@@ -217,6 +236,15 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
               onPlaylistUpdate={handlePlaylistUpdate}
               onPlaylistDelete={handlePlaylistDelete}
             />
+            
+            {/* Section for followed artists */}
+            {filteredFollowedArtists.length > 0 && (
+              <FollowedArtistsSection 
+                artists={filteredFollowedArtists}
+                isSidebarExpanded={isSidebarExpanded}
+              />
+            )}
+            
             {/* Section for library playlists */}
             {filteredLibraryPlaylists.length > 0 && (
               <SavedPlaylistSection

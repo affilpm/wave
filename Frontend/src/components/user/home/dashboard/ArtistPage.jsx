@@ -30,6 +30,9 @@ const ArtistDetailPage = () => {
   const [error, setError] = useState(null);
   const [totalDuration, setTotalDuration] = useState("");
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [followers, setFollowers] = useState([]);
+  const [followersCount, setFollowersCount] = useState(0);
   
   const { musicId, isPlaying, currentPlaylistId, currentArtistId, queue } = useSelector((state) => state.musicPlayer);
   
@@ -41,14 +44,32 @@ const ArtistDetailPage = () => {
         // First fetch artist information
         const artistResponse = await api.get(`/api/home/artistlist/${artistId}/`);
         setArtist(artistResponse.data);
+        
         // Then fetch the artist's public songs
         const songsResponse = await api.get(`/api/music/artist/${artistId}/`);
         setPublicSongs(songsResponse.data.results || songsResponse.data);
-        console.log(songsResponse.data)
         
         // Fetch the artist's public playlists
         const playlistsResponse = await api.get(`/api/playlist/public_playlist_data/?artist_id=${artistId}`);
         setPlaylists(playlistsResponse.data.results || playlistsResponse.data);
+        
+        // Fetch followers for this artist
+        const followersResponse = await api.get(`/api/artists/${artistId}/followers/`);
+        setFollowers(followersResponse.data);
+        setFollowersCount(followersResponse.data.length);
+        
+        // Check if current user is following this artist
+        try {
+          const userFollowingResponse = await api.get('/api/artists/me/following/');
+          const isFollowingArtist = userFollowingResponse.data.some(
+            follow => follow.artist.id === Number(artistId)
+          );
+          setIsFollowing(isFollowingArtist);
+        } catch (err) {
+          console.error("Error checking follow status:", err);
+          // If error occurs, we assume not following
+          setIsFollowing(false);
+        }
         
       } catch (err) {
         console.error("Error fetching artist data:", err);
@@ -172,10 +193,26 @@ const ArtistDetailPage = () => {
     }
   };
   
-  const toggleFollow = () => {
-    // Dummy function to toggle follow status
-    setIsFollowing(!isFollowing);
-    // In a real app, you would call an API here
+  const toggleFollow = async () => {
+    setFollowLoading(true);
+    try {
+      if (isFollowing) {
+        // Unfollow artist
+        await api.delete(`/api/artists/${artistId}/follow/`);
+        setIsFollowing(false);
+        setFollowersCount(prevCount => prevCount - 1);
+      } else {
+        // Follow artist
+        await api.post(`/api/artists/${artistId}/follow/`);
+        setIsFollowing(true);
+        setFollowersCount(prevCount => prevCount + 1);
+      }
+    } catch (error) {
+      console.error("Error toggling follow:", error);
+      // Show error notification/toast here
+    } finally {
+      setFollowLoading(false);
+    }
   };
   
   const getColor = (username) => {
@@ -233,7 +270,6 @@ const ArtistDetailPage = () => {
         </div>
         
         <div className="flex flex-col gap-4">
-
           <span className="text-sm text-green-400 font-medium tracking-wider">Verified Artist</span>
 
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
@@ -242,7 +278,7 @@ const ArtistDetailPage = () => {
           {artist.bio && <p className="text-gray-300 max-w-2xl">{artist.bio}</p>}
           <div className="flex items-center gap-4 text-gray-300">
             <span className="text-sm">
-              {publicSongs.length} songs • {playlists.length} public playlists • {totalDuration}
+              {publicSongs.length} songs • {playlists.length} public playlists • {followersCount} followers • {totalDuration}
             </span>
           </div>
         </div>
@@ -263,12 +299,15 @@ const ArtistDetailPage = () => {
         </button>
         
         <button
-          className={`px-6 py-2 font-semibold rounded-full border border-gray-400 hover:border-white transition-colors ${
-            isFollowing ? "bg-white text-black border-white" : "text-white"
-          }`}
+          className={`px-6 py-2 font-semibold rounded-full border ${
+            isFollowing 
+              ? "bg-white text-black border-white hover:bg-transparent hover:text-white" 
+              : "text-white border-gray-400 hover:border-white"
+          } transition-colors`}
           onClick={toggleFollow}
+          disabled={followLoading}
         >
-          {isFollowing ? "Following" : "Follow"}
+          {followLoading ? "Processing..." : isFollowing ? "Following" : "Follow"}
         </button>
         
         <button className="p-2 text-gray-400 hover:text-white transition-colors">
@@ -394,6 +433,42 @@ const ArtistDetailPage = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+      
+      {/* Followers section */}
+      {followers.length > 0 && (
+        <div className="flex-1 p-6">
+          <h2 className="text-2xl font-bold mb-4">Followers</h2>
+          
+          <div className="flex flex-wrap gap-3">
+            {followers.slice(0, 8).map((follow) => (
+              <div 
+                key={follow.id} 
+                className="flex items-center gap-2 bg-neutral-800/50 p-2 rounded-lg cursor-pointer hover:bg-neutral-700/50 transition-all"
+                onClick={() => navigate(`/profile/${follow.user.id}`)}
+              >
+                <div className="w-8 h-8 rounded-full overflow-hidden">
+                  <img 
+                    src={follow.user.profile_photo || '/api/placeholder/32/32'} 
+                    alt={follow.user.username || follow.user.email} 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <span className="text-sm truncate max-w-32">
+                  {follow.user.username || follow.user.email}
+                </span>
+              </div>
+            ))}
+            {followers.length > 8 && (
+              <button 
+                className="text-sm text-gray-400 hover:text-white transition-colors bg-neutral-800/50 p-2 rounded-lg"
+                onClick={() => alert('Show all followers')} // Replace with actual navigation or modal
+              >
+                +{followers.length - 8} more
+              </button>
+            )}
           </div>
         </div>
       )}

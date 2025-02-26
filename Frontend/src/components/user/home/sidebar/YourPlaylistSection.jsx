@@ -1,8 +1,6 @@
 import React from 'react'
 import YourPlaylistSectionManager from './YourPlaylistSectionManager';
 
-
-
 const YourPlaylistSection = ({ 
     title, 
     playlists, 
@@ -64,7 +62,7 @@ const YourPlaylistSection = ({
                 </div>
               )}
               
-              {isSidebarExpanded && (
+              {isSidebarExpanded && playlist.name !== 'Liked Songs' && (
                 <div className="playlist-manager-button">
                   <YourPlaylistSectionManager 
                     playlist={playlist}
@@ -80,5 +78,4 @@ const YourPlaylistSection = ({
     </>
   );
 
-
-export default YourPlaylistSection  
+export default YourPlaylistSection
