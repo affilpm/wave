@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
@@ -11,34 +11,21 @@ import {
   setCurrentPlaylistId
 } from "../../../../../slices/user/musicPlayerSlice";
 
-const MusicSection = ({ title }) => {
+const MusicSection = ({ title, items }) => {
   const dispatch = useDispatch();
   const { musicId, isPlaying, currentPlaylistId } = useSelector((state) => state.musicPlayer);
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
-  const [musiclistData, setMusiclistData] = useState([]);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const musiclistResponse = await api.get(`/api/home/musiclist/?top10=true`);
 
-        setMusiclistData(musiclistResponse.data.results || []);
-        
-      } catch (error) {
-        console.error("Error fetching music data:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const musiclistData = useMemo(() => {
+    return items || [];
+  }, [items]);
 
-    fetchData();
-  }, []);
 
-  const handleScroll = (direction) => {
+  const handleScroll = useCallback((direction) => {
     const container = scrollContainerRef.current;
     if (container) {
       const scrollAmount = 300;
@@ -47,9 +34,10 @@ const MusicSection = ({ title }) => {
         behavior: 'smooth'
       });
     }
-  };
+  }, []);
 
-  const prepareTrackForPlayer = (track) => ({
+
+  const prepareTrackForPlayer = useCallback((track) => ({
     id: track.id,
     name: track.name,
     artist: track.artist,
@@ -57,9 +45,9 @@ const MusicSection = ({ title }) => {
     cover_photo: track.cover_photo,
     audio_file: track.audio_file,
     duration: track.duration
-  });
+  }), []);
 
-  const handlePlay = async (item, e) => {
+  const handlePlay = useCallback(async (item, e) => {
     e.stopPropagation();
     
     const formattedTrack = prepareTrackForPlayer(item);
@@ -86,15 +74,16 @@ const MusicSection = ({ title }) => {
     dispatch(setCurrentPlaylistId(sectionId));
     dispatch(setMusicId(formattedTrack.id));
     dispatch(setIsPlaying(true));
-  };
+  }, [dispatch, isPlaying, musicId, prepareTrackForPlayer, title]);
 
-  const isItemPlaying = (item) => {
+
+  const isItemPlaying = useCallback((item) => {
     return musicId === item.id && isPlaying;
-  };
+  }, [musicId, isPlaying]);
 
-  const handleShowMore = () => {
+  const handleShowMore = useCallback(() => {
     navigate("/music-show-more", { state: { title } });
-  };
+  }, [navigate, title]);
 
   if (loading) {
     return <div>Loading...</div>;

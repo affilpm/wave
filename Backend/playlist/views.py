@@ -63,6 +63,10 @@ class PlaylistData(viewsets.ModelViewSet):
         
         
         
+from artists.models import Artist
+from django.db.models import Count
+
+        
 class PublicPlaylistData(viewsets.ModelViewSet):
     serializer_class = PlaylistSerializer
     permission_classes = [IsAuthenticated]
@@ -73,20 +77,50 @@ class PublicPlaylistData(viewsets.ModelViewSet):
         and contain only public music.
         """
         user = self.request.user
+        artist_id = self.request.query_params.get('artist_id', None)
         
-        # Get all public playlists created by the current user
-        queryset = Playlist.objects.filter(created_by=user, is_public=True)
-        
-        # Prefetch related tracks, filtering for only public music
-        queryset = queryset.prefetch_related(
-            Prefetch(
-                'playlisttrack_set',
-                queryset=PlaylistTrack.objects.filter(music__is_public=True)
+        if artist_id:
+            # Get the User ID associated with the Artist ID
+            try:
+                artist = Artist.objects.get(id=artist_id)
+                artist_user = artist.user
+                
+                # Get public playlists for the specified artist
+                queryset = Playlist.objects.filter(
+                    created_by=artist_user, 
+                    is_public=True
+                )
+                
+                # Filter for playlists that have at least one song
+                queryset = queryset.annotate(
+                    track_count=Count('playlisttrack')
+                ).filter(track_count__gt=0)
+                
+                # Prefetch related tracks, filtering for only public music
+                queryset = queryset.prefetch_related(
+                    Prefetch(
+                        'playlisttrack_set',
+                        queryset=PlaylistTrack.objects.filter(music__is_public=True)
+                    )
+                )
+                
+                return queryset
+            except Artist.DoesNotExist:
+                # Return empty queryset if artist doesn't exist
+                return Playlist.objects.none()
+        else:
+            # Original behavior: return authenticated user's public playlists
+            queryset = Playlist.objects.filter(created_by=user, is_public=True)
+            
+            # Prefetch related tracks, filtering for only public music
+            queryset = queryset.prefetch_related(
+                Prefetch(
+                    'playlisttrack_set',
+                    queryset=PlaylistTrack.objects.filter(music__is_public=True)
+                )
             )
-        )
-        
-        return queryset
-    
+            
+            return queryset
     
             
 # used to manage playlist    

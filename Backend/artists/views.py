@@ -165,3 +165,99 @@ def check_artist_status(request):
         
         
         
+from rest_framework import status
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from django.shortcuts import get_object_or_404
+from .models import Artist, Follow
+from .serializers import FollowSerializer
+
+class FollowArtistView(APIView):
+    """
+    View to follow/unfollow an artist.
+    POST: Follow an artist
+    DELETE: Unfollow an artist
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, artist_id):
+        """Follow an artist"""
+        artist = get_object_or_404(Artist, id=artist_id)
+        
+        # Check if user is trying to follow themselves
+        if artist.user == request.user:
+            return Response(
+                {"detail": "You cannot follow yourself."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        # Check if already following
+        follow, created = Follow.objects.get_or_create(
+            user=request.user,
+            artist=artist
+        )
+        
+        if not created:
+            return Response(
+                {"detail": "You are already following this artist."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
+        serializer = FollowSerializer(follow)
+        return Response(
+            {
+                "detail": f"You are now following {artist.user.username}.",
+                "follow": serializer.data
+            },
+            status=status.HTTP_201_CREATED
+        )
+    
+    def delete(self, request, artist_id):
+        """Unfollow an artist"""
+        artist = get_object_or_404(Artist, id=artist_id)
+        
+        # Try to find the follow relationship
+        try:
+            follow = Follow.objects.get(
+                user=request.user,
+                artist=artist
+            )
+            follow.delete()
+            return Response(
+                {"detail": f"You have unfollowed {artist.user.username}."},
+                status=status.HTTP_200_OK
+            )
+        except Follow.DoesNotExist:
+            return Response(
+                {"detail": "You are not following this artist."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+class ArtistFollowersListView(APIView):
+    """
+    View to get a list of followers for an artist.
+    """
+    
+    def get(self, request, artist_id):
+        """Get the list of followers for an artist"""
+        artist = get_object_or_404(Artist, id=artist_id)
+        followers = Follow.objects.filter(artist=artist)
+        serializer = FollowSerializer(followers, many=True)
+        
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+class UserFollowingListView(APIView):
+    """
+    View to get a list of artists a user is following.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get the list of artists the authenticated user is following"""
+        following = Follow.objects.filter(user=request.user)
+        serializer = FollowSerializer(following, many=True)
+        
+        return Response(serializer.data, status=status.HTTP_200_OK)

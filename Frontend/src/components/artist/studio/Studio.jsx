@@ -40,6 +40,7 @@ const Studio = () => {
     <div className="min-h-screen bg-gray-900">
       {/* Sidebar */}
       <div className="fixed left-0 top-0 h-full w-20 bg-gray-800 border-r border-gray-700 flex flex-col items-center py-8 space-y-8">
+        
         <div className="w-12 h-12 rounded-2xl flex items-center justify-center">
           <img src="/shape.png" alt="Logo" className="h-auto w-auto" />
         </div>
@@ -61,6 +62,14 @@ const Studio = () => {
             <Icon className="h-6 w-6" />
           </button>
         ))}
+
+<button
+    onClick={() => navigate('/home')}
+    className="mt-auto mb-4 flex flex-col items-center text-gray-400 hover:text-white transition-colors"
+  >
+    <ArrowLeft className="h-6 w-6" />
+    <span className="text-xs">Home</span>
+  </button>
       </div>
 
       {/* Main Content */}
@@ -68,18 +77,18 @@ const Studio = () => {
         <div className="max-w-7xl mx-auto">
           {/* Header section remains the same */}
           <div className="flex items-center justify-between mb-8">
-            <button
+            {/* <button
               onClick={() => navigate('/home')}
               className="flex items-center space-x-2 text-gray-400 hover:text-white transition-colors"
             >
               <ArrowLeft className="h-5 w-5" />
               <span>Back to Home</span>
-            </button>
+            </button> */}
             <h1 className="text-2xl font-bold text-white">Music Studio</h1>
-            <button className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">
+            {/* <button className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">
               <Plus className="h-5 w-5" />
               <span>New Upload</span>
-            </button>
+            </button> */}
           </div>
 
           {/* Content views */}

@@ -1,9 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, ChevronLeft, ChevronRight, Home } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import { useArtistStatus } from '../../../../hooks/useArtistStatus';
 import api from '../../../../api';
+
+
+
+const restrictedUrls = ['/studio']
+
+
 
 const Header = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -11,9 +17,63 @@ const Header = () => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
   const navigate = useNavigate();
-
+  const isNavigatingWithButtons = useRef(false);
   const { username, photo, image } = useSelector((state) => state.user);
   const { isArtist } = useArtistStatus();
+  const [currentPosition, setCurrentPosition] = useState(0);
+  const location = useLocation();
+  const [history, setHistory] = useState([]);
+
+  useEffect(() => {
+
+    if (isNavigatingWithButtons.current) {
+      isNavigatingWithButtons.current = false;
+      return;
+    }
+
+  
+    if (restrictedUrls.includes(location.pathname)) {
+      return;
+    }
+
+    setHistory(prevHistory => {
+      
+      let newHistory;
+      if (currentPosition < prevHistory.length - 1 && currentPosition >= 0) {
+        newHistory = prevHistory.slice(0, currentPosition + 1);
+      } else {
+        newHistory = [...prevHistory];
+      }
+      
+      const lastPath = newHistory.length > 0 ? newHistory[newHistory.length - 1] : null;
+      if (lastPath !== location.pathname) {
+        newHistory = [...newHistory, location.pathname];
+        setCurrentPosition(newHistory.length - 1);
+        return newHistory;
+      }
+      
+      return prevHistory;
+    });
+  }, [location.pathname, currentPosition, restrictedUrls]);
+
+
+  
+  const handleBack = () => {
+    if (currentPosition > 0) {
+      isNavigatingWithButtons.current = true;
+      setCurrentPosition(currentPosition - 1);
+      navigate(history[currentPosition - 1]);
+    }
+  };
+
+  const handleForward = () => {
+    if (currentPosition < history.length - 1) {
+      isNavigatingWithButtons.current = true;
+      setCurrentPosition(currentPosition + 1);
+      navigate(history[currentPosition + 1]);
+    }
+  };
+
 
 
   useEffect(() => {
@@ -34,16 +94,32 @@ const Header = () => {
     <div className="h-16 bg-black flex items-center justify-between px-4 sticky top-0 z-50">
       {/* Left Section */}
       <div className="flex gap-3">
-        {['-1', '1'].map((dir, idx) => (
-          <button
-            key={idx}
-            onClick={() => navigate(Number(dir))}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-900 hover:bg-gray-800 transition transform hover:scale-105 active:scale-95 border border-gray-800"
-          >
-            {idx === 0 ? <ChevronLeft className="h-6 w-6" /> : <ChevronRight className="h-6 w-6" />}
-          </button>
-        ))}
-      </div>
+      {/* Previous Button */}
+      <button
+        onClick={handleBack}
+        className={`w-10 h-10 flex items-center justify-center rounded-full 
+          ${currentPosition <= 0
+            ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
+            : 'bg-gray-900 hover:bg-gray-800 text-white transition transform hover:scale-105 active:scale-95'} 
+          border border-gray-800`}
+        disabled={currentPosition <= 0}
+      >
+        <ChevronLeft className="h-6 w-6" />
+      </button>
+
+      {/* Next Button */}
+      <button
+        onClick={handleForward}
+        className={`w-10 h-10 flex items-center justify-center rounded-full 
+          ${currentPosition >= history.length - 1
+            ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
+            : 'bg-gray-900 hover:bg-gray-800 text-white transition transform hover:scale-105 active:scale-95'} 
+          border border-gray-800`}
+        disabled={currentPosition >= history.length - 1}
+      >
+        <ChevronRight className="h-6 w-6" />
+      </button>
+    </div>
 
       {/* Center Section */}
       <div className="flex items-center justify-center gap-8 max-w-3xl flex-1">

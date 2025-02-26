@@ -1,12 +1,14 @@
 # views.py
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from music.models import Music, Album
+from artists.models import Artist
 from playlist.models import Playlist
-from .serializers import Music_ListSerializer, Playlist_ListSerializer, Album_ListSerializer
+from .serializers import Music_ListSerializer, Playlist_ListSerializer, Album_ListSerializer, ArtistSerializer
 from rest_framework.decorators import api_view, permission_classes
 from playlist.serializers import PlaylistSerializer
 from django.db.models import Q
@@ -128,6 +130,32 @@ def get_music_by_genre(request, genre_id):
     return paginator.get_paginated_response(serializer.data)
 
 
+    
+    
+    
+    
+class ArtistOnlyView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, *args, **kwargs):
+        artist_id = kwargs.get('artist_id')
+        if artist_id:
+            try:
+                artist = Artist.objects.get(id=artist_id)
+                serializer = ArtistSerializer(artist, context={'request': request})
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            except Artist.DoesNotExist:
+                return Response(
+                    {"error": "Artist not found"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        else:
+            artists = Artist.objects.all()
+            serializer = ArtistSerializer(artists, many=True, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+    
+    
+    
     
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])

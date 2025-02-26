@@ -40,6 +40,8 @@ import {
   export const fetchAlbumTracks = async (albumId) => {
     try {
       const response = await api.get(`/api/album/album_data/${albumId}/`);
+      console.log(response.data)
+
       return response.data;
     } catch (error) {
       console.error('Error fetching album tracks:', error);
