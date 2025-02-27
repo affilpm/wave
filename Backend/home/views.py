@@ -147,6 +147,13 @@ class ArtistOnlyView(APIView):
                         {"error": "You cannot view your own artist data."}, 
                         status=status.HTTP_403_FORBIDDEN
                     )
+                        
+                has_public_music = artist.musical_works.filter(is_public=True).exists()
+                if not has_public_music:
+                    return Response(
+                        {"error": "You cannot view your own artist data."},
+                        status=status.HTTP_403_FORBIDDEN
+                    )        
                 serializer = ArtistSerializer(artist, context={'request': request})
                 return Response(serializer.data, status=status.HTTP_200_OK)
             except Artist.DoesNotExist:
@@ -155,7 +162,7 @@ class ArtistOnlyView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
         else:
-            artists = Artist.objects.exclude(user=request.user)
+            artists = Artist.objects.exclude(user=request.user).filter(musical_works__is_public = True).distinct()
             serializer = ArtistSerializer(artists, many=True, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
     
