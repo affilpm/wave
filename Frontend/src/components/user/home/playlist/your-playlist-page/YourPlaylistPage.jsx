@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Play, Pause, Clock, Plus, Share2, X, Shuffle } from "lucide-react";
-import LikedSongsPlaceholder from "./LikedSongsPlaceholder"; // Import from the correct location
+import { Play, Pause, Clock, Plus, Share2, X, Shuffle, Heart } from "lucide-react";
+import LikedSongsPlaceholder from "./LikedSongsPlaceholder"; 
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from 'react-redux';
 import { 
@@ -272,15 +272,22 @@ const handlePlayTrack = (track, index) => {
           {formatDuration(track.music_details.duration)}
         </td>
         <td className="py-3 pr-6 text-right">
-          {playlist.name !== 'Liked Songs' && (
-            <button
-              className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-all"
-              onClick={() => handleRemoveTrack(track.music_details.id)}
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </td>
+  {playlist.name === 'Liked Songs' ? (
+    <button
+      className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-all"
+      onClick={() => handleRemoveTrack(track.music_details.id)}
+    >
+      <Heart className="h-4 w-4" fill="currentColor" />
+    </button>
+  ) : (
+    <button
+      className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-all"
+      onClick={() => handleRemoveTrack(track.music_details.id)}
+    >
+      <X className="h-4 w-4" />
+    </button>
+  )}
+</td>
       </tr>
     );
   };
