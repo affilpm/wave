@@ -240,16 +240,7 @@ const ArtistDetailPage = () => {
   
   return (
     <div className="flex-1 bg-gradient-to-b from-gray-900 via-black to-black text-white">
-      {/* Back button */}
-      <div className="p-4">
-        <button 
-          onClick={goBack}
-          className="flex items-center text-gray-400 hover:text-white"
-        >
-          <ArrowLeft className="h-5 w-5 mr-2" />
-          Back
-        </button>
-      </div>
+
       
       {/* Artist header section */}
       <div className="flex flex-col md:flex-row items-end gap-6 p-6">
