@@ -117,7 +117,8 @@ INSTALLED_APPS = [
     'home',
     'library',
     'premium',
-    'listening_history'
+    'listening_history',
+    'livestream',
     # 'csp',
     # 'django_csp', 
 ]
@@ -193,11 +194,11 @@ CORS_ALLOWS_CREDENTIALS = True
 # ]
 
 ROOT_URLCONF = 'Backend.urls'
-
+import os
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'templates'),],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -299,6 +300,15 @@ CACHES = {
 }
 
 
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],  # Default Redis settings
+        },
+    },
+}
 from corsheaders.defaults import default_headers
 
 CORS_ALLOW_ALL_ORIGINS = True  # Or specify allowed origins

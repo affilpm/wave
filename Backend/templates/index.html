@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Test</h1>
+    <div id="messages"></div>
+    <input type="text" id="messageInput" placeholder="Type a message">
+    <button onclick="sendMessage()">Send</button>
+
+    <script>
+        const messagesDiv = document.getElementById('messages');
+        const messageInput = document.getElementById('messageInput');
+        
+        // Create WebSocket connection
+        const socket = new WebSocket('ws://localhost:8000/ws/livestream/');
+        
+        // Connection opened
+        socket.addEventListener('open', function (event) {
+            addMessage('Connected to WebSocket');
+        });
+        
+        // Listen for messages
+        socket.addEventListener('message', function (event) {
+            const data = JSON.parse(event.data);
+            addMessage('Received: ' + data.message);
+        });
+        
+        // Connection closed
+        socket.addEventListener('close', function (event) {
+            addMessage('Disconnected from WebSocket');
+        });
+        
+        // Connection error
+        socket.addEventListener('error', function (event) {
+            addMessage('Error: ' + event);
+        });
+        
+        function sendMessage() {
+            if (socket.readyState === WebSocket.OPEN) {
+                const message = messageInput.value;
+                socket.send(JSON.stringify({
+                    'message': message
+                }));
+                addMessage('Sent: ' + message);
+                messageInput.value = '';
+            } else {
+                addMessage('Connection not open');
+            }
+        }
+        
+        function addMessage(message) {
+            const messageElement = document.createElement('div');
+            messageElement.textContent = message;
+            messagesDiv.appendChild(messageElement);
+        }
+    </script>
+</body>
+</html>
