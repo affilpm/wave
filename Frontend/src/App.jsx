@@ -32,6 +32,7 @@ import MonetizationPage from './components/artist/studio/Monetization';
 import PlaylistShowMorePage from './components/user/home/dashboard/Playlist-section/PlaylistShowMore';
 import AlbumShowMorePage from './components/user/home/dashboard/Album-section/AlbumShowMore';
 import ArtistPage from './components/user/home/dashboard/ArtistPage';
+import Livestream from './components/livestream/LiveStream';
 
 
 
@@ -67,6 +68,8 @@ function App() {
         />
 
         <Route path="/logout" element={<Logout/>} />
+        <Route path="/l" element={<Livestream/>} />
+
 
 
         <Route path="/register" element={<MultiStepRegister/>} />
