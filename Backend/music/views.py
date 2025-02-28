@@ -1,6 +1,6 @@
 from django.shortcuts import render, get_object_or_404
 from .models import Genre, Music
-from .serializers import GenreSerializer, MusicSerializer, MusicDataSerializer
+from .serializers import GenreSerializer, MusicSerializer, MusicDataSerializer, EqualizerPresetSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -35,12 +35,18 @@ from django.core.cache import cache
 from django.http import StreamingHttpResponse
 from rest_framework.permissions import AllowAny  
 from listening_history.models import PlayCount, PlayHistory
+from .models import EqualizerPreset
 from rest_framework import generics
 from django.db.models import F
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
 from users.models import CustomUser
-
+from django.db import models, transaction
+from django.shortcuts import get_object_or_404
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
 
 
 class GenreViewSet(viewsets.ReadOnlyModelViewSet):
@@ -402,11 +408,12 @@ class MusicStreamView(APIView):
             if not signed_token:
                 return Response({'error': 'Token required'}, status=401)
 
-            # verify_signed_token returns the user_id if valid; otherwise False.
+            # Verify token
             token_user_id = verify_signed_token(signed_token, music_id, settings.SECRET_KEY)
             if not token_user_id:
                 return Response({'error': 'Unauthorized'}, status=401)
 
+            # Rate limit check
             if not self.check_rate_limit(request, token_user_id):
                 return Response({'error': 'Rate limit exceeded'}, status=429)
 
@@ -419,7 +426,6 @@ class MusicStreamView(APIView):
             if not hasattr(request, '_play_history_saved'):
                 self.save_play_history(token_user_id, music)
                 request._play_history_saved = True
-
 
             file_size = os.path.getsize(path)
             content_type = self.get_content_type(path)
@@ -451,12 +457,6 @@ class MusicStreamView(APIView):
             if range_header:
                 response['Content-Range'] = f'bytes {start}-{end}/{file_size}'
 
-            # CORS headers
-            response['Access-Control-Allow-Origin'] = '*'
-            response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-            response['Access-Control-Allow-Headers'] = 'Range, Authorization'
-            response['Access-Control-Expose-Headers'] = 'Content-Range, Accept-Ranges, Content-Type'
-
             return response
 
         except Exception as e:
@@ -467,9 +467,8 @@ class MusicStreamView(APIView):
         response = Response()
         response['Access-Control-Allow-Origin'] = '*'
         response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-        response['Access-Control-Allow-Headers'] = 'Range, Authorization'
+        response['Access-Control-Allow-Headers'] = 'Range, Authorization, Content-Type, Accept'
         return response
-
 
         
 
@@ -560,4 +559,100 @@ class MusicVerificationViewSet(viewsets.ModelViewSet):
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+                    
+                   
+                   
+                   
+class EqualizerPresetListCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get all equalizer presets for the current user"""
+        presets = EqualizerPreset.objects.filter(user=request.user)
+        serializer = EqualizerPresetSerializer(presets, many=True)
+        return Response(serializer.data)
+    
+    def post(self, request):
+        """Create a new equalizer preset"""
+        serializer = EqualizerPresetSerializer(data=request.data)
+        if serializer.is_valid():
+            # Handle default preset logic
+            if serializer.validated_data.get('is_default', False):
+                with transaction.atomic():
+                    # Set all other presets to non-default
+                    EqualizerPreset.objects.filter(
+                        user=request.user, 
+                        is_default=True
+                    ).update(is_default=False)
+                    
+                    # Create the new default preset
+                    serializer.save(user=request.user)
+            else:
+                serializer.save(user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class EqualizerPresetDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get_object(self, pk, user):
+        return get_object_or_404(EqualizerPreset, pk=pk, user=user)
+    
+    def get(self, request, pk):
+        """Get a specific equalizer preset"""
+        preset = self.get_object(pk, request.user)
+        serializer = EqualizerPresetSerializer(preset)
+        return Response(serializer.data)
+    
+    def put(self, request, pk):
+        """Update a specific equalizer preset"""
+        preset = self.get_object(pk, request.user)
+        serializer = EqualizerPresetSerializer(preset, data=request.data)
+        if serializer.is_valid():
+            # Handle default preset logic
+            if serializer.validated_data.get('is_default', False):
+                with transaction.atomic():
+                    # Set all other presets to non-default
+                    EqualizerPreset.objects.filter(
+                        user=request.user, 
+                        is_default=True
+                    ).exclude(pk=pk).update(is_default=False)
+                    
+                    # Update the current preset
+                    serializer.save()
+            else:
+                serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self, request, pk):
+        """Delete a specific equalizer preset"""
+        preset = self.get_object(pk, request.user)
+        preset.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+class CurrentEqualizerView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get the current (default) equalizer preset for the user"""
+        try:
+            preset = EqualizerPreset.objects.get(user=request.user, is_default=True)
+            serializer = EqualizerPresetSerializer(preset)
+            return Response(serializer.data)
+        except EqualizerPreset.DoesNotExist:
+            # Try to get the most recent preset
+            try:
+                preset = EqualizerPreset.objects.filter(user=request.user).latest('updated_at')
+                serializer = EqualizerPresetSerializer(preset)
+                return Response(serializer.data)
+            except EqualizerPreset.DoesNotExist:
+                # Return flat preset
+                return Response({
+                    'name': 'Flat',
+                    'is_default': True,
+                    'band_32': 0, 'band_64': 0, 'band_125': 0, 'band_250': 0, 'band_500': 0,
+                    'band_1k': 0, 'band_2k': 0, 'band_4k': 0, 'band_8k': 0, 'band_16k': 0
+                })
                     

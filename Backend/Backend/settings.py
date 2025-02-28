@@ -75,7 +75,10 @@ CORS_ALLOWED_ORIGINS = [
     # "http://localhost:3000",  # Your frontend origin
     # "https://accounts.google.com",  
 ]
-
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8000",  # Allowing the frontend/server to connect from localhost:8000
+    "http://localhost:8001",  # Allowing WebRTC to connect from localhost:8001
+]
 # CORS settings
 CORS_ALLOW_ALL_ORIGINS = True  # For development only
 # In your Django settings (settings.py)
@@ -161,7 +164,6 @@ MIDDLEWARE = [
     'allauth.account.middleware.AccountMiddleware',  # Add this line
     'django.middleware.common.CommonMiddleware',  # Make sure this is included
     'csp.middleware.CSPMiddleware',
-    
     
 ]
 
@@ -298,8 +300,13 @@ CACHES = {
         }
     }
 }
-
-
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_HEADERS = [
+    'Range',
+    'Authorization',
+    'Content-Type',
+    'Accept',
+]
 
 CHANNEL_LAYERS = {
     'default': {

@@ -99,7 +99,7 @@ const GoogleAuthButton = () => {
       dispatch(setUserData({
         email: decodedToken.email,
         username: decodedToken.username,
-        user_id: decodeToken.user_id,
+        user_id: decodedToken.user_id,
         first_name: decodedToken.first_name,
         last_name: decodedToken.last_name,
         image: decodedToken.profile_photo || null,

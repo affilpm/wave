@@ -119,3 +119,27 @@ class AlbumTrack(models.Model):
         
         
         
+class EqualizerPreset(models.Model):
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='equalizer_presets')
+    name = models.CharField(max_length=50)
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Equalizer bands (frequencies in Hz)
+    band_32 = models.IntegerField(default=0)  # -12 to +12 dB
+    band_64 = models.IntegerField(default=0)
+    band_125 = models.IntegerField(default=0)
+    band_250 = models.IntegerField(default=0)
+    band_500 = models.IntegerField(default=0)
+    band_1k = models.IntegerField(default=0)
+    band_2k = models.IntegerField(default=0)
+    band_4k = models.IntegerField(default=0)
+    band_8k = models.IntegerField(default=0)
+    band_16k = models.IntegerField(default=0)
+    
+    class Meta:
+        unique_together = ('user', 'name')
+
+    def __str__(self):
+        return f"{self.user.username} - {self.name}"

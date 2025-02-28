@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import Genre, Music
 from artists.models import Artist
-from .models import Album, AlbumTrack, Music
+from .models import Album, AlbumTrack, Music, EqualizerPreset
 from users.models import CustomUser
 
 import os
@@ -150,3 +150,14 @@ class StreamingStatsSerializer(serializers.ModelSerializer):
     class Meta:
         model = Music
         fields = ['id', 'name', 'total_plays', 'completed_plays', 'average_duration']
+
+
+class EqualizerPresetSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EqualizerPreset
+        fields = [
+            'id', 'name', 'is_default', 'created_at', 'updated_at',
+            'band_32', 'band_64', 'band_125', 'band_250', 'band_500',
+            'band_1k', 'band_2k', 'band_4k', 'band_8k', 'band_16k'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at']

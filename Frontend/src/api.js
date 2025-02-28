@@ -83,6 +83,9 @@ export class api {
         this.setToken('refreshTokenKey', refresh);
       }
 
+      const event = new CustomEvent('tokenRefreshed', { detail: { newToken: access } });
+      window.dispatchEvent(event);
+    
       return access;
     } catch (error) {
       console.error("Token refresh failed:", error);
