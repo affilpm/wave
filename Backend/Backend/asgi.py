@@ -10,13 +10,13 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Backend.settings')
 django.setup()
 
 # Import after Django setup
-from . import livestream 
+from livestream import routing
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),
     "websocket": AuthMiddlewareStack(
         URLRouter(
-            livestream.routing.websocket_urlpatterns
+            routing.websocket_urlpatterns
         )
     ),
 })
