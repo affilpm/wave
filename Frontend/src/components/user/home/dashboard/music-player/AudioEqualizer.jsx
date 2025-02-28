@@ -1,329 +1,207 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { Sliders } from 'lucide-react';
 
-const AudioEqualizer = ({ howl, isPlaying }) => {
-  const [equalizer, setEqualizer] = useState({
-    bass: 0,
-    mid: 0,
-    treble: 0,
-    enabled: false
-  });
+const AudioEqualizer = ({ howlerRef }) => {
+  const [equalizerVisible, setEqualizerVisible] = useState(false);
+  const [bands, setBands] = useState([
+    { id: 1, frequency: 60, gain: 0, label: '60Hz' },
+    { id: 2, frequency: 170, gain: 0, label: '170Hz' },
+    { id: 3, frequency: 310, gain: 0, label: '310Hz' },
+    { id: 4, frequency: 600, gain: 0, label: '600Hz' },
+    { id: 5, frequency: 1000, gain: 0, label: '1kHz' },
+    { id: 6, frequency: 3000, gain: 0, label: '3kHz' },
+    { id: 7, frequency: 6000, gain: 0, label: '6kHz' },
+    { id: 8, frequency: 12000, gain: 0, label: '12kHz' },
+    { id: 9, frequency: 16000, gain: 0, label: '16kHz' }
+  ]);
   
-  // For checking if we successfully connected
-  const [connectionStatus, setConnectionStatus] = useState('initializing');
+  const audioContext = useRef(null);
+  const sourceNode = useRef(null);
+  const gainNodes = useRef([]);
+  const analyser = useRef(null);
+  const filters = useRef([]);
+  const isProcessing = useRef(false);
   
-  // Create refs for the audio nodes
-  const audioContextRef = useRef(null);
-  const analyserRef = useRef(null);
-  const bassFilterRef = useRef(null);
-  const midFilterRef = useRef(null);
-  const trebleFilterRef = useRef(null);
-  const gainNodeRef = useRef(null);
-
-  // Initialize the audio filters when component mounts or howl changes
+  // Initialize the audio context and nodes
   useEffect(() => {
-    if (!howl || !howl._sounds || !howl._sounds[0] || !howl._sounds[0]._node) {
-      setConnectionStatus('no sound');
-      return;
+    if (!howlerRef.current || isProcessing.current) return;
+    
+    const clampFrequency = (freq) => Math.min(Math.max(freq, 20), 8000);
+
+    const setupEqualizer = () => {
+      try {
+        const audioElement = howlerRef.current._sounds[0]._node;
+        if (!audioElement) return;
+    
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        audioContext.current = new AudioContext();
+    
+        sourceNode.current = audioContext.current.createMediaElementSource(audioElement);
+        analyser.current = audioContext.current.createAnalyser();
+        analyser.current.fftSize = 256;
+    
+        filters.current = bands.map(band => {
+          const filter = audioContext.current.createBiquadFilter();
+          filter.type = 'peaking';
+          filter.frequency.value = clampFrequency(band.frequency);
+          filter.gain.value = band.gain;
+          filter.Q.value = 1.0;
+          return filter;
+        });
+    
+        sourceNode.current.connect(filters.current[0]);
+        for (let i = 0; i < filters.current.length - 1; i++) {
+          filters.current[i].connect(filters.current[i + 1]);
+        }
+        filters.current[filters.current.length - 1].connect(analyser.current);
+        analyser.current.connect(audioContext.current.destination);
+    
+        isProcessing.current = true;
+      } catch (error) {
+        console.error('Error initializing equalizer:', error);
+      }
+    };
+    
+    // Only set up equalizer when visible to save resources
+    if (equalizerVisible && !isProcessing.current) {
+      setupEqualizer();
     }
     
-    try {
-      // Access Howler's WebAudio context
-      if (!window.Howler || !window.Howler.ctx) {
-        console.error('Howler context is not available');
-        setConnectionStatus('no context');
-        return;
+    return () => {
+      // Clean up when component unmounts
+      if (audioContext.current && audioContext.current.state !== 'closed') {
+        audioContext.current.close();
+        isProcessing.current = false;
       }
-      
-      const ctx = window.Howler.ctx;
-      audioContextRef.current = ctx;
-      
-      // IMPORTANT: We need to intercept the sound node BEFORE it's connected to the destination
-      // We'll modify the _node property directly to insert our audio processing chain
-      const soundNode = howl._sounds[0]._node;
-      
-      if (!soundNode) {
-        setConnectionStatus('no node');
-        return;
-      }
-      
-      console.log('Got sound node:', soundNode);
-      
-      // Create our filter nodes
-      const bassFilter = ctx.createBiquadFilter();
-      bassFilter.type = 'lowshelf';
-      bassFilter.frequency.value = 200;
-      bassFilterRef.current = bassFilter;
-      
-      const midFilter = ctx.createBiquadFilter();
-      midFilter.type = 'peaking';
-      midFilter.frequency.value = 1000;
-      midFilter.Q.value = 1;
-      midFilterRef.current = midFilter;
-      
-      const trebleFilter = ctx.createBiquadFilter();
-      trebleFilter.type = 'highshelf';
-      trebleFilter.frequency.value = 3000;
-      trebleFilterRef.current = trebleFilter;
-      
-      // Create a gain node for overall volume control
-      const gainNode = ctx.createGain();
-      gainNode.gain.value = 1.0;
-      gainNodeRef.current = gainNode;
-      
-      // Create an analyser node for visualization (if needed later)
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
-      analyserRef.current = analyser;
-      
-      // DIRECT MODIFICATION OF HOWLER INTERNALS
-      // This is tricky and may break with Howler updates, but works for now
-      
-      // Store original connect method to restore it later
-      const originalConnect = soundNode.connect;
-      
-      // Override the connect method to insert our filter chain
-      soundNode.connect = function(destination) {
-        console.log('Intercepted connection to', destination);
-        
-        // Connect our chain: source -> filters -> gain -> analyser -> destination
-        this.__proto__.connect.call(this, bassFilter);
-        bassFilter.connect(midFilter);
-        midFilter.connect(trebleFilter);
-        trebleFilter.connect(gainNode);
-        gainNode.connect(analyser);
-        analyser.connect(destination);
-        
-        console.log('Equalizer chain connected successfully');
-        setConnectionStatus('connected');
-      };
-      
-      // If the node is already connected, we need to reconnect it
-      // Force Howler to reconnect by toggling the mute state
-      const wasMuted = howl._muted;
-      howl.mute(true);
-      howl.mute(wasMuted);
-      
-      // Reset the equalizer values
-      updateFilters(equalizer.enabled ? equalizer : { bass: 0, mid: 0, treble: 0, enabled: false });
-      
-      return () => {
-        // Cleanup: restore original connect method to avoid memory leaks
-        if (soundNode && typeof originalConnect === 'function') {
-          soundNode.connect = originalConnect;
-        }
-        
-        try {
-          // Disconnect our nodes
-          if (bassFilterRef.current) bassFilterRef.current.disconnect();
-          if (midFilterRef.current) midFilterRef.current.disconnect();
-          if (trebleFilterRef.current) trebleFilterRef.current.disconnect();
-          if (gainNodeRef.current) gainNodeRef.current.disconnect();
-          if (analyserRef.current) analyserRef.current.disconnect();
-        } catch (err) {
-          console.error('Error cleaning up audio nodes:', err);
-        }
-      };
-    } catch (error) {
-      console.error('Error setting up equalizer:', error);
-      setConnectionStatus('error: ' + error.message);
-    }
-  }, [howl]);
+    };
+  }, [howlerRef, equalizerVisible, bands]);
   
-  // Function to update filter values
-  const updateFilters = (eq) => {
-    if (!bassFilterRef.current || !midFilterRef.current || !trebleFilterRef.current) return;
-    
-    try {
-      const bassValue = eq.enabled ? eq.bass : 0;
-      const midValue = eq.enabled ? eq.mid : 0;
-      const trebleValue = eq.enabled ? eq.treble : 0;
-      
-      // Update filters with current time for smooth transition
-      const currentTime = audioContextRef.current ? audioContextRef.current.currentTime : 0;
-      
-      bassFilterRef.current.gain.setValueAtTime(bassValue, currentTime);
-      midFilterRef.current.gain.setValueAtTime(midValue, currentTime);
-      trebleFilterRef.current.gain.setValueAtTime(trebleValue, currentTime);
-      
-      console.log(`EQ applied - Bass: ${bassValue}, Mid: ${midValue}, Treble: ${trebleValue}`);
-    } catch (err) {
-      console.error('Error updating filters:', err);
-    }
-  };
-  
-  // Update filter values when equalizer settings change
+  // Update filter gain values when bands state changes
   useEffect(() => {
-    updateFilters(equalizer);
-  }, [equalizer]);
+    if (!isProcessing.current) return;
+    
+    bands.forEach((band, index) => {
+      if (filters.current[index]) {
+        filters.current[index].gain.value = band.gain;
+      }
+    });
+  }, [bands]);
   
-  const handleEqualizerChange = (band, value) => {
-    setEqualizer(prev => ({ ...prev, [band]: parseFloat(value) }));
+  // Handle band value changes
+  const handleBandChange = (id, value) => {
+    setBands(prev => 
+      prev.map(band => 
+        band.id === id ? { ...band, gain: parseFloat(value) } : band
+      )
+    );
   };
   
-  const toggleEqualizer = () => {
-    setEqualizer(prev => ({ ...prev, enabled: !prev.enabled }));
+  // Preset equalizer settings
+  const presets = {
+    flat: [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    bass: [7, 5, 3, 1, 0, 0, 0, 0, 0],
+    treble: [0, 0, 0, 0, 0, 2, 4, 6, 8],
+    vocal: [-2, -1, 0, 3, 4, 3, 1, 0, -1],
+    electronic: [4, 3, 0, -2, -3, 0, 1, 4, 5]
   };
   
+  // Apply a preset
+  const applyPreset = (presetName) => {
+    const presetValues = presets[presetName];
+    if (!presetValues) return;
+    
+    setBands(prev => 
+      prev.map((band, index) => ({
+        ...band,
+        gain: presetValues[index]
+      }))
+    );
+  };
+  
+  // Reset all bands to zero
   const resetEqualizer = () => {
-    setEqualizer({ bass: 0, mid: 0, treble: 0, enabled: equalizer.enabled });
+    setBands(prev => 
+      prev.map(band => ({
+        ...band,
+        gain: 0
+      }))
+    );
   };
   
-  // Apply equalizer presets
-  const applyPreset = (preset) => {
-    switch(preset) {
-      case 'bass':
-        setEqualizer({ bass: 7, mid: 0, treble: -2, enabled: true });
-        break;
-      case 'vocal':
-        setEqualizer({ bass: -3, mid: 5, treble: 1, enabled: true });
-        break;
-      case 'treble':
-        setEqualizer({ bass: -2, mid: 0, treble: 7, enabled: true });
-        break;
-      case 'rock':
-        setEqualizer({ bass: 4, mid: -2, treble: 3, enabled: true });
-        break;
-      default:
-        resetEqualizer();
-    }
+  // Toggle equalizer visibility
+  const toggleEqualizer = () => {
+    setEqualizerVisible(!equalizerVisible);
   };
   
   return (
-    <div className="bg-gray-900 p-4 rounded-lg shadow-lg">
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h4 className="text-white font-medium">Equalizer</h4>
-          {connectionStatus !== 'connected' && (
-            <p className="text-xs text-red-400 mt-1">Status: {connectionStatus}</p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={toggleEqualizer}
-            className={`px-3 py-1 rounded text-xs ${
-              equalizer.enabled ? 'bg-blue-500 text-white' : 'bg-gray-700 text-gray-300'
-            }`}
-          >
-            {equalizer.enabled ? 'ON' : 'OFF'}
-          </button>
-          <button 
-            onClick={resetEqualizer}
-            className="px-3 py-1 rounded text-xs bg-gray-700 text-gray-300 hover:bg-gray-600"
-            disabled={!equalizer.enabled}
-          >
-            Reset
-          </button>
-        </div>
-      </div>
+    <div className="relative">
+      <button 
+        onClick={toggleEqualizer} 
+        className="text-gray-400 hover:text-white p-1 rounded-full"
+        title="Equalizer"
+      >
+        <Sliders className="w-4 h-4" />
+      </button>
       
-      <div className="grid grid-cols-3 gap-6 mb-4">
-        <div className="flex flex-col items-center">
-          <div className="h-40 flex items-center">
-            <input
-              type="range"
-              min="-12"
-              max="12"
-              step="1"
-              value={equalizer.bass}
-              onChange={(e) => handleEqualizerChange('bass', e.target.value)}
-              className="h-36 appearance-none bg-gray-700 rounded-full outline-none"
-              style={{ 
-                writingMode: 'bt-lr', 
-                transform: 'rotate(270deg)',
-                WebkitAppearance: 'slider-vertical'
-              }}
-              disabled={!equalizer.enabled}
-            />
+      {equalizerVisible && (
+        <div className="absolute bottom-full right-0 mb-2 p-4 bg-black bg-opacity-90 border border-gray-800 rounded-lg shadow-xl w-72 md:w-96 z-50">
+          <div className="flex justify-between items-center mb-3">
+            <h3 className="text-sm font-medium text-indigo-400">Equalizer</h3>
+            <div className="flex space-x-2">
+              <button 
+                onClick={() => applyPreset('bass')}
+                className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 px-2 py-1 rounded"
+              >
+                Bass
+              </button>
+              <button 
+                onClick={() => applyPreset('vocal')}
+                className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 px-2 py-1 rounded"
+              >
+                Vocal
+              </button>
+              <button 
+                onClick={() => applyPreset('treble')}
+                className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 px-2 py-1 rounded"
+              >
+                Treble
+              </button>
+              <button 
+                onClick={resetEqualizer}
+                className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-200 px-2 py-1 rounded"
+              >
+                Reset
+              </button>
+            </div>
           </div>
-          <div className="text-center mt-2">
-            <div className="text-blue-400 font-medium">{equalizer.bass > 0 ? '+' : ''}{equalizer.bass} dB</div>
-            <span className="text-xs text-gray-400">Bass</span>
+          
+          <div className="flex flex-col md:flex-row justify-between space-y-4 md:space-y-0">
+            {bands.map((band) => (
+              <div key={band.id} className="flex flex-col items-center space-y-1">
+                <span className="text-xs text-gray-400">{band.gain > 0 ? '+' : ''}{band.gain.toFixed(0)}</span>
+                <input
+                  type="range"
+                  min="-12"
+                  max="12"
+                  step="1"
+                  value={band.gain}
+                  onChange={(e) => handleBandChange(band.id, e.target.value)}
+                  className="appearance-none bg-gray-700 h-24 md:h-32 w-4 rounded-full outline-none vertical-slider"
+                  style={{
+                    WebkitAppearance: 'slider-vertical',
+                    writingMode: 'bt-lr'
+                  }}
+                />
+                <span className="text-xs text-gray-500 whitespace-nowrap">{band.label}</span>
+              </div>
+            ))}
           </div>
-        </div>
-        
-        <div className="flex flex-col items-center">
-          <div className="h-40 flex items-center">
-            <input
-              type="range"
-              min="-12"
-              max="12"
-              step="1"
-              value={equalizer.mid}
-              onChange={(e) => handleEqualizerChange('mid', e.target.value)}
-              className="h-36 appearance-none bg-gray-700 rounded-full outline-none"
-              style={{ 
-                writingMode: 'bt-lr', 
-                transform: 'rotate(270deg)',
-                WebkitAppearance: 'slider-vertical'
-              }}
-              disabled={!equalizer.enabled}
-            />
-          </div>
-          <div className="text-center mt-2">
-            <div className="text-blue-400 font-medium">{equalizer.mid > 0 ? '+' : ''}{equalizer.mid} dB</div>
-            <span className="text-xs text-gray-400">Mid</span>
-          </div>
-        </div>
-        
-        <div className="flex flex-col items-center">
-          <div className="h-40 flex items-center">
-            <input
-              type="range"
-              min="-12"
-              max="12"
-              step="1"
-              value={equalizer.treble}
-              onChange={(e) => handleEqualizerChange('treble', e.target.value)}
-              className="h-36 appearance-none bg-gray-700 rounded-full outline-none"
-              style={{ 
-                writingMode: 'bt-lr', 
-                transform: 'rotate(270deg)',
-                WebkitAppearance: 'slider-vertical'
-              }}
-              disabled={!equalizer.enabled}
-            />
-          </div>
-          <div className="text-center mt-2">
-            <div className="text-blue-400 font-medium">{equalizer.treble > 0 ? '+' : ''}{equalizer.treble} dB</div>
-            <span className="text-xs text-gray-400">Treble</span>
+          
+          <div className="text-center mt-3">
+            <span className="text-xs text-gray-500">Adjust bands to customize sound</span>
           </div>
         </div>
-      </div>
-      
-      {/* Presets */}
-      <div className="mt-4">
-        <div className="text-xs text-gray-400 mb-2">Presets</div>
-        <div className="flex flex-wrap gap-2">
-          <button 
-            onClick={() => applyPreset('bass')}
-            className="px-3 py-1 text-xs rounded bg-gray-700 text-white hover:bg-gray-600"
-            disabled={!equalizer.enabled}
-          >
-            Bass Boost
-          </button>
-          <button 
-            onClick={() => applyPreset('vocal')}
-            className="px-3 py-1 text-xs rounded bg-gray-700 text-white hover:bg-gray-600"
-            disabled={!equalizer.enabled}
-          >
-            Vocal
-          </button>
-          <button 
-            onClick={() => applyPreset('treble')}
-            className="px-3 py-1 text-xs rounded bg-gray-700 text-white hover:bg-gray-600"
-            disabled={!equalizer.enabled}
-          >
-            Treble Boost
-          </button>
-          <button 
-            onClick={() => applyPreset('rock')}
-            className="px-3 py-1 text-xs rounded bg-gray-700 text-white hover:bg-gray-600"
-            disabled={!equalizer.enabled}
-          >
-            Rock
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

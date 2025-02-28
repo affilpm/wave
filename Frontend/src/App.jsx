@@ -33,6 +33,7 @@ import PlaylistShowMorePage from './components/user/home/dashboard/Playlist-sect
 import AlbumShowMorePage from './components/user/home/dashboard/Album-section/AlbumShowMore';
 import ArtistPage from './components/user/home/dashboard/ArtistPage';
 import Livestream from './components/livestream/LiveStream';
+import ArtistStreamingRooms from './components/livestream/ArtistStreamingRooms';
 
 
 
@@ -100,6 +101,8 @@ function App() {
               <Route path="/playlist-show-more" element={<PlaylistShowMorePage/>} />
               <Route path="/albums-show-more" element={<AlbumShowMorePage/>} />
               <Route path="/artist/:artistId" element={<ArtistPage />} />
+              <Route path="m" element={<ArtistStreamingRooms />} />
+
 
 
 

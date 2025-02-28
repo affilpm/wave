@@ -1,8 +1,10 @@
 from django.contrib import admin
-from .models import Music, Genre
+from .models import Music, Genre, EqualizerPreset
 # Register your models here.
 admin.site.register(Genre)
 admin.site.register(Music)
+admin.site.register(EqualizerPreset)
+
 # admin.site.register(MusicPlayHistory)
 
 

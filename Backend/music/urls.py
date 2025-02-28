@@ -1,7 +1,7 @@
 from django.urls import path
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from .views import GenreViewSet, MusicViewSet, MusicVerificationViewSet, get_signed_token, MusicStreamView,  MusicMetadataView, PublicSongsView, SongsByArtistView
+from .views import GenreViewSet, MusicViewSet, MusicVerificationViewSet, get_signed_token, MusicStreamView,  MusicMetadataView, PublicSongsView, SongsByArtistView, EqualizerPresetDetailView, EqualizerPresetListCreateView, CurrentEqualizerView
 router = DefaultRouter()
 router.register(r'genres', GenreViewSet)
 
@@ -17,6 +17,9 @@ urlpatterns = [
     path('', include(router.urls)),
     path('stream/<int:music_id>/', MusicStreamView.as_view()), 
     path('metadata/<int:music_id>/', MusicMetadataView.as_view()),
+    path('equalizer/presets/', EqualizerPresetListCreateView.as_view(), name='equalizer-presets'),
+    path('equalizer/presets/<int:pk>/', EqualizerPresetDetailView.as_view(), name='equalizer-preset-detail'),
+    path('equalizer/current/', CurrentEqualizerView.as_view(), name='current-equalizer'),    
     path('public-songs/', PublicSongsView.as_view(), name='public-songs'),
     path('artist/<int:artist_id>/', SongsByArtistView.as_view(), name='songs-by-artist'),
     # path('recently-played/', RecentlyPlayedView.as_view(), name='recently_played' ),
