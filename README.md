@@ -289,7 +289,7 @@ yarn dev
 
 ```
 VITE_API_BASE_URL=http://localhost:8000/api
-VITE_WS_BASE_URL=ws://localhost:8000/ws
+VITE_WS_BASE_URL=ws://localhost:8001/ws
 VITE_GOOGLE_CLIENT_ID=your_google_client_id
 ```
 
@@ -555,9 +555,9 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
-### Code of Conduct
+<!-- ### Code of Conduct
 
-Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before contributing to the project.
+Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before contributing to the project. -->
 
 ## 📜 License
 
@@ -565,11 +565,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Contact
 
-Your Name - [your.email@example.com](mailto:your.email@example.com)
+Your Name - [affilpm2004@gmail.com](mailto:your.email@example.com)
 
 Project Links:
-- Backend: [https://github.com/yourusername/wave-backend](https://github.com/yourusername/wave-backend)
-- Frontend: [https://github.com/yourusername/wave-frontend](https://github.com/yourusername/wave-frontend)
+- Backend: [https://github.com/affilpm/wave-backend](https://github.com/affilpm/Wave/tree/main/Backend)
+- Frontend: [https://github.com/affilpm/wave-frontend](https://github.com/affilpm/Wave/tree/main/Frontend)
 
 ---
 
