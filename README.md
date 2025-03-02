@@ -2,7 +2,7 @@
 # 🎵 Wave - Music Streaming Platform
 
 <div align="center">
-  <img src="https://via.placeholder.com/500x150?text=Wave" alt="Wave Logo" />
+  <img src="logo.png" alt="Wave Logo" width="100" height="auto" />
   <p><em>A comprehensive full-stack music streaming platform for artists and listeners</em></p>
   
   ![License](https://img.shields.io/badge/license-MIT-blue)
