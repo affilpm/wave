@@ -559,20 +559,36 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 Please read our [Code of Conduct](CODE_OF_CONDUCT.md) before contributing to the project. -->
 
-## 📜 License
+Here's the properly formatted version with your phone number and social media links added:
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 📞 Contact
+## 📜 License  
 
-Your Name - [affilpm2004@gmail.com](mailto:your.email@example.com)
+This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.  
 
-Project Links:
-- Backend: [https://github.com/affilpm/wave-backend](https://github.com/affilpm/Wave/tree/main/Backend)
-- Frontend: [https://github.com/affilpm/wave-frontend](https://github.com/affilpm/Wave/tree/main/Frontend)
+## 📞 Contact  
+
+**AFFIL P M**  
+📧 [affilpm2004@gmail.com](mailto:affilpm2004@gmail.com)  
+<!-- 📞 +91 7306753900 -->
+
+### 🌐 Social Media:  
+- **LinkedIn:** [linkedin.com/in/affilpm](https://www.linkedin.com/in/affil-p-m-b9a2b2299)  
+- **Instagram:** [instagram.com/affilpm](https://www.instagram.com/affil_pm_)  
+<!-- - **Twitter:** [twitter.com/affilpm](https://twitter.com/affilpm)   -->
+
+### 🔗 Project Links:  
+- **Backend:** [GitHub - Wave Backend](https://github.com/affilpm/Wave/tree/main/Backend)  
+- **Frontend:** [GitHub - Wave Frontend](https://github.com/affilpm/Wave/tree/main/Frontend)  
 
 ---
 
 <div align="center">
-  <p>Built with care for good user experience</p>
+  <p>🚀 Built with care for an exceptional user experience! 💙</p>
+</div>  
+
+---
+
+<div align="center">
+  <p>Crafted with care by <a href="https://github.com/affilpm">AFFIL P M</a></p>
 </div>
