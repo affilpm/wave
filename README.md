@@ -574,5 +574,5 @@ Project Links:
 ---
 
 <div align="center">
-  <p>Built with ❤️ by the Wave team</p>
+  <p>Built with care for good user experience</p>
 </div>
