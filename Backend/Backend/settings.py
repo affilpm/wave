@@ -12,7 +12,9 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
-
+import os
+from decouple import config
+from corsheaders.defaults import default_headers
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -44,7 +46,6 @@ REST_FRAMEWORK = {
     ],
     # 'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     # 'PAGE_SIZE': 5
-
 }
 
 # Django settings.py
@@ -55,8 +56,20 @@ SIMPLE_JWT = {
     'BLACKLIST_AFTER_ROTATION': True,
 }
 
+# CORS settings
+CORS_ALLOW_ALL_ORIGINS = True  # For development only
+CORS_ALLOW_CREDENTIALS = True
 
-CORS_ALLOW_HEADERS = [
+# Consolidated CORS_ALLOWED_ORIGINS with all unique values
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # Vite dev server
+    "http://localhost:5174",  # React frontend URL
+    "http://localhost:8000",  # Allowing the frontend/server
+    "http://localhost:8001",  # Allowing WebRTC
+]
+
+# Consolidated CORS_ALLOW_HEADERS
+CORS_ALLOW_HEADERS = default_headers + (
     'accept',
     'accept-encoding',
     'authorization',
@@ -66,30 +79,25 @@ CORS_ALLOW_HEADERS = [
     'user-agent',
     'x-csrftoken',
     'x-requested-with',
+    'range',  # Important for audio streaming
+)
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
 ]
 
-# Make sure CORS is properly configured
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5174",  # Your React frontend URL
-    # "http://localhost:3000",  # Your frontend origin
-    # "https://accounts.google.com",  
-]
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:8000",  # Allowing the frontend/server to connect from localhost:8000
-    "http://localhost:8001",  # Allowing WebRTC to connect from localhost:8001
-]
-# CORS settings
-CORS_ALLOW_ALL_ORIGINS = True  # For development only
-# In your Django settings (settings.py)
-
+# CSP configurations (commented out)
 # CSP_DEFAULT_SRC = ("'self'",)
 # CSP_MEDIA_SRC = ("'self'","blob:", "http://localhost:8000")
-# # CSP_DEFAULT_SRC = ["'self'",]  # Default sources
-# # CSP_MEDIA_SRC = ["'self'", "blob:", "http://localhost:8000"]  # Media sources
 # CSP_SCRIPT_SRC = ["'self'", "'unsafe-inline'"]  # Adjust as needed
 # CSP_STYLE_SRC = ["'self'", "'unsafe-inline'"]  # For inline styles if necessary
 # CSP_IMG_SRC = ["'self'", "http://localhost:8000", "data:"]  # For images
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -130,28 +138,6 @@ AUTH_USER_MODEL = 'users.CustomUser'
 
 ASGI_APPLICATION = 'Backend.asgi.application'
 
-
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-    'range',  # Important for audio streaming
-]
-
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -161,42 +147,18 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
-    'allauth.account.middleware.AccountMiddleware',  # Add this line
-    'django.middleware.common.CommonMiddleware',  # Make sure this is included
+    'allauth.account.middleware.AccountMiddleware',
+    'django.middleware.common.CommonMiddleware',  # This appears twice in original
     'csp.middleware.CSPMiddleware',
-    
 ]
 
-
-CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins (for development)
-# Or restrict to specific origins
-# CORS_ALLOWED_ORIGINS = ['http://localhost:3000']
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Your Vite dev server
-]
-
-CORS_ALLOW_HEADERS = [
-    "accept",
-    "authorization",
-    "content-type",
-    "user-agent",
-    "x-csrftoken",
-    "x-requested-with",
-]
-
-# Add these headers to your response
+# Security headers
 SECURE_CONTENT_TYPE_NOSNIFF = False
 CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
 CROSS_ORIGIN_EMBEDDER_POLICY = 'require-corp'
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOWS_CREDENTIALS = True
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",  # React frontend
-#     "https://yourfrontend.com",  # Production frontend
-# ]
 
 ROOT_URLCONF = 'Backend.urls'
-import os
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -215,7 +177,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'Backend.wsgi.application'
 
-
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
@@ -229,7 +190,6 @@ DATABASES = {
         'PORT': '5432',  
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
@@ -249,22 +209,20 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# settings.py
+# Consolidated Authentication Backends
 AUTHENTICATION_BACKENDS = (
-    'admins.backends.EmailBackend',  # Replace with your actual backend path
+    'admins.backends.EmailBackend',  # Custom backend
     'django.contrib.auth.backends.ModelBackend',  # Default backend for superusers
+    'allauth.account.auth_backends.AuthenticationBackend',  # Allauth backend
 )
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
-
 TIME_ZONE = 'UTC'
-
 USE_I18N = True
-
 USE_TZ = True
-
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.0/howto/static-files/
@@ -276,12 +234,6 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-from decouple import config
-
-
-# AUTH_USER_MODEL = 'users.CustomUser'  # Replace 'yourapp' with the name of your app
-
-
 # SMTP Configuration
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
@@ -290,23 +242,16 @@ EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 
-
+# Redis Configuration for Cache and Channels
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',  # Local Redis server URL ,  # Redis server URL
+        'LOCATION': 'redis://127.0.0.1:6379/1',  # Local Redis server URL
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         }
     }
 }
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_HEADERS = [
-    'Range',
-    'Authorization',
-    'Content-Type',
-    'Accept',
-]
 
 CHANNEL_LAYERS = {
     'default': {
@@ -316,18 +261,12 @@ CHANNEL_LAYERS = {
         },
     },
 }
-from corsheaders.defaults import default_headers
 
-CORS_ALLOW_ALL_ORIGINS = True  # Or specify allowed origins
-CORS_ALLOW_HEADERS = default_headers + (
-    'authorization',
-    'content-type',
-)
-# settings.py
-REST_USE_JWT = True  # If you're using JWT tokens, for example
+# REST Auth and Social Auth
+REST_USE_JWT = True  # If you're using JWT tokens
 TOKEN_MODEL = None  # Disable the token model if you don't need it
 
-
+# OAuth2 keys
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = config('SOCIAL_AUTH_GOOGLE_OAUTH2_KEY')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = config('SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET')
 RAZOR_KEY_ID = config('RAZOR_KEY_ID')
@@ -336,35 +275,9 @@ RAZORPAY_KEY_ID = config('RAZOR_KEY_ID')
 RAZORPAY_KEY_SECRET = config('RAZOR_KEY_SECRET')
 GOOGLE_CLIENT_ID = config('SOCIAL_AUTH_GOOGLE_OAUTH2_KEY')
 
-
-# Authentication Backends
-AUTHENTICATION_BACKENDS = (
-    'django.contrib.auth.backends.ModelBackend',
-    'allauth.account.auth_backends.AuthenticationBackend',
-)
-
-
-
-
-
-import os
-
+# Media files
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-
-
-
+# Site ID
 SITE_ID = 1
-
-
-
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        }
-    }
-}
