@@ -15,8 +15,8 @@
 
 - [Overview](#-overview)
 - [Features](#-features)
-- [Tech Stack](#-tech-stack)
-- [Architecture](#-architecture)
+- [Tech Stack](#️-tech-stack)
+- [Architecture](#️-architecture)
 - [Installation](#-installation)
 - [Development](#-development)
 - [API Documentation](#-api-documentation)
