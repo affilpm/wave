@@ -1,9 +1,9 @@
 from django.db import models
-
+from users.models import CustomUser
 
 class Library(models.Model):
     user = models.OneToOneField(
-        'users.CustomUser', on_delete=models.CASCADE, related_name='library'
+        CustomUser, on_delete=models.CASCADE, related_name='library'
     )
     albums = models.ManyToManyField('music.Album', blank=True, related_name='user_libraries')
     playlists = models.ManyToManyField('playlist.Playlist', blank=True, related_name='user_libraries')

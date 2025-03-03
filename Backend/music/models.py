@@ -22,7 +22,7 @@ class MusicApprovalStatus(models.TextChoices):
 
 class Music(models.Model):
     artist = models.ForeignKey('artists.artist', on_delete=models.CASCADE, related_name='musical_works')
-    name = models.CharField(max_length=200)
+    name = models.CharField(max_length=200, unique=True)
     cover_photo = models.ImageField(upload_to='music_covers/')
     audio_file = models.FileField(
         upload_to='music/',
@@ -77,7 +77,7 @@ class AlbumStatus(models.TextChoices):
 
 class Album(models.Model):
     artist = models.ForeignKey('artists.artist', on_delete=models.CASCADE, related_name='albums')
-    name = models.CharField(max_length=200)
+    name = models.CharField(max_length=200, unique=True)
     description = models.TextField(blank=True)
     is_public = models.BooleanField(default=True, help_text="Whether this album is publicly available")
     cover_photo = models.ImageField(

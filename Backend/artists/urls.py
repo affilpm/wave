@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from .views import FollowArtistView, ArtistFollowersListView, UserFollowingListView
+from .views import FollowArtistView, ArtistFollowersListView, UserFollowingListView, Artist_Albumcount, Artist_listeners, Artist_totalplays, Artist_Trackcount
 
 # Existing URL patterns
 urlpatterns = [
@@ -11,6 +11,10 @@ urlpatterns = [
     path('<int:pk>/update_status/', views.ArtistViewSet.as_view({'post': 'update_status'}), name='update_status'),
     path('update_profile/', views.ArtistViewSet.as_view({'post': 'update_profile'}), name='update_profile'),
     path('check-artist-status/', views.check_artist_status, name='check-artist-status'),
+    path('track-count/', Artist_Trackcount.as_view(), name='artist-track-count'),
+    path('album-count/', Artist_Albumcount.as_view(), name='artist-album-count'),
+    path('listeners/', Artist_listeners.as_view(), name='artist-listeners'),
+    path('total-plays/', Artist_totalplays.as_view(), name='artist-total-plays'),
     
     # Artist following URLs
     path('<int:artist_id>/follow/', FollowArtistView.as_view(), name='follow-artist'),

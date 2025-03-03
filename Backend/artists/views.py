@@ -3,16 +3,27 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import Artist, ArtistVerificationStatus
+from listening_history.models import PlayCount
 from .serializers import ArtistSerializer
 from rest_framework.decorators import api_view, permission_classes
 from users.models import CustomUser
+from django.db.models import Sum
+from rest_framework.pagination import PageNumberPagination
 
 
+class Pagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100         
+    
+    
+    
 # ViewSet for managing artists
 class ArtistViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     queryset = Artist.objects.all()
     serializer_class = ArtistSerializer
+    pagination_class = Pagination
 
     # Custom action for requesting verification
     @action(detail=False, methods=['POST'])
@@ -58,7 +69,25 @@ class ArtistViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['GET'])
     def list_artists(self, request):
         try:
-            artists = Artist.objects.all() 
+            artists = Artist.objects.all()
+            
+            # Apply pagination
+            page = self.paginate_queryset(artists)
+            if page is not None:
+                artist_data = [
+                    {
+                        'id': artist.id,
+                        'email': artist.user.email,
+                        'bio': artist.bio,
+                        'status': artist.status,
+                        'genre': ', '.join([genre.name for genre in artist.genres.all()]),
+                        'submitted_at': artist.submitted_at
+                    }
+                    for artist in page
+                ]
+                return self.get_paginated_response(artist_data)  # ✅ Correct DRF pagination response
+            
+            # If pagination is not applied, return manually paginated response
             artist_data = [
                 {
                     'id': artist.id,
@@ -70,7 +99,14 @@ class ArtistViewSet(viewsets.ModelViewSet):
                 }
                 for artist in artists
             ]
-            return Response({'artists': artist_data}, status=200)
+
+            return Response({
+                'count': len(artist_data),  # ✅ Ensuring total count is sent
+                'next': None,
+                'previous': None,
+                'results': artist_data  # ✅ Consistent response format
+            }, status=200)
+        
         except Exception as e:
             return Response({'error': str(e)}, status=500)
 
@@ -266,3 +302,65 @@ class UserFollowingListView(APIView):
     
 
 
+class Artist_Trackcount(APIView):
+    
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        
+        artist = Artist.objects.filter(user = request.user).first()
+        
+        if not artist:
+            return Response({'error': 'Artist Profile not Found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        total_tracks = artist.musical_works.count()
+        
+        return Response({'total_tracks': total_tracks}, status=status.HTTP_200_OK)
+    
+    
+class Artist_Albumcount(APIView):
+    
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        
+        artist = Artist.objects.filter(user =  request.user).first()
+        
+        if not artist:
+            return Response({'error': 'Artist Profile not Found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        total_albums = artist.albums.count()
+        
+        return Response({'total_albums': total_albums}, status=status.HTTP_200_OK)
+    
+    
+class Artist_totalplays(APIView):
+    
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        
+        artist = Artist.objects.filter(user = request.user).first()
+        
+        if not artist:
+            return Response({'error': 'Artist Profile not Found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        total_plays = PlayCount.objects.filter(music__artist = artist).aggregate(total = Sum('count'))['total'] or 0
+        
+        return Response({'total_plays': total_plays}, status=status.HTTP_200_OK)    
+    
+
+class Artist_listeners(APIView):
+    
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        
+        artist = Artist.objects.filter(user = request.user).first()
+        
+        if not artist:
+            return Response({'error': 'Artist Profile not Found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        total_listeners = PlayCount.objects.filter(music__artist = artist).values('user').distinct().count()
+        
+        return Response({'total_listeners': total_listeners}, status=status.HTTP_200_OK)

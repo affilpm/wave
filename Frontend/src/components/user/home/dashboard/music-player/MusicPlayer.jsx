@@ -28,6 +28,7 @@ import {
   markAsPlayed,
   setMusicId,
 } from '../../../../../slices/user/musicPlayerSlice';
+import { duration } from '@mui/material';
 
 
 const MusicPlayer = () => {
@@ -59,7 +60,25 @@ const MusicPlayer = () => {
   const howlRef = useRef(null);
   const animationFrameRef = useRef(null);
   const [isLiked, setIsLiked] = useState(false);
+  const playStartTimeRef = useRef(null);
+  const reportedPlayRef = useRef(false);
+
+
+  const reportedPlayCompletion = async (duration, percentage = null) => {
+    if (!musicId || reportedPlayRef.current) return;
   
+    try {
+      await api.post('api/music/record_play_completion/', {
+        music_id: musicId,
+        played_duration: duration,
+        play_percentage: percentage
+      });
+      reportedPlayRef.current = true;
+    } catch (error) {
+      console.error("failed to report play completion", error)
+    }
+  }
+
   // Fetch music metadata
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -81,8 +100,8 @@ const MusicPlayer = () => {
       } catch (error) {
         console.error("Failed to fetch metadata:", error);
         setPlayerState(prev => ({
-          ...prev,
-          loading: false,
+          ...prev, 
+          loading: false,  
           error: "Failed to load track information"
         }));
       }
@@ -169,20 +188,39 @@ const MusicPlayer = () => {
             }));
           },
           onplay: () => {
+            playStartTimeRef.current = Date.now();
+            reportedPlayRef.current = false;
             updateSeeker();
+
           },
           onpause: () => {
+            if (playStartTimeRef.current) {
+              const playDuration = (Date.now() - playStartTimeRef.current) / 1000;
+              const percentage = howlRef.current ? howlRef.current.seek() / howlRef.current.duration() : null;
+              reportedPlayCompletion(playDuration, percentage)
+            }
+
             if (animationFrameRef.current) {
               cancelAnimationFrame(animationFrameRef.current);
             }
           },
           onstop: () => {
+
+            if (playStartTimeRef.current) {
+              const playedDuration = (Date.now() - playStartTimeRef.current)
+              reportedPlayCompletion(playedDuration)
+            }
             setPlayerState(prev => ({ ...prev, progress: 0 }));
             if (animationFrameRef.current) {
               cancelAnimationFrame(animationFrameRef.current);
             }
           },
           onend: () => {
+
+            if (metadata && metadata.duration){
+              reportedPlayCompletion(metadata.duration, 1.0);
+            }
+
             dispatch(markAsPlayed(musicId));
             dispatch(playNext());
           },
@@ -203,6 +241,12 @@ const MusicPlayer = () => {
   
     initializeAudio();
     return () => {
+      if (howlRef.current && playStartTimeRef.current && !reportedPlayRef.current) {
+        const playedDuration = (Date.now() - playStartTimeRef.current) / 1000;
+        const percentage = howlRef.current ? howlRef.current.seek() / howlRef.current.duration() : null;
+        reportedPlayCompletion(playedDuration, percentage);
+      }
+
       if (howlRef.current) {
         howlRef.current.unload();
       }
