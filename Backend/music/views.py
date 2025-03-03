@@ -282,6 +282,7 @@ from django.conf import settings
 import time, hmac, hashlib
 
 def generate_signed_token(user_id, music_id, secret_key, expiry_seconds=3600):
+    
     expiry = int(time.time()) + expiry_seconds
     message = f"{user_id}:{music_id}:{expiry}"
     signature = hmac.new(secret_key.encode(), message.encode(), hashlib.sha256).hexdigest()
@@ -330,32 +331,83 @@ class MusicStreamView(APIView):
     CHUNK_SIZE = 8192  # 8KB chunks
     RATE_LIMIT_REQUESTS = 2100
     RATE_LIMIT_DURATION = 3600  # 1 hour
-    
+    MIN_PLAY_DURATION_SECONDS = 30  # Minimum seconds to count as a play
+    MIN_PLAY_PERCENTAGE = 0.3       # Minimum percentage of track to count as a play
     
     @classmethod
     @transaction.atomic
-    def save_play_history(self, user_id, music):
+    def save_play_history(cls, user_id, music, played_duration=None):
         """
         Logs the music playback event in the database using atomic transaction.
+        Includes validation for counting legitimate plays based on duration or percentage.
+        
+        Args:
+            user_id: ID of the user playing the track
+            music: Music object being played
+            played_duration: Duration in seconds the track was played (if available)
+        
+        Returns:
+            Boolean indicating if play was counted
         """
         user = get_object_or_404(CustomUser, pk=user_id)
         
-        with transaction.atomic():
-            # Create play history entry
-            PlayHistory.objects.create(user=user, music=music)
-            
-            # Update or create play count
-            play_count, created = PlayCount.objects.select_for_update().get_or_create(
-                user=user,
-                music=music,
-                defaults={'count': 1, 'last_played': timezone.now()}
+        # Anti-duplication: Check for recent plays by this user for this music
+        cooldown_period = timezone.now() - timezone.timedelta(minutes=5)
+        recent_play = PlayHistory.objects.filter(
+            user=user, 
+            music=music,
+            played_at__gte=cooldown_period
+        ).first()
+        
+        if recent_play:
+            # Skip recording this play (it's too soon after the last one)
+            return False
+        
+        # Determine if this should count as a legitimate play
+        should_count = True
+        if played_duration is not None:
+            # If we have duration info, validate based on time or percentage
+            min_duration = min(
+                cls.MIN_PLAY_DURATION_SECONDS,  
+                music.duration * cls.MIN_PLAY_PERCENTAGE if music.duration else float('inf')
             )
-            
-            if not created:
-                PlayCount.objects.filter(pk=play_count.pk).update(
-                    count=F('count') + 1,
-                    last_played=timezone.now()
+            should_count = played_duration >= min_duration
+        
+        # Create play history entry regardless of duration
+        # This gives flexibility to analyze all play attempts later
+        play_history = PlayHistory.objects.create(
+            user=user, 
+            music=music,
+            counted_as_play=should_count,
+            played_duration=played_duration
+        )
+        
+        # Only increment play count for legitimate plays
+        if should_count:
+            with transaction.atomic():
+                # Update or create play count using select_for_update to prevent race conditions
+                play_count, created = PlayCount.objects.select_for_update().get_or_create(
+                    user=user,
+                    music=music,
+                    defaults={'count': 1, 'last_played': timezone.now()}
                 )
+                
+                if not created:
+                    # Use F() to avoid race conditions
+                    PlayCount.objects.filter(pk=play_count.pk).update(
+                        count=F('count') + 1,
+                        last_played=timezone.now()
+                    )
+            
+            # Update global music play count
+            Music.objects.filter(pk=music.pk).update(
+                play_count=F('play_count') + 1,
+                last_played=timezone.now()
+            )
+        
+        return should_count
+    
+
         
     def get_content_type(self, file_path):
         ext = os.path.splitext(file_path)[1].lower()
@@ -423,9 +475,14 @@ class MusicStreamView(APIView):
             if not os.path.exists(path):
                 return Response({'error': 'Audio file not found'}, status=404)
 
-            if not hasattr(request, '_play_history_saved'):
-                self.save_play_history(token_user_id, music)
-                request._play_history_saved = True
+            if not hasattr(request, '_play_initiated'):
+                PlayHistory.objects.create(
+                    user_id=token_user_id,
+                    music_id=music_id,
+                    counted_as_play=False,
+                    play_status='initiated'
+                )
+                request._play_initiated = True
 
             file_size = os.path.getsize(path)
             content_type = self.get_content_type(path)
@@ -472,7 +529,48 @@ class MusicStreamView(APIView):
 
         
 
-    
+    # Track play duration with frontend callbacks
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def Record_play_completion(request):
+        """
+        API endpoint for the frontend to report play completion status.
+        This provides more accurate tracking than just stream initiation.
+        """
+
+        music_id = request.data.get('music_id')
+        played_duration = request.data.get('played_duration')
+        play_percentage = request.data.get('play_percentage')
+        print(Music.objects.filter(id=music_id).exists()) 
+        print(Music.objects.all().values('id'))  
+        if not music_id or (played_duration is None and play_percentage is None):
+            return Response({'error': 'Missing required data'}, status=400)
+        
+        try:
+            music = get_object_or_404(Music, pk=music_id)
+            
+            # Calculate played duration if only percentage was provided
+            if played_duration is None and play_percentage is not None:
+                if music.duration:
+                    played_duration = music.duration * float(play_percentage)
+                else:
+                    # Can't calculate duration without track length
+                    return Response({'error': 'Track duration unknown'}, status=400)
+            
+            # Record the play with duration info
+            counted = MusicStreamView.save_play_history(
+                request.user.id, 
+                music, 
+                played_duration=float(played_duration)
+            )
+            
+            return Response({
+                'success': True,
+                'counted_as_play': counted
+            })
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)    
 
 
 

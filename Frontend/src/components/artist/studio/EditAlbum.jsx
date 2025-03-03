@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { AlertCircle, X, ImageIcon } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 import api from '../../../api';
+import albumService from '../../../services/artist/albumService';
+import { debounce } from 'lodash';
 
 const MIN_IMAGE_SIZE = 500;
 const TARGET_SIZE = 500;
@@ -23,11 +25,8 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
   const [coverPreview, setCoverPreview] = useState(null);
   const [bannerPreview, setBannerPreview] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [albumData, setAlbumData] = useState([]);
   const [coverPhotoError, setCoverPhotoError] = useState('');
   const [bannerImgError, setBannerImgError] = useState('');
-  const [coverPreviewUrl, setCoverPreviewUrl] = useState(null);
-  const [bannerPreviewUrl, setBannerPreviewUrl] = useState(null);
   const [originalCoverImage, setOriginalCoverImage] = useState(null);
   const [originalBannerImage, setOriginalBannerImage] = useState(null);
   const [showCoverCropper, setShowCoverCropper] = useState(false);
@@ -38,6 +37,56 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
   const [bannerZoom, setBannerZoom] = useState(1);
   const [coverCroppedAreaPixels, setCoverCroppedAreaPixels] = useState(null);
   const [bannerCroppedAreaPixels, setBannerCroppedAreaPixels] = useState(null);
+  const [albumNameError, setAlbumNameError] = useState('');
+  const [isCheckingAlbum, setIsCheckingAlbum] = useState(false);
+  const [hasImageChanges, setHasImageChanges] = useState({
+    cover: false,
+    banner: false
+  });
+  const [croppedCoverFile, setCroppedCoverFile] = useState(null);
+  const [croppedBannerFile, setCroppedBannerFile] = useState(null);
+
+  // Debounced function to check if album name exists
+  const debouncedCheckAlbum = debounce(async (value) => {
+    if (!value.trim()) {
+      setAlbumNameError('');
+      setIsCheckingAlbum(false);
+      return;
+    }
+
+    setIsCheckingAlbum(true);
+    try {
+      // Only check if name has changed from original
+      if (originalAlbum && value === originalAlbum.name) {
+        setAlbumNameError('');
+        setIsCheckingAlbum(false);
+        return;
+      }
+      
+      const exists = await albumService.checkAlbumExists(value);
+      if (exists) {
+        setAlbumNameError('An album with this name already exists.');
+      } else {
+        setAlbumNameError('');
+      }
+    } catch (err) {
+      console.error('Album check error:', err);
+      setAlbumNameError(`Failed to check album existence: ${err.response?.data?.message || err.message}`);
+    } finally {
+      setIsCheckingAlbum(false);
+    }
+  }, 500);
+
+  const handleInputChange = async (e) => {
+    const { name, value } = e.target;
+    
+    if (name === 'name') {
+      setAlbum(prev => ({ ...prev, name: value }));
+      debouncedCheckAlbum(value);
+    } else if (name === 'description') {
+      setAlbum(prev => ({ ...prev, description: value }));
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -61,6 +110,11 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
             : `${import.meta.env.VITE_API_URL}${initialAlbum.banner_img}`;
           setBannerPreview(bannerUrl);
         }
+
+        // Reset image change trackers
+        setHasImageChanges({ cover: false, banner: false });
+        setCroppedCoverFile(null);
+        setCroppedBannerFile(null);
       } catch (err) {
         setError('Failed to fetch album details: ' + (err.response?.data?.error || err.message));
         console.error('Error fetching data:', err);
@@ -100,16 +154,17 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
       hasChanges = true;
     }
   
-    if (album.cover_photo instanceof File) {
-      changes.append('cover_photo', album.cover_photo);
+    // Use the stored cropped files for submission
+    if (hasImageChanges.cover && croppedCoverFile) {
+      changes.append('cover_photo', croppedCoverFile);
       hasChanges = true;
     }
   
-    if (album.banner_img instanceof File) {
-      changes.append('banner_img', album.banner_img);
+    if (hasImageChanges.banner && croppedBannerFile) {
+      changes.append('banner_img', croppedBannerFile);
       hasChanges = true;
     }
-  
+
     return { changes, hasChanges };
   };
 
@@ -131,47 +186,6 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
       image.src = url;
     });
 
-  const getCroppedImg = async (imageSrc, pixelCrop, targetWidth, targetHeight) => {
-    const image = await createImage(imageSrc);
-    const canvas = document.createElement('canvas');
-    const ctx = canvas.getContext('2d');
-
-    if (!ctx) {
-      throw new Error('No 2d context');
-    }
-
-    // Set canvas size to desired output size
-    canvas.width = targetWidth;
-    canvas.height = targetHeight;
-
-    // Draw cropped image
-    ctx.drawImage(
-      image,
-      pixelCrop.x,
-      pixelCrop.y,
-      pixelCrop.width,
-      pixelCrop.height,
-      0,
-      0,
-      targetWidth,
-      targetHeight
-    );
-
-    return new Promise((resolve) => {
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) {
-            console.error('Canvas is empty');
-            return;
-          }
-          resolve(blob);
-        },
-        'image/jpeg',
-        0.95
-      );
-    });
-  };
-
   const handleImageChange = async (e, type) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -191,10 +205,12 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
           setOriginalCoverImage(e.target.result);
           setShowCoverCropper(true);
           setCoverPhotoError('');
+          setHasImageChanges(prev => ({ ...prev, cover: true }));
         } else {
           setOriginalBannerImage(e.target.result);
           setShowBannerCropper(true);
           setBannerImgError('');
+          setHasImageChanges(prev => ({ ...prev, banner: true }));
         }
       };
       reader.readAsDataURL(file);
@@ -225,15 +241,15 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
         console.error('Missing required cropping data');
         return;
       }
-
+  
       const image = await createImage(originalImage);
       const canvas = document.createElement('canvas');
       const targetWidth = isCover ? TARGET_SIZE : TARGET_SIZE * (16/9);
       const targetHeight = isCover ? TARGET_SIZE : TARGET_SIZE;
-
+  
       canvas.width = targetWidth;
       canvas.height = targetHeight;
-
+  
       const ctx = canvas.getContext('2d');
       ctx.drawImage(
         image,
@@ -246,27 +262,40 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
         canvas.width,
         canvas.height
       );
-
+  
       canvas.toBlob((blob) => {
         if (!blob) {
           console.error('Failed to generate blob');
           return;
         }
-
+  
         const fileName = isCover ? 'album-cover.jpg' : 'album-banner.jpg';
         const croppedFile = new File([blob], fileName, {
           type: 'image/jpeg',
           lastModified: Date.now(),
         });
-
+  
+        // Create an object URL for the preview
+        const previewUrl = URL.createObjectURL(blob);
+  
         if (isCover) {
-          setAlbum(prev => ({ ...prev, cover_photo: croppedFile }));
-          setCoverPreviewUrl(URL.createObjectURL(blob));
+          // Store the cropped file for submission
+          setCroppedCoverFile(croppedFile);
+          // Update the preview
+          setCoverPreview(previewUrl);
+          // Close the cropper modal
           setShowCoverCropper(false);
+          // Ensure we track the image change
+          setHasImageChanges(prev => ({ ...prev, cover: true }));
         } else {
-          setAlbum(prev => ({ ...prev, banner_img: croppedFile }));
-          setBannerPreviewUrl(URL.createObjectURL(blob));
+          // Store the cropped file for submission
+          setCroppedBannerFile(croppedFile);
+          // Update the preview
+          setBannerPreview(previewUrl);
+          // Close the cropper modal
           setShowBannerCropper(false);
+          // Ensure we track the image change
+          setHasImageChanges(prev => ({ ...prev, banner: true }));
         }
       }, 'image/jpeg', 0.95);
     } catch (error) {
@@ -340,16 +369,36 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
                 Cancel
               </button>
               <button
-                onClick={() => handleCropSave(isCover)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleCropSave(isCover);
+                }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
-                Apply
+                Apply Crop
               </button>
             </div>
           </div>
         </div>
       </div>
     );
+  };
+
+  // Function to remove cover photo
+  const removeCoverPhoto = () => {
+    setCoverPreview(null);
+    setCroppedCoverFile(null);
+    setAlbum(prev => ({ ...prev, cover_photo: null }));
+    setHasImageChanges(prev => ({ ...prev, cover: true }));
+  };
+
+  // Function to remove banner image
+  const removeBannerImage = () => {
+    setBannerPreview(null);
+    setCroppedBannerFile(null);
+    setAlbum(prev => ({ ...prev, banner_img: null }));
+    setHasImageChanges(prev => ({ ...prev, banner: true }));
   };
 
   // New function to move track up in the order
@@ -401,6 +450,11 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
         return;
       }
 
+      // For debugging - log form data contents
+      for (let pair of changes.entries()) {
+        console.log(pair[0] + ': ' + pair[1]);
+      }
+
       const response = await api.patch(`/api/album/albums/${album.id}/`, changes, {
         headers: {
           'Content-Type': 'multipart/form-data',
@@ -417,6 +471,23 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Check if save button should be disabled
+  const isSaveDisabled = () => {
+    // Check for required fields
+    const nameEmpty = !album.name || album.name.trim() === '';
+    const descriptionEmpty = !album.description || album.description.trim() === '';
+    
+    // For cover photo, check both the preview and the cropped file
+    const coverPhotoMissing = !coverPreview && !croppedCoverFile;
+    
+    // Other validation conditions
+    const hasValidationErrors = albumNameError || isCheckingAlbum;
+    const isProcessing = isSubmitting;
+    
+    // Disable save if any required field is missing or there are validation errors
+    return nameEmpty || descriptionEmpty || coverPhotoMissing || hasValidationErrors || isProcessing;
   };
 
   if (loading) {
@@ -440,35 +511,55 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
       )}
 
       <div className="space-y-4">
+        {/* Album Name Field */}
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
-            Album Name
+            Album Name <span className="text-red-400">*</span>
           </label>
-          <input
-            type="text"
-            value={album.name}
-            onChange={(e) => setAlbum(prev => ({ ...prev, name: e.target.value }))}
-            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-            required
-          />
+          <div className="relative">
+            <input
+              type="text"
+              name="name"
+              value={album.name}
+              onChange={handleInputChange}
+              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+              required
+            />
+            {isCheckingAlbum && (
+              <div className="absolute right-3 top-2 text-gray-400">
+                Checking...
+              </div>
+            )}
+          </div>
+          {albumNameError && (
+            <p className="mt-1 text-sm text-red-400">{albumNameError}</p>
+          )}
+          {!album.name && (
+            <p className="mt-1 text-sm text-amber-400">Album name is required</p>
+          )}
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">
-            Description
+            Description <span className="text-red-400">*</span>
           </label>
           <textarea
+            name="description"
             value={album.description}
-            onChange={(e) => setAlbum(prev => ({ ...prev, description: e.target.value }))}
+            onChange={handleInputChange}
             className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-600 h-32"
+            required
           />
+          {!album.description && (
+            <p className="mt-1 text-sm text-amber-400">Description is required</p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-6">
           {/* Cover Photo Upload */}
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Cover Photo
+              Cover Photo <span className="text-red-400">*</span>
             </label>
             <div className="relative">
               <div className="mt-2 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-600 border-dashed rounded-lg">
@@ -481,10 +572,7 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
                     />
                     <button
                       type="button"
-                      onClick={() => {
-                        setCoverPreview(null);
-                        setAlbum(prev => ({ ...prev, cover_photo: null }));
-                      }}
+                      onClick={removeCoverPhoto}
                       className="absolute -top-2 -right-2 p-1 bg-red-500 rounded-full text-white"
                     >
                       <X className="h-4 w-4" />
@@ -504,10 +592,14 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
                         />
                       </label>
                     </div>
+                    <p className="mt-2 text-sm text-amber-400">Cover photo is required</p>
                   </div>
                 )}
               </div>
             </div>
+            {coverPhotoError && (
+              <p className="mt-1 text-sm text-red-400">{coverPhotoError}</p>
+            )}
           </div>
 
           {/* Banner Image Upload */}
@@ -526,10 +618,7 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
                     />
                     <button
                       type="button"
-                      onClick={() => {
-                        setBannerPreview(null);
-                        setAlbum(prev => ({ ...prev, banner_img: null }));
-                      }}
+                      onClick={removeBannerImage}
                       className="absolute -top-2 -right-2 p-1 bg-red-500 rounded-full text-white"
                     >
                       <X className="h-4 w-4" />
@@ -553,6 +642,9 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
                 )}
               </div>
             </div>
+            {bannerImgError && (
+              <p className="mt-1 text-sm text-red-400">{bannerImgError}</p>
+            )}
           </div>
         </div>
 
@@ -564,7 +656,7 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
           
           {/* Existing Tracks List with Reordering Controls */}
           <div className="mb-8 space-y-4">
-            {album.tracks.length > 0 ? (
+            {album.tracks && album.tracks.length > 0 ? (
               album.tracks.map((track, index) => (
                 <div key={track.id} className="flex items-center gap-4 bg-gray-700 p-4 rounded-lg">
                   <div className="flex-none w-8 h-8 flex items-center justify-center bg-gray-600 rounded-lg text-gray-300">
@@ -619,7 +711,7 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
         <button
           type="submit"
           className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          disabled={isSubmitting}
+          disabled={isSaveDisabled()}
         >
           {isSubmitting ? 'Saving...' : 'Save Changes'}
         </button>
