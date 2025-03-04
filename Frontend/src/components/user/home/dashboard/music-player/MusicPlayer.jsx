@@ -28,8 +28,6 @@ import {
   markAsPlayed,
   setMusicId,
 } from '../../../../../slices/user/musicPlayerSlice';
-import { duration } from '@mui/material';
-
 
 const MusicPlayer = () => {
   const dispatch = useDispatch();
@@ -62,22 +60,37 @@ const MusicPlayer = () => {
   const [isLiked, setIsLiked] = useState(false);
   const playStartTimeRef = useRef(null);
   const reportedPlayRef = useRef(false);
+  const [playId, setPlayId] = useState(null);
+  const tokenMusicIdRef = useRef(null); // Add a ref to track the music ID the token was generated for
 
-
-  const reportedPlayCompletion = async (duration, percentage = null) => {
-    if (!musicId || reportedPlayRef.current) return;
-  
+  const reportPlayCompletion = async (duration, percentage = null) => {
+    if (!musicId || !playId) return;
+    
     try {
-      await api.post('api/music/record_play_completion/', {
+      const response = await api.post('api/music/record_play_completion/', {
         music_id: musicId,
         played_duration: duration,
-        play_percentage: percentage
+        play_percentage: percentage,
+        play_id: playId
       });
-      reportedPlayRef.current = true;
+      
+      // Check if the play has been fully counted
+      if (response.data.counted_as_play) {
+        reportedPlayRef.current = true;
+        console.log("Play counted successfully");
+      } else {
+        // Don't mark as reported if we're still accumulating time
+        reportedPlayRef.current = false;
+        console.log(`Play progress: ${response.data.accumulated_duration}s accumulated`);
+      }
+      
+      return response.data;
     } catch (error) {
-      console.error("failed to report play completion", error)
+      console.error("Failed to report play completion", error);
+      return null;
     }
-  }
+  };
+  
 
   // Fetch music metadata
   useEffect(() => {
@@ -130,14 +143,18 @@ const MusicPlayer = () => {
     }
   }, [queue, currentIndex]);
 
-  // Fetch signed token for streaming
   useEffect(() => {
     const fetchSignedToken = async () => {
       if (!musicId) return;
       
       try {
+        // Reset the reported flag when requesting a new token
+        reportedPlayRef.current = false;
+        
         const response = await api.get(`/api/music/token/${musicId}/`);
         setSignedToken(response.data.token);
+        setPlayId(response.data.play_id);
+        tokenMusicIdRef.current = musicId; // Store the music ID this token was generated for
       } catch (error) {
         console.error("Failed to fetch signed token:", error);
         setPlayerState(prev => ({
@@ -152,7 +169,8 @@ const MusicPlayer = () => {
 
   // Initialize audio stream
   useEffect(() => {
-    if (!musicId || !signedToken || !metadata) return;
+    // Only initialize if musicId matches the ID the token was generated for
+    if (!musicId || !signedToken || !metadata || tokenMusicIdRef.current !== musicId) return;
   
     if (howlRef.current) {
       howlRef.current.unload();
@@ -189,15 +207,24 @@ const MusicPlayer = () => {
           },
           onplay: () => {
             playStartTimeRef.current = Date.now();
-            reportedPlayRef.current = false;
+  
+            // Only reset reportedPlayRef if this is a new track
+            if (tokenMusicIdRef.current !== musicId) {
+              reportedPlayRef.current = false;
+            }
+          
             updateSeeker();
-
           },
           onpause: () => {
             if (playStartTimeRef.current) {
               const playDuration = (Date.now() - playStartTimeRef.current) / 1000;
               const percentage = howlRef.current ? howlRef.current.seek() / howlRef.current.duration() : null;
-              reportedPlayCompletion(playDuration, percentage)
+              
+              reportPlayCompletion(playDuration, percentage)
+              .then(() => {
+                // Reset the start time reference
+                playStartTimeRef.current = null;
+              });
             }
 
             if (animationFrameRef.current) {
@@ -205,10 +232,9 @@ const MusicPlayer = () => {
             }
           },
           onstop: () => {
-
             if (playStartTimeRef.current) {
-              const playedDuration = (Date.now() - playStartTimeRef.current)
-              reportedPlayCompletion(playedDuration)
+              const playedDuration = (Date.now() - playStartTimeRef.current) / 1000;
+              reportPlayCompletion(playedDuration);
             }
             setPlayerState(prev => ({ ...prev, progress: 0 }));
             if (animationFrameRef.current) {
@@ -216,9 +242,8 @@ const MusicPlayer = () => {
             }
           },
           onend: () => {
-
             if (metadata && metadata.duration){
-              reportedPlayCompletion(metadata.duration, 1.0);
+              reportPlayCompletion(metadata.duration, 1.0);
             }
 
             dispatch(markAsPlayed(musicId));
@@ -244,7 +269,7 @@ const MusicPlayer = () => {
       if (howlRef.current && playStartTimeRef.current && !reportedPlayRef.current) {
         const playedDuration = (Date.now() - playStartTimeRef.current) / 1000;
         const percentage = howlRef.current ? howlRef.current.seek() / howlRef.current.duration() : null;
-        reportedPlayCompletion(playedDuration, percentage);
+        reportPlayCompletion(playedDuration, percentage);
       }
 
       if (howlRef.current) {

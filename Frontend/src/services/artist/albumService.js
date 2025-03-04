@@ -116,8 +116,17 @@ const albumService = {
       // Append basic album data
       formData.append('name', albumData.name);
       formData.append('description', albumData.description || '');
-      formData.append('release_date', albumData.releaseDate);
-      // formData.append('status', albumData.status);
+      
+      // Format release date if provided
+      if (albumData.releaseDate) {
+        let date;
+        if (typeof albumData.releaseDate === 'string') {
+          date = new Date(albumData.releaseDate);
+        } else {
+          date = albumData.releaseDate;
+        }
+        formData.append('release_date', date.toISOString());
+      }
       
       // Append files only if they've changed
       if (albumData.coverPhoto instanceof File) {
@@ -127,15 +136,21 @@ const albumService = {
         formData.append('banner_img', albumData.bannerImg);
       }
       
-      // Append tracks data
+      // Append tracks data - always include ALL tracks
       if (albumData.tracks?.length) {
-        formData.append('tracks', JSON.stringify(
-          albumData.tracks.map((track, index) => ({
-            track: track.id,
-            track_number: index + 1
-          }))
-        ));
+        const tracksData = albumData.tracks.map((track, index) => ({
+          track: track.track || track.id, // Handle both formats
+          track_number: index + 1
+        }));
+        formData.append('tracks', JSON.stringify(tracksData));
       }
+      
+      // Debug log
+      console.log('Updating album with data:', {
+        id: albumId,
+        name: albumData.name,
+        tracksCount: albumData.tracks?.length || 0
+      });
       
       const response = await api.patch(`/api/album/albums/${albumId}/`, formData, {
         headers: {
@@ -146,9 +161,11 @@ const albumService = {
       return response.data;
     } catch (error) {
       const errorMessage = error.response?.data?.error || error.message;
+      console.error('Update album error:', error.response?.data || error);
       throw new Error(errorMessage);
     }
   },
+  
   checkAlbumExists: async (albumName) => {
     try {
       if (!albumName.trim()) {
