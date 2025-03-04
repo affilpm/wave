@@ -132,16 +132,19 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
     const changes = new FormData();
     let hasChanges = false;
   
-    // Only check for track order changes
-    const tracksOrderChanged = hasTrackOrderChanged(originalAlbum.tracks, album.tracks);
-  
-    if (tracksOrderChanged) {
+    // Track changes logic - always include ALL tracks to preserve them
+    if (album.tracks && album.tracks.length > 0) {
       const tracksData = album.tracks.map((track, index) => ({
-        track: track.track,
+        track: track.track || track.id, // Handle both formats
         track_number: index + 1
       }));
       changes.append('tracks', JSON.stringify(tracksData));
-      hasChanges = true;
+      
+      // Only mark as changed if order or content differs
+      const tracksOrderChanged = hasTrackOrderChanged(originalAlbum.tracks, album.tracks);
+      if (tracksOrderChanged) {
+        hasChanges = true;
+      }
     }
   
     if (album.name !== originalAlbum.name) {
@@ -164,10 +167,10 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
       changes.append('banner_img', croppedBannerFile);
       hasChanges = true;
     }
-
+  
     return { changes, hasChanges };
   };
-
+  
   // Modified to only check if track order has changed
   const hasTrackOrderChanged = (originalTracks, currentTracks) => {
     if (originalTracks.length !== currentTracks.length) {

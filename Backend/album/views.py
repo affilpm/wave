@@ -212,11 +212,9 @@ class AlbumViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )        
             
-        
+    
     @transaction.atomic
     def update(self, request, *args, **kwargs):
-        print("Received data:", request.data)
-        print("Received files:", request.FILES)
         try:
             # Get existing album
             album = self.get_object()
@@ -236,76 +234,35 @@ class AlbumViewSet(viewsets.ModelViewSet):
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
-            # ------------------------------------------------------
-            # DIRECT FILE HANDLING - bypass serializer for files
-            # ------------------------------------------------------
-            
-            # Handle cover photo update directly if present in request
-            if 'cover_photo' in request.FILES:
-                print("Handling cover photo directly")
-                cover_photo = request.FILES['cover_photo']
-                
-                # If you have a custom storage method/location, use it here
-                # Otherwise, this will use the default storage defined in your model
-                # Delete old file if it exists (optional)
-                if album.cover_photo:
-                    try:
-                        # If cover_photo is a FileField, this will delete the file
-                        album.cover_photo.delete(save=False)
-                    except Exception as e:
-                        print(f"Error deleting old cover photo: {e}")
-                
-                # Set the new file directly on the model
-                album.cover_photo = cover_photo
-                album.save(update_fields=['cover_photo'])
-                
-                # Remove from mutable_data to prevent double processing
-                del mutable_data['cover_photo']
-            
-            # Handle banner image update directly if present
-            if 'banner_img' in request.FILES:
-                print("Handling banner image directly")
-                banner_img = request.FILES['banner_img']
-                
-                # Delete old file if it exists (optional)
-                if album.banner_img:
-                    try:
-                        album.banner_img.delete(save=False)
-                    except Exception as e:
-                        print(f"Error deleting old banner image: {e}")
-                
-                # Set the new file directly on the model
-                album.banner_img = banner_img
-                album.save(update_fields=['banner_img'])
-                
-                # Remove from mutable_data to prevent double processing
-                del mutable_data['banner_img']
+            # Update album data
+            serializer = self.get_serializer(album, data=mutable_data, partial=True)
+            serializer.is_valid(raise_exception=True)
+            updated_album = serializer.save()
 
-            # If we still have other fields to update, use the serializer
-            if mutable_data:
-                serializer = self.get_serializer(album, data=mutable_data, partial=True)
-                serializer.is_valid(raise_exception=True)
-                updated_album = serializer.save()
-            else:
-                # If we only had file updates, refresh the album
-                updated_album = album
-
-            # Only update tracks if tracks_data was provided
             if tracks_data is not None:
-                # Remove existing tracks
-                AlbumTrack.objects.filter(album=album).delete()
+                existing_tracks = {t.track_id: t for t in AlbumTrack.objects.filter(album=album)}
 
-                # Create new tracks
-                album_tracks = []
+                new_tracks = []
                 for track_data in tracks_data:
-                    album_tracks.append(
-                        AlbumTrack(
-                            album=updated_album,
-                            track_id=track_data['track'],
-                            track_number=track_data['track_number']
-                        )
-                    )
-                AlbumTrack.objects.bulk_create(album_tracks)
+                    track_id = track_data['track']
+                    track_number = track_data['track_number']
+
+                    if track_id in existing_tracks:
+                        # Update the existing track if needed
+                        existing_track = existing_tracks[track_id]
+                        if existing_track.track_number != track_number:
+                            existing_track.track_number = track_number
+                            existing_track.save()
+                    else:
+                        # Create a new track
+                        new_tracks.append(AlbumTrack(album=updated_album, track_id=track_id, track_number=track_number))
+
+                # Bulk create only new tracks
+                AlbumTrack.objects.bulk_create(new_tracks)
+
+                # Optionally, remove tracks that are not in the updated list
+                track_ids = {t['track'] for t in tracks_data}
+                AlbumTrack.objects.filter(album=album).exclude(track_id__in=track_ids).delete()
 
             # Return updated album data
             serializer = self.get_serializer(updated_album)
@@ -313,14 +270,12 @@ class AlbumViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             # Rollback will happen automatically if there's an error due to @transaction.atomic
-            print(f"Update error: {str(e)}")
-            import traceback
-            traceback.print_exc()
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
-            )
-    
+            )     
+
+ 
             
     @action(detail=False, methods=['get'])
     def drafts(self, request):

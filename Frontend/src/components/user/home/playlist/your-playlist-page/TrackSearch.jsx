@@ -35,6 +35,14 @@ const TrackSearch = ({ playlistId, onTracksUpdate }) => {
     }
   }, [searchQuery, playlistId]);
 
+  useEffect(() => {
+    return () => {
+      setSearchResults([]);
+      setSearchQuery('');
+      setShowResults(false);
+    };
+  }, [playlistId]);
+
   const handleTrackSelect = async (trackId) => {
     try {
       await api.post(`/api/playlist/playlists/${playlistId}/add_tracks/`, {
