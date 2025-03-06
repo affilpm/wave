@@ -18,7 +18,15 @@ export class api {
     this.refreshPromise = null;
     this.api = this.setupAxiosInstance();
   }
-
+  async getUserProfile() {
+    try {
+      const response = await this.api.get('/api/users/user/');
+      return response.data;
+    } catch (error) {
+      console.error('Failed to fetch user profile:', error);
+      throw error;
+    }
+  }
   setupAxiosInstance() {
     const instance = axios.create({
       baseURL: this.config.baseURL,

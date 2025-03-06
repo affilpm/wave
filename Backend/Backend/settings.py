@@ -65,7 +65,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vite dev server
     "http://localhost:5174",  # React frontend URL
     "http://localhost:8000",  # Allowing the frontend/server
-    "http://localhost:8001",  # Allowing WebRTC
+    # "http://localhost:8001",  # Allowing WebRTC
 ]
 
 # Consolidated CORS_ALLOW_HEADERS
