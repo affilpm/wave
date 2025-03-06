@@ -11,7 +11,7 @@ from users.models import CustomUser
 from artists.models import Artist
 from rest_framework.permissions import IsAuthenticated
 from .serializers import UserTableSerializer, UserStatusUpdateSerializer
-
+from rest_framework.pagination import PageNumberPagination
 
 
 #used for admin login
@@ -45,6 +45,13 @@ class AdminLoginView(TokenObtainPairView):
 #used to list users
 User = CustomUser
 
+
+
+class Pagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100      
+    
 class UserTableViewSet(viewsets.ModelViewSet):  # Changed from ReadOnlyModelViewSet
     queryset = User.objects.filter(is_superuser=False)
     serializer_class = UserTableSerializer
@@ -54,6 +61,7 @@ class UserTableViewSet(viewsets.ModelViewSet):  # Changed from ReadOnlyModelView
     search_fields = ['email', 'first_name', 'last_name']
     ordering_fields = ['created_at', 'email']
     ordering = ['-created_at']
+    pagination_class = Pagination
     
     def get_serializer_class(self):
         if self.action in ['update', 'partial_update']:
