@@ -3,7 +3,6 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import Artist, ArtistVerificationStatus
-from listening_history.models import PlayCount
 from .serializers import ArtistSerializer
 from rest_framework.decorators import api_view, permission_classes
 from users.models import CustomUser
@@ -350,17 +349,17 @@ class Artist_totalplays(APIView):
         return Response({'total_plays': total_plays}, status=status.HTTP_200_OK)    
     
 
-class Artist_listeners(APIView):
+# class Artist_listeners(APIView):
     
-    permission_classes = [IsAuthenticated]
+#     permission_classes = [IsAuthenticated]
     
-    def get(self, request):
+#     def get(self, request):
         
-        artist = Artist.objects.filter(user = request.user).first()
+#         artist = Artist.objects.filter(user = request.user).first()
         
-        if not artist:
-            return Response({'error': 'Artist Profile not Found'}, status=status.HTTP_404_NOT_FOUND)
+#         if not artist:
+#             return Response({'error': 'Artist Profile not Found'}, status=status.HTTP_404_NOT_FOUND)
         
-        total_listeners = PlayCount.objects.filter(music__artist = artist).values('user').distinct().count()
+#         total_listeners = PlayCount.objects.filter(music__artist = artist).values('user').distinct().count()
         
-        return Response({'total_listeners': total_listeners}, status=status.HTTP_200_OK)
+#         return Response({'total_listeners': total_listeners}, status=status.HTTP_200_OK)
