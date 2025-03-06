@@ -43,7 +43,6 @@ const WebRTCLivestream = () => {
   const socketRef = useRef(null);
   const reconnectTimerRef = useRef(null);
   
-  // Make localStreamRef available globally for the controls component
   window.localStreamRef = localStreamRef;
   
   // WebRTC configuration
@@ -151,12 +150,11 @@ const debugConnection = () => {
   }
 };
 
-// Replace the existing connectWebSocket function with this improved version
 const connectWebSocket = () => {
   console.log("Attempting to connect to WebSocket...");
   
   try {
-    // Get the JWT token
+    // Use apiInstance method to get token
     const accessToken = apiInstance.getToken('accessTokenKey');
     
     if (!accessToken) {
@@ -167,10 +165,13 @@ const connectWebSocket = () => {
     // Use secure WebSocket if site is using HTTPS
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const host = window.location.hostname;
-    const port = '8001'; // Your WebSocket server port
+    const port = '8000'; // Your WebSocket server port
+    
+    // Encode token to handle special characters
+    const encodedToken = encodeURIComponent(accessToken);
     
     // Attach JWT token as a query parameter
-    const wsUrl = `${protocol}//${host}:${port}/ws/webrtc/?token=${accessToken}`;
+    const wsUrl = `${protocol}//${host}:${port}/ws/webrtc/?token=${encodedToken}`;
     
     console.log(`Connecting to ${wsUrl}`);
     const socketConnection = new WebSocket(wsUrl);
@@ -192,12 +193,6 @@ const connectWebSocket = () => {
       try {
         const data = JSON.parse(e.data);
         console.log("WebSocket message received:", data);
-        
-        // Add specific logging for available rooms
-        if (data.type === 'available_rooms') {
-          console.log("Available rooms received:", data.rooms);
-          console.log("Room info received:", data.room_info);
-        }
         
         handleSignalingMessage(data);
       } catch (error) {
@@ -238,6 +233,71 @@ const connectWebSocket = () => {
     }, 5000);
   }
 };
+
+// Token refresh event listener
+useEffect(() => {
+  const handleTokenRefresh = (event) => {
+    console.log("Token refreshed, reconnecting WebSocket with new token");
+    // Close existing connection
+    if (socketRef.current) {
+      socketRef.current.close();
+    }
+    // Reconnect with new token
+    connectWebSocket();
+  };
+  
+  window.addEventListener('tokenRefreshed', handleTokenRefresh);
+  
+  return () => {
+    window.removeEventListener('tokenRefreshed', handleTokenRefresh);
+  };
+}, []);
+
+// Connect to WebSocket server
+useEffect(() => {
+  connectWebSocket();
+
+  return () => {
+    clearTimeout(reconnectTimerRef.current);
+    if (socketRef.current) {
+      console.log("Cleaning up WebSocket connection");
+      socketRef.current.close();
+    }
+  };
+}, []);
+
+
+
+  // Logout function integrated with apiInstance
+  const handleLogout = () => {
+    try {
+      // Use apiInstance's logout method
+      apiInstance.handleLogout();
+    } catch (error) {
+      console.error("Logout failed:", error);
+    }
+  };
+
+  // Additional method to leverage apiInstance error handling
+  const handleApiError = async (apiCall) => {
+    try {
+      return await apiCall();
+    } catch (error) {
+      if (error.response && error.response.status === 401) {
+        // Token might be expired, try refreshing
+        try {
+          await apiInstance.refreshAccessToken();
+          // Retry the original API call
+          return await apiCall();
+        } catch (refreshError) {
+          console.error("API call failed after token refresh:", refreshError);
+          handleLogout();
+          throw refreshError;
+        }
+      }
+      throw error;
+    }
+  };
 
   // Handle signaling messages from the server
   const handleSignalingMessage = async (data) => {
