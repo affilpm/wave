@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Search, Users, Filter } from 'lucide-react';
+import { CheckCircle, XCircle, Search, Users, Filter, ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react';
 import api from '../../api';
 import { ACCESS_TOKEN } from '../../constants/authConstants';
 
@@ -29,6 +29,47 @@ const ArtistVerification = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filteredArtists, setFilteredArtists] = useState([]);
   const navigate = useNavigate();
+  
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    count: 0,
+    next: null,
+    previous: null,
+    current: 1
+  });
+  const [pageSize, setPageSize] = useState(1);
+
+  const fetchArtists = async (url = `api/artists/list_artists?page=1&page_size=${pageSize}`) => {
+    try {
+      setLoading(true);
+      const response = await api.get(url);
+      const { results, count, next, previous } = response.data;
+      
+      setArtists(results);
+      setFilteredArtists(results);
+      setPagination({
+        count,
+        next,
+        previous,
+        current: extractPageNumber(url) || 1
+      });
+    } catch (err) {
+      if (err.response?.status === 401) {
+        navigate('/adminlogin');
+      } else {
+        setError('Failed to fetch artists');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Extract page number from URL
+  const extractPageNumber = (url) => {
+    if (!url) return null;
+    const match = url.match(/page=(\d+)/);
+    return match ? parseInt(match[1]) : null;
+  };
 
   useEffect(() => {
     const token = localStorage.getItem(ACCESS_TOKEN);
@@ -37,33 +78,30 @@ const ArtistVerification = () => {
       return;
     }
 
-    const fetchArtists = async () => {
-      try {
-        const response = await api.get('api/artists/list_artists');
-        console.log(response.data)
-        setArtists(response.data.results);
-        setFilteredArtists(response.data.results);
-      } catch (err) {
-        if (err.response?.status === 401) {
-          navigate('/adminlogin');
-        } else {
-          setError('Failed to fetch artists');
-        }
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchArtists();
-  }, [navigate]);
+  }, [navigate, pageSize]);
 
   useEffect(() => {
-    const filtered = artists.filter(artist => 
-      artist.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      artist.genre.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    setFilteredArtists(filtered);
+    // Local filtering for search
+    if (searchQuery) {
+      const filtered = artists.filter(artist => 
+        artist.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        artist.genre.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredArtists(filtered);
+    } else {
+      setFilteredArtists(artists);
+    }
   }, [searchQuery, artists]);
+
+  const handlePageChange = (url) => {
+    if (!url) return;
+    
+    // Extract the relative URL from the full URL
+    const relativeUrl = url.split('/api/')[1];
+    fetchArtists(`api/${relativeUrl}`);
+  };
+
 
   const handleStatusChange = async (artistId, newStatus) => {
     try {
@@ -73,6 +111,9 @@ const ArtistVerification = () => {
           artist.id === artistId ? { ...artist, status: newStatus } : artist
         )
       );
+      // Refresh the current page after status update
+      const currentUrl = `api/artists/list_artists?page=${pagination.current}&page_size=${pageSize}`;
+      fetchArtists(currentUrl);
     } catch (err) {
       setError('Failed to update artist status');
     }
@@ -87,7 +128,6 @@ const ArtistVerification = () => {
       </span>
     );
   };
-
 
   const ArtistCard = ({ artist }) => (
     <div className="p-3 bg-gray-800/70 rounded-lg border border-gray-700/50">
@@ -134,7 +174,45 @@ const ArtistVerification = () => {
     </div>
   );
 
-  if (loading) {
+  // Calculate total pages
+  const totalPages = Math.ceil(pagination.count / pageSize);
+  
+  // Generate page numbers to display with smart pagination
+  const getPageNumbers = () => {
+    const currentPage = pagination.current;
+    const maxVisible = 5; // Maximum number of page buttons to show
+    
+    if (totalPages <= maxVisible) {
+      // Show all pages if total is less than maxVisible
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    
+    // Always include first page, last page, current page and neighbors
+    let pages = [1, totalPages, currentPage];
+    
+    // Add one neighbor on each side of current page if possible
+    if (currentPage - 1 > 1) pages.push(currentPage - 1);
+    if (currentPage + 1 < totalPages) pages.push(currentPage + 1);
+    
+    // Sort and remove duplicates
+    pages = [...new Set(pages)].sort((a, b) => a - b);
+    
+    // Add ellipses indicators
+    const result = [];
+    let prevPage = null;
+    
+    pages.forEach(page => {
+      if (prevPage && page - prevPage > 1) {
+        result.push('ellipsis' + prevPage); // Unique key for each ellipsis
+      }
+      result.push(page);
+      prevPage = page;
+    });
+    
+    return result;
+  };
+
+  if (loading && artists.length === 0) {
     return (
       <div className="bg-gray-800/50 rounded-xl p-3 sm:p-8 border border-gray-700/50 backdrop-blur-sm">
         <div className="text-center text-gray-400">Loading...</div>
@@ -160,7 +238,7 @@ const ArtistVerification = () => {
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold text-gray-200 truncate">Artist Verification</h2>
-            <p className="text-sm text-gray-400">Managing {artists.length} verification requests</p>
+            <p className="text-sm text-gray-400">Managing {pagination.count} verification requests</p>
           </div>
         </div>
         
@@ -183,6 +261,8 @@ const ArtistVerification = () => {
           </button>
         </div>
       </div>
+
+
 
       {/* Responsive Table/Cards */}
       <div className="space-y-4">
@@ -256,9 +336,74 @@ const ArtistVerification = () => {
           ))}
         </div>
 
-        {filteredArtists.length === 0 && (
+        {filteredArtists.length === 0 && !loading && (
           <div className="text-center py-8">
             <p className="text-gray-400">No artists found matching your search.</p>
+          </div>
+        )}
+
+        {/* Compact Pagination Controls */}
+        {pagination.count > 0 && (
+          <div className="flex justify-center items-center px-6 py-4">
+            <div className="flex gap-1">
+              <button
+                onClick={() => handlePageChange(pagination.previous)}
+                disabled={!pagination.previous}
+                className={`p-2 rounded-lg ${
+                  pagination.previous
+                    ? 'hover:bg-gray-700 text-gray-300'
+                    : 'text-gray-500 cursor-not-allowed'
+                } transition-colors`}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              
+              {/* Smart pagination with ellipsis */}
+              {getPageNumbers().map((page, index) => {
+                // If page is a string, it's an ellipsis indicator
+                if (typeof page === 'string') {
+                  return (
+                    <div 
+                      key={page} 
+                      className="h-8 w-8 flex items-center justify-center text-gray-400"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </div>
+                  );
+                }
+                
+                // Regular page button
+                return (
+                  <button
+                    key={`page-${page}`}
+                    onClick={() => 
+                      fetchArtists(`api/artists/list_artists?page=${page}&page_size=${pageSize}`)
+                    }
+                    className={`h-8 w-8 rounded-lg flex items-center justify-center transition-colors ${
+                      page === pagination.current
+                        ? 'bg-violet-500/20 text-violet-400'
+                        : 'hover:bg-gray-700 text-gray-400'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+              
+              <button
+                onClick={() => handlePageChange(pagination.next)}
+                disabled={!pagination.next}
+                className={`p-2 rounded-lg ${
+                  pagination.next
+                    ? 'hover:bg-gray-700 text-gray-300'
+                    : 'text-gray-500 cursor-not-allowed'
+                } transition-colors`}
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
           </div>
         )}
       </div>
