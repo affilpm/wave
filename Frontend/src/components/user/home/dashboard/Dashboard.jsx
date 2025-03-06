@@ -145,18 +145,18 @@ const Dashboard = () => {
         setLoading(true);
         const page=1
         const limit = 10
-        const [musiclistResponse, playlistResponse, albumlistResponse, recentlyPlayedResponse, artistlistResponse] = await Promise.all([
+        const [musiclistResponse, playlistResponse, albumlistResponse, artistlistResponse] = await Promise.all([
           api.get(`/api/home/musiclist/?top10=true`),
           api.get("/api/home/playlist/?top10=true"),
           api.get("/api/home/albumlist/?top10=true"),
-          api.get("/api/listening_history/recently-played/"),
+          // api.get("/api/listening_history/recently-played/"),
           api.get("/api/home/artistlist/")
         ]);
 
         setMusiclistData(musiclistResponse.data.results);
         setPlaylistData(playlistResponse.data.results);
         setAlbumlistData(albumlistResponse.data.results);
-        setRecentlyPlayedData(recentlyPlayedResponse.data);
+        // setRecentlyPlayedData(recentlyPlayedResponse.data);
         setArtistlist(artistlistResponse.data)
         console.log(artistlistResponse)
         console.log(playlistResponse.data.results)
@@ -179,12 +179,12 @@ const Dashboard = () => {
 
   return (
     <ShufflingDashboard>
-      {recentlyPlayedData.length > 0 && (
+      {/* {recentlyPlayedData.length > 0 && (
         <RecentlyPlayedSection
           title="Recently Played"
           items={recentlyPlayedData}
         />
-      )}
+      )} */}
       {artistlist.length > 0 && (
   <ArtistSection
     title="Artists"

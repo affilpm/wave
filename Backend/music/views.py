@@ -34,7 +34,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.http import StreamingHttpResponse
 from rest_framework.permissions import AllowAny  
-from listening_history.models import PlayCount, PlayHistory, PlaySession
+from listening_history.models import PlaySession
 from .models import EqualizerPreset
 from rest_framework import generics
 from django.db.models import F
@@ -405,10 +405,16 @@ def Record_play_completion(request):
                 play_session.duration = new_total_duration
                 
                 # Only mark as completed if it meets the threshold
-                if should_count:
+                if should_count and not play_session.counted_as_play:
                     play_session.status = 'completed'
                     play_session.completed_at = timezone.now()
                     play_session.counted_as_play = True
+                    
+                    # Update global music play count
+                    music.play_count = F('play_count') + 1
+                    music.last_played = timezone.now()
+                    music.save()
+                    print(f"Updated music play count for session completion")
                 else:
                     play_session.status = 'in_progress'
                 
@@ -416,36 +422,6 @@ def Record_play_completion(request):
                 
                 # Log for debugging
                 print(f"Play session update: user={request.user.id}, music={music_id}, new_duration={new_total_duration}, should_count={should_count}")
-                
-                # Only increment play counts for legitimate plays that haven't been counted yet
-                if should_count and not play_session.counted_as_play:
-                    # Use transaction.atomic to ensure consistency
-                    with transaction.atomic():
-                        # Explicitly get or create the PlayCount with select_for_update
-                        try:
-                            play_count = PlayCount.objects.select_for_update().get(
-                                user=request.user,
-                                music=music
-                            )
-                            # Update using direct assignment rather than F expression for debugging
-                            play_count.count += 1
-                            play_count.last_played = timezone.now()
-                            play_count.save()
-                            print(f"Updated play count: {play_count.count}")
-                        except PlayCount.DoesNotExist:
-                            play_count = PlayCount.objects.create(
-                                user=request.user,
-                                music=music,
-                                count=1,
-                                last_played=timezone.now()
-                            )
-                            print(f"Created new play count: {play_count.count}")
-                        
-                        # Update global music play count directly
-                        music.play_count = F('play_count') + 1
-                        music.last_played = timezone.now()
-                        music.save()
-                        print(f"Updated music play count")
                 
                 return Response({
                     'success': True,
@@ -472,27 +448,11 @@ def Record_play_completion(request):
                     play_session.counted_as_play = True
                     play_session.save()
                     
-                    # Increment play counts
-                    with transaction.atomic():
-                        try:
-                            play_count = PlayCount.objects.select_for_update().get(
-                                user=request.user,
-                                music=music
-                            )
-                            play_count.count += 1
-                            play_count.last_played = timezone.now()
-                            play_count.save()
-                        except PlayCount.DoesNotExist:
-                            play_count = PlayCount.objects.create(
-                                user=request.user,
-                                music=music,
-                                count=1,
-                                last_played=timezone.now()
-                            )
-                        
-                        music.play_count = F('play_count') + 1
-                        music.last_played = timezone.now()
-                        music.save()
+                    # Update global music play count
+                    music.play_count = F('play_count') + 1
+                    music.last_played = timezone.now()
+                    music.save()
+                    print(f"Updated music play count for new completed session")
                 
                 return Response({
                     'success': True,
@@ -501,52 +461,41 @@ def Record_play_completion(request):
                 })
         
         # Standard handling for play tracking without play_id
+        # Create a play session with a generated play_id
+        import uuid
+        generated_play_id = str(uuid.uuid4())
+        
         should_count = played_duration >= min_duration
+        play_session = PlaySession.objects.create(
+            play_id=generated_play_id,
+            user=request.user,
+            music=music,
+            status='in_progress' if not should_count else 'completed',
+            duration=played_duration,
+            counted_as_play=should_count,
+            completed_at=timezone.now() if should_count else None
+        )
         
         # Log for debugging
-        print(f"Play completion without play_id: user={request.user.id}, music={music_id}, duration={played_duration}, should_count={should_count}")
+        print(f"Play completion without play_id (created {generated_play_id}): user={request.user.id}, music={music_id}, duration={played_duration}, should_count={should_count}")
         
-        # Only increment play counts for legitimate plays
+        # Only increment play count for legitimate plays
         if should_count:
-            # Use transaction.atomic to ensure consistency
-            with transaction.atomic():
-                # Explicitly get or create the PlayCount with select_for_update
-                try:
-                    play_count = PlayCount.objects.select_for_update().get(
-                        user=request.user,
-                        music=music
-                    )
-                    # Update using direct assignment rather than F expression for debugging
-                    play_count.count += 1
-                    play_count.last_played = timezone.now()
-                    play_count.save()
-                    print(f"Updated play count: {play_count.count}")
-                except PlayCount.DoesNotExist:
-                    play_count = PlayCount.objects.create(
-                        user=request.user,
-                        music=music,
-                        count=1,
-                        last_played=timezone.now()
-                    )
-                    print(f"Created new play count: {play_count.count}")
-                
-                # Update global music play count directly
-                music.play_count = F('play_count') + 1
-                music.last_played = timezone.now()
-                music.save()
-                print(f"Updated music play count")
+            music.play_count = F('play_count') + 1
+            music.last_played = timezone.now()
+            music.save()
+            print(f"Updated music play count for direct play")
         
         return Response({
             'success': True,
             'counted_as_play': should_count,
-            'accumulated_duration': played_duration
+            'accumulated_duration': played_duration,
+            'play_id': generated_play_id  # Return the generated play_id for future updates
         })
             
     except Exception as e:
         print(f"Error in Record_play_completion: {str(e)}")
         return Response({'error': str(e)}, status=500)
-
-
 
 
 
@@ -559,80 +508,6 @@ class MusicStreamView(APIView):
     MIN_PLAY_DURATION_SECONDS = 30  # Minimum seconds to count as a play
     MIN_PLAY_PERCENTAGE = 0.3       # Minimum percentage of track to count as a play
     
-    @classmethod
-    @transaction.atomic
-    def save_play_history(cls, user_id, music, played_duration=None):
-        """
-        Logs the music playback event in the database using atomic transaction.
-        Includes validation for counting legitimate plays based on duration or percentage.
-        
-        Args:
-            user_id: ID of the user playing the track
-            music: Music object being played
-            played_duration: Duration in seconds the track was played (if available)
-        
-        Returns:
-            Boolean indicating if play was counted
-        """
-        user = get_object_or_404(CustomUser, pk=user_id)
-        
-        # Anti-duplication: Check for recent plays by this user for this music
-        cooldown_period = timezone.now() - timezone.timedelta(minutes=5)
-        recent_play = PlayHistory.objects.filter(
-            user=user, 
-            music=music,
-            played_at__gte=cooldown_period
-        ).first()
-        
-        if recent_play:
-            # Skip recording this play (it's too soon after the last one)
-            return False
-        
-        # Determine if this should count as a legitimate play
-        should_count = True
-        if played_duration is not None:
-            # If we have duration info, validate based on time or percentage
-            min_duration = min(
-                cls.MIN_PLAY_DURATION_SECONDS,  
-                music.duration * cls.MIN_PLAY_PERCENTAGE if music.duration else float('inf')
-            )
-            should_count = played_duration >= min_duration
-        
-        # Create play history entry regardless of duration
-        # This gives flexibility to analyze all play attempts later
-        play_history = PlayHistory.objects.create(
-            user=user, 
-            music=music,
-            counted_as_play=should_count,
-            played_duration=played_duration
-        )
-        
-        # Only increment play count for legitimate plays
-        if should_count:
-            with transaction.atomic():
-                # Update or create play count using select_for_update to prevent race conditions
-                play_count, created = PlayCount.objects.select_for_update().get_or_create(
-                    user=user,
-                    music=music,
-                    defaults={'count': 1, 'last_played': timezone.now()}
-                )
-                
-                if not created:
-                    # Use F() to avoid race conditions
-                    PlayCount.objects.filter(pk=play_count.pk).update(
-                        count=F('count') + 1,
-                        last_played=timezone.now()
-                    )
-            
-            # Update global music play count
-            Music.objects.filter(pk=music.pk).update(
-                play_count=F('play_count') + 1,
-                last_played=timezone.now()
-            )
-        
-        return should_count
-    
-
         
     def get_content_type(self, file_path):
         ext = os.path.splitext(file_path)[1].lower()
@@ -703,15 +578,6 @@ class MusicStreamView(APIView):
                 return Response({'error': 'Audio file not found'}, status=404)
 
 
-            if not hasattr(request, '_play_initiated'):
-                PlayHistory.objects.create(
-                    user_id=token_user_id,
-                    music_id=music_id,
-                    counted_as_play=False,
-                    play_status='initiated'
-                )
-                request._play_initiated = True
-
             file_size = os.path.getsize(path)
             content_type = self.get_content_type(path)
 
@@ -757,48 +623,6 @@ class MusicStreamView(APIView):
 
         
 
-#     # Track play duration with frontend callbacks
-# @api_view(['POST'])
-# @permission_classes([IsAuthenticated])
-# def Record_play_completion(request):
-#         """
-#         API endpoint for the frontend to report play completion status.
-#         This provides more accurate tracking than just stream initiation.
-#         """
-
-#         music_id = request.data.get('music_id')
-#         played_duration = request.data.get('played_duration')
-#         play_percentage = request.data.get('play_percentage')
-#         # print(f"Trying to count play: user={request.user.id}, music={music_id}, play_id={play_id}")
-#         # print(f"Play meets criteria: {should_count}")
-#         if not music_id or (played_duration is None and play_percentage is None):
-#             return Response({'error': 'Missing required data'}, status=400)
-        
-#         try:
-#             music = get_object_or_404(Music, pk=music_id)
-            
-#             # Calculate played duration if only percentage was provided
-#             if played_duration is None and play_percentage is not None:
-#                 if music.duration:
-#                     played_duration = music.duration * float(play_percentage)
-#                 else:
-#                     # Can't calculate duration without track length
-#                     return Response({'error': 'Track duration unknown'}, status=400)
-            
-#             # Record the play with duration info
-#             counted = MusicStreamView.save_play_history(
-#                 request.user.id, 
-#                 music, 
-#                 played_duration=float(played_duration)
-#             )
-            
-#             return Response({
-#                 'success': True,
-#                 'counted_as_play': counted
-#             })
-            
-#         except Exception as e:
-#             return Response({'error': str(e)}, status=500)    
 
 
 

@@ -40,8 +40,9 @@ const ArtistVerification = () => {
     const fetchArtists = async () => {
       try {
         const response = await api.get('api/artists/list_artists');
-        setArtists(response.data.artists);
-        setFilteredArtists(response.data.artists);
+        console.log(response.data)
+        setArtists(response.data.results);
+        setFilteredArtists(response.data.results);
       } catch (err) {
         if (err.response?.status === 401) {
           navigate('/adminlogin');
