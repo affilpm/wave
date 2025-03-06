@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../api';
-import { Search, Users, Filter } from 'lucide-react';
+import { Search, Users, Filter, ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react';
 
 const UserStatusColors = {
   active: {
@@ -39,9 +39,16 @@ const UsersTable = () => {
     joinedPeriod: ''
   });
   const [showFilters, setShowFilters] = useState(false);
-
-
-
+  
+  // Pagination state
+  const [pagination, setPagination] = useState({
+    count: 0,
+    next: null,
+    previous: null,
+    current: 1,
+    totalPages: 1
+  });
+  const [pageSize, setPageSize] = useState(8);
 
   const handleStatusChange = async (userId, newStatus) => {
     setActionLoading(userId);
@@ -61,32 +68,109 @@ const UsersTable = () => {
     }
   };
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const response = await api.get('/api/admins/user-table/');
-        const userData = Array.isArray(response.data) ? response.data : response.data.results || [];
-        setUsers(userData);
-        console.log(userData)
-        setFilteredUsers(userData); 
-      } catch (error) {
-        console.error('Error fetching users:', error);
-        setError('Failed to load users');
-      } finally {
-        setLoading(false);
+  const fetchUsers = async (url = `/api/admins/user-table/?page=1&page_size=${pageSize}`) => {
+    setLoading(true);
+    try {
+      const response = await api.get(url);
+      const userData = response.data.results || [];
+      
+      // Update pagination info
+      setPagination({
+        count: response.data.count || 0,
+        next: response.data.next,
+        previous: response.data.previous,
+        current: extractPageNumber(url) || 1,
+        totalPages: Math.ceil((response.data.count || 0) / pageSize)
+      });
+      
+      setUsers(userData);
+      setFilteredUsers(userData);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setError('Failed to load users');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Extract page number from URL
+  const extractPageNumber = (url) => {
+    if (!url) return 1;
+    const match = url.match(/page=(\d+)/);
+    return match ? parseInt(match[1], 10) : 1;
+  };
+
+  // Handle page change
+  const handlePageChange = (url) => {
+    if (url) {
+      // Extract only the path and query params
+      const parsedUrl = new URL(url);
+      const path = parsedUrl.pathname + parsedUrl.search;
+      fetchUsers(path);
+    }
+  };
+
+  // Generate page numbers to display with smart pagination
+  const getPageNumbers = () => {
+    const { current, totalPages } = pagination;
+    const maxVisible = 5; // Maximum number of page buttons to show
+    
+    if (totalPages <= maxVisible) {
+      // Show all pages if total is less than maxVisible
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    
+    // Always include first page, last page, current page and neighbors
+    let pages = [1, totalPages, current];
+    
+    // Add one neighbor on each side of current page if possible
+    if (current - 1 > 1) pages.push(current - 1);
+    if (current + 1 < totalPages) pages.push(current + 1);
+    
+    // Sort and remove duplicates
+    pages = [...new Set(pages)].sort((a, b) => a - b);
+    
+    // Add ellipses indicators
+    const result = [];
+    let prevPage = null;
+    
+    pages.forEach(page => {
+      if (prevPage && page - prevPage > 1) {
+        result.push('ellipsis' + prevPage); // Unique key for each ellipsis
       }
-    };
-
-    fetchUsers();
-  }, []);
+      result.push(page);
+      prevPage = page;
+    });
+    
+    return result;
+  };
 
   useEffect(() => {
-    const filtered = users.filter(user => 
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      `${user.first_name} ${user.last_name}`.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-    setFilteredUsers(filtered);
+    fetchUsers();
+  }, [pageSize]);
+
+  useEffect(() => {
+    if (searchQuery) {
+      // If search query exists, filter locally
+      const filtered = users.filter(user => 
+        user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        `${user.first_name} ${user.last_name}`.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+      setFilteredUsers(filtered);
+    } else {
+      // If no search query, use the fetched users
+      setFilteredUsers(users);
+    }
   }, [searchQuery, users]);
+
+  // Handle search with server-side filtering
+  const handleSearch = () => {
+    if (searchQuery) {
+      fetchUsers(`/api/admins/user-table/?search=${searchQuery}&page=1&page_size=${pageSize}`);
+    } else {
+      fetchUsers(`/api/admins/user-table/?page=1&page_size=${pageSize}`);
+    }
+  };
 
   const getStatusBadge = (isActive) => {
     const colors = isActive ? UserStatusColors.active : UserStatusColors.inactive;
@@ -122,8 +206,6 @@ const UsersTable = () => {
     return colors[index % colors.length];
   };
 
-
-  
   const UserCard = ({ user }) => (
     <div className="p-3 bg-gray-800/70 rounded-lg border border-gray-700/50">
       <div className="flex flex-col space-y-3">
@@ -201,7 +283,7 @@ const UsersTable = () => {
           </div>
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold text-gray-200 truncate">Users</h2>
-            <p className="text-sm text-gray-400">Managing {users.length} users</p>
+            <p className="text-sm text-gray-400">Managing {pagination.count} users</p>
           </div>
         </div>
         
@@ -214,12 +296,20 @@ const UsersTable = () => {
               placeholder="Search users..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
               className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-xl 
                        focus:outline-none focus:ring-2 focus:ring-violet-500/50 focus:border-violet-500/50 
                        text-gray-200 placeholder-gray-400 transition-colors"
             />
           </div>
-          <button className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-xl hover:bg-gray-700 transition-colors shrink-0">
+          <button 
+            onClick={handleSearch}
+            className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-xl hover:bg-gray-700 transition-colors shrink-0 text-gray-400">
+            Search
+          </button>
+          <button 
+            onClick={() => setShowFilters(!showFilters)}
+            className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-xl hover:bg-gray-700 transition-colors shrink-0">
             <Filter className="h-4 w-4 text-gray-400" />
           </button>
         </div>
@@ -293,6 +383,71 @@ const UsersTable = () => {
             </tbody>
           </table>
         </div>
+        
+        {/* Pagination Controls for Desktop - Updated to match ArtistVerification */}
+        {pagination.count > 0 && (
+          <div className="flex justify-center items-center px-6 py-4 border-t border-gray-700/50">
+            <div className="flex gap-1">
+              <button
+                onClick={() => handlePageChange(pagination.previous)}
+                disabled={!pagination.previous}
+                className={`p-2 rounded-lg ${
+                  pagination.previous
+                    ? 'hover:bg-gray-700 text-gray-300'
+                    : 'text-gray-500 cursor-not-allowed'
+                } transition-colors`}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              
+              {/* Smart pagination with ellipsis */}
+              {getPageNumbers().map((page, index) => {
+                // If page is a string, it's an ellipsis indicator
+                if (typeof page === 'string') {
+                  return (
+                    <div 
+                      key={page} 
+                      className="h-8 w-8 flex items-center justify-center text-gray-400"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </div>
+                  );
+                }
+                
+                // Regular page button
+                return (
+                  <button
+                    key={`page-${page}`}
+                    onClick={() => 
+                      fetchUsers(`/api/admins/user-table/?page=${page}&page_size=${pageSize}${searchQuery ? `&search=${searchQuery}` : ''}`)
+                    }
+                    className={`h-8 w-8 rounded-lg flex items-center justify-center transition-colors ${
+                      page === pagination.current
+                        ? 'bg-violet-500/20 text-violet-400'
+                        : 'hover:bg-gray-700 text-gray-400'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                );
+              })}
+              
+              <button
+                onClick={() => handlePageChange(pagination.next)}
+                disabled={!pagination.next}
+                className={`p-2 rounded-lg ${
+                  pagination.next
+                    ? 'hover:bg-gray-700 text-gray-300'
+                    : 'text-gray-500 cursor-not-allowed'
+                } transition-colors`}
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Mobile Cards - Shown only on mobile */}
@@ -300,6 +455,43 @@ const UsersTable = () => {
         {filteredUsers.map((user) => (
           <UserCard key={user.id} user={user} />
         ))}
+        
+        {/* Mobile Pagination - Updated to match ArtistVerification */}
+        {pagination.count > 0 && (
+          <div className="flex justify-center items-center py-4">
+            <div className="flex gap-1">
+              <button
+                onClick={() => handlePageChange(pagination.previous)}
+                disabled={!pagination.previous}
+                className={`p-2 rounded-lg ${
+                  pagination.previous
+                    ? 'hover:bg-gray-700 text-gray-300'
+                    : 'text-gray-500 cursor-not-allowed'
+                } transition-colors`}
+                aria-label="Previous page"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              
+              <div className="flex items-center justify-center px-4 text-gray-400 text-sm">
+                Page {pagination.current} of {pagination.totalPages}
+              </div>
+              
+              <button
+                onClick={() => handlePageChange(pagination.next)}
+                disabled={!pagination.next}
+                className={`p-2 rounded-lg ${
+                  pagination.next
+                    ? 'hover:bg-gray-700 text-gray-300'
+                    : 'text-gray-500 cursor-not-allowed'
+                } transition-colors`}
+                aria-label="Next page"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {filteredUsers.length === 0 && (
@@ -310,6 +502,5 @@ const UsersTable = () => {
     </div>
   );
 };
-
 
 export default UsersTable;

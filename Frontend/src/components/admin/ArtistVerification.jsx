@@ -37,7 +37,7 @@ const ArtistVerification = () => {
     previous: null,
     current: 1
   });
-  const [pageSize, setPageSize] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
 
   const fetchArtists = async (url = `api/artists/list_artists?page=1&page_size=${pageSize}`) => {
     try {
