@@ -24,6 +24,9 @@ const MultiStepRegister = () => {
 
   const validateEmail = (email) => /\S+@\S+\.\S+/.test(email);
   const validateOTP = (otp) => otp.length === 6 && !isNaN(otp);
+  const validateUsername = (username) => /^[a-zA-Z0-9_]+$/.test(username);
+  const validateName = (name) => /^[a-zA-Z ]+$/.test(name);
+
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -88,14 +91,23 @@ const MultiStepRegister = () => {
   const handleFinalSubmit = async (e) => {
     e.preventDefault();
     setErrors({});
-    if (!formData.username.trim() || !formData.firstName.trim() || !formData.lastName.trim()) {
-      setErrors({
-        username: !formData.username.trim() ? 'Username is required' : undefined,
-        firstName: !formData.firstName.trim() ? 'First name is required' : undefined,
-        lastName: !formData.lastName.trim() ? 'Last name is required' : undefined,
-      });
+    
+    let validationErrors = {};
+    if (!formData.username.trim() || !validateUsername(formData.username)) {
+      validationErrors.username = 'Username can only contain letters, numbers, and underscores.';
+    }
+    if (!formData.firstName.trim() || !validateName(formData.firstName)) {
+      validationErrors.firstName = 'First name can only contain letters and spaces.';
+    }
+    if (!formData.lastName.trim() || !validateName(formData.lastName)) {
+      validationErrors.lastName = 'Last name can only contain letters and spaces.';
+    }
+
+    if (Object.keys(validationErrors).length > 0) {
+      setErrors(validationErrors);
       return;
     }
+
     setIsSubmitting(true);
     try {
       await registerService .completeRegistration({

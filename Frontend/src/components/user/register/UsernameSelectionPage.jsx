@@ -15,11 +15,25 @@ const UsernameSelectionModal = ({
 
   const handleUsernameSubmit = async (e) => {
     e.preventDefault();
+    
+    // Username validation
+    const usernameRegex = /^[a-zA-Z0-9]([a-zA-Z0-9_]{1,18}[a-zA-Z0-9])?$/;
+  
     if (!username) {
       setError('Username is required');
       return;
     }
-
+    
+    if (username.length < 3) {
+      setError('Username must be at least 3 characters long');
+      return;
+    }
+    
+    if (!usernameRegex.test(username)) {
+      setError('Username can only contain letters, numbers, and underscores (no leading/trailing underscores)');
+      return;
+    }
+  
     try {
       setLoading(true);
       await api.post('/api/users/google_register/', 
@@ -29,7 +43,7 @@ const UsernameSelectionModal = ({
         },
         { headers: { 'Content-Type': 'application/json' } }
       );
-
+  
       navigate('/login', {
         state: { message: 'Registration successful! Please log in.' }
       });
