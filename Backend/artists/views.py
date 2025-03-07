@@ -8,6 +8,14 @@ from rest_framework.decorators import api_view, permission_classes
 from users.models import CustomUser
 from django.db.models import Sum
 from rest_framework.pagination import PageNumberPagination
+from rest_framework import status
+from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
+from .models import Artist, Follow
+from .serializers import FollowSerializer
+from music.models import Music
+from listening_history.models import PlaySession
+
 
 
 class Pagination(PageNumberPagination):
@@ -197,16 +205,7 @@ def check_artist_status(request):
         
         
         
-        
-        
-        
-from rest_framework import status
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from django.shortcuts import get_object_or_404
-from .models import Artist, Follow
-from .serializers import FollowSerializer
+
 
 class FollowArtistView(APIView):
     """
@@ -344,22 +343,23 @@ class Artist_totalplays(APIView):
         if not artist:
             return Response({'error': 'Artist Profile not Found'}, status=status.HTTP_404_NOT_FOUND)
         
-        total_plays = PlayCount.objects.filter(music__artist = artist).aggregate(total = Sum('count'))['total'] or 0
+        
+        total_plays = PlaySession.objects.filter(music__artist = artist, counted_as_play = True).count()
         
         return Response({'total_plays': total_plays}, status=status.HTTP_200_OK)    
     
 
-# class Artist_listeners(APIView):
+class Artist_listeners(APIView):
     
-#     permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated]
     
-#     def get(self, request):
+    def get(self, request):
         
-#         artist = Artist.objects.filter(user = request.user).first()
+        artist = Artist.objects.filter(user = request.user).first()
         
-#         if not artist:
-#             return Response({'error': 'Artist Profile not Found'}, status=status.HTTP_404_NOT_FOUND)
+        if not artist:
+            return Response({'error': 'Artist Profile not Found'}, status=status.HTTP_404_NOT_FOUND)
         
-#         total_listeners = PlayCount.objects.filter(music__artist = artist).values('user').distinct().count()
+        total_listeners = PlaySession.objects.filter(music__artist = artist).values('user').distinct().count()
         
-#         return Response({'total_listeners': total_listeners}, status=status.HTTP_200_OK)
+        return Response({'total_listeners': total_listeners}, status=status.HTTP_200_OK)
