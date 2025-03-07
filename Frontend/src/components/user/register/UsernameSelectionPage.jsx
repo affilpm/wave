@@ -109,10 +109,11 @@ const UsernameSelectionModal = ({
                   }}
                   className="pl-10 w-full px-4 py-3 bg-gray-700/50 border border-gray-600/30 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition duration-300"
                 />
-                {error && (
+
+              </div>
+              {error && (
                   <div className="mt-2 text-sm text-red-400">{error}</div>
                 )}
-              </div>
 
               <button
                 type="submit"
