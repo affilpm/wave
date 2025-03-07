@@ -75,6 +75,8 @@ export const OTPStep = ({ formData, errors, isSubmitting, handleChange, handleOT
           {errors.otp && (
             <div className="mt-2 text-sm text-red-400">{errors.otp}</div>
           )}
+
+          
         <button
           type="submit"
           disabled={isSubmitting}

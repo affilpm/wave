@@ -33,10 +33,11 @@ export const ProfileStep = ({ formData, errors, isSubmitting, handleChange, hand
           onChange={handleChange}
           className="pl-10 w-full px-4 py-3 bg-gray-700/50 border border-gray-600/30 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition duration-300"
         />
-        {errors.username && (
+
+      </div>
+      {errors.username && (
           <div className="mt-2 text-sm text-red-400">{errors.username}</div>
         )}
-      </div>
 
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -52,10 +53,11 @@ export const ProfileStep = ({ formData, errors, isSubmitting, handleChange, hand
           onChange={handleChange}
           className="pl-10 w-full px-4 py-3 bg-gray-700/50 border border-gray-600/30 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition duration-300"
         />
-        {errors.firstName && (
+
+      </div>
+      {errors.firstName && (
           <div className="mt-2 text-sm text-red-400">{errors.firstName}</div>
         )}
-      </div>
 
       <div className="relative">
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -71,10 +73,11 @@ export const ProfileStep = ({ formData, errors, isSubmitting, handleChange, hand
           onChange={handleChange}
           className="pl-10 w-full px-4 py-3 bg-gray-700/50 border border-gray-600/30 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition duration-300"
         />
-        {errors.lastName && (
+
+      </div>
+      {errors.lastName && (
           <div className="mt-2 text-sm text-red-400">{errors.lastName}</div>
         )}
-      </div>
 
       {errors.submit && (
         <div className="bg-red-500/10 border border-red-500/30 text-red-400 px-4 py-3 rounded-xl">
