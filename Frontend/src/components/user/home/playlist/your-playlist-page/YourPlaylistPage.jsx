@@ -351,14 +351,7 @@ const handlePlayTrack = (track, index) => {
           )}
         </button>
 
-        <button
-          className={`p-2 text-gray-400 hover:text-white transition-colors ${
-            isShuffling ? "text-green-500" : ""
-          }`}
-          onClick={handleShuffle}
-        >
-          <Shuffle className="h-6 w-6" />
-        </button>
+
 
         <button className="p-2 text-gray-400 hover:text-white transition-colors">
           <Share2 className="h-6 w-6" />
