@@ -107,10 +107,25 @@ class PlaylistSerializer(serializers.ModelSerializer):
     
     def validate_name(self, value):
         user = self.context['request'].user  # Get the logged-in user
-        if Playlist.objects.filter(name=value, created_by=user).exists():
-            raise serializers.ValidationError("You already have a playlist with this name.")
+        
+        # For updates, exclude the current instance from the uniqueness check
+        current_instance = getattr(self, 'instance', None)
+        
+        # Check if this is an update operation on an existing playlist
+        if current_instance is not None:
+            # If updating an existing playlist with the same name, this is allowed
+            if current_instance.name == value:
+                return value
+                
+            # Otherwise, check if another playlist has this name
+            if Playlist.objects.filter(name=value, created_by=user).exclude(id=current_instance.id).exists():
+                raise serializers.ValidationError("You already have a playlist with this name.")
+        else:
+            # For new playlists, perform the regular check
+            if Playlist.objects.filter(name=value, created_by=user).exists():
+                raise serializers.ValidationError("You already have a playlist with this name.")
+                
         return value
-    
     
     
     

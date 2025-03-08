@@ -14,16 +14,27 @@ const EditPlaylistModal = ({ isOpen, onClose, onEditPlaylist, playlist }) => {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [formChanged, setFormChanged] = useState(false);
 
   useEffect(() => {
     if (playlist) {
       setPlaylistName(playlist.name || '');
       setDescription(playlist.description || '');
       setPreviewUrl(playlist.cover_photo || null);
+      setFormChanged(false); // Reset form changed status when playlist data is loaded
     }
   }, [playlist]);
 
-
+  // Track form changes
+  useEffect(() => {
+    if (playlist) {
+      const nameChanged = playlistName !== (playlist.name || '');
+      const descriptionChanged = description !== (playlist.description || '');
+      const coverChanged = coverPhoto !== null;
+      
+      setFormChanged(nameChanged || descriptionChanged || coverChanged);
+    }
+  }, [playlistName, description, coverPhoto, playlist]);
 
   const handleEditPlaylist = async () => {
     if (!playlistName.trim()) {
@@ -59,6 +70,7 @@ const EditPlaylistModal = ({ isOpen, onClose, onEditPlaylist, playlist }) => {
       onEditPlaylist(updatedPlaylist);
       resetForm();
       onClose();
+      toast.success('Playlist updated successfully');
     } catch (error) {
       console.error('Error updating playlist:', error);
       console.log(error.response?.data); // Debugging
@@ -80,6 +92,7 @@ const EditPlaylistModal = ({ isOpen, onClose, onEditPlaylist, playlist }) => {
       }
   
       setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -97,138 +110,150 @@ const EditPlaylistModal = ({ isOpen, onClose, onEditPlaylist, playlist }) => {
     setZoom(1);
     setCroppedAreaPixels(null);
     setIsLoading(false);
+    setFormChanged(false);
   };
 
-
-
-
-//image cropping//
+  //image cropping//
   const [showCropper, setShowCropper] = useState(false);
   const [originalImage, setOriginalImage] = useState(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
-
   const handleClose = () => {
     resetForm();
     onClose();
   };
-const handleImageChange = async (e) => {
-  const file = e.target.files[0];
-  if (file) {
-    try {
-      // Validate file type
-      if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
-        throw new Error('Please upload only JPG, JPEG or PNG images');
-      }
-      
-      // Validate file size
-      if (file.size > 5 * 1024 * 1024) {
-        throw new Error('Image size should be less than 5MB');
-      }
 
-      // Get image dimensions
-      const dimensions = await new Promise((resolve) => {
-        const img = new Image();
-        const objectUrl = URL.createObjectURL(file);
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      try {
+        // Validate file type
+        if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
+          throw new Error('Please upload only JPG, JPEG or PNG images');
+        }
         
-        img.onload = () => {
-          URL.revokeObjectURL(objectUrl);
-          resolve({ width: img.width, height: img.height });
-        };
-        
-        img.src = objectUrl;
-      });
+        // Validate file size
+        if (file.size > 5 * 1024 * 1024) {
+          throw new Error('Image size should be less than 5MB');
+        }
 
-      // Check if image needs resizing
-      if (dimensions.width < MIN_IMAGE_SIZE || dimensions.height < MIN_IMAGE_SIZE) {
-        const willResize = window.confirm(
-          `Image is smaller than ${MIN_IMAGE_SIZE}x${MIN_IMAGE_SIZE} pixels. Would you like to automatically resize it? This may affect image quality.`
-        );
+        // Get image dimensions
+        const dimensions = await new Promise((resolve) => {
+          const img = new Image();
+          const objectUrl = URL.createObjectURL(file);
+          
+          img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            resolve({ width: img.width, height: img.height });
+          };
+          
+          img.src = objectUrl;
+        });
 
-        if (willResize) {
+        // Check if image needs resizing
+        if (dimensions.width < MIN_IMAGE_SIZE || dimensions.height < MIN_IMAGE_SIZE) {
+          const willResize = window.confirm(
+            `Image is smaller than ${MIN_IMAGE_SIZE}x${MIN_IMAGE_SIZE} pixels. Would you like to automatically resize it? This may affect image quality.`
+          );
+
+          if (willResize) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              setOriginalImage(e.target.result);
+              setShowCropper(true);
+            };
+            reader.readAsDataURL(file);
+          } else {
+            throw new Error(`Please select an image at least ${MIN_IMAGE_SIZE}x${MIN_IMAGE_SIZE} pixels`);
+          }
+        } else {
+          // Handle normal sized images
           const reader = new FileReader();
           reader.onload = (e) => {
             setOriginalImage(e.target.result);
             setShowCropper(true);
           };
           reader.readAsDataURL(file);
-        } else {
-          throw new Error(`Please select an image at least ${MIN_IMAGE_SIZE}x${MIN_IMAGE_SIZE} pixels`);
         }
-      } else {
-        // Handle normal sized images
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          setOriginalImage(e.target.result);
-          setShowCropper(true);
-        };
-        reader.readAsDataURL(file);
-      }
 
-      setError('');
-    } catch (err) {
-      setError(err.message);
-      toast.error(err.message);
+        setError('');
+      } catch (err) {
+        setError(err.message);
+        toast.error(err.message);
+      }
     }
-  }
-};
+  };
 
-const handleCropComplete = (croppedArea, croppedAreaPixels) => {
-  setCroppedAreaPixels(croppedAreaPixels);
-};
+  const handleCropComplete = (croppedArea, croppedAreaPixels) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  };
 
-const handleCropSave = async () => {
-  if (!croppedAreaPixels || !originalImage) return;
+  const handleCropSave = async () => {
+    if (!croppedAreaPixels || !originalImage) return;
 
-  try {
-    const canvas = document.createElement('canvas');
-    const image = new Image();
-    image.src = originalImage;
+    try {
+      const canvas = document.createElement('canvas');
+      const image = new Image();
+      image.src = originalImage;
 
-    await new Promise((resolve) => {
-      image.onload = resolve;
-    });
+      await new Promise((resolve) => {
+        image.onload = resolve;
+      });
 
-    canvas.width = TARGET_SIZE;
-    canvas.height = TARGET_SIZE;
+      canvas.width = TARGET_SIZE;
+      canvas.height = TARGET_SIZE;
 
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(
-      image,
-      croppedAreaPixels.x,
-      croppedAreaPixels.y,
-      croppedAreaPixels.width,
-      croppedAreaPixels.height,
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(
+        image,
+        croppedAreaPixels.x,
+        croppedAreaPixels.y,
+        croppedAreaPixels.width,
+        croppedAreaPixels.height,
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
 
-    canvas.toBlob((blob) => {
-      if (blob) {
-        const croppedFile = new File([blob], 'playlist-cover.jpg', {
-          type: 'image/jpeg',
-          lastModified: Date.now(),
-        });
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const croppedFile = new File([blob], 'playlist-cover.jpg', {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
 
-        setCoverPhoto(croppedFile);
-        setPreviewUrl(URL.createObjectURL(blob));
-        setShowCropper(false);
-      }
-    }, 'image/jpeg', 0.95);
-  } catch (error) {
-    console.error('Error cropping image:', error);
-    toast.error('Failed to crop image. Please try again.');
-  }
-};
+          setCoverPhoto(croppedFile);
+          setPreviewUrl(URL.createObjectURL(blob));
+          setShowCropper(false);
+        }
+      }, 'image/jpeg', 0.95);
+    } catch (error) {
+      console.error('Error cropping image:', error);
+      toast.error('Failed to crop image. Please try again.');
+    }
+  };
 
+  // Check if button should be disabled
+  const isButtonDisabled = () => {
+    // Disable if loading or no form changes
+    if (isLoading || !formChanged) return true;
+    
+    // Disable if playlist name is empty
+    if (!playlistName.trim()) return true;
+    
+    // Disable if description is empty
+    if (!description.trim()) return true;
+    
+    // Disable if no cover photo (original or new)
+    if (!previewUrl && !coverPhoto) return true;
+    
+    return false;
+  };
 
-
-
-if (!isOpen) return null;
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
@@ -355,9 +380,9 @@ if (!isOpen) return null;
           </button>
           <button
             onClick={handleEditPlaylist}
-            disabled={!playlistName.trim() || isLoading}
+            disabled={isButtonDisabled()}
             className={`px-6 py-2 rounded-full bg-green-500 text-white font-medium transition-colors ${
-              playlistName.trim() && !isLoading ? 'hover:bg-green-400' : 'opacity-50 cursor-not-allowed'
+              !isButtonDisabled() ? 'hover:bg-green-400' : 'opacity-50 cursor-not-allowed'
             }`}
           >
             {isLoading ? 'Saving...' : 'Save'}

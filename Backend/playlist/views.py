@@ -257,6 +257,8 @@ class PlaylistViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
             
+            
+            
     @action(detail=True, methods=['post'])
     def remove_tracks(self, request, pk=None):
         playlist = self.get_object()
