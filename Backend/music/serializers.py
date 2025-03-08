@@ -82,8 +82,7 @@ class ArtistSerializer(serializers.ModelSerializer):
 
 
 class MusicDataSerializer(serializers.ModelSerializer):
-    # artist = ArtistSerializer()  # Make sure this includes user data
-    genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
+    artist = ArtistSerializer()  # Make sure this includes user data
     duration = serializers.DurationField(required=False)  # Add this line
 
     class Meta:

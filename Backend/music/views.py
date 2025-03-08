@@ -61,7 +61,6 @@ class PublicGenresViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 ##
- 
 class PublicSongsView(generics.ListAPIView):
     serializer_class = MusicDataSerializer
     permission_classes = [IsAuthenticated]
