@@ -255,15 +255,6 @@ const AlbumPage = () => {
           )}
         </button>
 
-        <button
-          className={`p-2 text-gray-400 hover:text-white transition-colors ${
-            shuffle ? "text-green-500" : ""
-          }`}
-          onClick={handleShuffle}
-        >
-          <Shuffle className="h-6 w-6" />
-        </button>
-
         <button className="p-2 text-gray-400 hover:text-white transition-colors">
           <Share2 className="h-6 w-6" />
         </button>

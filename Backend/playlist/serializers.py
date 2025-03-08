@@ -12,7 +12,6 @@ from music.models import Genre
 import os
 
 class MusicSerializer(serializers.ModelSerializer):
-    genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
     artist_email = serializers.SerializerMethodField()
     artist_full_name = serializers.SerializerMethodField()
     artist_username = serializers.SerializerMethodField()
@@ -20,7 +19,7 @@ class MusicSerializer(serializers.ModelSerializer):
     class Meta:
         model = Music
         fields = [
-            'id', 'name', 'cover_photo',  'genres', 'release_date',
+            'id', 'name', 'cover_photo', 'release_date',
             'approval_status', 'duration', 'artist', 
             'artist_email', 'artist_full_name',
             'artist_username', 'is_public',
@@ -39,10 +38,6 @@ class MusicSerializer(serializers.ModelSerializer):
         if obj.artist and obj.artist.user:
             return f"{obj.artist.user.first_name} {obj.artist.user.last_name}".strip()
         return None
-
-    def get_genres(self, obj):
-        # Return a list of genre names
-        return [genre.name for genre in obj.genres.all()]
     
     def validate_cover_photo(self, value):
         # Check the length of the filename

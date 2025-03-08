@@ -56,23 +56,17 @@ class MusicSerializer(serializers.ModelSerializer):
             
         return music
  
-# In your view
-from rest_framework import generics
 
-class PublicMusicListView(generics.ListAPIView):
-    serializer_class = MusicSerializer
-    
-    def get_queryset(self):
-        return Music.objects.filter(is_public=True)    
     
 
 
 class UserSerializer(serializers.ModelSerializer):
     
-    
     class Meta:
         model = CustomUser
         fields = ['id', 'email', 'username', 'first_name', 'last_name']
+    
+    
     
         
 class ArtistSerializer(serializers.ModelSerializer):
@@ -84,17 +78,18 @@ class ArtistSerializer(serializers.ModelSerializer):
     
     
     
-#
+
+
 
 class MusicDataSerializer(serializers.ModelSerializer):
-    artist = ArtistSerializer()  # Make sure this includes user data
+    # artist = ArtistSerializer()  # Make sure this includes user data
     genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
     duration = serializers.DurationField(required=False)  # Add this line
 
     class Meta:
         model = Music
         fields = [
-            'id', 'name', 'cover_photo', 'genres', 'release_date',
+            'id', 'name', 'cover_photo', 'release_date',
             'duration', 'artist'
         ]
         
