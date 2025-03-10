@@ -186,8 +186,13 @@ const Profile = () => {
             </h1>
             <div className="mt-2 flex gap-3 text-xs text-gray-100">
               <span>{playlists.filter(p => p.is_public).length} Public Playlists</span>•
-              {isArtist && <span>{publicSongs.length} Public Songs</span> }
-              •<span>{userFollowingCount} Followers</span>•<span>{artistFollowerCount} Following</span>
+              {isArtist && (
+                <>
+                  <span>{publicSongs.length} Public Songs</span>•
+                  <span>{artistFollowerCount} Followers</span>
+                </>
+              )}
+              <span>{userFollowingCount} Following</span>
             </div>
           </div>
         </div>
