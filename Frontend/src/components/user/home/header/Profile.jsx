@@ -59,6 +59,7 @@ const Profile = () => {
       if (artistStatusResponse.data.is_artist) {
         const songsResponse = await api.get('/api/music/public-songs/');
         setPublicSongs(songsResponse.data);
+        console.log(songsResponse.data)
       }
 
       setLoading(false);

@@ -64,7 +64,6 @@ const RecentlyPlayedSection = React.memo(({ title }) => {
     name: track.title,
     artist: track.artist,
     cover_photo: track.cover_photo,
-    audio_file: track.audio_file,
     play_count: track.play_count
   }), []);
 
