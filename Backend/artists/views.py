@@ -186,6 +186,7 @@ def check_artist_status(request):
         response_data = {
             'is_artist': False,
             'status': None,
+            'artist_id': None,
             'message': 'No artist profile found'
         }
 
@@ -193,6 +194,7 @@ def check_artist_status(request):
             response_data.update({
                 'is_artist': artist.status == 'approved',
                 'status': artist.status,
+                'artist_id': artist.id,
                 'message': f'Artist profile found with status: {artist.status}'
             })
 
@@ -297,7 +299,30 @@ class UserFollowingListView(APIView):
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     
+class ArtistFollowCountView(APIView):
+    """
+    View to get the count of followers for an artist.
+    """
     
+    def get(self, request, artist_id):
+        """Get the count of followers for an artist"""
+        artist = get_object_or_404(Artist, id=artist_id)
+        followers_count = Follow.objects.filter(artist=artist).count()
+        
+        return Response({"followers_count": followers_count}, status=status.HTTP_200_OK)
+
+
+class UserFollowingCountView(APIView):
+    """
+    View to get the count of artists a user is following.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        """Get the count of artists the authenticated user is following"""
+        following_count = Follow.objects.filter(user=request.user).count()
+        
+        return Response({"following_count": following_count}, status=status.HTTP_200_OK)    
 
 
 class Artist_Trackcount(APIView):
