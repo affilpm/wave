@@ -18,7 +18,6 @@ import {
         artist: track.music_details.artist_username,
         artist_full: track.music_details.artist_full_name,
         cover_photo: track.music_details.cover_photo,
-        audio_file: track.music_details.audio_file,
         duration: track.music_details.duration,
         release_date: track.music_details.release_date
       };
@@ -31,7 +30,6 @@ import {
       artist: track.artist_username,
       artist_full: track.artist_full_name,
       cover_photo: track.cover_photo,
-      audio_file: track.audio_file,
       duration: track.duration,
       release_date: track.release_date
     };

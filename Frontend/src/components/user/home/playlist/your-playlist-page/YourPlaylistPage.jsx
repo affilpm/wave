@@ -69,7 +69,6 @@ const YourPlaylistPage = () => {
     artist: track.music_details.artist_username,
     artist_full: track.music_details.artist_full_name,
     cover_photo: track.music_details.cover_photo,
-    audio_file: track.music_details.audio_file,
     duration: track.music_details.duration
   });
   

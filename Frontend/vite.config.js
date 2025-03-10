@@ -27,7 +27,7 @@ export default defineConfig({
         frame-ancestors 'self' https://accounts.google.com https://*.gstatic.com;
         connect-src 'self' ws://localhost:8001 ws://localhost:* wss://localhost:* http://localhost:* https://localhost:* wss://*.razorpay.com;
         img-src 'self' http://localhost:* https: data: blob:;
-        media-src 'self' blob: http://localhost:* https://localhost:*;
+        media-src 'self' blob: data: http://localhost:* https://localhost:*;
         font-src 'self' data:;
       `.replace(/\s+/g, ' ').trim(),
     },

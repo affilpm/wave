@@ -61,7 +61,6 @@ const ArtistSection = ({ title, items }) => {
           artist: artist.username || "",
           artist_full: artist.full_name || artist.username || "",
           cover_photo: song.cover_photo,
-          audio_file: song.audio_file,
           duration: song.duration,
           release_date: song.release_date
         }));
