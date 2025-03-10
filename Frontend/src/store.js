@@ -26,7 +26,7 @@ const rootReducer = combineReducers({
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['user', 'admin', 'album',], // Persist both user and admin slices
+  whitelist: ['user', 'admin', 'album', 'musicPlayer'], // Persist both user and admin slices
 
 };
 
