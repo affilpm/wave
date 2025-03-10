@@ -31,9 +31,9 @@ const ArtistDetailPage = () => {
   const [totalDuration, setTotalDuration] = useState("");
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
-  const [followers, setFollowers] = useState([]);
+
   const [followersCount, setFollowersCount] = useState(0);
-  
+
   const { musicId, isPlaying, currentPlaylistId, currentArtistId, queue } = useSelector((state) => state.musicPlayer);
   
   useEffect(() => {
@@ -54,13 +54,12 @@ const ArtistDetailPage = () => {
         setPlaylists(playlistsResponse.data.results || playlistsResponse.data);
         
         // Fetch followers for this artist
-        const followersResponse = await api.get(`/api/artists/${artistId}/followers/`);
-        setFollowers(followersResponse.data);
-        setFollowersCount(followersResponse.data.length);
-        
+        const followersCountResponse = await api.get(`/api/artists/${artistId}/followers-count/`);
+        setFollowersCount(followersCountResponse.data.followers_count);
+
         // Check if current user is following this artist
         try {
-          const userFollowingResponse = await api.get('/api/artists/me/following/');
+          const userFollowingResponse = await api.get(`/api/artists/me/following/`);
           const isFollowingArtist = userFollowingResponse.data.some(
             follow => follow.artist.id === Number(artistId)
           );
@@ -427,41 +426,7 @@ const ArtistDetailPage = () => {
         </div>
       )}
       
-      {/* Followers section */}
-      {followers.length > 0 && (
-        <div className="flex-1 p-6">
-          <h2 className="text-2xl font-bold mb-4">Followers</h2>
-          
-          <div className="flex flex-wrap gap-3">
-            {followers.slice(0, 8).map((follow) => (
-              <div 
-                key={follow.id} 
-                className="flex items-center gap-2 bg-neutral-800/50 p-2 rounded-lg cursor-pointer hover:bg-neutral-700/50 transition-all"
-                onClick={() => navigate(`/profile/${follow.user.id}`)}
-              >
-                <div className="w-8 h-8 rounded-full overflow-hidden">
-                  <img 
-                    src={follow.user.profile_photo || '/api/placeholder/32/32'} 
-                    alt={follow.user.username || follow.user.email} 
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <span className="text-sm truncate max-w-32">
-                  {follow.user.username || follow.user.email}
-                </span>
-              </div>
-            ))}
-            {followers.length > 8 && (
-              <button 
-                className="text-sm text-gray-400 hover:text-white transition-colors bg-neutral-800/50 p-2 rounded-lg"
-                onClick={() => alert('Show all followers')} // Replace with actual navigation or modal
-              >
-                +{followers.length - 8} more
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+
     </div>
   );
 };

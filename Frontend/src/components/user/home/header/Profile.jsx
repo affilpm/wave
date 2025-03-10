@@ -21,11 +21,11 @@ const Profile = () => {
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isArtist, setIsArtist] = useState(false);
-
+  const [artistFollowerCount, setArtistFollowerCount] = useState(0);
+  const [userFollowingCount, setUserFollowingCount] = useState(0);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { musicId, isPlaying, queue, currentPlaylistId } = useSelector((state) => state.musicPlayer);
-
   const isTrackPlaying = (track) => {
     return musicId === track.id && isPlaying;
   };
@@ -43,14 +43,17 @@ const Profile = () => {
   useEffect(() => {
     fetchUserData();
   }, []);
+  const [artistId, setArtistId] = useState('')
 
   const fetchUserData = async () => {
     try {
       const artistStatusResponse = await api.get('/api/artists/check-artist-status/');
       setIsArtist(artistStatusResponse.data.is_artist);
+      setArtistId(artistStatusResponse.data.artist_id)
 
       const response = await api.get('/api/users/user');
       setUsername(response.data.username);
+      console.log('user',response.data)
       setProfilePhoto(response.data.profile_photo);
 
       const playlistsResponse = await api.get('/api/playlist/public_playlist_data/');
@@ -61,6 +64,11 @@ const Profile = () => {
         setPublicSongs(songsResponse.data);
         console.log(songsResponse.data)
       }
+      // const artistResponse = await api.get(`/api/artists/${artistId}/followers-count/`);
+      // setArtistFollowerCount(artistResponse.data.followers_count);
+
+      const followingResponse = await api.get('/api/artists/me/following-count/');
+      setUserFollowingCount(followingResponse.data.following_count);
 
       setLoading(false);
     } catch (error) {
@@ -68,6 +76,27 @@ const Profile = () => {
       setLoading(false);
     }
   };
+
+
+  useEffect(() => {
+    if (artistId) {  // Only fetch artist follower count if artistId is set
+      const fetchArtistFollowerCount = async () => {
+        try {
+          const artistResponse = await api.get(`/api/artists/${artistId}/followers-count/`);
+          setArtistFollowerCount(artistResponse.data.followers_count);
+          console.log(artistResponse.data)
+        } catch (error) {
+          console.error('Error fetching artist follower count:', error);
+        }
+      };
+  
+      fetchArtistFollowerCount();
+    }
+  }, [artistId]);  
+  
+  useEffect(() => {
+    fetchUserData();
+  }, []); 
 
   const handlePlayClick = async (e, playlist) => {
     e.stopPropagation(); // Prevent navigation when clicking play button
@@ -155,9 +184,10 @@ const Profile = () => {
             >
               {username}
             </h1>
-            <div className="mt-2 flex gap-3 text-xs text-neutral-400">
-              <span>{playlists.filter(p => p.is_public).length} Public Playlists</span>
-              {isArtist && <span>{publicSongs.length} Public Songs</span>}
+            <div className="mt-2 flex gap-3 text-xs text-gray-100">
+              <span>{playlists.filter(p => p.is_public).length} Public Playlists</span>•
+              {isArtist && <span>{publicSongs.length} Public Songs</span> }
+              •<span>{userFollowingCount} Followers</span>•<span>{artistFollowerCount} Following</span>
             </div>
           </div>
         </div>
