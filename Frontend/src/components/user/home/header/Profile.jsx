@@ -12,7 +12,6 @@ import ProfileEditModal from './ProfileEditModal';
 
 
 
-// Main Profile Component remains the same
 const Profile = () => {
   const [username, setUsername] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
@@ -64,8 +63,6 @@ const Profile = () => {
         setPublicSongs(songsResponse.data);
         console.log(songsResponse.data)
       }
-      // const artistResponse = await api.get(`/api/artists/${artistId}/followers-count/`);
-      // setArtistFollowerCount(artistResponse.data.followers_count);
 
       const followingResponse = await api.get('/api/artists/me/following-count/');
       setUserFollowingCount(followingResponse.data.following_count);
@@ -189,7 +186,7 @@ const Profile = () => {
               {isArtist && (
                 <>
                   <span>{publicSongs.length} Public Songs</span>•
-                  <span>{artistFollowerCount} Followers</span>
+                  <span>{artistFollowerCount} Followers</span>•
                 </>
               )}
               <span>{userFollowingCount} Following</span>
