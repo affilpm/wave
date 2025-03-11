@@ -24,14 +24,14 @@ import SavedPlaylistPage from './components/user/home/playlist/playlist-page/Sav
 import { Navigate } from 'react-router-dom';
 import AlbumPage from './components/user/home/album/AlbumPage';
 import UsernameSelectionPage from './components/user/register/UsernameSelectionPage';
-import GenrePage from './components/user/home/dashboard/GenrePage';
-import Profile from './components/user/home/header/Profile';
+import GenrePage from './components/user/home/dashboard/Genre-section/GenrePage';
+import Profile from './components/user/home/header/profile/Profile';
 import MonetizationPage from './components/artist/studio/Monetization';
 // import { apiInstance } from './api';
 // import { musicStreamService } from './services/user/musicService';
 import PlaylistShowMorePage from './components/user/home/dashboard/Playlist-section/PlaylistShowMore';
 import AlbumShowMorePage from './components/user/home/dashboard/Album-section/AlbumShowMore';
-import ArtistPage from './components/user/home/dashboard/ArtistPage';
+import ArtistPage from './components/user/home/dashboard/Artist-section/ArtistPage';
 import Livestream from './components/livestream/LiveStream';
 import ArtistStreamingRooms from './components/livestream/ArtistStreamingRooms';
 
