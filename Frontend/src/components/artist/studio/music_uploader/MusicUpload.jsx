@@ -117,31 +117,63 @@ const MusicUpload = () => {
       }
     }, 500); // 500ms delay
   
+
+
+    const isValidTrackName = (name) => {
+      const invalidChars = /[<>:"/\|?*]/; // Regex to check for invalid characters
+      return !invalidChars.test(name);
+    };
+
+
+    const reservedWords = ["default", "untitled"];
+    const isReservedWord = (name) => reservedWords.includes(name.toLowerCase());
+
     const handleInputChange = (e) => {
       const { name, value } = e.target;
-      const trimmedValue = value.trim(); // Remove leading and trailing spaces
+      const trimmedValue = value.replace(/\s/g, ''); // Remove all spaces forcefully
+      
+      // Update form data with the trimmed value (no spaces)
+      setFormData((prev) => ({ ...prev, [name]: trimmedValue }));
     
-      // Update form data with the trimmed value
-      setFormData((prev) => ({ ...prev, [name]: value }));
-    
-      // If the name field changes, check for duplicates and validate the input
+      // Track name validation
       if (name === 'name') {
-        // Check if the value contains only whitespaces
+        // Validation for empty value
         if (trimmedValue === "") {
           setNameValidation({
+            error: "Track name cannot be empty.",
+            isChecking: false,
+          });
+        }
+        // Validate length (3-30 characters)
+        else if (trimmedValue.length < 3 || trimmedValue.length > 30) {
+          setNameValidation({
+            error: "Track name must be between 3 and 30 characters.",
+            isChecking: false,
+          });
+        }
+        // Disallow special characters
+        else if (!isValidTrackName(trimmedValue)) {
+          setNameValidation({
+            error: "Track name contains invalid characters.",
+            isChecking: false,
+          });
+        }
+        // Disallow reserved words
+        else if (isReservedWord(trimmedValue)) {
+          setNameValidation({
+            error: "This track name is reserved.",
             isChecking: false,
           });
         } else {
-          checkTrackName(value); // Check for duplicates or other validation
+          // If the track name passes all checks, clear errors and check for duplicates
+          checkTrackName(trimmedValue);
           setNameValidation({
-            error: "", // Clear error when valid input
+            error: "",
             isChecking: false,
           });
         }
       }
     };
-
-
 
     
   
@@ -559,14 +591,15 @@ const MusicUpload = () => {
         files.cover && 
         formData.name && 
         formData.name.trim() !== "" && 
+        formData.name.length >= 3 && formData.name.length <= 30 && 
+        !nameValidation.error && 
+        !nameValidation.isChecking && 
         formData.selectedGenres.length > 0 &&
         formData.selectedGenres.every(id => id && id !== 'undefined') &&
         formData.releaseDate &&
         selectedAlbum &&
         trackNumber &&
-        // !fileErrors.cover &&
-        !nameValidation.isChecking &&
-        !nameValidation.error
+        !isReservedWord(formData.name)
       );
     };
 

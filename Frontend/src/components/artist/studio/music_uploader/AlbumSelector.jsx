@@ -17,7 +17,6 @@ const AlbumSelector = ({ selectedAlbum, setSelectedAlbum, trackNumber, setTrackN
     const fetchAlbums = async () => {
       try {
         const response = await api.get('/api/album/albums');
-
         setAlbums(response.data);
       } catch (err) {
         console.error('Error fetching albums:', err);
@@ -30,9 +29,7 @@ const AlbumSelector = ({ selectedAlbum, setSelectedAlbum, trackNumber, setTrackN
 
   const getFilteredAlbums = () => {
     return albums
-      .filter(album => 
-        album.name.toLowerCase().includes(searchQuery.toLowerCase())
-      )
+      .filter(album => album.name.toLowerCase().includes(searchQuery.toLowerCase()))
       .sort((a, b) => {
         const comparison = a.name.localeCompare(b.name);
         return sortOrder === 'asc' ? comparison : -comparison;
@@ -46,7 +43,7 @@ const AlbumSelector = ({ selectedAlbum, setSelectedAlbum, trackNumber, setTrackN
       (max, track) => Math.max(max, track.track_number),
       0
     ) || 0;
-    setTrackNumber((maxTrackNumber + 1).toString());
+    setTrackNumber((maxTrackNumber + 1).toString()); // Automatically set track number
     setIsDropdownOpen(false);
   };
 
@@ -184,18 +181,8 @@ const AlbumSelector = ({ selectedAlbum, setSelectedAlbum, trackNumber, setTrackN
       </div>
 
       {selectedAlbum && (
-        <div className="mt-4">
-          <label className="block text-sm font-medium text-white mb-1">
-            Track Number *
-          </label>
-          <input
-            type="number"
-            min="1"
-            value={trackNumber}
-            onChange={(e) => setTrackNumber(e.target.value)}
-            className="w-full p-2 border rounded-md bg-gray-700 text-white border-gray-600"
-            required
-          />
+        <div className="mt-4 text-white">
+          <p>Track number will be set automatically based on the album's existing tracks.</p>
         </div>
       )}
     </div>
