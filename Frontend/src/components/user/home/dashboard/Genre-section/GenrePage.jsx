@@ -8,9 +8,9 @@ import {
   setIsPlaying,
   toggleShuffle,
   setCurrentPlaylistId
-} from '../../../../slices/user/musicPlayerSlice';
-import api from '../../../../api';
-import { formatDuration, convertToSeconds, convertToHrMinFormat } from '../../../../utils/formatters';
+} from '../../../../../slices/user/musicPlayerSlice';
+import api from '../../../../../api';
+import { formatDuration, convertToSeconds, convertToHrMinFormat } from '../../../../../utils/formatters';
 
 const GenrePage = () => {
   const dispatch = useDispatch();

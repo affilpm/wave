@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Camera, PlayCircle, X, Play, Pause } from 'lucide-react';
-import api from '../../../../api';
-import { updateUserProfile } from '../../../../slices/user/userSlice';
-import { handlePlaybackAction } from '../playlist/music-player-utils';
+import api from '../../../../../api';
+import { updateUserProfile } from '../../../../../slices/user/userSlice';
+import { handlePlaybackAction } from '../../playlist/music-player-utils';
 import { useNavigate } from 'react-router-dom';
 import { handleSongPlayback } from './music-player-utils';
 import ProfileEditModal from './ProfileEditModal';

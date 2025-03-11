@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Play, Pause, Clock, ArrowLeft, Share2, Plus, PlayCircle } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
-import api from "../../../../api";
+import api from "../../../../../api";
 import {
   setMusicId,
   setIsPlaying,
@@ -10,13 +10,13 @@ import {
   clearQueue,
   setCurrentPlaylistId,
   setCurrentArtistId
-} from "../../../../slices/user/musicPlayerSlice";
+} from "../../../../../slices/user/musicPlayerSlice";
 import {
   formatDuration,
   convertToSeconds,
   convertToHrMinFormat,
-} from "../../../../utils/formatters";
-import { handlePlaybackAction } from '../playlist/music-player-utils'; // Import the same utility used in Profile
+} from "../../../../../utils/formatters";
+import { handlePlaybackAction } from '../../playlist/music-player-utils'; // Import the same utility used in Profile
 
 const ArtistDetailPage = () => {
   const { artistId } = useParams();

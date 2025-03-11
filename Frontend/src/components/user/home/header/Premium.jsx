@@ -145,7 +145,7 @@ const Premium = () => {
               className={`${plan.backgroundColor} ${plan.textColor} rounded-lg p-6 shadow-xl transform transition hover:scale-105`}
             >
               <h2 className="text-2xl font-bold mb-4">{plan.name}</h2>
-              <p className="text-4xl font-extrabold mb-6">₹{plan.price / 100}/month</p>
+              <p className="text-4xl font-extrabold mb-6">₹{plan.price}/month</p>
 
               <ul className="space-y-3 mb-8">
                 {plan.features.map((feature, index) => (

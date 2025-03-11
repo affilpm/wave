@@ -1,7 +1,7 @@
 import React, {useState, useEffect} from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Music, Headphones, Radio, Mic, Guitar, Stars } from 'lucide-react';
-import api from '../../../../api';
+import api from '../../../../../api';
 // const genres = [
 //   {
 //     id: 7,

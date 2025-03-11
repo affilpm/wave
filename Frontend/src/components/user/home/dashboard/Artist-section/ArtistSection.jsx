@@ -9,8 +9,8 @@ import {
     clearQueue,
     setCurrentPlaylistId,
     setCurrentArtistId
-  } from "../../../../slices/user/musicPlayerSlice";
-import api from "../../../../api";
+  } from "../../../../../slices/user/musicPlayerSlice";
+import api from "../../../../../api";
 
 
 const ArtistSection = ({ title, items }) => {

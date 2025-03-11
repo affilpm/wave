@@ -6,11 +6,11 @@ import api from "../../../../api";
 import AlbumSection from "./Album-section/AlbumSection";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
-import GenreDiscovery from "./GenreDiscovery";
+import GenreDiscovery from "./Genre-section/GenreDiscovery";
 import { Shuffle, PauseCircle, PlayCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import RecentlyPlayedSection from "./RecentlyPlayedSection";
-import ArtistSection from "./ArtistSection";
+import ArtistSection from "./Artist-section/ArtistSection";
 
 
 const ShufflingDashboard = ({ children }) => {

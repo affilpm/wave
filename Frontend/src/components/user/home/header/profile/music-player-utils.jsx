@@ -1,5 +1,5 @@
 // music-player-utils.js
-import { setMusicId, setIsPlaying, setQueue, clearQueue, setCurrentPlaylistId } from "../../../../slices/user/musicPlayerSlice";
+import { setMusicId, setIsPlaying, setQueue, clearQueue, setCurrentPlaylistId } from "../../../../../slices/user/musicPlayerSlice";
 
 export const prepareTrackForPlayer = (track) => ({
   id: track.id,

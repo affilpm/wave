@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback, useMemo } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
-import PlaylistSectionMenuModal from "../PlaylistSectionMenuModal";
+import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from "react-router-dom";
 import { handlePlaybackAction } from "../../playlist/music-player-utils";
