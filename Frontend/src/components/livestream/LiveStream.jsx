@@ -3,6 +3,8 @@ import { apiInstance } from '../../api';
 import { useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import ArtistStreamingControls from './ArtistStreamingControls';
+import api from '../../api';
+
 
 const WebRTCLivestream = () => {
   // All existing state variables from your original component
@@ -132,6 +134,7 @@ const WebRTCLivestream = () => {
   };
 
 // Add this function to your WebRTCLivestream component
+// Add this function to your WebRTCLivestream component
 const debugConnection = () => {
   console.log("=== WebSocket Connection Debugging ===");
   console.log(`Connection Status: ${isConnected ? 'Connected' : 'Disconnected'}`);
@@ -150,16 +153,64 @@ const debugConnection = () => {
   }
 };
 
-const connectWebSocket = () => {
-  console.log("Attempting to connect to WebSocket...");
-  
+// Function to get the livestream token
+const getLivestreamToken = async () => {
   try {
-    // Use apiInstance method to get token
+    // Check if we have a cached livestream token that's still valid
+    const cachedToken = localStorage.getItem('livestreamToken');
+    const expiresAt = localStorage.getItem('livestreamTokenExpires');
+    
+    // If token exists and is not expired (with 5 min buffer)
+    if (cachedToken && expiresAt && new Date(expiresAt) > new Date(Date.now() + 5 * 60 * 1000)) {
+      console.log("Using cached livestream token");
+      return cachedToken;
+    }
+    
+    // Otherwise, request a new livestream token
+    console.log("Requesting new livestream token");
+    
+    // Get the regular access token for authorization
     const accessToken = apiInstance.getToken('accessTokenKey');
     
     if (!accessToken) {
-      setConnectionError('No access token found!');
-      return;
+      throw new Error('No access token found');
+    }
+
+    const response = await api.post('/api/livestream/token/', {
+      duration_hours: 24, // Send the duration
+    });
+    
+    console.log("Livestream Token Response:", response.data);
+
+    // If using axios or similar library that puts the response in data property
+    if (response.data && response.data.token) {
+      // Cache the token and its expiration
+      localStorage.setItem('livestreamToken', response.data.token);
+      
+      // Set expiration (current time + expires_in seconds)
+      const expiration = new Date(Date.now() + response.data.expires_in * 1000);
+      localStorage.setItem('livestreamTokenExpires', expiration.toISOString());
+      
+      return response.data.token;
+    } else {
+      throw new Error('Invalid response format: token not found in response');
+    }
+  } catch (error) {
+    console.error("Error getting livestream token:", error);
+    throw error;
+  }
+};
+
+const connectWebSocket = async () => {
+  console.log("Attempting to connect to WebSocket...");
+  
+  try {
+    // Get special livestream token - getLivestreamToken already returns the token string
+    const token = await getLivestreamToken();
+    
+    if (!token) {
+        console.error("No livestream token received.");
+        return;
     }
 
     // Use secure WebSocket if site is using HTTPS
@@ -167,13 +218,10 @@ const connectWebSocket = () => {
     const host = window.location.hostname;
     const port = '8000'; // Your WebSocket server port
     
-    // Encode token to handle special characters
-    const encodedToken = encodeURIComponent(accessToken);
-    
     // Attach JWT token as a query parameter
-    const wsUrl = `${protocol}//${host}:${port}/ws/webrtc/?token=${encodedToken}`;
+    const wsUrl = `${protocol}//${host}:${port}/ws/webrtc/?token=${encodeURIComponent(token)}`;
     
-    console.log(`Connecting to ${wsUrl}`);
+    console.log("Connecting to WebSocket...");
     const socketConnection = new WebSocket(wsUrl);
     socketRef.current = socketConnection;
     
@@ -234,16 +282,50 @@ const connectWebSocket = () => {
   }
 };
 
-// Token refresh event listener
+// Check livestream token periodically and renew if needed
 useEffect(() => {
-  const handleTokenRefresh = (event) => {
-    console.log("Token refreshed, reconnecting WebSocket with new token");
+  const checkTokenInterval = setInterval(async () => {
+    try {
+      const expiresAt = localStorage.getItem('livestreamTokenExpires');
+      
+      // If token will expire in next 30 minutes, get a new one and reconnect
+      if (expiresAt && new Date(expiresAt) < new Date(Date.now() + 30 * 60 * 1000)) {
+        console.log("Livestream token expiring soon, refreshing...");
+        
+        // Close existing connection
+        if (socketRef.current) {
+          socketRef.current.close();
+        }
+        
+        // This will get a new token and reconnect
+        await connectWebSocket();
+      }
+    } catch (error) {
+      console.error("Error checking token expiration:", error);
+    }
+  }, 15 * 60 * 1000); // Check every 15 minutes
+  
+  return () => {
+    clearInterval(checkTokenInterval);
+  };
+}, []);
+
+// Token refresh event listener (if your app has a global token refresh mechanism)
+useEffect(() => {
+  const handleTokenRefresh = async () => {
+    console.log("Main access token refreshed, refreshing livestream token");
+    
+    // Clear cached livestream token to force new one
+    localStorage.removeItem('livestreamToken');
+    localStorage.removeItem('livestreamTokenExpires');
+    
     // Close existing connection
     if (socketRef.current) {
       socketRef.current.close();
     }
+    
     // Reconnect with new token
-    connectWebSocket();
+    await connectWebSocket();
   };
   
   window.addEventListener('tokenRefreshed', handleTokenRefresh);
@@ -253,7 +335,7 @@ useEffect(() => {
   };
 }, []);
 
-// Connect to WebSocket server
+// Connect to WebSocket server on component mount
 useEffect(() => {
   connectWebSocket();
 
@@ -266,18 +348,19 @@ useEffect(() => {
   };
 }, []);
 
-
-
-  // Logout function integrated with apiInstance
-  const handleLogout = () => {
-    try {
-      // Use apiInstance's logout method
-      apiInstance.handleLogout();
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
-  };
-
+// Handle logging out
+const handleLogout = () => {
+  try {
+    // Clear livestream token when logging out
+    localStorage.removeItem('livestreamToken');
+    localStorage.removeItem('livestreamTokenExpires');
+    
+    // Use apiInstance's logout method
+    apiInstance.handleLogout();
+  } catch (error) {
+    console.error("Logout failed:", error);
+  }
+};
   // Additional method to leverage apiInstance error handling
   const handleApiError = async (apiCall) => {
     try {
