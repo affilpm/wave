@@ -79,12 +79,36 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
 
   const handleInputChange = async (e) => {
     const { name, value } = e.target;
-    
+  
     if (name === 'name') {
-      setAlbum(prev => ({ ...prev, name: value }));
-      debouncedCheckAlbum(value);
+      // Remove spaces and trim the value
+      const trimmedValue = value.replace(/\s/g, '');
+  
+      // Validate the album name
+      if (!trimmedValue) {
+        setAlbumNameError('Album name cannot be empty or just whitespace');
+      } else if (trimmedValue.length < 3) {
+        setAlbumNameError('Album name must be at least 3 characters long');
+      } else if (trimmedValue.length > 100) {
+        setAlbumNameError('Album name cannot be longer than 100 characters');
+      } else {
+        setAlbumNameError(''); // Clear any previous error
+      }
+  
+      // Update the album state with the trimmed value (no spaces)
+      setAlbum((prev) => ({
+        ...prev,
+        name: trimmedValue,
+      }));
+  
+      // Call the debounced check function
+      debouncedCheckAlbum(trimmedValue);
     } else if (name === 'description') {
-      setAlbum(prev => ({ ...prev, description: value }));
+      // Update the description field
+      setAlbum((prev) => ({
+        ...prev,
+        description: value,
+      }));
     }
   };
 
@@ -480,6 +504,7 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
   const isSaveDisabled = () => {
     // Check for required fields
     const nameEmpty = !album.name || album.name.trim() === '';
+    const nameTooShort = album.name.trim().length < 3;
     const descriptionEmpty = !album.description || album.description.trim() === '';
     
     // For cover photo, check both the preview and the cropped file
@@ -490,7 +515,7 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
     const isProcessing = isSubmitting;
     
     // Disable save if any required field is missing or there are validation errors
-    return nameEmpty || descriptionEmpty || coverPhotoMissing || hasValidationErrors || isProcessing;
+    return nameEmpty || nameTooShort || descriptionEmpty || coverPhotoMissing || hasValidationErrors || isProcessing;
   };
 
   if (loading) {

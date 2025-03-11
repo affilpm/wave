@@ -70,10 +70,41 @@ const AlbumCreator = () => {
 
   const [dateError, setDateError] = useState('');
 
-  // Update the handleInputChange function
+
+
+  
   const handleInputChange = async (e) => {
     const { name, value } = e.target;
-    
+  
+    if (name === 'name') {
+      // Remove spaces from the album name
+      const trimmedValue = value.replace(/\s/g, ''); // This removes any spaces
+  
+      // Validation logic for album name
+      if (!trimmedValue) {
+        setAlbumNameError('Album name cannot be empty or just whitespace');
+      } else if (trimmedValue.length < 3) {
+        setAlbumNameError('Album name must be at least 3 characters long');
+      } else if (trimmedValue.length > 100) {
+        setAlbumNameError('Album name cannot be longer than 100 characters');
+      } else {
+        setAlbumNameError('');
+        debouncedCheckAlbum(trimmedValue);
+      }
+  
+      // Update state for albumData with the modified name (without spaces)
+      setAlbumData((prev) => ({
+        ...prev,
+        [name]: trimmedValue, // Use the value without spaces
+      }));
+    } else {
+      // For other fields, no space removal or specific validation is required
+      setAlbumData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
+  
     if (name === 'releaseDate') {
       try {
         const date = new Date(value);
@@ -85,15 +116,6 @@ const AlbumCreator = () => {
       } catch (err) {
         setDateError('Invalid date format');
       }
-    }
-    
-    setAlbumData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-    
-    if (name === 'name') {
-      debouncedCheckAlbum(value);
     }
   };
 
