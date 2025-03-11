@@ -25,6 +25,28 @@ const EditPlaylistModal = ({ isOpen, onClose, onEditPlaylist, playlist }) => {
     }
   }, [playlist]);
 
+
+
+  // Handle playlist name change
+  const handlePlaylistNameChange = (e) => {
+    const value = e.target.value.replace(/\s/g, ''); // Remove spaces from input
+    setPlaylistName(value);
+
+    if (value.length < 3 || value.length > 30) {
+      setError('Playlist name must be between 3 and 30 characters.');
+    } else {
+      setError('');
+    }
+  };
+
+  // Forcefully disable space key
+  const handleKeyPress = (e) => {
+    if (e.key === ' ') {
+      e.preventDefault(); // Prevent space from being typed
+    }
+  };
+
+
   // Track form changes
   useEffect(() => {
     if (playlist) {
@@ -241,8 +263,11 @@ const EditPlaylistModal = ({ isOpen, onClose, onEditPlaylist, playlist }) => {
     // Disable if loading or no form changes
     if (isLoading || !formChanged) return true;
     
-    // Disable if playlist name is empty
-    if (!playlistName.trim()) return true;
+    // Disable if there's a validation error
+    if (error) return true;
+
+    // Disable if playlist name is empty or invalid
+    if (!playlistName.trim() || playlistName.length < 3 || playlistName.length > 30) return true;
     
     // Disable if description is empty
     if (!description.trim()) return true;
@@ -354,7 +379,8 @@ const EditPlaylistModal = ({ isOpen, onClose, onEditPlaylist, playlist }) => {
               type="text"
               placeholder="My Awesome Playlist"
               value={playlistName}
-              onChange={(e) => setPlaylistName(e.target.value)}
+              onChange={handlePlaylistNameChange}
+              onKeyPress={handleKeyPress}
               className="w-full bg-gray-800 text-white px-4 py-2 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/20"
             />
             

@@ -23,6 +23,19 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
+
+  const handleChange = (e) => {
+    const value = e.target.value.replace(/\s/g, ''); // Remove spaces dynamically
+    setNewPlaylistName(value);
+  
+    if (value.length < 3 || value.length > 30) {
+      setError('Playlist name must be between 3 and 30 characters.');
+    } else {
+      setError('');
+    }
+  };
+  
+
   const resetForm = () => {
     setNewPlaylistName('');
     setDescription('');
@@ -298,7 +311,7 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
                   type="text"
                   placeholder="My Awesome Playlist"
                   value={newPlaylistName}
-                  onChange={(e) => setNewPlaylistName(e.target.value)}
+                  onChange={handleChange}
                   className="w-full bg-gray-800 text-white px-4 py-2 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/20"
                 />
                 
@@ -343,16 +356,22 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
                 Cancel
               </button>
               <button
-                onClick={handleCreatePlaylist}
-                disabled={isLoading || !newPlaylistName.trim() || !description.trim() || !coverPhoto}
-                className={`px-6 py-2 rounded-full bg-green-500 text-white font-medium transition-colors ${
-                  (isLoading || !newPlaylistName.trim() || !description.trim() || !coverPhoto)
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'hover:bg-green-400'
-                }`}
-              >
-                {isLoading ? 'Creating...' : 'Create'}
-              </button>
+  onClick={handleCreatePlaylist}
+  disabled={
+    isLoading || 
+    error ||  // Disable if there's a validation error
+    !newPlaylistName.trim() || 
+    !description.trim() || 
+    !coverPhoto
+  }
+  className={`px-6 py-2 rounded-full bg-green-500 text-white font-medium transition-colors ${
+    (isLoading || error || !newPlaylistName.trim() || !description.trim() || !coverPhoto)
+      ? 'opacity-50 cursor-not-allowed'
+      : 'hover:bg-green-400'
+  }`}
+>
+  {isLoading ? 'Creating...' : 'Create'}
+</button>
             </div>
           </>
         )}
