@@ -1,0 +1,16 @@
+/* LivestreamPage.css */
+.livestream-page {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background-color: #f8f9fa;
+    color: #212529;
+  }
+  
+  /* Header styles */
+  .livestream-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    
+}

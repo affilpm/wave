@@ -8,6 +8,7 @@ from users.models import CustomUser
 from urllib.parse import parse_qs
 from asgiref.sync import sync_to_async
 
+
 class WebRTCSignalingConsumer(AsyncWebsocketConsumer):
     rooms = {}
     available_rooms = {}  # Keep track of available rooms
@@ -26,17 +27,26 @@ class WebRTCSignalingConsumer(AsyncWebsocketConsumer):
             return
 
         try:
+            # Decode using the new token format
             payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
+            
+            # Check token expiration
             if 'exp' in payload and datetime.fromtimestamp(payload['exp']) < datetime.now():
                 raise AuthenticationFailed('Token has expired.')
-
-            # Get user from database using sync_to_async
-            user = await self.get_user(payload['user_id'])
-            self.user = user
-            self.username = user.username
             
-            # Check if user is an artist - also using sync_to_async
-            self.is_artist, self.artist_id = await self.check_is_artist(user)
+            # Check if token is specifically for livestream
+            if payload.get('token_type') != 'livestream':
+                raise AuthenticationFailed('Invalid token type for livestream.')
+
+            # Extract user information directly from token
+            self.user_id = payload['user_id']
+            self.username = payload['username']
+            self.is_artist = payload.get('is_artist', False)
+            self.artist_id = payload.get('artist_id')
+            
+            # Validate user exists (optional, as token already contains needed info)
+            user = await self.get_user(self.user_id)
+            self.user = user
 
             await self.accept()
 
@@ -75,21 +85,15 @@ class WebRTCSignalingConsumer(AsyncWebsocketConsumer):
             await self.close()
             print(f"Connection error: {e}")
 
-    # Helper methods that wrap database operations
+    # Helper method to get user from database
     @sync_to_async
     def get_user(self, user_id):
+        # This is now optional validation since we have user info in token
         return CustomUser.objects.get(id=user_id)
     
-    @sync_to_async
-    def check_is_artist(self, user):
-        try:
-            is_artist = hasattr(user, 'artist_profile')
-            artist_id = user.artist_profile.id if is_artist else None
-            return is_artist, artist_id
-        except Exception:
-            return False, None
+    # Removed check_is_artist method as the information now comes from the token
 
-    # Rest of your methods remain the same
+    # The rest of your code remains unchanged
     async def disconnect(self, close_code):
         if hasattr(self, 'room_id') and self.room_id:
             room_id = self.room_id
@@ -114,8 +118,6 @@ class WebRTCSignalingConsumer(AsyncWebsocketConsumer):
             del WebRTCSignalingConsumer.available_rooms[self.channel_name]
 
         print(f"Client disconnected with code {close_code}.")
-
-
 
     async def receive(self, text_data):
         try:
