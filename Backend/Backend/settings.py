@@ -56,37 +56,12 @@ SIMPLE_JWT = {
 }
 
 
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-]
 
-# Make sure CORS is properly configured
-CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5174",  # Your React frontend URL
-    # "http://localhost:3000",  # Your frontend origin
-    # "https://accounts.google.com",  
-]
 
-# CORS settings
-CORS_ALLOW_ALL_ORIGINS = True  # For development only
-# In your Django settings (settings.py)
 
-# CSP_DEFAULT_SRC = ("'self'",)
-# CSP_MEDIA_SRC = ("'self'","blob:", "http://localhost:8000")
-# # CSP_DEFAULT_SRC = ["'self'",]  # Default sources
-# # CSP_MEDIA_SRC = ["'self'", "blob:", "http://localhost:8000"]  # Media sources
-# CSP_SCRIPT_SRC = ["'self'", "'unsafe-inline'"]  # Adjust as needed
-# CSP_STYLE_SRC = ["'self'", "'unsafe-inline'"]  # For inline styles if necessary
-# CSP_IMG_SRC = ["'self'", "http://localhost:8000", "data:"]  # For images
+
+
+
 # Application definition
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -118,7 +93,8 @@ INSTALLED_APPS = [
     'library',
     'premium',
     'listening_history',
-    'livestream',
+    'agora',
+    # 'zugocloud',
     # 'csp',
     # 'django_csp', 
 ]
@@ -128,27 +104,10 @@ AUTH_USER_MODEL = 'users.CustomUser'
 ASGI_APPLICATION = 'Backend.asgi.application'
 
 
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-    'range',  # Important for audio streaming
-]
 
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
+
+
+
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -166,32 +125,6 @@ MIDDLEWARE = [
 ]
 
 
-CORS_ALLOW_ALL_ORIGINS = True  # Allow all origins (for development)
-# Or restrict to specific origins
-# CORS_ALLOWED_ORIGINS = ['http://localhost:3000']
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Your Vite dev server
-]
-
-CORS_ALLOW_HEADERS = [
-    "accept",
-    "authorization",
-    "content-type",
-    "user-agent",
-    "x-csrftoken",
-    "x-requested-with",
-]
-
-# Add these headers to your response
-SECURE_CONTENT_TYPE_NOSNIFF = False
-CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
-CROSS_ORIGIN_EMBEDDER_POLICY = 'require-corp'
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOWS_CREDENTIALS = True
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:3000",  # React frontend
-#     "https://yourfrontend.com",  # Production frontend
-# ]
 
 ROOT_URLCONF = 'Backend.urls'
 import os
@@ -247,11 +180,8 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# settings.py
-AUTHENTICATION_BACKENDS = (
-    'admins.backends.EmailBackend',  # Replace with your actual backend path
-    'django.contrib.auth.backends.ModelBackend',  # Default backend for superusers
-)
+
+
 # Internationalization
 # https://docs.djangoproject.com/en/5.0/topics/i18n/
 
@@ -274,10 +204,71 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+
+
+
+
+
+#cors permissions
+
+CORS_ALLOW_CREDENTIALS = True
+
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'range',  # Important for audio streaming
+]
+
+
+
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",  # Your Vite dev server
+]
+
+
+# Add these headers to your response
+SECURE_CONTENT_TYPE_NOSNIFF = False
+CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+CROSS_ORIGIN_EMBEDDER_POLICY = 'require-corp'
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWS_CREDENTIALS = True
+
+
+from corsheaders.defaults import default_headers
+
+CORS_ALLOW_HEADERS = default_headers + (
+    'authorization',
+    'content-type',
+)
+
+##
+
+
+
+
+
+
 from decouple import config
 
 
-# AUTH_USER_MODEL = 'users.CustomUser'  # Replace 'yourapp' with the name of your app
 
 
 # SMTP Configuration
@@ -289,6 +280,8 @@ EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 
 
+
+#redis cache
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
@@ -309,25 +302,35 @@ CHANNEL_LAYERS = {
         },
     },
 }
-from corsheaders.defaults import default_headers
 
-CORS_ALLOW_ALL_ORIGINS = True  # Or specify allowed origins
-CORS_ALLOW_HEADERS = default_headers + (
-    'authorization',
-    'content-type',
-)
-# settings.py
-REST_USE_JWT = True  # If you're using JWT tokens, for example
+
+
+
+# jwt 
+REST_USE_JWT = True  
 TOKEN_MODEL = None  # Disable the token model if you don't need it
 
 
+
+#google Auth configuration
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = config('SOCIAL_AUTH_GOOGLE_OAUTH2_KEY')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = config('SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET')
+GOOGLE_CLIENT_ID = config('SOCIAL_AUTH_GOOGLE_OAUTH2_KEY')
+
+
+
+#razorpay configuration
 RAZOR_KEY_ID = config('RAZOR_KEY_ID')
 RAZOR_KEY_SECRET = config('RAZOR_KEY_SECRET')
 RAZORPAY_KEY_ID = config('RAZOR_KEY_ID')
 RAZORPAY_KEY_SECRET = config('RAZOR_KEY_SECRET')
-GOOGLE_CLIENT_ID = config('SOCIAL_AUTH_GOOGLE_OAUTH2_KEY')
+
+
+
+
+#zegocloud configuration
+ZEGOCLOUD_APP_ID = "671658441"
+ZEGOCLOUD_SERVER_SECRET = "d2e06c68b5d3c72e2163920fd6406fb1"
 
 
 # Authentication Backends
@@ -335,7 +338,6 @@ AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 )
-
 
 
 
@@ -352,12 +354,3 @@ SITE_ID = 1
 
 
 
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        }
-    }
-}
