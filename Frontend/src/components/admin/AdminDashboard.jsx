@@ -7,6 +7,7 @@ import UserTable from './UsersTable';
 import ArtistVerification from './ArtistVerification';
 import MusicVerification from './music_section/MusicVerification';
 import Dashboard from './Dashboard';
+import TransactionSession from './TransactionSession';
 
 
 
@@ -31,6 +32,8 @@ const AdminDashboard = () => {
         {activeTab === 'users' && <UserTable />}
         {activeTab === 'artist-verification' && <ArtistVerification />}
         {activeTab === 'music-verification' && <MusicVerification />}
+        {activeTab === 'transactions' && <TransactionSession />}
+
       </div>
     </div>
   );

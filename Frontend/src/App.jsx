@@ -32,8 +32,7 @@ import MonetizationPage from './components/artist/studio/Monetization';
 import PlaylistShowMorePage from './components/user/home/dashboard/Playlist-section/PlaylistShowMore';
 import AlbumShowMorePage from './components/user/home/dashboard/Album-section/AlbumShowMore';
 import ArtistPage from './components/user/home/dashboard/Artist-section/ArtistPage';
-import Livestream from './components/livestream/LiveStream';
-import ArtistStreamingRooms from './components/livestream/ArtistStreamingRooms';
+import LivestreamApp from './components/live';
 
 
 
@@ -69,11 +68,13 @@ function App() {
         />
 
         <Route path="/logout" element={<Logout/>} />
-        <Route path="/l" element={<Livestream/>} />
+        {/* <Route path="/sl" element={<Livestream/>} /> */}
 
 
 
         <Route path="/register" element={<MultiStepRegister/>} />
+        <Route path="/r" element={<LivestreamApp/>} />
+
 
 
         <Route path="select-username" element={<UsernameSelectionPage/>} />
@@ -89,6 +90,7 @@ function App() {
           <Route path="/premium" element={<Premium/>} />
 
           <Route path="/" element={<HomePage />}>
+              {/* <Route index element={<Navigate to="/home" replace />} /> */}
               <Route path="/home" element={<Dashboard/>} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/playlist/:playlistId" element={<YourPlaylistPage/>} />
@@ -101,7 +103,7 @@ function App() {
               <Route path="/playlist-show-more" element={<PlaylistShowMorePage/>} />
               <Route path="/albums-show-more" element={<AlbumShowMorePage/>} />
               <Route path="/artist/:artistId" element={<ArtistPage />} />
-              <Route path="m" element={<ArtistStreamingRooms />} />
+              {/* <Route path="m" element={<ArtistStreamingRooms />} /> */}
 
 
 

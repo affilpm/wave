@@ -26,11 +26,12 @@ class Artist(models.Model):
         return f"Artist: {self.user.email} - {self.status} - Genres: {genres or 'None'}"
     
     
-    
+from django.utils import timezone   
     
 class Follow(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='following_artist')
     artist = models.ForeignKey(Artist, on_delete=models.CASCADE, related_name='followers')    
+    created_at = models.DateTimeField(default=timezone.now)
     
     class Meta:
         unique_together = ('user', 'artist')
