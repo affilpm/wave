@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
-
-// Configuration variables
-const appId = "3f3b2cc3042746cfaacefa55dc8f0c7f"; // Replace with your actual App ID
-const token = null // Use null for testing or replace with token
-const channelName = "new";
+import { apiInstance } from '../api';
 
 // Available regions for testing
 const regions = [
@@ -33,6 +29,16 @@ const LivestreamApp = () => {
     video: false,
     audio: false
   });
+  const [streamTitle, setStreamTitle] = useState("");
+  const [streamSettings, setStreamSettings] = useState({
+    appId: "",
+    channel: "",
+    token: "",
+    uid: 0
+  });
+  const [availableStreams, setAvailableStreams] = useState([]);
+  const [selectedStream, setSelectedStream] = useState(null);
+  const [videoInitialized, setVideoInitialized] = useState(false);
 
   // Reference to Agora client
   const clientRef = useRef(null);
@@ -43,6 +49,12 @@ const LivestreamApp = () => {
   // Check device permissions on load
   useEffect(() => {
     checkDevicePermissions();
+    fetchAvailableStreams();
+    
+    // Cleanup function
+    return () => {
+      cleanupResources();
+    };
   }, []);
 
   // Initialize the Agora client when region changes
@@ -52,7 +64,6 @@ const LivestreamApp = () => {
     return () => {
       if (clientRef.current) {
         clientRef.current.removeAllListeners();
-        
       }
       
       if (started) {
@@ -80,6 +91,77 @@ const LivestreamApp = () => {
     };
   }, [started]);
 
+  // Effect to handle video track setup
+  useEffect(() => {
+    if (localVideoTrack && localVideoRef.current && !videoInitialized) {
+      const initializeVideoTrack = async () => {
+        try {
+          // Make sure the track is not destroyed
+          if (!localVideoTrack.isDestroyed) {
+            // Try to stop first in case it's already playing elsewhere
+            try {
+              localVideoTrack.stop();
+            } catch (stopError) {
+              console.log("No need to stop track, it was not playing");
+            }
+            
+            // Now play it in our container
+            await localVideoTrack.play(localVideoRef.current);
+            console.log("Video track successfully initialized");
+            setVideoInitialized(true);
+          } else {
+            console.error("Video track is destroyed, cannot play");
+            setErrorMessage("Camera track is not available. Please try rejoining.");
+          }
+        } catch (playError) {
+          console.error("Failed to play video:", playError);
+          setErrorMessage(`Failed to display camera: ${playError.message}`);
+          
+          // Try again after a delay
+          setTimeout(() => {
+            if (localVideoTrack && !localVideoTrack.isDestroyed) {
+              try {
+                localVideoTrack.play(localVideoRef.current);
+                setVideoInitialized(true);
+                console.log("Video track initialized on retry");
+              } catch (retryError) {
+                console.error("Retry failed:", retryError);
+              }
+            }
+          }, 1000);
+        }
+      };
+      
+      initializeVideoTrack();
+    }
+  }, [localVideoTrack, localVideoRef.current, videoInitialized]);
+
+  // Clean up resources
+  const cleanupResources = () => {
+    if (localAudioTrack) {
+      localAudioTrack.close();
+    }
+    
+    if (localVideoTrack) {
+      localVideoTrack.close();
+    }
+    
+    if (clientRef.current) {
+      clientRef.current.leave().catch(console.error);
+    }
+  };
+
+  // Fetch available streams
+  const fetchAvailableStreams = async () => {
+    try {
+      const response = await apiInstance.api.get('/api/livestream/streams/');
+      setAvailableStreams(response.data);
+    } catch (error) {
+      console.error("Error fetching streams:", error);
+      setErrorMessage("Could not fetch available streams");
+    }
+  };
+
   // Check device permissions
   const checkDevicePermissions = async () => {
     try {
@@ -91,28 +173,39 @@ const LivestreamApp = () => {
       
       // Check video permission
       try {
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-  .then(stream => console.log("Camera & Mic access granted"))
-  .catch(err => console.error("Permission error:", err));
-        const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const videoStream = await navigator.mediaDevices.getUserMedia({ 
+          video: { 
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: "user"
+          } 
+        });
         videoStream.getTracks().forEach(track => track.stop());
         setDevicePermissions(prev => ({ ...prev, video: true }));
       } catch (error) {
         console.error("Video permission error:", error);
         setDevicePermissions(prev => ({ ...prev, video: false }));
+        setErrorMessage(`Camera access denied: ${error.message}`);
       }
       
       // Check audio permission
       try {
-        const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const audioStream = await navigator.mediaDevices.getUserMedia({ 
+          audio: { 
+            echoCancellation: true,
+            noiseSuppression: true 
+          } 
+        });
         audioStream.getTracks().forEach(track => track.stop());
         setDevicePermissions(prev => ({ ...prev, audio: true }));
       } catch (error) {
         console.error("Audio permission error:", error);
         setDevicePermissions(prev => ({ ...prev, audio: false }));
+        setErrorMessage(`Microphone access denied: ${error.message}`);
       }
     } catch (error) {
       console.error("Error checking permissions:", error);
+      setErrorMessage(`Error checking device permissions: ${error.message}`);
     }
   };
   
@@ -149,6 +242,45 @@ const LivestreamApp = () => {
     }
   };
   
+  // Get token from backend
+  const getAgoraToken = async (role, channelName = null) => {
+    try {
+      setConnectionStatus("Getting token...");
+      
+      const params = {
+        role: role, // 'host' or 'audience'
+        title: streamTitle || undefined
+      };
+      
+      // If joining a specific channel as audience
+      if (channelName && role === 'audience') {
+        params.channel = channelName;
+      }
+      
+      const response = await apiInstance.api.get('/api/livestream/token/', {
+        params: params
+      });
+      
+      const { token, channel, app_id, uid } = response.data;
+      
+      setStreamSettings({
+        appId: app_id,
+        channel: channel,
+        token: token,
+        uid: uid
+      });
+      
+      console.log("Token received:", token);
+      setConnectionStatus("Token received");
+      
+      return { token, channel, app_id, uid };
+    } catch (error) {
+      console.error("Error getting token:", error);
+      setErrorMessage(`Token error: ${error.response?.data?.message || error.message}`);
+      throw error;
+    }
+  };
+  
   // Test network connectivity to Agora servers
   const testNetworkConnectivity = async () => {
     setIsTestingNetwork(true);
@@ -161,18 +293,14 @@ const LivestreamApp = () => {
       
       setConnectionStatus("Testing network...");
       
-      // Create a temporary client to test joining
-      const testClient = AgoraRTC.createClient({ 
-        mode: "live", 
-        codec: "vp8",
-        ...(selectedRegion !== "GLOBAL" ? { region: selectedRegion } : {})
-      });
+      // Get a temporary token for testing
+      const { token, channel, app_id } = await getAgoraToken('audience');
       
       try {
         // Try to join with the test client
-        await testClient.join(appId, `test-channel-${Date.now()}`, token);
+        await client.join(app_id, channel, token, streamSettings.uid || null);
         setConnectionStatus("Network test successful");
-        await testClient.leave();
+        await client.leave();
       } catch (error) {
         console.error("Network test error:", error);
         setConnectionStatus("Network test failed");
@@ -215,14 +343,29 @@ const LivestreamApp = () => {
             return prevUsers;
           });
           
-          // Play the remote video
+          // Play the remote video with retry logic
           if (user.videoTrack) {
-            // Wait until next render cycle when refs are updated
-            setTimeout(() => {
-              if (remoteVideoRefs.current[user.uid]) {
-                user.videoTrack.play(remoteVideoRefs.current[user.uid]);
+            const attemptPlay = async (attempts = 0) => {
+              if (attempts > 3) {
+                console.error("Failed to play remote video after multiple attempts");
+                return;
               }
-            }, 0);
+              
+              try {
+                if (remoteVideoRefs.current[user.uid]) {
+                  await user.videoTrack.play(remoteVideoRefs.current[user.uid]);
+                  console.log("Remote video playing successfully");
+                } else {
+                  console.log("Remote video ref not ready, retrying...");
+                  setTimeout(() => attemptPlay(attempts + 1), 500);
+                }
+              } catch (error) {
+                console.error("Error playing remote video:", error);
+                setTimeout(() => attemptPlay(attempts + 1), 500);
+              }
+            };
+            
+            attemptPlay();
           }
         }
         
@@ -270,6 +413,7 @@ const LivestreamApp = () => {
   const startAsHost = async () => {
     setIsLoading(true);
     setErrorMessage("");
+    setVideoInitialized(false);
     
     try {
       const client = clientRef.current;
@@ -285,6 +429,9 @@ const LivestreamApp = () => {
         }
       }
       
+      // Get token from backend
+      const { token, channel, app_id, uid } = await getAgoraToken('host');
+      
       // Set role as host
       await client.setClientRole("host");
       setIsHost(true);
@@ -294,7 +441,7 @@ const LivestreamApp = () => {
       
       // Join the channel with better error logging
       try {
-        await client.join(appId, channelName, token);
+        await client.join(app_id, channel, token, uid);
         console.log("Successfully joined channel as host!");
         setConnectionStatus("Joined as host");
       } catch (error) {
@@ -305,31 +452,39 @@ const LivestreamApp = () => {
       
       console.log("Creating local tracks...");
       
-      // Create and publish local tracks
+      // Create and publish local tracks with optimized settings
       try {
-        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks();
+        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
+          {
+            echoCancellation: true,
+            noiseSuppression: true,
+          }, 
+          {
+            encoderConfig: {
+              width: 640,
+              height: 480,
+              frameRate: 30,
+              bitrateMin: 400,
+              bitrateMax: 1000
+            },
+            facingMode: "user",
+            cameraId: undefined // Will use default camera
+          }
+        );
         
+        // Add event listeners to tracks
+        videoTrack.on("track-ended", () => {
+          console.log("Video track ended unexpectedly");
+          setErrorMessage("Camera disconnected. Please rejoin to restart.");
+        });
+        
+        // Set state
         setLocalAudioTrack(audioTrack);
         setLocalVideoTrack(videoTrack);
         
-        setTimeout(() => {
-            if (localVideoRef.current) {
-              videoTrack.play(localVideoRef.current);
-            }
-          }, 100);
+        // Video play logic is now handled by useEffect
         
-          // After setting up the localVideoRef
-console.log("Video container dimensions:", 
-    localVideoRef.current ? {
-      width: localVideoRef.current.offsetWidth,
-      height: localVideoRef.current.offsetHeight,
-      visible: window.getComputedStyle(localVideoRef.current).display !== 'none'
-    } : "No container"
-  );
         console.log("Publishing local tracks...");
-
-
-
         await client.publish([audioTrack, videoTrack]);
         console.log("Local tracks published successfully!");
       } catch (error) {
@@ -349,7 +504,7 @@ console.log("Video container dimensions:",
   };
   
   // Start watching as audience
-  const startAsViewer = async () => {
+  const startAsViewer = async (channelToJoin = null) => {
     setIsLoading(true);
     setErrorMessage("");
     
@@ -358,6 +513,9 @@ console.log("Video container dimensions:",
       if (!client) {
         throw new Error("Client not initialized");
       }
+      
+      // Get token from backend
+      const { token, channel, app_id, uid } = await getAgoraToken('audience', channelToJoin || (selectedStream?.channel_name));
       
       // Set role as audience
       await client.setClientRole("audience");
@@ -368,7 +526,7 @@ console.log("Video container dimensions:",
       
       // Join the channel with better error logging
       try {
-        await client.join(appId, channelName, token);
+        await client.join(app_id, channel, token, uid);
         console.log("Successfully joined channel as audience!");
         setConnectionStatus("Joined as audience");
       } catch (error) {
@@ -393,6 +551,9 @@ console.log("Video container dimensions:",
       const client = clientRef.current;
       if (!client) return;
       
+      // Reset video initialized state
+      setVideoInitialized(false);
+      
       // Close local tracks if exists
       if (localAudioTrack) {
         localAudioTrack.close();
@@ -402,6 +563,17 @@ console.log("Video container dimensions:",
       if (localVideoTrack) {
         localVideoTrack.close();
         setLocalVideoTrack(null);
+      }
+      
+      // If user is host, notify backend that stream has ended
+      if (isHost) {
+        try {
+          await apiInstance.api.post('/api/livestream/end-stream/', {
+            channel: streamSettings.channel
+          });
+        } catch (endError) {
+          console.error("Error ending stream on server:", endError);
+        }
       }
       
       // Leave the channel
@@ -414,6 +586,7 @@ console.log("Video container dimensions:",
       setConnectionStatus("Not connected");
       setErrorMessage("");
       setNetworkQuality(null);
+      
     } catch (error) {
       console.error("Error leaving channel:", error);
       setErrorMessage(`Leave error: ${error.message}`);
@@ -421,310 +594,506 @@ console.log("Video container dimensions:",
       setIsLoading(false);
     }
   };
-  
-  // Network quality indicator
-  const renderNetworkQuality = (quality) => {
-    if (!quality) return "Unknown";
-    
-    // Convert quality level to descriptive text
-    // 0: Unknown, 1: Excellent, 2: Good, 3: Fair, 4: Poor, 5: Bad, 6: Very Bad
-    const qualityTexts = ["Unknown", "Excellent", "Good", "Fair", "Poor", "Bad", "Very Bad"];
-    
+
+  // Refresh the list of available streams
+  const refreshStreams = () => {
+    fetchAvailableStreams();
+  };
+
+  // Handle stream selection
+  const handleStreamSelect = (stream) => {
+    setSelectedStream(stream);
+  };
+
+  // Render the quality indicator
+  const renderQualityIndicator = () => {
+    if (!networkQuality) return null;
+
+    // Convert quality to descriptive text (lower is better in Agora's scale)
+    const getQualityText = (quality) => {
+      switch(quality) {
+        case 0: return "Unknown";
+        case 1: return "Excellent";
+        case 2: return "Good";
+        case 3: return "Fair";
+        case 4: return "Poor";
+        case 5: return "Bad";
+        case 6: return "Very Bad";
+        default: return "Unknown";
+      }
+    };
+
     return (
-      <div>
-        <div>Downlink: {qualityTexts[quality.downlinkNetworkQuality] || "Unknown"}</div>
-        <div>Uplink: {qualityTexts[quality.uplinkNetworkQuality] || "Unknown"}</div>
+      <div className="network-quality">
+        <div>
+          <span>Download Quality: </span>
+          <span className={`quality-${networkQuality.downlinkNetworkQuality}`}>
+            {getQualityText(networkQuality.downlinkNetworkQuality)}
+          </span>
+        </div>
+        <div>
+          <span>Upload Quality: </span>
+          <span className={`quality-${networkQuality.uplinkNetworkQuality}`}>
+            {getQualityText(networkQuality.uplinkNetworkQuality)}
+          </span>
+        </div>
       </div>
     );
   };
-  
-  return (
-    <div className="app-container">
-      <h1>Agora Livestream Demo</h1>
-      
-      <div className="status-panel">
-        <div className="status-item">
-          <strong>Status:</strong> {connectionStatus}
-        </div>
-        
-        {networkQuality && (
-          <div className="status-item">
-            <strong>Network Quality:</strong> 
-            {renderNetworkQuality(networkQuality)}
-          </div>
-        )}
-        
-        <div className="status-item">
-          <strong>Device Permissions:</strong>
-          <div>Camera: {devicePermissions.video ? "✅" : "❌"}</div>
-          <div>Microphone: {devicePermissions.audio ? "✅" : "❌"}</div>
-        </div>
-        
-        {errorMessage && (
-          <div className="error-message">
-            <strong>Error:</strong> {errorMessage}
-          </div>
-        )}
+
+  // Render the stream list
+  const renderStreamList = () => {
+    if (availableStreams.length === 0) {
+      return <p>No active streams available. Be the first to start one!</p>;
+    }
+
+    return (
+      <div className="stream-list">
+        <h3>Available Streams</h3>
+        <ul>
+          {availableStreams.map((stream) => (
+            <li 
+              key={stream.id} 
+              className={selectedStream?.id === stream.id ? 'selected' : ''}
+              onClick={() => handleStreamSelect(stream)}
+            >
+              <strong>{stream.title}</strong>
+              <div>Host: {stream.host_username}</div>
+              <div>Viewers: {stream.viewer_count || 0}</div>
+            </li>
+          ))}
+        </ul>
       </div>
-      
-      <div className="config-panel">
-        <div className="region-selector">
-          <label htmlFor="region">Server Region:</label>
-          <select 
-            id="region" 
-            value={selectedRegion} 
-            onChange={(e) => setSelectedRegion(e.target.value)}
-            disabled={started}
-          >
-            {regions.map(region => (
-              <option key={region.value} value={region.value}>
-                {region.label}
-              </option>
+    );
+  };
+
+  // Render video elements
+  const renderVideoElements = () => {
+    return (
+      <div className="video-container">
+        {isHost && (
+          <div className="local-video">
+            <h3>Your Stream (Host)</h3>
+            <div ref={localVideoRef} className="video-element">
+              {localVideoTrack && !videoInitialized && (
+                <div className="video-loading">
+                  <p>Initializing camera...</p>
+                </div>
+              )}
+            </div>
+            {localVideoTrack && (
+              <div className="video-controls">
+                <button onClick={() => {
+                  if (localVideoTrack.isEnabled) {
+                    localVideoTrack.setEnabled(false);
+                  } else {
+                    localVideoTrack.setEnabled(true);
+                  }
+                }}>
+                  {localVideoTrack.isEnabled ? "Disable Camera" : "Enable Camera"}
+                </button>
+                <button onClick={() => {
+                  if (localAudioTrack.isEnabled) {
+                    localAudioTrack.setEnabled(false);
+                  } else {
+                    localAudioTrack.setEnabled(true);
+                  }
+                }}>
+                  {localAudioTrack?.isEnabled ? "Mute Mic" : "Unmute Mic"}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {remoteUsers.length > 0 ? (
+          <div className="remote-videos">
+            <h3>Remote Streams</h3>
+            {remoteUsers.map(user => (
+              <div key={user.uid} className="remote-video">
+                <div 
+                  ref={el => remoteVideoRefs.current[user.uid] = el} 
+                  className="video-element"
+                ></div>
+                <div className="user-info">User: {user.uid}</div>
+              </div>
             ))}
-          </select>
-        </div>
-        
-        <button 
-          onClick={testNetworkConnectivity} 
-          className="btn-test"
-          disabled={isTestingNetwork || started}
-        >
-          {isTestingNetwork ? "Testing..." : "Test Network Connection"}
-        </button>
-        
-        <button 
-          onClick={checkDevicePermissions} 
-          className="btn-test"
-          disabled={started}
-        >
-          Check Device Permissions
-        </button>
+          </div>
+        ) : (
+          !isHost && started && (
+            <div className="no-remote-videos">
+              <p>Waiting for host to start streaming...</p>
+            </div>
+          )
+        )}
       </div>
-      
-      {!started && (
-        <div className="button-group">
-          <button 
-            onClick={startAsHost} 
-            className="btn-host"
-            disabled={isLoading || isTestingNetwork}
-          >
-            {isLoading ? "Starting..." : "Start as Host"}
-          </button>
-          <button 
-            onClick={startAsViewer} 
-            className="btn-viewer"
-            disabled={isLoading || isTestingNetwork}
-          >
-            {isLoading ? "Starting..." : "Watch Livestream"}
-          </button>
+    );
+  };
+
+  return (
+    <div className="livestream-app">
+      <div className="app-header">
+        <h1>Live Streaming App</h1>
+        <div className="connection-status">
+          Status: <span className={`status-${connectionStatus.toLowerCase().replace(/\s+/g, '-')}`}>{connectionStatus}</span>
+        </div>
+      </div>
+
+      {errorMessage && (
+        <div className="error-message">
+          <p>{errorMessage}</p>
         </div>
       )}
-      
-      {started && (
-        <div className="stream-container">
+
+      {!started ? (
+        <div className="control-panel">
+          <div className="setup-options">
+            <div className="option-group">
+              <h3>Stream Settings</h3>
+              <div className="input-group">
+                <label htmlFor="regionSelect">Region:</label>
+                <select 
+                  id="regionSelect" 
+                  value={selectedRegion} 
+                  onChange={(e) => setSelectedRegion(e.target.value)}
+                  disabled={isLoading}
+                >
+                  {regions.map((region) => (
+                    <option key={region.value} value={region.value}>
+                      {region.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              
+              <div className="network-test">
+                <button 
+                  onClick={testNetworkConnectivity} 
+                  disabled={isLoading || isTestingNetwork}
+                >
+                  {isTestingNetwork ? "Testing..." : "Test Network"}
+                </button>
+              </div>
+              
+              <div className="device-status">
+                <h4>Device Status</h4>
+                <div className={`device ${devicePermissions.video ? 'available' : 'unavailable'}`}>
+                  Camera: {devicePermissions.video ? "Available" : "Not Available"}
+                </div>
+                <div className={`device ${devicePermissions.audio ? 'available' : 'unavailable'}`}>
+                  Microphone: {devicePermissions.audio ? "Available" : "Not Available"}
+                </div>
+                <button 
+                  onClick={checkDevicePermissions} 
+                  disabled={isLoading}
+                >
+                  Check Permissions
+                </button>
+              </div>
+            </div>
+            
+            <div className="option-group">
+              <h3>Start Streaming</h3>
+              <div className="input-group">
+                <label htmlFor="streamTitle">Stream Title:</label>
+                <input 
+                  type="text" 
+                  id="streamTitle" 
+                  value={streamTitle} 
+                  onChange={(e) => setStreamTitle(e.target.value)} 
+                  placeholder="Enter stream title"
+                  disabled={isLoading}
+                />
+              </div>
+              
+              <button 
+                onClick={startAsHost} 
+                disabled={isLoading || !devicePermissions.video || !devicePermissions.audio}
+                className="primary-button"
+              >
+                {isLoading ? "Starting..." : "Start as Host"}
+              </button>
+            </div>
+            
+            <div className="option-group">
+              <h3>Join a Stream</h3>
+              <div className="join-stream">
+                <div className="refresh-button">
+                  <button onClick={refreshStreams} disabled={isLoading}>
+                    Refresh Streams
+                  </button>
+                </div>
+                
+                {renderStreamList()}
+                
+                <button 
+                  onClick={() => startAsViewer()} 
+                  disabled={isLoading || !selectedStream}
+                  className="primary-button"
+                >
+                  {isLoading ? "Joining..." : "Join as Viewer"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="stream-view">
+          <div className="stream-header">
+            <h2>{isHost ? "Broadcasting" : "Watching"}: {streamSettings.channel}</h2>
+            {renderQualityIndicator()}
+          </div>
+          
+          {renderVideoElements()}
+          
           <div className="stream-controls">
             <button 
               onClick={leaveChannel} 
-              className="btn-leave"
               disabled={isLoading}
+              className="danger-button"
             >
-              {isLoading ? "Ending..." : "End Stream"}
+              {isLoading ? "Leaving..." : isHost ? "End Stream" : "Leave Stream"}
             </button>
           </div>
-          
-<div className="video-container">
-  {/* Always render the video container but conditionally show/hide it */}
-  <div className={`video-player host-video ${isHost ? '' : 'hidden'}`}>
-    <div ref={localVideoRef} className="video-element"></div>
-    <div className="video-label">You (Host)</div>
-  </div>
-  
-  {/* Rest of your code remains the same */}
-  {remoteUsers.length > 0 ? (
-    remoteUsers.map(user => (
-      <div key={user.uid} className="video-player remote-video">
-        <div 
-          ref={el => remoteVideoRefs.current[user.uid] = el} 
-          className="video-element"
-        ></div>
-        <div className="video-label">Remote User ({user.uid})</div>
-      </div>
-    ))
-  ) : (
-    <div className="empty-state">
-      {isHost ? "Waiting for viewers to join..." : "Waiting for host to start streaming..."}
-    </div>
-  )}
-</div>
         </div>
       )}
-      
-      <div className="troubleshooting">
-        <h3>Troubleshooting Tips</h3>
-        <ul>
-          <li>Make sure your App ID is correct</li>
-          <li>Try different server regions</li>
-          <li>Check your network connection</li>
-          <li>Allow camera and microphone permissions</li>
-          <li>Make sure no other application is using your camera</li>
-          <li>Try using a different browser</li>
-          <li>Disable VPN or proxy services</li>
-        </ul>
-      </div>
-      
+
       <style jsx>{`
-        .app-container {
+        .livestream-app {
+          font-family: Arial, sans-serif;
           max-width: 1200px;
           margin: 0 auto;
           padding: 20px;
-          font-family: Arial, sans-serif;
         }
-
-        .status-panel {
-          background-color: #f5f5f5;
-          border-radius: 8px;
-          padding: 15px;
-          margin-bottom: 20px;
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          gap: 15px;
-        }
-
-        .status-item {
-          margin-bottom: 10px;
-        }
-
-        .error-message {
-          color: #f44336;
-          grid-column: 1 / -1;
-          padding: 10px;
-          background-color: #ffebee;
-          border-radius: 4px;
-        }
-
-        .config-panel {
+        
+        .app-header {
           display: flex;
-          flex-wrap: wrap;
-          gap: 10px;
-          margin-bottom: 20px;
+          justify-content: space-between;
           align-items: center;
-        }
-
-        .region-selector {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-
-        select {
-          padding: 8px;
-          border-radius: 4px;
-          border: 1px solid #ccc;
-        }
-
-        .button-group {
-          display: flex;
-          gap: 10px;
           margin-bottom: 20px;
         }
-
-        .btn-host, .btn-viewer, .btn-leave, .btn-test {
-          padding: 10px 20px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
+        
+        .connection-status {
           font-weight: bold;
         }
-
-        .btn-host {
-          background-color: #f44336;
-          color: white;
+        
+        .status-initialized, .status-connected {
+          color: green;
         }
-
-        .btn-viewer {
-          background-color: #2196F3;
-          color: white;
+        
+        .status-connecting {
+          color: orange;
         }
-
-        .btn-leave {
-          background-color: #555;
-          color: white;
+        
+        .status-disconnected, .status-not-connected {
+          color: red;
         }
-
-        .btn-test {
-          background-color: #4CAF50;
-          color: white;
-        }
-
-        button:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-
-        .stream-container {
-          margin-top: 20px;
-        }
-
-        .stream-controls {
+        
+        .error-message {
+          background-color: #ffeeee;
+          border: 1px solid #ff0000;
+          color: #ff0000;
+          padding: 10px;
           margin-bottom: 20px;
-        }
-
-        .video-container {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-          grid-gap: 20px;
-        }
-
-        .video-player {
-          width: 100%;
-          border-radius: 8px;
-          overflow: hidden;
-          background-color: #f0f0f0;
-          position: relative;
-        }
-
-        .video-element {
-          width: 100%;
-          height: 300px;
-        }
-
-        .video-label {
-          position: absolute;
-          bottom: 10px;
-          left: 10px;
-          background-color: rgba(0, 0, 0, 0.6);
-          color: white;
-          padding: 5px 10px;
           border-radius: 4px;
-          font-size: 14px;
         }
-
-        .empty-state {
-          grid-column: 1 / -1;
-          padding: 50px;
-          text-align: center;
-          background-color: #f0f0f0;
+        
+        .control-panel {
+          background-color: #f5f5f5;
           border-radius: 8px;
-          color: #555;
+          padding: 20px;
         }
-
-        .troubleshooting {
-          margin-top: 30px;
-          background-color: #e3f2fd;
-          border-radius: 8px;
+        
+        .setup-options {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+          gap: 20px;
+        }
+        
+        .option-group {
+          background-color: white;
+          border-radius: 4px;
           padding: 15px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-
-        .troubleshooting h3 {
-          margin-top: 0;
+        
+        .input-group {
+          margin-bottom: 15px;
         }
-
-        .troubleshooting ul {
-          margin-bottom: 0;
+        
+        .input-group label {
+          display: block;
+          margin-bottom: 5px;
+          font-weight: bold;
         }
-      `}</style>
-    </div>
-  );
+        
+        .input-group input, .input-group select {
+          width: 100%;
+          padding: 8px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+        }
+        
+        .device-status {
+          margin-top: 15px;
+        }
+        
+        .device {
+          margin-bottom: 5px;
+          padding: 5px;
+          border-radius: 4px;
+        }
+        
+        .device.available {
+          background-color: #e8f5e9;
+          color: #2e7d32;
+        }
+        
+        .device.unavailable {
+          background-color: #ffebee;
+          color: #c62828;
+        }
+  
+  button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    background-color: #e0e0e0;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 10px;
+  }
+  
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .primary-button {
+    background-color: #2196f3;
+    color: white;
+  }
+  
+  .danger-button {
+    background-color: #f44336;
+    color: white;
+  }
+  
+  .stream-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-top: 15px;
+  }
+  
+  .stream-list ul {
+    list-style-type: none;
+    padding: 0;
+  }
+  
+  .stream-list li {
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin-bottom: 10px;
+    cursor: pointer;
+  }
+  
+  .stream-list li:hover {
+    background-color: #f0f0f0;
+  }
+  
+  .stream-list li.selected {
+    border-color: #2196f3;
+    background-color: #e3f2fd;
+  }
+  
+  .stream-view {
+    background-color: #f5f5f5;
+    border-radius: 8px;
+    padding: 20px;
+  }
+  
+  .stream-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+  
+  .video-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  
+  .video-element {
+    width: 100%;
+    height: 300px;
+    background-color: #000;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  
+  .local-video, .remote-video {
+    background-color: white;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .user-info {
+    margin-top: 10px;
+    font-weight: bold;
+  }
+  
+  .network-quality {
+    padding: 10px;
+    background-color: white;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .quality-1 {
+    color: #2e7d32;
+  }
+  
+  .quality-2 {
+    color: #689f38;
+  }
+  
+  .quality-3 {
+    color: #ffa000;
+  }
+  
+  .quality-4 {
+    color: #f57c00;
+  }
+  
+  .quality-5, .quality-6 {
+    color: #d32f2f;
+  }
+  
+  .no-remote-videos {
+    grid-column: span 2;
+    text-align: center;
+    padding: 40px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  
+  .refresh-button {
+    margin-bottom: 10px;
+  }
+  
+  .stream-controls {
+    display: flex;
+    justify-content: center;
+  }
+`}</style>
+</div>
+);
 };
 
 export default LivestreamApp;
