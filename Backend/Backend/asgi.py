@@ -10,7 +10,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Backend.settings')
 django.setup()
 
 # Import after Django setup
-from livestream import routing
+from agora import routing
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),

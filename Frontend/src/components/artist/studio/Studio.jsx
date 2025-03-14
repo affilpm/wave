@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, BarChart, Upload, Settings, Music, Library } from 'lucide-react';
+import { ArrowLeft, Plus, BarChart, Upload, Settings, Music, Library, Video } from 'lucide-react';
 import DashboardStats from './DashboardStats';
 import UploadOptions from './UploadOptions';
 import RecentActivity from './RecentActivity';
@@ -11,6 +11,7 @@ import MusicUpload from './music_uploader/MusicUpload';
 import AlbumCreator from './AlbumCreator';
 import MusicManagement from './MusicManagement';
 import AlbumManagement from './AlbumManagement';
+import ArtistLiveStream from '../../livestream/ArtistLiveStream';
 
 const Studio = () => {
   const [activeView, setActiveView] = useState('dashboard');
@@ -50,7 +51,9 @@ const Studio = () => {
           { icon: Upload, view: 'upload', label: 'Upload' },
           { icon: Music, view: 'musicCrud', label: 'Music CRUD' },
           { icon: Library, view: 'albumManagement', label: 'Albums' }, // New Album Management Option
+          { icon: Video, view: 'livestream', label: 'Livestream' },
           { icon: Settings, view: 'settings', label: 'Settings' },
+
         ].map(({ icon: Icon, view, label }) => (
           <button
             key={view}
@@ -84,7 +87,7 @@ const Studio = () => {
               <ArrowLeft className="h-5 w-5" />
               <span>Back to Home</span>
             </button> */}
-            <h1 className="text-2xl font-bold text-white">Music Studio</h1>
+            <h1 className="text-3xl font-bold text-white">Studio</h1>
             {/* <button className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors">
               <Plus className="h-5 w-5" />
               <span>New Upload</span>
@@ -103,7 +106,9 @@ const Studio = () => {
 
           {activeView === 'musicCrud' && <MusicManagement />}
 
-          {activeView === 'albumManagement' && <AlbumManagement />} {/* New Album Management View */}
+          {activeView === 'albumManagement' && <AlbumManagement />} 
+
+          {activeView === 'livestream' && <ArtistLiveStream />}
 
           {activeView === 'settings' && (
             <div className="bg-gray-800 rounded-xl border border-gray-700">

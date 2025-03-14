@@ -1,4 +1,5 @@
 from django.shortcuts import render, get_object_or_404
+import subprocess
 from .models import Genre, Music
 from .serializers import GenreSerializer, MusicSerializer, MusicDataSerializer, EqualizerPresetSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -499,8 +500,51 @@ def Record_play_completion(request):
 
 
 
-class MusicStreamView(APIView):
 
+
+# Add API endpoint to get all available presets
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_equalizer_presets(request):
+    """Get all available equalizer presets"""
+    presets = EqualizerPreset.objects.all().values(
+        'id', 'name', 'description', 
+        'band_31', 'band_62', 'band_125', 'band_250', 'band_500',
+        'band_1k', 'band_2k', 'band_4k', 'band_8k', 'band_16k'
+    )
+    return Response(list(presets))
+
+
+# Add API endpoint to get user's current preset preference
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def user_equalizer_preset(request):
+    """Get or set user's equalizer preset preference"""
+    if request.method == 'GET':
+        preset_id = cache.get(f"user_eq_preset:{request.user.id}", 1)  # Default to Normal (ID 1)
+        return Response({'preset_id': preset_id})
+    
+    elif request.method == 'POST':
+        preset_id = request.data.get('preset_id')
+        if not preset_id:
+            return Response({'error': 'preset_id is required'}, status=400)
+        
+        # Verify preset exists
+        try:
+            preset = EqualizerPreset.objects.get(pk=preset_id)
+            # Store user preference in cache
+            cache.set(f"user_eq_preset:{request.user.id}", preset_id, timeout=None)  # No expiration
+            return Response({'success': True, 'preset': {
+                'id': preset.id,
+                'name': preset.name,
+                'description': preset.description
+            }})
+        except EqualizerPreset.DoesNotExist:
+            return Response({'error': 'Preset not found'}, status=404)
+
+
+# Modified MusicStreamView to support equalization
+class MusicStreamView(APIView):
     permission_classes = [AllowAny]  
     CHUNK_SIZE = 8192  # 8KB chunks
     RATE_LIMIT_REQUESTS = 2100
@@ -508,7 +552,16 @@ class MusicStreamView(APIView):
     MIN_PLAY_DURATION_SECONDS = 30  # Minimum seconds to count as a play
     MIN_PLAY_PERCENTAGE = 0.3       # Minimum percentage of track to count as a play
     
-        
+    # Directory to store processed audio files
+    PROCESSED_AUDIO_DIR = os.path.join(settings.MEDIA_ROOT, 'processed_audio')
+    # Cache timeout for processed audio files (1 day)
+    PROCESSED_AUDIO_CACHE_TIMEOUT = 86400  
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Ensure the processed audio directory exists
+        os.makedirs(self.PROCESSED_AUDIO_DIR, exist_ok=True)
+    
     def get_content_type(self, file_path):
         ext = os.path.splitext(file_path)[1].lower()
         content_types = {
@@ -541,6 +594,61 @@ class MusicStreamView(APIView):
 
         return False
 
+    def apply_equalizer(self, input_path, user_id, preset_id=None):
+        """
+        Apply equalizer preset to audio file using FFmpeg
+        Returns the path to the processed file
+        """
+        # If no preset specified, use user's preferred preset or default to Normal
+        if not preset_id:
+            preset_id = cache.get(f"user_eq_preset:{user_id}", 1)  # Default to Normal (ID 1)
+        
+        try:
+            preset = EqualizerPreset.objects.get(pk=preset_id)
+        except EqualizerPreset.DoesNotExist:
+            preset = EqualizerPreset.objects.get(name='Normal')
+        
+        # If Normal preset, just return the original file
+        if preset.name == 'Normal' and all(getattr(preset, f'band_{band}') == 0 
+                                          for band in ['31', '62', '125', '250', '500', '1k', '2k', '4k', '8k', '16k']):
+            return input_path
+            
+        # Create a unique filename for the processed file
+        file_ext = os.path.splitext(input_path)[1].lower()
+        filename = f"{os.path.basename(input_path).split('.')[0]}_eq_{preset.id}{file_ext}"
+        output_path = os.path.join(self.PROCESSED_AUDIO_DIR, filename)
+        
+        # Check if processed file already exists and is recent
+        if os.path.exists(output_path):
+            # Get file modification time
+            mod_time = os.path.getmtime(output_path)
+            # If file is not older than cache timeout, return it
+            if (datetime.utcnow() - datetime.fromtimestamp(mod_time)).total_seconds() < self.PROCESSED_AUDIO_CACHE_TIMEOUT:
+                return output_path
+        
+        # Get equalizer filter parameters
+        eq_filter = preset.get_eq_filter_params()
+        
+        # Process the audio file using FFmpeg
+        try:
+            # Build FFmpeg command
+            cmd = [
+                'ffmpeg',
+                '-y',  # Overwrite output file if exists
+                '-i', input_path,
+                '-af', eq_filter,
+                '-c:a', 'libmp3lame' if file_ext == '.mp3' else 'copy',
+                output_path
+            ]
+            
+            # Execute FFmpeg command
+            subprocess.run(cmd, check=True, capture_output=True)
+            return output_path
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            print(f"Error applying equalizer: {str(e)}")
+            # If processing fails, return original file
+            return input_path
+
     def stream_file(self, path, start, end):
         with open(path, 'rb') as f:
             f.seek(start)
@@ -560,23 +668,26 @@ class MusicStreamView(APIView):
             if not signed_token:
                 return Response({'error': 'Token required'}, status=401)
 
+            # Get equalizer preset ID from query parameter
+            preset_id = request.GET.get('eq')
+
             # Verify token
             token_user_id = verify_signed_token(signed_token, music_id, settings.SECRET_KEY)
             if not token_user_id:
                 return Response({'error': 'Unauthorized'}, status=401)
-
-            # token_user_id, play_id = token_result
 
             # Rate limit check
             if not self.check_rate_limit(request, token_user_id):
                 return Response({'error': 'Rate limit exceeded'}, status=429)
 
             music = get_object_or_404(Music, pk=music_id)
-            path = music.audio_file.path
+            original_path = music.audio_file.path
 
-            if not os.path.exists(path):
+            if not os.path.exists(original_path):
                 return Response({'error': 'Audio file not found'}, status=404)
-
+            
+            # Apply equalizer if requested
+            path = self.apply_equalizer(original_path, token_user_id, preset_id)
 
             file_size = os.path.getsize(path)
             content_type = self.get_content_type(path)
@@ -621,8 +732,6 @@ class MusicStreamView(APIView):
         response['Access-Control-Allow-Headers'] = 'Range, Authorization, Content-Type, Accept'
         return response
 
-        
-
 
 
 
@@ -652,7 +761,9 @@ class MusicMetadataView(APIView):
         
             
             
-            
+
+
+           
             
             
             

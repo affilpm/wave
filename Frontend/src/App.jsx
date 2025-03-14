@@ -32,7 +32,9 @@ import MonetizationPage from './components/artist/studio/Monetization';
 import PlaylistShowMorePage from './components/user/home/dashboard/Playlist-section/PlaylistShowMore';
 import AlbumShowMorePage from './components/user/home/dashboard/Album-section/AlbumShowMore';
 import ArtistPage from './components/user/home/dashboard/Artist-section/ArtistPage';
-import LivestreamApp from './components/live';
+// import LivestreamApp from './components/live';
+import EqualizerControl from './components/user/home/dashboard/music-player/Equalizer';
+
 
 
 
@@ -68,16 +70,19 @@ function App() {
         />
 
         <Route path="/logout" element={<Logout/>} />
-        {/* <Route path="/sl" element={<Livestream/>} /> */}
 
 
 
         <Route path="/register" element={<MultiStepRegister/>} />
-        <Route path="/r" element={<LivestreamApp/>} />
 
 
 
         <Route path="select-username" element={<UsernameSelectionPage/>} />
+
+
+
+
+
 
 
 
@@ -88,11 +93,11 @@ function App() {
           <Route path="/albumcreator" element={<AlbumCreator/>} />
           <Route path="/editalbum/:id" element={<EditAlbum/>} />
           <Route path="/premium" element={<Premium/>} />
+          <Route path="/settings" element={<SettingsPage />} />
 
           <Route path="/" element={<HomePage />}>
-              {/* <Route index element={<Navigate to="/home" replace />} /> */}
+              <Route index element={<Navigate to="/home" replace />} />
               <Route path="/home" element={<Dashboard/>} />
-              <Route path="/settings" element={<SettingsPage />} />
               <Route path="/playlist/:playlistId" element={<YourPlaylistPage/>} />
               <Route path="/saved-playlist/:playlistId" element={<SavedPlaylistPage />} />
               <Route path="/music-show-more" element={<MusicShowMorePage/>} />
@@ -103,27 +108,22 @@ function App() {
               <Route path="/playlist-show-more" element={<PlaylistShowMorePage/>} />
               <Route path="/albums-show-more" element={<AlbumShowMorePage/>} />
               <Route path="/artist/:artistId" element={<ArtistPage />} />
-              {/* <Route path="m" element={<ArtistStreamingRooms />} /> */}
-
-
-
-
-
-
-
 
 
 
 
           </Route>
-          <Route path="/" element={<Navigate to="/home" />} />
 
         </Route>
 
 
 
 
-        {/* Account settings page */}
+
+
+
+
+        {/* Admin side */}
         
 
 
