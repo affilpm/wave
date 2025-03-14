@@ -21,6 +21,11 @@ class Artist(models.Model):
     submitted_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
+    @property
+    def has_active_stream(self):
+        """Check if artist has an active stream"""
+        return self.hosted_streams.filter(status='active').exists()
+    
     def __str__(self):
         genres = ", ".join(genre.name for genre in self.genres.all())
         return f"Artist: {self.user.email} - {self.status} - Genres: {genres or 'None'}"

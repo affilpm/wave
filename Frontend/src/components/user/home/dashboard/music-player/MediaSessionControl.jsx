@@ -2,33 +2,13 @@ import React, { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { 
   setIsPlaying, 
-  nextTrack, 
-  previousTrack,
-  setUserHasInteracted 
-} from '../../../../../slices/user/playerSlice';
+  playNext, 
+  playPrevious
+} from '../../../../../slices/user/musicPlayerSlice';
 
 const MediaSessionControl = ({ currentTrack, audioRef }) => {
-  const { isPlaying, userHasInteracted } = useSelector((state) => state.player);
+  const { isPlaying } = useSelector((state) => state.musicPlayer);
   const dispatch = useDispatch();
-
-  // Handle initial user interaction
-  useEffect(() => {
-    const handleUserInteraction = () => {
-      if (!userHasInteracted) {
-        dispatch(setUserHasInteracted(true));
-      }
-      window.removeEventListener('click', handleUserInteraction);
-      window.removeEventListener('keydown', handleUserInteraction);
-    };
-
-    window.addEventListener('click', handleUserInteraction);
-    window.addEventListener('keydown', handleUserInteraction);
-
-    return () => {
-      window.removeEventListener('click', handleUserInteraction);
-      window.removeEventListener('keydown', handleUserInteraction);
-    };
-  }, [dispatch, userHasInteracted]);
 
   // Set up media session handlers
   useEffect(() => {
@@ -50,13 +30,11 @@ const MediaSessionControl = ({ currentTrack, audioRef }) => {
 
       // Set up handlers
       navigator.mediaSession.setActionHandler('play', () => {
-        if (userHasInteracted && currentTrack) {
-          dispatch(setIsPlaying(true));
-          audioRef.current?.play().catch(error => {
-            console.warn('Playback failed:', error);
-            dispatch(setIsPlaying(false));
-          });
-        }
+        dispatch(setIsPlaying(true));
+        audioRef.current?.play().catch(error => {
+          console.warn('Playback failed:', error);
+          dispatch(setIsPlaying(false));
+        });
       });
 
       navigator.mediaSession.setActionHandler('pause', () => {
@@ -67,15 +45,11 @@ const MediaSessionControl = ({ currentTrack, audioRef }) => {
       });
 
       navigator.mediaSession.setActionHandler('previoustrack', () => {
-        if (userHasInteracted && currentTrack) {
-          dispatch(previousTrack());
-        }
+        dispatch(playPrevious());
       });
 
       navigator.mediaSession.setActionHandler('nexttrack', () => {
-        if (userHasInteracted && currentTrack) {
-          dispatch(nextTrack());
-        }
+        dispatch(playNext());
       });
 
       // Update position state if supported
@@ -100,7 +74,7 @@ const MediaSessionControl = ({ currentTrack, audioRef }) => {
         navigator.mediaSession.metadata = null;
       }
     };
-  }, [currentTrack, isPlaying, userHasInteracted, dispatch]);
+  }, [currentTrack, isPlaying, dispatch]);
 
   // Update position state periodically while track exists
   useEffect(() => {

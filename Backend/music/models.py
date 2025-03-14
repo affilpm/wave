@@ -118,28 +118,44 @@ class AlbumTrack(models.Model):
 
         
         
-        
+
+
+
+# Define the equalizer presets as a model
 class EqualizerPreset(models.Model):
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='equalizer_presets')
-    name = models.CharField(max_length=50)
-    is_default = models.BooleanField(default=False)
+    name = models.CharField(max_length=50, unique=True)
+    description = models.CharField(max_length=255, blank=True)
+    
+    # FFmpeg equalizer filter parameters
+    # The values represent gain in dB for each frequency band
+    # Typically: 31Hz, 62Hz, 125Hz, 250Hz, 500Hz, 1kHz, 2kHz, 4kHz, 8kHz, 16kHz
+    band_31 = models.FloatField(default=0.0)
+    band_62 = models.FloatField(default=0.0)
+    band_125 = models.FloatField(default=0.0)
+    band_250 = models.FloatField(default=0.0)
+    band_500 = models.FloatField(default=0.0)
+    band_1k = models.FloatField(default=0.0)
+    band_2k = models.FloatField(default=0.0)
+    band_4k = models.FloatField(default=0.0)
+    band_8k = models.FloatField(default=0.0)
+    band_16k = models.FloatField(default=0.0)
+    
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     
-    # Equalizer bands (frequencies in Hz)
-    band_32 = models.IntegerField(default=0)  # -12 to +12 dB
-    band_64 = models.IntegerField(default=0)
-    band_125 = models.IntegerField(default=0)
-    band_250 = models.IntegerField(default=0)
-    band_500 = models.IntegerField(default=0)
-    band_1k = models.IntegerField(default=0)
-    band_2k = models.IntegerField(default=0)
-    band_4k = models.IntegerField(default=0)
-    band_8k = models.IntegerField(default=0)
-    band_16k = models.IntegerField(default=0)
-    
-    class Meta:
-        unique_together = ('user', 'name')
-
     def __str__(self):
-        return f"{self.user.username} - {self.name}"
+        return self.name
+    
+    def get_eq_filter_params(self):
+        """Returns FFmpeg equalizer filter parameters as a string"""
+        return f"equalizer=f=31:width_type=o:width=1:g={self.band_31}," \
+               f"equalizer=f=62:width_type=o:width=1:g={self.band_62}," \
+               f"equalizer=f=125:width_type=o:width=1:g={self.band_125}," \
+               f"equalizer=f=250:width_type=o:width=1:g={self.band_250}," \
+               f"equalizer=f=500:width_type=o:width=1:g={self.band_500}," \
+               f"equalizer=f=1000:width_type=o:width=1:g={self.band_1k}," \
+               f"equalizer=f=2000:width_type=o:width=1:g={self.band_2k}," \
+               f"equalizer=f=4000:width_type=o:width=1:g={self.band_4k}," \
+               f"equalizer=f=8000:width_type=o:width=1:g={self.band_8k}," \
+               f"equalizer=f=16000:width_type=o:width=1:g={self.band_16k}"
+

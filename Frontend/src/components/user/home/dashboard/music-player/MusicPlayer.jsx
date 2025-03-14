@@ -28,6 +28,7 @@ import {
   markAsPlayed,
   setMusicId,
 } from '../../../../../slices/user/musicPlayerSlice';
+import MediaSessionControl from './MediaSessionControl';
 
 const MusicPlayer = () => {
   const dispatch = useDispatch();
@@ -56,13 +57,46 @@ const MusicPlayer = () => {
   const [isSeeking, setIsSeeking] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const howlRef = useRef(null);
+  const audioRef = useRef(null); // Reference to pass to MediaSessionControl
   const animationFrameRef = useRef(null);
   const [isLiked, setIsLiked] = useState(false);
   const playStartTimeRef = useRef(null);
   const reportedPlayRef = useRef(false);
   const [playId, setPlayId] = useState(null);
-  const tokenMusicIdRef = useRef(null); // Add a ref to track the music ID the token was generated for
+  const tokenMusicIdRef = useRef(null);
 
+  // Format current track for MediaSessionControl
+  const currentTrack = metadata ? {
+    name: metadata.title,
+    artist: metadata.artist,
+    album: metadata.album || '',
+    cover_photo: metadata.cover_photo || null,
+    duration: metadata.duration || 0
+  } : null;
+
+  // Sync howlRef with audioRef for MediaSessionControl
+  useEffect(() => {
+    if (howlRef.current) {
+      // Create a proxy object that adapts Howl methods to standard HTMLAudioElement methods
+      audioRef.current = {
+        play: () => howlRef.current.play(),
+        pause: () => howlRef.current.pause(),
+        duration: howlRef.current ? howlRef.current.duration() : 0,
+        currentTime: howlRef.current ? howlRef.current.seek() : 0,
+        playbackRate: 1
+      };
+    }
+  }, [howlRef.current]);
+
+  // Update audioRef when progress changes
+  useEffect(() => {
+    if (audioRef.current && howlRef.current) {
+      audioRef.current.currentTime = playerState.progress;
+      audioRef.current.duration = playerState.duration;
+    }
+  }, [playerState.progress, playerState.duration]);
+
+  // Rest of your component code remains the same
   const reportPlayCompletion = async (duration, percentage = null) => {
     if (!musicId || !playId) return;
     
@@ -74,12 +108,10 @@ const MusicPlayer = () => {
         play_id: playId
       });
       
-      // Check if the play has been fully counted
       if (response.data.counted_as_play) {
         reportedPlayRef.current = true;
         console.log("Play counted successfully");
       } else {
-        // Don't mark as reported if we're still accumulating time
         reportedPlayRef.current = false;
         console.log(`Play progress: ${response.data.accumulated_duration}s accumulated`);
       }
@@ -91,7 +123,6 @@ const MusicPlayer = () => {
     }
   };
   
-
   // Fetch music metadata
   useEffect(() => {
     const fetchMetadata = async () => {
@@ -136,7 +167,6 @@ const MusicPlayer = () => {
   useEffect(() => {
     if (!queue.length) return;
     
-    // Ensure musicId is synced with current queue position
     const currentTrack = queue[currentIndex];
     if (currentTrack && currentTrack.id !== musicId) {
       dispatch(setMusicId(currentTrack.id));
@@ -148,13 +178,12 @@ const MusicPlayer = () => {
       if (!musicId) return;
       
       try {
-        // Reset the reported flag when requesting a new token
         reportedPlayRef.current = false;
         
         const response = await api.get(`/api/music/token/${musicId}/`);
         setSignedToken(response.data.token);
         setPlayId(response.data.play_id);
-        tokenMusicIdRef.current = musicId; // Store the music ID this token was generated for
+        tokenMusicIdRef.current = musicId;
       } catch (error) {
         console.error("Failed to fetch signed token:", error);
         setPlayerState(prev => ({
@@ -169,7 +198,6 @@ const MusicPlayer = () => {
 
   // Initialize audio stream
   useEffect(() => {
-    // Only initialize if musicId matches the ID the token was generated for
     if (!musicId || !signedToken || !metadata || tokenMusicIdRef.current !== musicId) return;
   
     if (howlRef.current) {
@@ -208,7 +236,6 @@ const MusicPlayer = () => {
           onplay: () => {
             playStartTimeRef.current = Date.now();
   
-            // Only reset reportedPlayRef if this is a new track
             if (tokenMusicIdRef.current !== musicId) {
               reportedPlayRef.current = false;
             }
@@ -222,7 +249,6 @@ const MusicPlayer = () => {
               
               reportPlayCompletion(playDuration, percentage)
               .then(() => {
-                // Reset the start time reference
                 playStartTimeRef.current = null;
               });
             }
@@ -394,6 +420,10 @@ const MusicPlayer = () => {
 
   return (
     <div className="relative">
+      {/* Render MediaSessionControl component */}
+      <MediaSessionControl currentTrack={currentTrack} audioRef={audioRef} />
+      
+      
       {/* Main Player - Slimmer design */}
       <div className="bg-black bg-opacity-90 text-white border-t border-gray-900 backdrop-blur-lg p-1 sm:p-2 shadow-lg">
         {/* Mobile view - Vertical compact layout */}
@@ -415,7 +445,7 @@ const MusicPlayer = () => {
                 </div>
               )}
               <div className="overflow-hidden">
-                <h3 className="text-sm font-medium truncate">{metadata?.title}</h3>
+              <h3 className="text-sm font-medium truncate">{metadata?.title}</h3>
                 <p className="text-xs text-gray-400 truncate">{metadata?.artist}</p>
               </div>
             </div>

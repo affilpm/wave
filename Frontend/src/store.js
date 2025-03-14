@@ -6,10 +6,10 @@ import userReducer from './slices/user/userSlice';
 import adminReducer from './slices/admin/adminSlice'; // Import the admin slice
 import modalReducer from './slices/artist/modalSlice'
 import playlistReducer from './slices/user/playlistSlice';
-import playerReducer from './slices/user/playerSlice';
+// import playerReducer from './slices/user/playerSlice';
 import albumRducer from './slices/user/albumSlice'
 import musicPlayerReducer from './slices/user/musicPlayerSlice';
-import musicReducer from './slices/user/musicSlice';
+// import musicReducer from './slices/user/musicSlice';
 
 // Root reducer
 const rootReducer = combineReducers({
@@ -17,10 +17,10 @@ const rootReducer = combineReducers({
   admin: adminReducer, // Add the admin slice
   modal: modalReducer,
   playlists: playlistReducer,
-  player: playerReducer,
+  // player: playerReducer,
   album: albumRducer,
   musicPlayer: musicPlayerReducer,
-  music: musicReducer, 
+  // music: musicReducer, 
 });
 
 const persistConfig = {

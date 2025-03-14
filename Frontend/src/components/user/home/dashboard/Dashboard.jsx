@@ -1,5 +1,5 @@
-// Home.js
-import React, { useState, useEffect, useCallback, useMemo} from "react";
+// Dashboard.js - Updated to properly handle the LiveStreamSection
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import MusicSection from "./Music-section/MusicSection";
 import PlaylistSection from "./Playlist-section/PlaylistSection";
 import api from "../../../../api";
@@ -7,11 +7,12 @@ import AlbumSection from "./Album-section/AlbumSection";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import GenreDiscovery from "./Genre-section/GenreDiscovery";
-import { Shuffle, PauseCircle, PlayCircle } from "lucide-react";
+import { Shuffle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import RecentlyPlayedSection from "./RecentlyPlayedSection";
 import ArtistSection from "./Artist-section/ArtistSection";
-
+import LiveStreamSection from "../../../livestream/LiveStreamViewerApp";
+import LivestreamViewerApp from "../../../livestream/LiveStreamViewerApp";
 
 const ShufflingDashboard = ({ children }) => {
   const [sections, setSections] = useState([]);
@@ -21,7 +22,7 @@ const ShufflingDashboard = ({ children }) => {
   // Initialize sections and load saved stats
   useEffect(() => {
     const validSections = React.Children.toArray(children).filter(child => 
-      child.props.items && child.props.items.length > 0
+      child && child.props && child.props.items && child.props.items.length > 0
     );
     setSections(validSections);
 
@@ -82,7 +83,7 @@ const ShufflingDashboard = ({ children }) => {
     setShuffleCount(prev => prev + 1);
   }, [sectionStats]);
 
-  // Auto-shuffle timer - runs every 30 seconds
+  // Auto-shuffle timer - runs every 5 minutes
   useEffect(() => {
     const timer = setInterval(shuffleSections, 300000);
     return () => clearInterval(timer);
@@ -112,13 +113,11 @@ const ShufflingDashboard = ({ children }) => {
   }, [sections, shuffleCount, trackSectionInteraction]);
 
   return (
-    <div className="flex-1 p-2 ">
-      <div className="mb-6">
-      </div>
-
+    <div className="flex-1 p-2">
       <AnimatePresence mode="popLayout">
         {wrappedSections}
       </AnimatePresence>
+      <LivestreamViewerApp/>
 
       <GenreDiscovery />
     </div>
@@ -127,13 +126,12 @@ const ShufflingDashboard = ({ children }) => {
 
 // Dashboard component update
 const Dashboard = () => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [filter, setFilter] = useState("all");
   const [musiclistData, setMusiclistData] = useState([]);
   const [playlistData, setPlaylistData] = useState([]);
   const [AlbumlistData, setAlbumlistData] = useState([]);
   const [recentlyPlayedData, setRecentlyPlayedData] = useState([]);
-  const [artistlist, setArtistlist] = useState([])
+  const [artistlist, setArtistlist] = useState([]);
+  const [liveStreams, setLiveStreams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();
@@ -143,42 +141,59 @@ const Dashboard = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const page=1
-        const limit = 10
-        const [musiclistResponse, playlistResponse, albumlistResponse, recentlyPlayedResponse, artistlistResponse] = await Promise.all([
+        const [
+          musiclistResponse, 
+          playlistResponse, 
+          albumlistResponse, 
+          recentlyPlayedResponse, 
+          artistlistResponse,
+          liveStreamsResponse
+        ] = await Promise.all([
           api.get(`/api/home/musiclist/?top10=true`),
           api.get("/api/home/playlist/?top10=true"),
           api.get("/api/home/albumlist/?top10=true"),
           api.get("/api/listening_history/recently-played/"),
-          api.get("/api/home/artistlist/")
+          api.get("/api/home/artistlist/"),
+          api.get("/api/livestream/streams/")
         ]);
-
-        setMusiclistData(musiclistResponse.data.results);
-        setPlaylistData(playlistResponse.data.results);
-        setAlbumlistData(albumlistResponse.data.results);
-        setRecentlyPlayedData(recentlyPlayedResponse.data);
-        setArtistlist(artistlistResponse.data)
-        console.log(artistlistResponse)
-        console.log(playlistResponse.data.results)
-
+        
+        console.log('Live streams response:', liveStreamsResponse.data);
+        
+        setMusiclistData(musiclistResponse.data.results || []);
+        setPlaylistData(playlistResponse.data.results || []);
+        setAlbumlistData(albumlistResponse.data.results || []);
+        setRecentlyPlayedData(recentlyPlayedResponse.data || []);
+        setArtistlist(artistlistResponse.data || []);
+        setLiveStreams(liveStreamsResponse.data || []);
       } catch (err) {
         setError("Failed to load data.");
+        console.error("Error fetching data:", err);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
+    
+    // Set up polling for live streams every 30 seconds
+    const liveStreamsPoll = setInterval(async () => {
+      try {
+        const response = await api.get("/api/livestream/streams/");
+        setLiveStreams(response.data || []);
+      } catch (err) {
+        console.error("Error polling live streams:", err);
+      }
+    }, 30000);
+    
+    return () => clearInterval(liveStreamsPoll);
   }, []);
-
-
-
-
   
   if (error) return <div className="text-white">{error}</div>;
 
   return (
     <ShufflingDashboard>
+
+     
       {recentlyPlayedData.length > 0 && (
         <RecentlyPlayedSection
           title="Recently Played"
@@ -186,11 +201,11 @@ const Dashboard = () => {
         />
       )}
       {artistlist.length > 0 && (
-  <ArtistSection
-    title="Artists"
-    items={artistlist}
-  />
-)}
+        <ArtistSection
+          title="Artists"
+          items={artistlist}
+        />
+      )}
       {musiclistData.length > 0 && (
         <MusicSection
           title="Music"
@@ -201,7 +216,6 @@ const Dashboard = () => {
         <PlaylistSection
           title="Playlists"
           items={playlistData}
-
         />
       )}
       {AlbumlistData.length > 0 && (
@@ -210,6 +224,14 @@ const Dashboard = () => {
           items={AlbumlistData}
         />
       )}
+
+
+{/* {liveStreams.length > 0 && (
+        <LiveStreamSection
+          title="Live Now"
+          items={liveStreams}
+        />
+      )} */}
     </ShufflingDashboard>
   );
 };

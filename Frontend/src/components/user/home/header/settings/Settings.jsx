@@ -1,19 +1,19 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom'; // Import useNavigate
-import { ChevronRight, User, Bell, Globe, Lock, Shield, Volume2, Download, Plus, Clock, Info, Music, Star, ArrowLeft } from 'lucide-react';
-import { useState } from 'react';
-import api from '../../../../../api'; // Import your API instance
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { ChevronRight, User, Bell, Globe, Lock, Shield, Volume2, Download, Plus, Clock, Info, Music, Star, ArrowLeft, Sliders } from 'lucide-react';
+import api from '../../../../../api';
 import CreatorStudio from './CreatorStudio';
-const Settings = () => {
+import EqualizerControl from '../../dashboard/music-player/Equalizer';
 
+const Settings = () => {
   const navigate = useNavigate();
   const [bio, setBio] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [showEqualizer, setShowEqualizer] = useState(false); // State to control equalizer visibility
 
-
-  
+  // Existing handleSubmit and refreshAccessToken functions...
   const handleSubmit = async () => {
     if (!bio.trim()) return;
   
@@ -99,6 +99,12 @@ const Settings = () => {
       throw new Error('Error refreshing token: ' + err.message);
     }
   };
+
+  // Toggle equalizer visibility
+  const toggleEqualizer = () => {
+    setShowEqualizer(!showEqualizer);
+  };
+
   return (
     <div className="min-h-screen bg-gray-900 text-white flex-col">
       {/* Settings Header */}
@@ -106,7 +112,7 @@ const Settings = () => {
         <div className="max-w-5xl mx-auto px-8 py-6 flex items-center">
           <button
             className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-            onClick={() => navigate('/home')} // Navigate to the home page
+            onClick={() => navigate('/home')}
           >
             <ArrowLeft className="h-5 w-5" />
             <span className="text-sm font-semibold">Back</span>
@@ -146,7 +152,6 @@ const Settings = () => {
             </div>
           </div>
         </section>
-
 
         {/* Notifications */}
         <section className="mb-8">
@@ -198,7 +203,7 @@ const Settings = () => {
           </div>
         </section>
 
-        {/* Playback */}
+        {/* Playback - Now includes Equalizer */}
         <section className="mb-8">
           <h2 className="text-xl font-bold mb-4">Playback</h2>
           <div className="bg-gray-800 rounded-lg overflow-hidden">
@@ -212,6 +217,30 @@ const Settings = () => {
               </div>
               <ChevronRight className="h-5 w-5 text-gray-400" />
             </div>
+            
+            <div className="border-t border-gray-700"></div>
+            
+            {/* Equalizer section header - clicking toggles the equalizer visibility */}
+            <div 
+              className="p-4 flex items-center justify-between hover:bg-gray-700 cursor-pointer"
+              onClick={toggleEqualizer}
+            >
+              <div className="flex items-center gap-4">
+                <Sliders className="h-6 w-6 text-gray-400" />
+                <div>
+                  <div className="font-semibold">Equalizer</div>
+                  <div className="text-sm text-gray-400">Customize audio frequency settings</div>
+                </div>
+              </div>
+              <ChevronRight className={`h-5 w-5 text-gray-400 transition-transform ${showEqualizer ? 'rotate-90' : ''}`} />
+            </div>
+            
+            {/* Collapsible Equalizer Component */}
+            {showEqualizer && (
+              <div className="border-t border-gray-700 p-4 bg-gray-800">
+                <EqualizerControl />
+              </div>
+            )}
             
             <div className="border-t border-gray-700"></div>
             
@@ -229,9 +258,7 @@ const Settings = () => {
         </section>
 
         {/* Creator Studio */}
-
-        <CreatorStudio/>
-
+        <CreatorStudio />
 
         {/* About */}
         <section className="mb-8">
