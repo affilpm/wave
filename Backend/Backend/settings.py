@@ -333,6 +333,14 @@ ZEGOCLOUD_APP_ID = "671658441"
 ZEGOCLOUD_SERVER_SECRET = "d2e06c68b5d3c72e2163920fd6406fb1"
 
 
+
+
+AGORA_APP_ID = 'eaa796ce047c4f789ca6e5e780f39864'
+AGORA_APP_CERTIFICATE = '01ca5e31f95e4f4aadae5f989cb2225d'
+
+
+
+
 # Authentication Backends
 AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',

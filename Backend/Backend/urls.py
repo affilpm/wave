@@ -31,7 +31,7 @@ urlpatterns = [
     path('api/library/', include('library.urls')), 
     path('api/premium/', include('premium.urls')), 
     path('api/listening_history/', include('listening_history.urls')),
-    # path('api/zugocloud/', include('zugocloud.urls')),
+    path('api/livestream/', include('agora.urls')),
     
     
     
