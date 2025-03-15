@@ -26,6 +26,21 @@ from .serializers import (
     RazorpayTransactionSerializer,
     RazorpayTransactionDetailSerializer
 )
+from django.conf import settings
+from rest_framework import generics, permissions, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.decorators import api_view, permission_classes
+from .serializers import RazorpayTransactionSerializer
+import razorpay
+import json
+from django.utils import timezone
+from premium.models import UserSubscription,  RazorpayTransaction
+from django.utils.timezone import now, timedelta
+    
+from django.db.models import Count
+
+from listening_history.models import PlaySession
 
 
 
@@ -217,15 +232,7 @@ class AdminTransactionViewSet(viewsets.ReadOnlyModelViewSet):
             
             
             
-from django.conf import settings
-from rest_framework import generics, permissions, status
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.decorators import api_view, permission_classes
-from .serializers import RazorpayTransactionSerializer
-import razorpay
-import json
-from django.utils import timezone
+
 
 class TransactionStatsView(APIView):
     """
@@ -324,5 +331,66 @@ class TransactionMonthlyStatsView(APIView):
         
         return Response(monthly_data)
 
-# Add these URLs to your urls.py
-   
+
+
+
+@api_view(['GET'])
+def total_users(request):
+    count = CustomUser.objects.count()
+    return Response({'total_users': count})
+
+
+
+@api_view(['GET'])
+def total_premium_users(request):
+    count = UserSubscription.objects.filter(status='active').count()
+    return Response({'total_premium_users': count})
+
+
+
+
+@api_view(['GET'])
+def total_premium_users_and_revenue(request):
+    # Count active premium users
+    total_users = UserSubscription.objects.filter(status='active').count()
+
+    # Calculate revenue from successful transactions in the last 30 days
+    last_30_days = now() - timedelta(days=30)
+    total_revenue = RazorpayTransaction.objects.filter(
+        timestamp__gte=last_30_days, 
+        status='captured'  # Ensure you're only considering successful payments
+    ).aggregate(total=models.Sum('amount'))['total'] or 0  # Handle None case
+
+    return Response({
+        'total_premium_users': total_users,
+        'monthly_revenue': total_revenue
+    })
+    
+
+@api_view(['GET'])
+def top_5_songs(request):
+    # Aggregate play counts from completed sessions
+    top_songs = (
+        PlaySession.objects.filter(status='completed')
+        .values('music__id', 'music__name', 'music__artist__user__email')  # Fetch music details
+        .annotate(play_count=Count('id'))  # Count completed plays
+        .order_by('-play_count')[:5]  # Get top 5 songs
+    )
+
+    return Response(top_songs)    
+
+
+
+
+
+
+@api_view(['GET'])
+def top_5_artists(request):
+    # Get top 5 artists based on follower count
+    top_artists = (
+        Artist.objects.annotate(follower_count=Count('followers'))
+        .order_by('-follower_count')[:5]
+        .values('id', 'user__email', 'bio', 'follower_count')  # Fetch artist details
+    )
+
+    return Response(top_artists)
