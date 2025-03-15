@@ -63,4 +63,4 @@ class LiveStreamSerializer(serializers.ModelSerializer):
         if 'channel_name' not in validated_data:
             validated_data['channel_name'] = f"stream-{request.user.id}-{int(time.time())}"
             
-        return super().create(validated_data)
+        return super().create(validated_data)   
