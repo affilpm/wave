@@ -49,6 +49,10 @@ const musicPlayerSlice = createSlice({
     setChangeComplete: (state) => {
       state.isChanging = false;
     },
+    handlePageReload: (state) => {
+      // Always pause on page reload, but maintain other state
+      state.isPlaying = false;
+    },
     setQueue: (state, action) => {
         const { tracks, playlistId, artistId } = action.payload;
         state.queue = tracks;
@@ -216,6 +220,7 @@ export const {
   setCurrentPlaylistId,
   setCurrentArtistId,
   setIsLiked,
+  handlePageReload,
 } = musicPlayerSlice.actions;
 
 export default musicPlayerSlice.reducer;

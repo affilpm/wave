@@ -115,105 +115,6 @@ class AgoraTokenView(APIView):
             raise e
 
 
-class JoinStreamView(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        try:
-            # Get the room name (channel_name) of the artist they want to join
-            room_name = request.GET.get('room', '')
-            if not room_name:
-                return JsonResponse({'error': 'Room name is required.'}, status=400)
-            
-            # Find the stream based on the channel name
-            stream = LiveStream.objects.filter(channel_name=room_name, status='active').first()
-            if not stream:
-                raise PermissionDenied("Stream not found or not active.")
-            
-            # Ensure the user is following the artist
-            if not Follow.objects.filter(user=request.user, artist=stream.host.artist_profile).exists():
-                raise PermissionDenied("You must follow the artist to join the stream.")
-
-            # Record the participant if they aren't already added
-            StreamParticipant.objects.get_or_create(stream=stream, user=request.user)
-            
-            # Generate Agora token for the user to join the stream
-            token = self.generate_token(room_name, request.user.id, 2)  # 2=audience
-
-            return JsonResponse({
-                'token': token,
-                'channel': room_name,
-                'uid': request.user.id,
-                'app_id': APP_ID,
-                'role': 'audience'
-            })
-
-        except Exception as e:
-            print(f"Error occurred: {str(e)}")  # Debugging output
-            return JsonResponse({'error': str(e)}, status=400)
-
-    def generate_token(self, channel_name, uid, role):
-        try:
-            current_timestamp = int(time.time())
-            expiration_timestamp = current_timestamp + EXPIRATION_TIME_IN_SECONDS
-
-            return RtcTokenBuilder.buildTokenWithUid(
-                APP_ID, APP_CERTIFICATE, channel_name, uid, role, expiration_timestamp
-            )
-        except Exception as e:
-            print(f"Error generating token: {str(e)}")  # Debugging output
-            raise e
-
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
-  
-        
-        
-        
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def current_user(request):
-    """
-    Return current user data
-    """
-    serializer = UserSerializer(request.user)
-    return Response(serializer.data)
-        
-from rest_framework.response import Response
-from .serializers import UserSerializer
-from django.db.models import Count
-
-class LiveStreamListView(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request):
-        # Add current user data
-        user_serializer = UserSerializer(request.user)
-        
-        # Get the list of artists the user is following
-        following_artists = Follow.objects.filter(user=request.user).values_list('artist_profile', flat=True)
-        
-        if not following_artists:
-            return Response({
-                "user": user_serializer.data,
-                "message": "You are not following any artists."
-            }, status=200)  # Changed status for better UX
-
-        # Get all active streams of artists the user is following
-        streams = LiveStream.objects.filter(host__artist_profile__id__in=following_artists, status='active')
-        
-        # Add annotation for participant count
-        streams = streams.annotate(participant_count=Count('participants'))
-        
-        # Serialize the streams
-        stream_serializer = LiveStreamSerializer(streams, many=True)
-        
-        # Return the response with both user and stream data
-        return Response({
-            "user": user_serializer.data,
-            "streams": stream_serializer.data
-        })
-
 class EndStreamView(APIView):
     permission_classes = [IsAuthenticated]
     
@@ -317,31 +218,7 @@ class LiveStreamViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'participant_count']
     ordering = ['-created_at']  # Default ordering
 
-    def get_queryset(self):
-        """
-        Filter streams based on query parameters:
-        - following=true: Only streams from artists the user follows
-        - popular=true: Order by participant count
-        """
-        queryset = super().get_queryset()
-        
-        # Annotate with participant count for filtering/ordering
-        queryset = queryset.annotate(
-            participant_count=Count('participants', filter=Q(participants__left_at__isnull=True))
-        )
-        
-        # Filter for streams from artists the user follows
-        following = self.request.query_params.get('following')
-        if following and following.lower() == 'true':
-            followed_artists = Follow.objects.filter(user=self.request.user).values_list('artist__user', flat=True)
-            queryset = queryset.filter(host__in=followed_artists)
-        
-        # Order by popularity if requested
-        popular = self.request.query_params.get('popular')
-        if popular and popular.lower() == 'true':
-            queryset = queryset.order_by('-participant_count')
-            
-        return queryset
+
     
     def list(self, request, *args, **kwargs):
         """
@@ -394,53 +271,202 @@ class LiveStreamViewSet(viewsets.ModelViewSet):
         
         return Response(followed_artists)
     
-    @action(detail=True, methods=['post'])
-    def join(self, request, pk=None):
-        """Join a stream as a participant"""
-        stream = self.get_object()
-        participant, created = StreamParticipant.objects.get_or_create(
-            stream=stream,
-            user=request.user,
-            defaults={'joined_at': timezone.now()}
-        )
-        
-        # If rejoining after leaving
-        if not created and participant.left_at:
-            participant.left_at = None
-            participant.joined_at = timezone.now()
-            participant.save()
-            
-        return Response({'status': 'joined stream'})
     
-    @action(detail=True, methods=['post'])
-    def leave(self, request, pk=None):
-        """Leave a stream"""
-        stream = self.get_object()
-        try:
-            participant = StreamParticipant.objects.get(
-                stream=stream,
-                user=request.user,
-                left_at__isnull=True
-            )
-            participant.leave()
-            return Response({'status': 'left stream'})
-        except StreamParticipant.DoesNotExist:
-            return Response(
-                {'error': 'Not currently in this stream'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
     
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
-    def end(self, request, pk=None):
-        """End a stream (host only)"""
-        stream = self.get_object()
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    # def get_queryset(self):
+    #     """
+    #     Filter streams based on query parameters:
+    #     - following=true: Only streams from artists the user follows
+    #     - popular=true: Order by participant count
+    #     """
+    #     queryset = super().get_queryset()
         
-        # Only the host can end the stream
-        if request.user != stream.host:
-            return Response(
-                {'error': 'Only the host can end this stream'}, 
-                status=status.HTTP_403_FORBIDDEN
-            )
+    #     # Annotate with participant count for filtering/ordering
+    #     queryset = queryset.annotate(
+    #         participant_count=Count('participants', filter=Q(participants__left_at__isnull=True))
+    #     )
+        
+    #     # Filter for streams from artists the user follows
+    #     following = self.request.query_params.get('following')
+    #     if following and following.lower() == 'true':
+    #         followed_artists = Follow.objects.filter(user=self.request.user).values_list('artist__user', flat=True)
+    #         queryset = queryset.filter(host__in=followed_artists)
+        
+    #     # Order by popularity if requested
+    #     popular = self.request.query_params.get('popular')
+    #     if popular and popular.lower() == 'true':
+    #         queryset = queryset.order_by('-participant_count')
             
-        stream.end_stream()
-        return Response({'status': 'stream ended'})
+    #     return queryset
+    
+    
+    
+    
+    
+        
+    # @action(detail=True, methods=['post'])
+    # def join(self, request, pk=None):
+    #     """Join a stream as a participant"""
+    #     stream = self.get_object()
+    #     participant, created = StreamParticipant.objects.get_or_create(
+    #         stream=stream,
+    #         user=request.user,
+    #         defaults={'joined_at': timezone.now()}
+    #     )
+        
+    #     # If rejoining after leaving
+    #     if not created and participant.left_at:
+    #         participant.left_at = None
+    #         participant.joined_at = timezone.now()
+    #         participant.save()
+            
+    #     return Response({'status': 'joined stream'})
+    
+    # @action(detail=True, methods=['post'])
+    # def leave(self, request, pk=None):
+    #     """Leave a stream"""
+    #     stream = self.get_object()
+    #     try:
+    #         participant = StreamParticipant.objects.get(
+    #             stream=stream,
+    #             user=request.user,
+    #             left_at__isnull=True
+    #         )
+    #         participant.leave()
+    #         return Response({'status': 'left stream'})
+    #     except StreamParticipant.DoesNotExist:
+    #         return Response(
+    #             {'error': 'Not currently in this stream'},
+    #             status=status.HTTP_400_BAD_REQUEST
+    #         )
+    
+    # @action(detail=True, methods=['post'], permission_classes=[permissions.IsAuthenticated])
+    # def end(self, request, pk=None):
+    #     """End a stream (host only)"""
+    #     stream = self.get_object()
+        
+    #     # Only the host can end the stream
+    #     if request.user != stream.host:
+    #         return Response(
+    #             {'error': 'Only the host can end this stream'}, 
+    #             status=status.HTTP_403_FORBIDDEN
+    #         )
+            
+    #     stream.end_stream()
+    #     return Response({'status': 'stream ended'})
+    
+    
+    
+    
+    
+    
+# class JoinStreamView(APIView):
+#     permission_classes = [IsAuthenticated]
+    
+#     def get(self, request):
+#         try:
+#             # Get the room name (channel_name) of the artist they want to join
+#             room_name = request.GET.get('room', '')
+#             if not room_name:
+#                 return JsonResponse({'error': 'Room name is required.'}, status=400)
+            
+#             # Find the stream based on the channel name
+#             stream = LiveStream.objects.filter(channel_name=room_name, status='active').first()
+#             if not stream:
+#                 raise PermissionDenied("Stream not found or not active.")
+            
+#             # Ensure the user is following the artist
+#             if not Follow.objects.filter(user=request.user, artist=stream.host.artist_profile).exists():
+#                 raise PermissionDenied("You must follow the artist to join the stream.")
+
+#             # Record the participant if they aren't already added
+#             StreamParticipant.objects.get_or_create(stream=stream, user=request.user)
+            
+#             # Generate Agora token for the user to join the stream
+#             token = self.generate_token(room_name, request.user.id, 2)  # 2=audience
+
+#             return JsonResponse({
+#                 'token': token,
+#                 'channel': room_name,
+#                 'uid': request.user.id,
+#                 'app_id': APP_ID,
+#                 'role': 'audience'
+#             })
+
+#         except Exception as e:
+#             print(f"Error occurred: {str(e)}")  # Debugging output
+#             return JsonResponse({'error': str(e)}, status=400)
+
+#     def generate_token(self, channel_name, uid, role):
+#         try:
+#             current_timestamp = int(time.time())
+#             expiration_timestamp = current_timestamp + EXPIRATION_TIME_IN_SECONDS
+
+#             return RtcTokenBuilder.buildTokenWithUid(
+#                 APP_ID, APP_CERTIFICATE, channel_name, uid, role, expiration_timestamp
+#             )
+#         except Exception as e:
+#             print(f"Error generating token: {str(e)}")  # Debugging output
+#             raise e
+
+# from rest_framework.decorators import api_view, permission_classes
+# from rest_framework.permissions import IsAuthenticated
+  
+        
+        
+        
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
+# def current_user(request):
+#     """
+#     Return current user data
+#     """
+#     serializer = UserSerializer(request.user)
+#     return Response(serializer.data)
+        
+# from rest_framework.response import Response
+# from .serializers import UserSerializer
+# from django.db.models import Count
+
+# class LiveStreamListView(APIView):
+#     permission_classes = [IsAuthenticated]
+    
+#     def get(self, request):
+#         # Add current user data
+#         user_serializer = UserSerializer(request.user)
+        
+#         # Get the list of artists the user is following
+#         following_artists = Follow.objects.filter(user=request.user).values_list('artist_profile', flat=True)
+        
+#         if not following_artists:
+#             return Response({
+#                 "user": user_serializer.data,
+#                 "message": "You are not following any artists."
+#             }, status=200)  # Changed status for better UX
+
+#         # Get all active streams of artists the user is following
+#         streams = LiveStream.objects.filter(host__artist_profile__id__in=following_artists, status='active')
+        
+#         # Add annotation for participant count
+#         streams = streams.annotate(participant_count=Count('participants'))
+        
+#         # Serialize the streams
+#         stream_serializer = LiveStreamSerializer(streams, many=True)
+        
+#         # Return the response with both user and stream data
+#         return Response({
+#             "user": user_serializer.data,
+#             "streams": stream_serializer.data
+#         })

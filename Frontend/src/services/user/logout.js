@@ -13,7 +13,7 @@ export const logout = async (dispatch) => {
     try {
         if (refreshToken) {
             await api.post(`${import.meta.env.VITE_API_URL}/api/users/logout/`, {
-                refresh_token: refreshToken,  // Changed from 'refresh' to 'refresh_token'
+                refresh_token: refreshToken,  
             }, {
                 headers: {
                     Authorization: `Bearer ${accessToken}`,

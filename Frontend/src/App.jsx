@@ -1,3 +1,4 @@
+import react, { useEffect } from 'react';
 import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
 import HomePage from './pages/user/HomePage';
 import LandingPage from './components/user/LandingPage';
@@ -16,38 +17,42 @@ import AlbumCreator from './components/artist/studio/AlbumCreator';
 import EditAlbum from './components/artist/studio/EditAlbum';
 import MultiStepRegister from './components/user/register/MultiStepRegister';
 import LoginPage from './components/user/login/Login';
-import Dashboard from './components/user/home/dashboard/Dashboard';
+import Main_Content from './components/user/home/main-content/Main_Content';
 import YourPlaylistPage from './components/user/home/playlist/your-playlist-page/YourPlaylistPage'; 
 import Premium from './components/user/home/header/Premium';
-import MusicShowMorePage from './components/user/home/dashboard/Music-section/MusicShowMorePage';
+import MusicShowMorePage from './components/user/home/main-content/Music-section/MusicShowMorePage';
 import SavedPlaylistPage from './components/user/home/playlist/playlist-page/SavedPlaylistPage';
 import { Navigate } from 'react-router-dom';
 import AlbumPage from './components/user/home/album/AlbumPage';
 import UsernameSelectionPage from './components/user/register/UsernameSelectionPage';
-import GenrePage from './components/user/home/dashboard/Genre-section/GenrePage';
+import GenrePage from './components/user/home/main-content/Genre-section/GenrePage';
 import Profile from './components/user/home/header/profile/Profile';
 import MonetizationPage from './components/artist/studio/Monetization';
 // import { apiInstance } from './api';
 // import { musicStreamService } from './services/user/musicService';
-import PlaylistShowMorePage from './components/user/home/dashboard/Playlist-section/PlaylistShowMore';
-import AlbumShowMorePage from './components/user/home/dashboard/Album-section/AlbumShowMore';
-import ArtistPage from './components/user/home/dashboard/Artist-section/ArtistPage';
+import PlaylistShowMorePage from './components/user/home/main-content/Playlist-section/PlaylistShowMore';
+import AlbumShowMorePage from './components/user/home/main-content/Album-section/AlbumShowMore';
+import ArtistPage from './components/user/home/main-content/Artist-section/ArtistPage';
 // import LivestreamApp from './components/live';
-import EqualizerControl from './components/user/home/dashboard/music-player/Equalizer';
+import EqualizerControl from './components/user/home/main-content/music-player/Equalizer';
+import { useDispatch } from 'react-redux';
+import { handlePageReload } from './slices/user/musicPlayerSlice';
 
 
-
-
-export const logout= () => {
-  // Completely clear all data from localStorage
-  localStorage.clear();
-};
+// export const logout= () => {
+//   // Completely clear all data from localStorage
+//   localStorage.clear();
+// };
 
 
 function App() {
   const { isAuthenticated } = useSelector((state) => state.user);
   // musicStreamService.setApiInstance(apiInstance);
-  
+  const dispatch = useDispatch();
+  useEffect(() => {
+    
+    dispatch(handlePageReload());
+  }, [dispatch]);
   return (
     <Router>
       <Routes>
@@ -97,7 +102,7 @@ function App() {
 
           <Route path="/" element={<HomePage />}>
               <Route index element={<Navigate to="/home" replace />} />
-              <Route path="/home" element={<Dashboard/>} />
+              <Route path="/home" element={<Main_Content />} />
               <Route path="/playlist/:playlistId" element={<YourPlaylistPage/>} />
               <Route path="/saved-playlist/:playlistId" element={<SavedPlaylistPage />} />
               <Route path="/music-show-more" element={<MusicShowMorePage/>} />

@@ -1,6 +1,8 @@
 from django.db import models
 from users.models import CustomUser
 from music.models import Genre
+from django.utils import timezone   
+
 
 class ArtistVerificationStatus(models.TextChoices):
     PENDING = 'pending', 'Pending'
@@ -31,7 +33,6 @@ class Artist(models.Model):
         return f"Artist: {self.user.email} - {self.status} - Genres: {genres or 'None'}"
     
     
-from django.utils import timezone   
     
 class Follow(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='following_artist')
