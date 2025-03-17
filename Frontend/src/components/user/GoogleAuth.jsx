@@ -106,16 +106,6 @@ const GoogleAuthButton = () => {
         isAuthenticated: true,
       }));
 
-      localStorage.setItem('userData', JSON.stringify({
-        user_id: decodedToken.user_id,
-        email: decodedToken.email,
-        first_name: decodedToken.first_name,
-        last_name: decodedToken.last_name,
-        image: decodedToken.profile_photo || null,
-      }));
-
-      
-      localStorage.setItem('isAuthenticated', 'true');
   
       navigate('/home');
     } catch (err) {
