@@ -66,28 +66,7 @@ const MusicUpload = () => {
     const [albums, setAlbums] = useState([]);
     const [selectedAlbum, setSelectedAlbum] = useState('');
     const [trackNumber, setTrackNumber] = useState('');
-    // const [showAlbumSection, setShowAlbumSection] = useState(false);
-  
 
-    useEffect(() => {
-      const fetchAlbums = async () => {
-        try {
-          const response = await api.get('/api/album/albums');
-          const currentUsername = localStorage.getItem('username');
-          
-          // Include ALL albums that belong to the current user, plus public albums from others
-          const filteredAlbums = response.data.filter(album => 
-            album.is_public || album.artist_username === currentUsername
-          );
-          setAlbums(filteredAlbums);
-        } catch (err) {
-          console.error('Error fetching albums:', err);
-          toast.error('Failed to load albums');
-        }
-      };
-    
-      fetchAlbums();
-    }, []);
     
     // Create a debounced function to check track name
     const checkTrackName = debounce(async (name) => {

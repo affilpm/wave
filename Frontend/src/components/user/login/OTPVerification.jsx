@@ -80,19 +80,6 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
               isAuthenticated: true,
           }));
   
-          // Store user data in localStorage
-          localStorage.setItem('userData', JSON.stringify({
-              user_id: decodedToken.user_id,
-              email: decodedToken.email,
-              username: decodedToken.username,
-              first_name: decodedToken.first_name,
-              last_name: decodedToken.last_name,
-              image: decodedToken.profile_photo || null,
-          }));
-          localStorage.setItem('isAuthenticated', 'true');
-  
-          // Set default Authorization header for API requests
-          api.defaults.headers.common['Authorization'] = `Bearer ${response.data.tokens.access}`;
   
           // Navigate to home **AFTER** updating state
           navigate('/home');
