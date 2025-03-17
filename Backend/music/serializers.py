@@ -70,7 +70,7 @@ class UserSerializer(serializers.ModelSerializer):
     
         
 class ArtistSerializer(serializers.ModelSerializer):
-    user = UserSerializer()  # Include user data
+    user = UserSerializer()  
     
     class Meta:
         model = Artist
