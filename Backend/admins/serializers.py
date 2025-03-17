@@ -115,3 +115,44 @@ class RazorpayTransactionDetailSerializer(serializers.ModelSerializer):
             return SubscriptionSerializer(subscription).data
         except UserSubscription.DoesNotExist:
             return None
+        
+from artists.models import Artist
+from music.models import Music
+from music.serializers import ArtistSerializer, GenreSerializer        
+        
+        
+class MusicVerificationSerializer(serializers.ModelSerializer):
+    artist = ArtistSerializer()  # Make sure this includes user data
+    status = serializers.CharField(source='approval_status')
+    submitted_date = serializers.DateTimeField(source='created_at', format="%Y-%m-%dT%H:%M:%S")
+    genres = GenreSerializer(many=True)
+    audio_url = serializers.SerializerMethodField()
+    # video_url = serializers.SerializerMethodField()
+    duration_formatted = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Music
+        fields = [
+            'id', 'name', 'artist', 'genres', 'status', 
+            'submitted_date', 'audio_url',
+            'duration_formatted', 'cover_photo'
+        ]
+    
+    def get_audio_url(self, obj):
+        if obj.audio_file:
+            return self.context['request'].build_absolute_uri(obj.audio_file.url)
+        return None
+    
+    # def get_video_url(self, obj):
+    #     if obj.video_file:
+    #         return self.context['request'].build_absolute_uri(obj.video_file.url)
+    #     return None
+    
+    def get_duration_formatted(self, obj):
+        if obj.duration:
+            minutes = obj.duration.seconds // 60
+            seconds = obj.duration.seconds % 60
+            return f"{minutes}:{seconds:02d}"
+        return None
+
+        

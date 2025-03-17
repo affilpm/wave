@@ -26,7 +26,7 @@ export const NavTabs = ({ activeTab, setActiveTab }) => {
     },
     {
       id: 'transactions',
-      label: 'transactions',
+      label: 'Transactions',
       icon: IndianRupee,
     },
   ];

@@ -39,8 +39,11 @@ from premium.models import UserSubscription,  RazorpayTransaction
 from django.utils.timezone import now, timedelta
 from django.db.models import Count
 from listening_history.models import PlaySession
-
-
+from artists.serializers import ArtistSerializer
+from artists.models import ArtistVerificationStatus
+from music.serializers import MusicVerificationSerializer
+from music.models import Music
+from rest_framework.permissions import IsAdminUser
 
 
 #used for admin login
@@ -84,7 +87,8 @@ class Pagination(PageNumberPagination):
 class UserTableViewSet(viewsets.ModelViewSet):  # Changed from ReadOnlyModelViewSet
     queryset = User.objects.filter(is_superuser=False)
     serializer_class = UserTableSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUser]
+
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ['is_active']
     search_fields = ['email', 'first_name', 'last_name']
@@ -116,11 +120,143 @@ class UserTableViewSet(viewsets.ModelViewSet):  # Changed from ReadOnlyModelView
 
 
 
+    
+# ViewSet for managing artists
+class ArtistViewSet(viewsets.ModelViewSet):
+    permission_classes = [IsAdminUser]
+
+    queryset = Artist.objects.all()
+    serializer_class = ArtistSerializer
+    pagination_class = Pagination
+
+
+    # Custom action for listing artists
+    @action(detail=False, methods=['GET'])
+    def list_artists(self, request):
+        try:
+            artists = Artist.objects.all()
+            
+            # Apply pagination
+            page = self.paginate_queryset(artists)
+            if page is not None:
+                artist_data = [
+                    {
+                        'id': artist.id,
+                        'email': artist.user.email,
+                        'bio': artist.bio,
+                        'status': artist.status,
+                        'genre': ', '.join([genre.name for genre in artist.genres.all()]),
+                        'submitted_at': artist.submitted_at
+                    }
+                    for artist in page
+                ]
+                return self.get_paginated_response(artist_data)  # ✅ Correct DRF pagination response
+            
+            # If pagination is not applied, return manually paginated response
+            artist_data = [
+                {
+                    'id': artist.id,
+                    'email': artist.user.email,
+                    'bio': artist.bio,
+                    'status': artist.status,
+                    'genre': ', '.join([genre.name for genre in artist.genres.all()]),
+                    'submitted_at': artist.submitted_at
+                }
+                for artist in artists
+            ]
+
+            return Response({
+                'count': len(artist_data),  # ✅ Ensuring total count is sent
+                'next': None,
+                'previous': None,
+                'results': artist_data  # ✅ Consistent response format
+            }, status=200)
+        
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+    # Custom action for updating artist status
+    @action(detail=True, methods=['POST'])
+    def update_status(self, request, pk=None):
+        try:
+            artist = Artist.objects.get(pk=pk)
+            new_status = request.data.get('status')
+
+            if not new_status:
+                return Response({'error': 'Status is required'}, status=400)
+
+            if new_status not in [status for status in ArtistVerificationStatus.values]:
+                return Response({'error': 'Invalid status'}, status=400)
+
+            artist.status = new_status
+            artist.save()
+            return Response({'status': artist.status}, status=200)
+        except Artist.DoesNotExist:
+            return Response({'error': 'Artist not found'}, status=404)
 
 
 
 
 
+    
+
+class MusicVerificationViewSet(viewsets.ModelViewSet):
+    serializer_class = MusicVerificationSerializer
+    permission_classes = [IsAdminUser]
+    
+    def get_queryset(self):
+        return Music.objects.select_related(
+            'artist', 
+            'artist__user'
+        ).prefetch_related(
+            'genres'
+        ).order_by('-created_at')
+    
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        try:
+            music = self.get_object()
+            music.approval_status = MusicApprovalStatus.APPROVED
+            # music.is_public = True
+            music.save()
+            
+            # Re-serialize the updated object
+            serializer = self.get_serializer(music)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        try:
+            music = self.get_object()
+            music.approval_status = MusicApprovalStatus.REJECTED
+            music.save()
+            
+            # Re-serialize the updated object
+            serializer = self.get_serializer(music)
+            return Response(serializer.data)
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+                    
+                   
+                   
+                   
+
+                   
+                   
 
 
 class TransactionPagination(PageNumberPagination):
@@ -134,7 +270,8 @@ class AdminTransactionViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = RazorpayTransaction.objects.all().order_by('-timestamp')
     serializer_class = RazorpayTransactionSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminUser]
+
     pagination_class = TransactionPagination
     filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
     filterset_fields = ['status']
@@ -236,7 +373,8 @@ class TransactionStatsView(APIView):
     """
     Get statistics about transactions for admin dashboard
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminUser]
+
     
     def get(self, request):
         # Get statistics
@@ -284,7 +422,8 @@ class TransactionMonthlyStatsView(APIView):
     """
     Get monthly statistics for transactions
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [IsAdminUser]
+
     
     def get(self, request):
         # Get statistics for the last 6 months
@@ -333,6 +472,7 @@ class TransactionMonthlyStatsView(APIView):
 
 
 @api_view(['GET'])
+@permission_classes([IsAdminUser]) 
 def total_users(request):
     count = CustomUser.objects.count()
     return Response({'total_users': count})
@@ -340,6 +480,7 @@ def total_users(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAdminUser]) 
 def total_premium_users(request):
     count = UserSubscription.objects.filter(status='active').count()
     return Response({'total_premium_users': count})
@@ -348,6 +489,7 @@ def total_premium_users(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAdminUser]) 
 def total_premium_users_and_revenue(request):
     # Count active premium users
     total_users = UserSubscription.objects.filter(status='active').count()
@@ -366,6 +508,7 @@ def total_premium_users_and_revenue(request):
     
 
 @api_view(['GET'])
+@permission_classes([IsAdminUser]) 
 def top_5_songs(request):
     # Aggregate play counts from completed sessions
     top_songs = (
@@ -383,6 +526,7 @@ def top_5_songs(request):
 
 
 @api_view(['GET'])
+@permission_classes([IsAdminUser]) 
 def top_5_artists(request):
     # Get top 5 artists based on follower count
     top_artists = (

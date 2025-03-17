@@ -39,7 +39,7 @@ const ArtistVerification = () => {
   });
   const [pageSize, setPageSize] = useState(8);
 
-  const fetchArtists = async (url = `api/artists/list_artists?page=1&page_size=${pageSize}`) => {
+  const fetchArtists = async (url = `api/admins/list_artists?page=1&page_size=${pageSize}`) => {
     try {
       setLoading(true);
       const response = await api.get(url);
@@ -105,14 +105,14 @@ const ArtistVerification = () => {
 
   const handleStatusChange = async (artistId, newStatus) => {
     try {
-      await api.post(`api/artists/${artistId}/update_status/`, { status: newStatus });
+      await api.post(`api/admins/${artistId}/update_status/`, { status: newStatus });
       setArtists((prevArtists) =>
         prevArtists.map((artist) =>
           artist.id === artistId ? { ...artist, status: newStatus } : artist
         )
       );
       // Refresh the current page after status update
-      const currentUrl = `api/artists/list_artists?page=${pagination.current}&page_size=${pageSize}`;
+      const currentUrl = `api/admins/list_artists?page=${pagination.current}&page_size=${pageSize}`;
       fetchArtists(currentUrl);
     } catch (err) {
       setError('Failed to update artist status');
