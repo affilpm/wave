@@ -37,9 +37,7 @@ import json
 from django.utils import timezone
 from premium.models import UserSubscription,  RazorpayTransaction
 from django.utils.timezone import now, timedelta
-    
 from django.db.models import Count
-
 from listening_history.models import PlaySession
 
 

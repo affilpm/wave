@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight, User, Bell, Globe, Lock, Shield, Volume2, Download, Plus, Clock, Info, Music, Star, ArrowLeft, Sliders } from 'lucide-react';
 import api from '../../../../../api';
 import CreatorStudio from './CreatorStudio';
-import EqualizerControl from '../../dashboard/music-player/Equalizer';
+import EqualizerControl from '../../main-content/music-player/Equalizer';
 
 const Settings = () => {
   const navigate = useNavigate();

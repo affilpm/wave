@@ -2,7 +2,7 @@ import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   currentAlbum: null,
-  currentTrackId: null  // Add this to track the current playing track
+  currentTrackId: null  
 };
 
 const albumSlice = createSlice({

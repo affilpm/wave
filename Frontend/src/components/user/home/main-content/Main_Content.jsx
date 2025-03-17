@@ -125,7 +125,7 @@ const ShufflingDashboard = ({ children }) => {
 };
 
 // Dashboard component update
-const Dashboard = () => {
+const Main_Content = () => {
   const [musiclistData, setMusiclistData] = useState([]);
   const [playlistData, setPlaylistData] = useState([]);
   const [AlbumlistData, setAlbumlistData] = useState([]);
@@ -236,4 +236,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
+export default Main_Content;

@@ -186,21 +186,7 @@ class MusicViewSet(ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
             
-    # @action(detail=True)
-    # def streaming_stats(self, request, pk=None):
-    #         music = self.get_object()
-    #         stats = StreamingSession.objects.filter(music=music).aggregate(
-    #             total_plays=Count('id'),
-    #             completed_plays=Count('id', filter=Q(completed=True)),
-    #             average_duration=Avg('last_position')
-    #         )
-            
-    #         serializer = StreamingStatsSerializer({
-    #             'id': music.id,
-    #             'name': music.name,
-    #             **stats
-    #         })
-    #         return Response(serializer.data)    
+
         
         
         
@@ -269,12 +255,13 @@ class MusicViewSet(ModelViewSet):
 ####################streaming$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 from rest_framework.decorators import api_view, permission_classes
 
-# 4. Rather than modifying the token, let's create a play_session table without changing the token format
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_signed_token(request, music_id):
-    from django.conf import settings
+    """
+    a
+    """
     
     # Create a play session with a unique ID
     play_id = f"{request.user.id}-{music_id}-{int(time.time())}"
@@ -295,9 +282,8 @@ def get_signed_token(request, music_id):
     
     return Response({'token': signed_token, 'play_id': play_id})
 
-# 3. Update the token generation to include the play_id
 
-# 1. First, revert the token generation to its original format
+
 def generate_signed_token(user_id, music_id, secret_key, expiry_seconds=3600):
     expiry = int(time.time()) + expiry_seconds
     message = f"{user_id}:{music_id}:{expiry}"
@@ -305,7 +291,8 @@ def generate_signed_token(user_id, music_id, secret_key, expiry_seconds=3600):
     # Format: user_id:music_id:expiry:signature
     return f"{user_id}:{music_id}:{expiry}:{signature}"
 
-# 2. Keep the original verify_signed_token function
+
+
 def verify_signed_token(signed_token, music_id, secret_key):
     """
     Verifies the token and, if valid, returns the user_id as an integer.
@@ -825,95 +812,3 @@ class MusicVerificationViewSet(viewsets.ModelViewSet):
                    
                    
                    
-# class EqualizerPresetListCreateView(APIView):
-#     permission_classes = [IsAuthenticated]
-    
-#     def get(self, request):
-#         """Get all equalizer presets for the current user"""
-#         presets = EqualizerPreset.objects.filter(user=request.user)
-#         serializer = EqualizerPresetSerializer(presets, many=True)
-#         return Response(serializer.data)
-    
-#     def post(self, request):
-#         """Create a new equalizer preset"""
-#         serializer = EqualizerPresetSerializer(data=request.data)
-#         if serializer.is_valid():
-#             # Handle default preset logic
-#             if serializer.validated_data.get('is_default', False):
-#                 with transaction.atomic():
-#                     # Set all other presets to non-default
-#                     EqualizerPreset.objects.filter(
-#                         user=request.user, 
-#                         is_default=True
-#                     ).update(is_default=False)
-                    
-#                     # Create the new default preset
-#                     serializer.save(user=request.user)
-#             else:
-#                 serializer.save(user=request.user)
-#             return Response(serializer.data, status=status.HTTP_201_CREATED)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-# class EqualizerPresetDetailView(APIView):
-#     permission_classes = [IsAuthenticated]
-    
-#     def get_object(self, pk, user):
-#         return get_object_or_404(EqualizerPreset, pk=pk, user=user)
-    
-#     def get(self, request, pk):
-#         """Get a specific equalizer preset"""
-#         preset = self.get_object(pk, request.user)
-#         serializer = EqualizerPresetSerializer(preset)
-#         return Response(serializer.data)
-    
-#     def put(self, request, pk):
-#         """Update a specific equalizer preset"""
-#         preset = self.get_object(pk, request.user)
-#         serializer = EqualizerPresetSerializer(preset, data=request.data)
-#         if serializer.is_valid():
-#             # Handle default preset logic
-#             if serializer.validated_data.get('is_default', False):
-#                 with transaction.atomic():
-#                     # Set all other presets to non-default
-#                     EqualizerPreset.objects.filter(
-#                         user=request.user, 
-#                         is_default=True
-#                     ).exclude(pk=pk).update(is_default=False)
-                    
-#                     # Update the current preset
-#                     serializer.save()
-#             else:
-#                 serializer.save()
-#             return Response(serializer.data)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-#     def delete(self, request, pk):
-#         """Delete a specific equalizer preset"""
-#         preset = self.get_object(pk, request.user)
-#         preset.delete()
-#         return Response(status=status.HTTP_204_NO_CONTENT)
-
-# class CurrentEqualizerView(APIView):
-#     permission_classes = [IsAuthenticated]
-    
-#     def get(self, request):
-#         """Get the current (default) equalizer preset for the user"""
-#         try:
-#             preset = EqualizerPreset.objects.get(user=request.user, is_default=True)
-#             serializer = EqualizerPresetSerializer(preset)
-#             return Response(serializer.data)
-#         except EqualizerPreset.DoesNotExist:
-#             # Try to get the most recent preset
-#             try:
-#                 preset = EqualizerPreset.objects.filter(user=request.user).latest('updated_at')
-#                 serializer = EqualizerPresetSerializer(preset)
-#                 return Response(serializer.data)
-#             except EqualizerPreset.DoesNotExist:
-#                 # Return flat preset
-#                 return Response({
-#                     'name': 'Flat',
-#                     'is_default': True,
-#                     'band_32': 0, 'band_64': 0, 'band_125': 0, 'band_250': 0, 'band_500': 0,
-#                     'band_1k': 0, 'band_2k': 0, 'band_4k': 0, 'band_8k': 0, 'band_16k': 0
-#                 })
-                    
