@@ -40,6 +40,7 @@ const GenrePage = () => {
           api.get(`/api/home/public_genres/${genreId}/`),
           api.get(`/api/home/by-genre/${genreId}/?page=${currentPage}`)
         ]);
+        console.log(tracksResponse.data.results)
         setGenreData(genreResponse.data);
         setTracks(tracksResponse.data.results);
         
@@ -154,11 +155,7 @@ const GenrePage = () => {
         <td className="py-3 pl-3">
           <div className="flex items-center gap-3">
             <img
-              src={
-                track.cover_photo
-                  ? `http://localhost:8000/${track.cover_photo}?token=abc123&format=webp`
-                  : "/api/placeholder/40/40"
-              }
+              src={`${import.meta.env.VITE_API_URL}${track.cover_photo}`}
               alt={track.name}
               className="w-10 h-10 rounded-md"
             />
