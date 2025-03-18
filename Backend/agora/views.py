@@ -141,72 +141,7 @@ class EndStreamView(APIView):
     
     
     
-    
-class LiveStreamInfoView(APIView):
-    permission_classes = [IsAuthenticated]
-    
-    def get(self, request, channel_name):
-        try:
-            # Get the stream information
-            stream = LiveStream.objects.filter(
-                channel_name=channel_name,
-                status='active'
-            ).first()
-            
-            if not stream:
-                return Response(
-                    {'error': 'Stream not found or not active'}, 
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            
-            # Get host information
-            host_data = {
-                'id': stream.host.id,
-                'username': stream.host.username,
-                'first_name': stream.host.first_name,
-                'last_name': stream.host.last_name,
-                'profile_photo': stream.host.profile_photo.url if stream.host.profile_photo else None
-            }
-            
-            # Get participant count
-            participant_count = StreamParticipant.objects.filter(
-                stream=stream,
-                left_at__isnull=True
-            ).count()
-            
-            # Check if the user is already a participant
-            is_participant = StreamParticipant.objects.filter(
-                stream=stream,
-                user=request.user,
-                left_at__isnull=True
-            ).exists()
-            
-            # If not a participant, add them
-            if not is_participant:
-                StreamParticipant.objects.create(
-                    stream=stream,
-                    user=request.user
-                )
-            
-            # Prepare the response
-            response_data = {
-                'id': stream.id,
-                'title': stream.title,
-                'description': stream.description,
-                'thumbnail': stream.thumbnail.url if stream.thumbnail else None,
-                'channel_name': stream.channel_name,
-                'created_at': stream.created_at,
-                'host': host_data,
-                'participant_count': participant_count + (0 if is_participant else 1)
-            }
-            
-            return Response(response_data)
-            
-        except Exception as e:
-            return Response(
-                {'error': str(e)}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )    
+
 
 
 class LiveStreamViewSet(viewsets.ModelViewSet):
@@ -281,7 +216,72 @@ class LiveStreamViewSet(viewsets.ModelViewSet):
     
     
     
+        
+# class LiveStreamInfoView(APIView):
+#     permission_classes = [IsAuthenticated]
     
+#     def get(self, request, channel_name):
+#         try:
+#             # Get the stream information
+#             stream = LiveStream.objects.filter(
+#                 channel_name=channel_name,
+#                 status='active'
+#             ).first()
+            
+#             if not stream:
+#                 return Response(
+#                     {'error': 'Stream not found or not active'}, 
+#                     status=status.HTTP_404_NOT_FOUND
+#                 )
+            
+#             # Get host information
+#             host_data = {
+#                 'id': stream.host.id,
+#                 'username': stream.host.username,
+#                 'first_name': stream.host.first_name,
+#                 'last_name': stream.host.last_name,
+#                 'profile_photo': stream.host.profile_photo.url if stream.host.profile_photo else None
+#             }
+            
+#             # Get participant count
+#             participant_count = StreamParticipant.objects.filter(
+#                 stream=stream,
+#                 left_at__isnull=True
+#             ).count()
+            
+#             # Check if the user is already a participant
+#             is_participant = StreamParticipant.objects.filter(
+#                 stream=stream,
+#                 user=request.user,
+#                 left_at__isnull=True
+#             ).exists()
+            
+#             # If not a participant, add them
+#             if not is_participant:
+#                 StreamParticipant.objects.create(
+#                     stream=stream,
+#                     user=request.user
+#                 )
+            
+#             # Prepare the response
+#             response_data = {
+#                 'id': stream.id,
+#                 'title': stream.title,
+#                 'description': stream.description,
+#                 'thumbnail': stream.thumbnail.url if stream.thumbnail else None,
+#                 'channel_name': stream.channel_name,
+#                 'created_at': stream.created_at,
+#                 'host': host_data,
+#                 'participant_count': participant_count + (0 if is_participant else 1)
+#             }
+            
+#             return Response(response_data)
+            
+#         except Exception as e:
+#             return Response(
+#                 {'error': str(e)}, 
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )    
     
     
     

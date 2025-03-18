@@ -34,7 +34,7 @@ import PlaylistShowMorePage from './components/user/home/main-content/Playlist-s
 import AlbumShowMorePage from './components/user/home/main-content/Album-section/AlbumShowMore';
 import ArtistPage from './components/user/home/main-content/Artist-section/ArtistPage';
 // import LivestreamApp from './components/live';
-import EqualizerControl from './components/user/home/main-content/music-player/Equalizer';
+import EqualizerControl from './components/user/home/header/settings/Equalizer';
 import { useDispatch } from 'react-redux';
 import { handlePageReload } from './slices/user/musicPlayerSlice';
 import LivestreamViewerApp from './components/live';

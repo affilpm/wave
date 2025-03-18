@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronRight, User, Bell, Globe, Lock, Shield, Volume2, Download, Plus, Clock, Info, Music, Star, ArrowLeft, Sliders } from 'lucide-react';
 import api from '../../../../../api';
 import CreatorStudio from './CreatorStudio';
-import EqualizerControl from '../../main-content/music-player/Equalizer';
+import EqualizerControl from './Equalizer';
 
 const Settings = () => {
   const navigate = useNavigate();
@@ -13,92 +13,6 @@ const Settings = () => {
   const [success, setSuccess] = useState('');
   const [showEqualizer, setShowEqualizer] = useState(false); // State to control equalizer visibility
 
-  // Existing handleSubmit and refreshAccessToken functions...
-  const handleSubmit = async () => {
-    if (!bio.trim()) return;
-  
-    setIsSubmitting(true);
-    setError('');
-    setSuccess('');
-  
-    try {
-      // Get the access token from localStorage
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        throw new Error('Access token not found');
-      }
-  
-      // Make the request using the api.js instance with the Authorization header
-      const response = await api.post('/api/artists/request_verification/', {
-        bio,
-      }, {
-        headers: {
-          Authorization: `Bearer ${token}`, // Attach the token here
-        }
-      });
-  
-      if (response.status === 200) {
-        setSuccess('Your verification request has been submitted successfully!');
-        setBio('');
-      }
-    } catch (err) {
-      // If unauthorized (401), attempt to refresh the token and retry the request
-      if (err.response?.status === 401) {
-        try {
-          const newToken = await refreshAccessToken();
-          // Retry the original request with the new token
-          const response = await api.post('/api/artists/request_verification/', {
-            bio,
-          }, {
-            headers: {
-              Authorization: `Bearer ${newToken}`,
-            }
-          });
-  
-          if (response.status === 200) {
-            setSuccess('Your verification request has been submitted successfully!');
-            setBio('');
-          }
-        } catch (refreshError) {
-          setError('Failed to refresh token or submit request');
-        }
-      } else {
-        setError(err.response?.data?.message || err.message || 'Failed to submit request');
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-  
-  // Refresh the access token if expired
-  const refreshAccessToken = async () => {
-    const refreshToken = localStorage.getItem('refresh_token'); // Assuming you store the refresh token
-    if (!refreshToken) {
-      throw new Error('No refresh token found');
-    }
-  
-    try {
-      const response = await fetch('http://localhost:8000/api/token/refresh/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      });
-  
-      const data = await response.json();
-  
-      if (!response.ok || !data?.access) {
-        throw new Error('Failed to refresh access token');
-      }
-  
-      // Store the new access token
-      localStorage.setItem('access_token', data.access);
-      return data.access;
-    } catch (err) {
-      throw new Error('Error refreshing token: ' + err.message);
-    }
-  };
 
   // Toggle equalizer visibility
   const toggleEqualizer = () => {
