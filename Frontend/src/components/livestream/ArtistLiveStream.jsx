@@ -3,7 +3,7 @@ import AgoraRTC from 'agora-rtc-sdk-ng';
 import { ArrowLeft, Video, Mic, MicOff, VideoOff, Users, X } from 'lucide-react';
 import { apiInstance } from '../../api';
 import { useSelector } from 'react-redux';
-import { useBeforeUnload, useNavigate } from 'react-router-dom'; // Added for navigation handling
+import { useNavigate } from 'react-router-dom';
 
 const ArtistLiveStream = () => {
   // State variables
@@ -27,11 +27,11 @@ const ArtistLiveStream = () => {
   const [videoInitialized, setVideoInitialized] = useState(false);
   const [videoRetryCount, setVideoRetryCount] = useState(0);
   const [isLeavingPage, setIsLeavingPage] = useState(false);
+  const [showExitWarning, setShowExitWarning] = useState(false);
+  const [fullscreenMode, setFullscreenMode] = useState(false);
 
   // Get user data from Redux store
-//   const Username = useSelector((state) => state.user);
-//   const username = Username || "Artist";
-    const { username, photo, image } = useSelector((state) => state.user);
+  const { username, photo, image } = useSelector((state) => state.user);
   
   // Navigation
   const navigate = useNavigate();
@@ -42,35 +42,59 @@ const ArtistLiveStream = () => {
   const videoInitTimeoutRef = useRef(null);
   const videoTrackRef = useRef(null);
   const isStreamingRef = useRef(false); // Track streaming state in a ref for cleanup functions
+  const streamContainerRef = useRef(null);
 
   // Update streaming ref when state changes
   useEffect(() => {
     isStreamingRef.current = isStreaming;
+    
+    // When streaming starts, enter fullscreen mode
+    if (isStreaming && !fullscreenMode) {
+      setFullscreenMode(true);
+    }
   }, [isStreaming]);
 
-//   // Enhanced beforeunload handler with custom warning message based on streaming state
-//   useEffect(() => {
-//     const handleBeforeUnload = (event) => {
-//       if (isStreamingRef.current) {
-//         const message = "WARNING: You are currently live streaming. If you leave this page, your stream will end and all viewers will be disconnected.";
-//         event.preventDefault();
-//         event.returnValue = message;
-//         return message;
-//       } else {
-//         // If not streaming, we can use a gentler message or no message
-//         const message = "Your session will end if you leave this page.";
-//         event.preventDefault();
-//         event.returnValue = message;
-//         return message;
-//       }
-//     };
+  // Block navigation when streaming is active
+  useEffect(() => {
+    const handleBeforeUnload = (event) => {
+      if (isStreamingRef.current) {
+        const message = "WARNING: You are currently live streaming. If you leave this page, your stream will end and all viewers will be disconnected.";
+        event.preventDefault();
+        event.returnValue = message;
+        
+        // Call the endStreamOnExit function to clean up and notify
+        endStreamOnExit();
+        
+        return message;
+      }
+    };
 
-//     window.addEventListener("beforeunload", handleBeforeUnload);
+    // Handle history changes (navigation within the app)
+    const handlePopState = (event) => {
+      if (isStreamingRef.current) {
+        // Prevent the navigation
+        event.preventDefault();
+        // Show the exit warning
+        setShowExitWarning(true);
+        // Push the current state back to the history to prevent navigation
+        window.history.pushState(null, null, window.location.pathname);
+      }
+    };
 
-//     return () => {
-//       window.removeEventListener("beforeunload", handleBeforeUnload);
-//     };
-//   }, []);
+    // Add event listeners
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("popstate", handlePopState);
+    
+    // Block navigation by adding a history entry
+    if (isStreaming) {
+      window.history.pushState(null, null, window.location.pathname);
+    }
+
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [isStreaming]);
 
   // Enhanced cleanup on component unmount
   useEffect(() => {
@@ -98,6 +122,21 @@ const ArtistLiveStream = () => {
         localVideoTrack.close();
       }
       
+          // Use sendBeacon to notify backend that stream has ended
+    if (streamSettings.channel) {
+      const endStreamData = JSON.stringify({
+        channel: streamSettings.channel,
+        abruptExit: true
+      });
+      
+      // Use the sendBeacon API which works during page unload
+      navigator.sendBeacon(
+        `${apiInstance.api.defaults.baseURL}/api/livestream/end-stream/`, 
+        endStreamData
+      );
+      console.log("Sent stream end notification via beacon");
+    }
+
       // Notify backend that stream has ended
       if (streamSettings.channel) {
         try {
@@ -113,8 +152,7 @@ const ArtistLiveStream = () => {
       
       // Leave the channel
       try {
-        await client.leave();
-        console.log("Left channel successfully on exit");
+        client.leave();
       } catch (leaveError) {
         console.error("Error leaving channel on exit:", leaveError);
       }
@@ -122,23 +160,12 @@ const ArtistLiveStream = () => {
       console.error("Error in endStreamOnExit:", error);
     }
   };
+  
 
   // Confirmation dialog for navigation within the app
   const handleNavigateAway = (destination) => {
     if (isStreaming) {
-      // Show confirmation dialog
-      const confirmLeave = window.confirm(
-        "WARNING: You are currently live streaming. If you leave this page, your stream will end and all viewers will be disconnected. Are you sure you want to leave?"
-      );
-      
-      if (confirmLeave) {
-        setIsLeavingPage(true);
-        // End stream first, then navigate
-        endStreamOnExit().then(() => {
-          navigate(destination);
-        });
-      }
-      // If they cancel, stay on the page
+      setShowExitWarning(true);
       return false;
     } else {
       // If not streaming, just navigate
@@ -147,7 +174,13 @@ const ArtistLiveStream = () => {
     }
   };
 
-  // Helper function to play video with retry logic - IMPROVED
+  // Safe exit after ending stream
+  const safeExit = () => {
+    setFullscreenMode(false);
+    navigate('/studio');
+  };
+
+  // Helper function to play video with retry logic
   const playVideoTrack = async (track, retryCount = 0) => {
     if (!track || !localVideoRef.current) return false;
     
@@ -196,14 +229,14 @@ const ArtistLiveStream = () => {
     }
   };
 
-  // FIX: Use a ref to keep track of the video track
+  // Use a ref to keep track of the video track
   useEffect(() => {
     if (localVideoTrack) {
       videoTrackRef.current = localVideoTrack;
     }
   }, [localVideoTrack]);
 
-  // KEY FIX: Play video track when both video and container are available
+  // Play video track when both video and container are available
   useEffect(() => {
     let isMounted = true;
     
@@ -237,7 +270,7 @@ const ArtistLiveStream = () => {
     };
   }, [localVideoTrack, localVideoRef.current]);
 
-  // Separate effect for handling video enabled state changes - IMPROVED
+  // Handle video enabled state changes
   useEffect(() => {
     if (localVideoTrack && videoInitialized) {
       try {
@@ -365,7 +398,7 @@ const ArtistLiveStream = () => {
     }
   };
 
-  // Start the livestream - IMPROVED
+  // Start the livestream
   const startStream = async () => {
     // Prevent multiple start attempts
     if (isStartingStream || isLoading) return;
@@ -400,12 +433,12 @@ const ArtistLiveStream = () => {
         throw error;
       }
       
-      // KEY FIX: Get permissions before creating tracks
+      // Get permissions before creating tracks
       try {
         console.log("Requesting camera/mic permissions...");
         await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         
-        // FIX: Create tracks with better error handling
+        // Create tracks with better error handling
         console.log("Creating audio and video tracks...");
         const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
           {
@@ -425,14 +458,14 @@ const ArtistLiveStream = () => {
         
         console.log("Tracks created successfully");
         
-        // FIX: Save tracks to refs immediately for use outside state updates
+        // Save tracks to refs immediately for use outside state updates
         videoTrackRef.current = videoTrack;
         
         // Set local tracks state
         setLocalAudioTrack(audioTrack);
         setLocalVideoTrack(videoTrack);
         
-        // FIX: Try to play the video track immediately (don't wait for state update)
+        // Try to play the video track immediately
         if (localVideoRef.current) {
           setTimeout(() => {
             playVideoTrack(videoTrack);
@@ -447,6 +480,7 @@ const ArtistLiveStream = () => {
         setTimeout(() => {
           setIsStreaming(true);
           setIsStartingStream(false);
+          setFullscreenMode(true);
           
           // Try again to play video after some time if not initialized yet
           if (!videoInitialized && videoTrackRef.current && localVideoRef.current) {
@@ -516,6 +550,7 @@ const ArtistLiveStream = () => {
       setViewerCount(0);
       setNetworkQuality(null);
       setVideoInitialized(false);
+      setFullscreenMode(false);
       
     } catch (error) {
       console.error("Error ending stream:", error);
@@ -525,7 +560,7 @@ const ArtistLiveStream = () => {
     }
   };
 
-  // Toggle video with retry capability - IMPROVED
+  // Toggle video with retry capability
   const toggleVideo = async () => {
     if (!localVideoTrack) return;
     
@@ -581,7 +616,7 @@ const ArtistLiveStream = () => {
     }
   };
   
-  // Manual retry function for video playback - IMPROVED
+  // Manual retry function for video playback
   const retryVideoPlayback = () => {
     const trackToUse = localVideoTrack || videoTrackRef.current;
     
@@ -640,146 +675,169 @@ const ArtistLiveStream = () => {
     );
   };
 
-  // New warning banner for users who are streaming
-  const renderStreamWarningBanner = () => {
-    if (!isStreaming) return null;
+  // Exit warning modal
+  const renderExitWarningModal = () => {
+    if (!showExitWarning) return null;
     
     return (
-      <div className="bg-yellow-900/40 border border-yellow-800 text-yellow-200 p-3 mx-6 mt-4 mb-4 rounded-lg text-sm">
-        <strong>Important:</strong> Leaving this page will end your stream and disconnect all viewers. 
-        
+      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div className="bg-gray-800 p-6 rounded-lg max-w-md w-full border border-gray-700">
+          <h3 className="text-xl font-bold text-white mb-4">End Your Stream?</h3>
+          <p className="text-gray-300 mb-6">
+            You are currently live streaming. If you leave this page, your stream will end and all viewers will be disconnected.
+          </p>
+          <div className="flex space-x-4">
+            <button
+              onClick={() => setShowExitWarning(false)}
+              className="flex-1 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600"
+            >
+              Continue Streaming
+            </button>
+            <button
+              onClick={() => {
+                setShowExitWarning(false);
+                endStream().then(() => {
+                  setFullscreenMode(false);
+                  navigate('/studio');
+                });
+              }}
+              className="flex-1 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              End Stream & Exit
+            </button>
+          </div>
+        </div>
       </div>
     );
   };
 
-  return (
-    <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <h3 className="text-lg font-semibold text-white">{isStreaming ? "Live" : "Go Live"}</h3>
-          {isStreaming && (
+  // Render the stream view
+  if (fullscreenMode) {
+    return (
+      <div 
+        ref={streamContainerRef}
+        className="fixed inset-0 bg-black z-50 flex flex-col"
+      >
+        {/* Header */}
+        <div className="bg-gray-900 px-6 py-4 flex items-center justify-between border-b border-gray-800">
+          <div className="flex items-center space-x-3">
             <span className="bg-red-600 text-white text-xs px-2 py-1 rounded-md flex items-center">
               <span className="w-2 h-2 bg-white rounded-full mr-1 animate-pulse"></span> 
               LIVE
             </span>
-          )}
-        </div>
-        {/* <button 
-          onClick={() => {
-            if (isStreaming) {
-              // If streaming, ask for confirmation before closing
-              if (window.confirm("Are you sure you want to end your stream?")) {
-                endStream().then(() => onClose());
-              }
-            } else {
-              onClose();
-            }
-          }}
-          className="text-gray-400 hover:text-white"
-          disabled={isStartingStream}
-        >
-          <X size={18} />
-        </button> */}
-      </div>
-      
-{/*       
-      {errorMessage && (
-        <div className="bg-red-900/40 border border-red-900 text-red-200 p-3 mx-6 mt-4 rounded-lg text-sm">
-          {errorMessage}
-          {isStreaming && !videoInitialized && (
-            <div className="mt-2">
-              <button 
-                onClick={retryVideoPlayback}
-                className="text-white text-xs bg-red-800 px-2 py-1 rounded"
-              >
-                Retry Video
-              </button>
-            </div>
-          )}
-        </div>
-      )} */}
-
-      {renderStreamWarningBanner()}
-
-      <div className="p-6">
-        {!isStreaming ? (
-          <div className="text-center py-8">
-            <div className="w-16 h-16 bg-blue-600/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Video size={32} />
-            </div>
-            <h3 className="text-xl font-semibold text-white mb-2">Start Streaming</h3>
-            <p className="text-gray-400 mb-6">
-              Your followers will be notified when you go live
-            </p>
-            <button
-              onClick={startStream}
-              disabled={isLoading || isStartingStream}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center mx-auto"
-            >
-              {(isLoading || isStartingStream) ? (
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-              ) : (
-                <Video size={18} className="mr-2" />
-              )}
-              {isStartingStream ? "Initializing Camera..." : 
-               isLoading ? "Starting Stream..." : "Go Live Now"}
-            </button>
+            <h3 className="text-lg font-semibold text-white">{username}'s Stream</h3>
           </div>
-        ) : (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <h4 className="text-white font-medium">{username}'s Stream</h4>
-                <div className="flex items-center space-x-1 text-gray-400">
-                  <Users size={14} />
-                  <span className="text-sm">{viewerCount}</span>
-                </div>
-              </div>
-              {renderQualityIndicator()}
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-1 text-gray-400">
+              <Users size={16} />
+              <span className="text-sm">{viewerCount}</span>
             </div>
-            
-            <div className="relative aspect-video bg-black rounded-lg overflow-hidden mb-6">
-              {/* KEY FIX: Add unique ID to the video container */}
-              <div ref={localVideoRef} id="local-video-container" className="w-full h-full bg-gray-800"></div>
+            {renderQualityIndicator()}
+          </div>
+        </div>
+
+        {/* Video container */}
+        <div className="flex-1 relative">
+          <div ref={localVideoRef} id="local-video-container" className="w-full h-full bg-gray-900"></div>
+          {!videoInitialized && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+              <div className="text-center">
+                <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                <p className="text-white">Initializing video...</p>
+              </div>
+            </div>
+          )}
+          
+          {/* Stream info overlay */}
+          <div className="absolute top-4 left-4 bg-black/60 text-white px-3 py-2 rounded-md text-sm flex items-center">
+            <span className={`w-2 h-2 rounded-full mr-2 ${videoEnabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
+            {username} (You)
+          </div>
+          
+          {/* Error message */}
+          {errorMessage && (
+            <div className="absolute top-4 right-4 bg-red-900/80 border border-red-800 text-white px-4 py-2 rounded-md max-w-md">
+              {errorMessage}
               {!videoInitialized && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/70">
-                  <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-white">Initializing video...</p>
-                  </div>
-                </div>
+                <button 
+                  onClick={retryVideoPlayback}
+                  className="ml-4 bg-red-700 px-2 py-1 rounded text-sm hover:bg-red-600"
+                >
+                  Retry Video
+                </button>
               )}
-              <div className="absolute top-4 left-4 bg-black/60 text-white px-2 py-1 rounded-md text-sm flex items-center">
-                <span className={`w-2 h-2 rounded-full mr-2 ${videoEnabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                {username} (You)
-              </div>
             </div>
-            
-            <div className="flex justify-center space-x-4 mb-6">
+          )}
+        </div>
+
+        {/* Controls */}
+        <div className="bg-gray-900 px-6 py-4 border-t border-gray-800">
+          <div className="flex items-center justify-between">
+            <div className="flex space-x-4">
               <button
                 onClick={toggleVideo}
                 className={`p-3 rounded-full ${videoEnabled ? 'bg-gray-700 text-white' : 'bg-red-600 text-white'}`}
                 disabled={isLoading}
               >
-                {videoEnabled ? <Video size={18} /> : <VideoOff size={18} />}
+                {videoEnabled ? <Video size={20} /> : <VideoOff size={20} />}
               </button>
               <button
                 onClick={toggleAudio}
                 className={`p-3 rounded-full ${audioEnabled ? 'bg-gray-700 text-white' : 'bg-red-600 text-white'}`}
                 disabled={isLoading}
               >
-                {audioEnabled ? <Mic size={18} /> : <MicOff size={18} />}
-              </button>
-              <button
-                onClick={endStream}
-                className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg transition-colors disabled:opacity-60"
-                disabled={isLoading}
-              >
-                {isLoading ? "Ending..." : "End Stream"}
+                {audioEnabled ? <Mic size={20} /> : <MicOff size={20} />}
               </button>
             </div>
+            
+            <button
+              onClick={() => setShowExitWarning(true)}
+              className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-60"
+              disabled={isLoading}
+            >
+              {isLoading ? "Ending..." : "End Stream & Exit"}
+            </button>
           </div>
-        )}
+        </div>
+        
+        {/* Exit warning modal */}
+        {renderExitWarningModal()}
+      </div>
+    );
+  }
+
+  // Non-fullscreen view (for starting stream)
+  return (
+    <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-800 flex items-center justify-between">
+        <div className="flex items-center space-x-3">
+          <h3 className="text-lg font-semibold text-white">Go Live</h3>
+        </div>
+      </div>
+      
+      <div className="p-6">
+        <div className="text-center py-8">
+          <div className="w-16 h-16 bg-blue-600/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Video size={32} />
+          </div>
+          <h3 className="text-xl font-semibold text-white mb-2">Start Streaming</h3>
+          <p className="text-gray-400 mb-6">
+            Your followers will be notified when you go live
+          </p>
+          <button
+            onClick={startStream}
+            disabled={isLoading || isStartingStream}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center mx-auto"
+          >
+            {(isLoading || isStartingStream) ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+            ) : (
+              <Video size={18} className="mr-2" />
+            )}
+            {isStartingStream ? "Initializing Camera..." : 
+             isLoading ? "Starting Stream..." : "Go Live Now"}
+          </button>
+        </div>
       </div>
     </div>
   );
