@@ -37,6 +37,7 @@ import ArtistPage from './components/user/home/main-content/Artist-section/Artis
 import EqualizerControl from './components/user/home/main-content/music-player/Equalizer';
 import { useDispatch } from 'react-redux';
 import { handlePageReload } from './slices/user/musicPlayerSlice';
+import LivestreamViewerApp from './components/live';
 
 
 // export const logout= () => {
@@ -113,6 +114,9 @@ function App() {
               <Route path="/playlist-show-more" element={<PlaylistShowMorePage/>} />
               <Route path="/albums-show-more" element={<AlbumShowMorePage/>} />
               <Route path="/artist/:artistId" element={<ArtistPage />} />
+              <Route path="/livestreams" element={<LivestreamViewerApp />} />
+
+              {/* <LivestreamViewerApp/> */}
 
 
 

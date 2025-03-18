@@ -117,7 +117,6 @@ const ShufflingDashboard = ({ children }) => {
       <AnimatePresence mode="popLayout">
         {wrappedSections}
       </AnimatePresence>
-      <LivestreamViewerApp/>
 
       <GenreDiscovery />
     </div>
@@ -147,24 +146,20 @@ const Main_Content = () => {
           albumlistResponse, 
           recentlyPlayedResponse, 
           artistlistResponse,
-          liveStreamsResponse
         ] = await Promise.all([
           api.get(`/api/home/musiclist/?top10=true`),
           api.get("/api/home/playlist/?top10=true"),
           api.get("/api/home/albumlist/?top10=true"),
           api.get("/api/listening_history/recently-played/"),
           api.get("/api/home/artistlist/"),
-          api.get("/api/livestream/streams/")
         ]);
         
-        console.log('Live streams response:', liveStreamsResponse.data);
         
         setMusiclistData(musiclistResponse.data.results || []);
         setPlaylistData(playlistResponse.data.results || []);
         setAlbumlistData(albumlistResponse.data.results || []);
         setRecentlyPlayedData(recentlyPlayedResponse.data || []);
         setArtistlist(artistlistResponse.data || []);
-        setLiveStreams(liveStreamsResponse.data || []);
       } catch (err) {
         setError("Failed to load data.");
         console.error("Error fetching data:", err);
@@ -175,17 +170,7 @@ const Main_Content = () => {
 
     fetchData();
     
-    // Set up polling for live streams every 30 seconds
-    const liveStreamsPoll = setInterval(async () => {
-      try {
-        const response = await api.get("/api/livestream/streams/");
-        setLiveStreams(response.data || []);
-      } catch (err) {
-        console.error("Error polling live streams:", err);
-      }
-    }, 30000);
-    
-    return () => clearInterval(liveStreamsPoll);
+
   }, []);
   
   if (error) return <div className="text-white">{error}</div>;
@@ -226,12 +211,6 @@ const Main_Content = () => {
       )}
 
 
-{/* {liveStreams.length > 0 && (
-        <LiveStreamSection
-          title="Live Now"
-          items={liveStreams}
-        />
-      )} */}
     </ShufflingDashboard>
   );
 };

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Search, ChevronLeft, ChevronRight, Home } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Home, Video } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import { useArtistStatus } from '../../../../hooks/useArtistStatus';
 import api from '../../../../api';
@@ -150,6 +150,16 @@ const Header = () => {
           <Home className="h-6 w-6" />
           <span className="text-base font-medium">Home</span>
         </button>
+        
+        {/* Livestream Button */}
+        <button
+          className="flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors"
+          onClick={() => handleNavigation('/livestreams')}
+        >
+          <Video className="h-6 w-6" />
+          <span className="text-base font-medium">Livestream</span>
+        </button>
+        
         <div className="flex-1 mx-4 max-w-md">
           <div className="flex items-center bg-gray-800 rounded-full px-2">
             <Search className="h-4 w-4 text-gray-400" />
