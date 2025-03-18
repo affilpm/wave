@@ -26,10 +26,12 @@ export const logout = async (dispatch) => {
         localStorage.removeItem(ACCESS_TOKEN);
         localStorage.removeItem(REFRESH_TOKEN);
 
-        persistor.flush().then( () => {
-            dispatch(clearUserData())
+        delete api.defaults.headers.common.Authorization;
+        
+        persistor.purge().then( () => {
+            window.location.href = '/landingpage';
         })
-        window.location.href = '/landingpage';
+        
     }
 };
 
