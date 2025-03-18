@@ -26,10 +26,12 @@ export const adminLogout = async () => {
         localStorage.removeItem(ACCESS_TOKEN);
         localStorage.removeItem(REFRESH_TOKEN);
 
-        persistor.flush().then( () => {
-            dispatch(clearUserData())
+        delete api.defaults.headers.common.Authorization;
+        
+        persistor.purge().then( () => {
+            window.location.href = '/adminlogin';
         })
-        window.location.href = '/adminlogin';
+        
     }
 };
 

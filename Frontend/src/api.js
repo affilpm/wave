@@ -183,8 +183,8 @@ export class api {
       console.error('Error during logout:', error);
   } finally {
       // Clean up tokens
-      this.setToken('accessTokenKey', null);
-      this.setToken('refreshTokenKey', null);
+      localStorage.removeItem(this.config.accessTokenKey);
+      localStorage.removeItem(this.config.refreshTokenKey);
       
       // Clean up API instance
       delete this.api.defaults.headers.common.Authorization;
