@@ -61,3 +61,34 @@ class StreamParticipant(models.Model):
         if not self.left_at:
             self.left_at = timezone.now()
             self.save()
+            
+            
+            
+            
+
+
+class StreamParticipant(models.Model):
+    stream = models.ForeignKey(LiveStream, on_delete=models.CASCADE, related_name='participants')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    joined_at = models.DateTimeField(auto_now_add=True)
+    last_active = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        unique_together = ('stream', 'user')
+        
+    def __str__(self):
+        return f"{self.user.username} in {self.stream.channel_name}"
+
+
+class ChatMessage(models.Model):
+    stream = models.ForeignKey(LiveStream, on_delete=models.CASCADE, related_name='chat_messages')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['created_at']
+        
+    def __str__(self):
+        return f"{self.user.username}: {self.message[:30]}{'...' if len(self.message) > 30 else ''}"            

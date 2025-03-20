@@ -11,5 +11,6 @@ urlpatterns = [
     path('', include(router.urls)),
     path('token/', AgoraTokenView.as_view(), name='agora-token'),
     path('end-stream/', EndStreamView.as_view(), name='end-stream'),
+    # path('token/<str:channel_name>/<str:user_id>/', generate_agora_token),
     
 ]

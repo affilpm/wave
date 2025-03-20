@@ -34,10 +34,13 @@ import PlaylistShowMorePage from './components/user/home/main-content/Playlist-s
 import AlbumShowMorePage from './components/user/home/main-content/Album-section/AlbumShowMore';
 import ArtistPage from './components/user/home/main-content/Artist-section/ArtistPage';
 // import LivestreamApp from './components/live';
-import EqualizerControl from './components/user/home/header/settings/Equalizer';
+import EqualizerControl from './components/user/home/main-content/music-player/Equalizer';
 import { useDispatch } from 'react-redux';
 import { handlePageReload } from './slices/user/musicPlayerSlice';
 import LivestreamViewerApp from './components/live';
+import StreamListingPage from './components/livestream/LiveStreamViewerApp';
+import VideoStreamingPage from './components/livestream/VideoStreamingPage';
+import LiveStream from './components/livestream/fdf';
 
 
 // export const logout= () => {
@@ -89,6 +92,7 @@ function App() {
 
 
 
+        <Route path="/stream/:streamId" element={<VideoStreamingPage/>} />
 
 
 
@@ -114,7 +118,8 @@ function App() {
               <Route path="/playlist-show-more" element={<PlaylistShowMorePage/>} />
               <Route path="/albums-show-more" element={<AlbumShowMorePage/>} />
               <Route path="/artist/:artistId" element={<ArtistPage />} />
-              <Route path="/livestreams" element={<LivestreamViewerApp />} />
+              <Route path="/livestreams" element={<LiveStream/>} />
+
 
               {/* <LivestreamViewerApp/> */}
 

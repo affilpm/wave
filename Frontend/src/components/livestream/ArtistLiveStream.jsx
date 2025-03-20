@@ -1,9 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
-import { ArrowLeft, Video, Mic, MicOff, VideoOff, Users, X } from 'lucide-react';
+import { ArrowLeft, Video, Mic, MicOff, VideoOff, Users, X, Send, MessageCircle  } from 'lucide-react';
 import { apiInstance } from '../../api';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
+import "./chat.css";
+import Chat from './chat';
+import MobileChat from './chat';
+import LargeScreenChat from './LargeScreenChat';
 
 const ArtistLiveStream = () => {
   // State variables
@@ -29,7 +33,12 @@ const ArtistLiveStream = () => {
   const [isLeavingPage, setIsLeavingPage] = useState(false);
   const [showExitWarning, setShowExitWarning] = useState(false);
   const [fullscreenMode, setFullscreenMode] = useState(false);
-
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [wsConnection, setWsConnection] = useState(null);
+  const messagesEndRef = useRef(null);
+  const [showChat, setShowChat] = useState(false);
+  const [commonEmojis, setCommonEmojis] = useState(['👍', '❤️', '😂', '🔥', '👏', '😮']);
   // Get user data from Redux store
   const { username, photo, image } = useSelector((state) => state.user);
   
@@ -43,6 +52,28 @@ const ArtistLiveStream = () => {
   const videoTrackRef = useRef(null);
   const isStreamingRef = useRef(false); // Track streaming state in a ref for cleanup functions
   const streamContainerRef = useRef(null);
+
+
+const [unreadCount, setUnreadCount] = useState(0);
+
+
+
+  const toggleChat = () => {
+    setShowChat(prevShowChat => !prevShowChat);
+    // Reset unread count when opening chat
+    if (!showChat) {
+      setUnreadCount(0);
+    }
+  };
+  
+
+
+
+
+
+
+
+
 
   // Update streaming ref when state changes
   useEffect(() => {
@@ -711,100 +742,133 @@ const ArtistLiveStream = () => {
     );
   };
 
-  // Render the stream view
-  if (fullscreenMode) {
-    return (
-      <div 
-        ref={streamContainerRef}
-        className="fixed inset-0 bg-black z-50 flex flex-col"
-      >
-        {/* Header */}
-        <div className="bg-gray-900 px-6 py-4 flex items-center justify-between border-b border-gray-800">
-          <div className="flex items-center space-x-3">
-            <span className="bg-red-600 text-white text-xs px-2 py-1 rounded-md flex items-center">
-              <span className="w-2 h-2 bg-white rounded-full mr-1 animate-pulse"></span> 
-              LIVE
-            </span>
-            <h3 className="text-lg font-semibold text-white">{username}'s Stream</h3>
-          </div>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-1 text-gray-400">
-              <Users size={16} />
-              <span className="text-sm">{viewerCount}</span>
-            </div>
-            {renderQualityIndicator()}
-          </div>
+// Render the stream view
+if (fullscreenMode) {
+  return (
+    <div 
+      ref={streamContainerRef}
+      className="fixed inset-0 bg-black z-50 flex flex-col h-screen"
+    >
+      {/* Header - fixed height */}
+      <div className="bg-gray-900 px-6 py-3 flex items-center justify-between border-b border-gray-800 h-14 flex-shrink-0">
+        <div className="flex items-center space-x-3">
+          <span className="bg-red-600 text-white text-xs px-2 py-1 rounded-md flex items-center">
+            <span className="w-2 h-2 bg-white rounded-full mr-1 animate-pulse"></span> 
+            LIVE
+          </span>
+          <h3 className="text-lg font-semibold text-white">{username}'s Stream</h3>
         </div>
-
-        {/* Video container */}
-        <div className="flex-1 relative">
-          <div ref={localVideoRef} id="local-video-container" className="w-full h-full bg-gray-900"></div>
-          {!videoInitialized && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/70">
-              <div className="text-center">
-                <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                <p className="text-white">Initializing video...</p>
-              </div>
-            </div>
-          )}
-          
-          {/* Stream info overlay */}
-          <div className="absolute top-4 left-4 bg-black/60 text-white px-3 py-2 rounded-md text-sm flex items-center">
-            <span className={`w-2 h-2 rounded-full mr-2 ${videoEnabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
-            {username} (You)
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-1 text-gray-400">
+            <Users size={16} />
+            <span className="text-sm">{viewerCount}</span>
           </div>
-          
-          {/* Error message */}
-          {errorMessage && (
-            <div className="absolute top-4 right-4 bg-red-900/80 border border-red-800 text-white px-4 py-2 rounded-md max-w-md">
-              {errorMessage}
+          {renderQualityIndicator()}
+        </div>
+      </div>
+
+      {/* Main content area - flexible height between header and controls */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Video container - takes remaining space */}
+        <div className="flex-1 bg-gray-900 flex items-center justify-center">
+          <div className="relative w-full h-full flex items-center justify-center mx-auto">
+            <div className="w-full h-full flex items-center justify-center overflow-hidden rounded-lg relative bg-black">
+              <video 
+                ref={localVideoRef} 
+                className="max-w-full max-h-full object-contain"
+                autoPlay 
+                playsInline 
+                muted 
+              />
+              
               {!videoInitialized && (
-                <button 
-                  onClick={retryVideoPlayback}
-                  className="ml-4 bg-red-700 px-2 py-1 rounded text-sm hover:bg-red-600"
-                >
-                  Retry Video
-                </button>
+                <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+                  <div className="text-center">
+                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                    <p className="text-white">Initializing video...</p>
+                  </div>
+                </div>
+              )}
+              
+              {/* Stream info overlay */}
+              <div className="absolute top-4 left-4 bg-black/60 text-white px-3 py-2 rounded-md text-sm flex items-center">
+                <span className={`w-2 h-2 rounded-full mr-2 ${videoEnabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                {username} (You)
+              </div>
+              
+              {/* Error message */}
+              {errorMessage && (
+                <div className="absolute top-4 right-4 bg-red-900/80 border border-red-800 text-white px-4 py-2 rounded-md max-w-md">
+                  {errorMessage}
+                  {!videoInitialized && (
+                    <button 
+                      onClick={retryVideoPlayback}
+                      className="ml-4 bg-red-700 px-2 py-1 rounded text-sm hover:bg-red-600"
+                    >
+                      Retry Video
+                    </button>
+                  )}
+                </div>
               )}
             </div>
-          )}
-        </div>
-
-        {/* Controls */}
-        <div className="bg-gray-900 px-6 py-4 border-t border-gray-800">
-          <div className="flex items-center justify-between">
-            <div className="flex space-x-4">
-              <button
-                onClick={toggleVideo}
-                className={`p-3 rounded-full ${videoEnabled ? 'bg-gray-700 text-white' : 'bg-red-600 text-white'}`}
-                disabled={isLoading}
-              >
-                {videoEnabled ? <Video size={20} /> : <VideoOff size={20} />}
-              </button>
-              <button
-                onClick={toggleAudio}
-                className={`p-3 rounded-full ${audioEnabled ? 'bg-gray-700 text-white' : 'bg-red-600 text-white'}`}
-                disabled={isLoading}
-              >
-                {audioEnabled ? <Mic size={20} /> : <MicOff size={20} />}
-              </button>
-            </div>
-            
-            <button
-              onClick={() => setShowExitWarning(true)}
-              className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-60"
-              disabled={isLoading}
-            >
-              {isLoading ? "Ending..." : "End Stream & Exit"}
-            </button>
           </div>
         </div>
         
-        {/* Exit warning modal */}
-        {renderExitWarningModal()}
+
       </div>
-    );
-  }
+
+
+
+      {/* Controls - fixed height at bottom */}
+      <div className="bg-gray-900 px-6 py-3 border-t border-gray-800 h-16 flex-shrink-0 z-10">
+        <div className="flex items-center justify-between h-full">
+          <div className="flex space-x-4">
+            <button
+              onClick={toggleVideo}
+              className={`p-3 rounded-full ${videoEnabled ? 'bg-gray-700 text-white' : 'bg-red-600 text-white'}`}
+              disabled={isLoading}
+            >
+              {videoEnabled ? <Video size={20} /> : <VideoOff size={20} />}
+            </button>
+            <button
+              onClick={toggleAudio}
+              className={`p-3 rounded-full ${audioEnabled ? 'bg-gray-700 text-white' : 'bg-red-600 text-white'}`}
+              disabled={isLoading}
+            >
+              {audioEnabled ? <Mic size={20} /> : <MicOff size={20} />}
+            </button>
+          </div>
+          
+          <button
+            onClick={() => setShowExitWarning(true)}
+            className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-lg font-medium transition-colors disabled:opacity-60"
+            disabled={isLoading}
+          >
+            {isLoading ? "Ending..." : "End Stream & Exit"}
+          </button>
+        </div>
+      </div>
+      
+      {/* Exit warning modal */}
+      {renderExitWarningModal()}
+      
+      <style jsx>{`
+        .overflow-y-auto::-webkit-scrollbar {
+          width: 4px;
+        }
+        
+        .overflow-y-auto::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+          background-color: rgba(75, 85, 99, 0.5);
+          border-radius: 20px;
+        }
+      `}</style>
+    </div>
+  );
+}
 
   // Non-fullscreen view (for starting stream)
   return (
@@ -839,6 +903,8 @@ const ArtistLiveStream = () => {
           </button>
         </div>
       </div>
+
+
     </div>
   );
 };
