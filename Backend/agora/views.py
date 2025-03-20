@@ -30,8 +30,39 @@ from django.utils import timezone
 from artists.models import Follow
 
 
+# from rest_framework.decorators import api_view, permission_classes
+# from rest_framework.permissions import IsAuthenticated
+# from rest_framework.response import Response
+# from agora_token_service.RtcTokenBuilder import RtcTokenBuilder
+# from agora_token_service.RtmTokenBuilder import RtmTokenBuilder
+# Role_Attendee = 0 # depreated, same as publisher
+# Role_Publisher = 1 # for live broadcaster
+# Role_Subscriber = 2 # default, for live audience
+# Role_Admin = 101 # deprecated, same as publisher
+# from django.conf import settings
+# import time
 
+# @api_view(['GET'])
+# @permission_classes([IsAuthenticated])  # Requires Authentication
+# def generate_agora_token(request, channel_name):
+#     user_id = request.user.id  # Get the authenticated user's ID
+#     app_id = settings.AGORA_APP_ID
+#     app_certificate = settings.AGORA_APP_CERTIFICATE
+#     expire_time = 3600  # 1 hour
 
+#     rtc_token = RtcTokenBuilder.buildTokenWithUid(
+#         app_id, app_certificate, channel_name, user_id, Role_Publisher, int(time.time()) + expire_time
+#     )
+#     rtm_token = RtmTokenBuilder.buildToken(
+#         app_id, app_certificate, str(user_id), Role_Publisher, int(time.time()) + expire_time
+#     )
+
+#     return Response({
+#         "rtc_token": rtc_token,
+#         "rtm_token": rtm_token,
+#         "channel_name": channel_name,
+#         "user_id": user_id
+#     })
 
 
 
@@ -51,17 +82,23 @@ class AgoraTokenView(APIView):
             channel_name = request.GET.get('channel', '')
             if not channel_name:
                 channel_name = f"stream-{request.user.id}-{int(time.time())}"
-            
+            print(f"Type of request.user: {type(request.user)}")
+            print(f"Type of request.user.id: {type(request.user.id)}")
+            print(f"User ID value: {request.user.id}")
             is_host = request.GET.get('role', 'audience').lower() == 'host'
             role = 1 if is_host else 2  # 1=host, 2=audience
 
             if is_host:
+                
+                if request.user.is_superuser:
+                    raise PermissionDenied("Superusers cannot host a stream.")
+    
                 # Check if user is an approved artist
                 if not hasattr(request.user, 'artist_profile') or request.user.artist_profile.status != 'approved':
                     raise PermissionDenied("Only approved artists can start a stream.")
                 
                 # Check for an existing active stream and end it
-                existing_stream = LiveStream.objects.filter(host=request.user, status='active').first()
+                existing_stream = LiveStream.objects.filter(host_id=request.user.id, status='active').first()
                 if existing_stream:
                     existing_stream.status = 'ended'
                     existing_stream.ended_at = timezone.now()
@@ -69,7 +106,7 @@ class AgoraTokenView(APIView):
 
                 # Create a new stream
                 stream = LiveStream.objects.create(
-                    host=request.user,
+                    host_id=request.user.id,
                     channel_name=channel_name,
                     status='active',
                     title=request.GET.get('title', f"{request.user.username}'s Stream")
@@ -80,20 +117,26 @@ class AgoraTokenView(APIView):
                 if not stream:
                     raise PermissionDenied("Stream not found or not active.")
 
+                # Prevent superusers from joining streams
+                if request.user.is_superuser:
+                    print("Superuser attempted to join a stream, blocking...")  # Debugging
+                    return JsonResponse({'error': "Superusers cannot join streams."}, status=403)
+                
                 # Ensure the user is following the artist before joining
-                if not Follow.objects.filter(user=request.user, artist=stream.host.artist_profile).exists():
+                if not Follow.objects.filter(user_id=request.user.id, artist=stream.host.artist_profile).exists():
                     raise PermissionDenied("You must follow the artist to join the stream.")
 
                 # Record the participant
-                StreamParticipant.objects.get_or_create(stream=stream, user=request.user)
-            
+                StreamParticipant.objects.get_or_create(stream=stream, user_id=request.user.id)
+            # Add this before your problematic code
+
             # Generate Agora token
             token = self.generate_token(channel_name, request.user.id, role)
 
             return JsonResponse({
                 'token': token,
                 'channel': channel_name,
-                'uid': request.user.id,
+                'uid': int(request.user.id),
                 'app_id': APP_ID,
                 'role': 'host' if is_host else 'audience'
             })
@@ -102,18 +145,22 @@ class AgoraTokenView(APIView):
             print(f"Error occurred: {str(e)}")  # Debugging output
             return JsonResponse({'error': str(e)}, status=400)
     
+
+
     def generate_token(self, channel_name, uid, role):
         try:
             current_timestamp = int(time.time())
             expiration_timestamp = current_timestamp + EXPIRATION_TIME_IN_SECONDS
 
+            # Assign a unique UID if the provided one is 0 or None
+            uid = int(uid) if uid else random.randint(1, 2**32 - 1)
+
             return RtcTokenBuilder.buildTokenWithUid(
                 APP_ID, APP_CERTIFICATE, channel_name, uid, role, expiration_timestamp
             )
         except Exception as e:
-            print(f"Error generating token: {str(e)}")  # Debugging output
+            print(f"Error generating token: {str(e)}")
             raise e
-
 
 class EndStreamView(APIView):
     permission_classes = [IsAuthenticated]
@@ -144,6 +191,8 @@ class EndStreamView(APIView):
 
 
 
+# Update in your views.py
+
 class LiveStreamViewSet(viewsets.ModelViewSet):
     queryset = LiveStream.objects.filter(status='active')
     serializer_class = None  # Will be defined in your project
@@ -151,10 +200,8 @@ class LiveStreamViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'host__username']
     ordering_fields = ['created_at', 'participant_count']
-    ordering = ['-created_at']  # Default ordering
+    ordering = ['-created_at']
 
-
-    
     def list(self, request, *args, **kwargs):
         """
         Custom list method to include followed artists with their streams
@@ -187,6 +234,14 @@ class LiveStreamViewSet(viewsets.ModelViewSet):
                 ).first()
                 
                 if stream:
+                    # Get accurate active viewer count (active in last 30 seconds)
+                    active_time = timezone.now() - timezone.timedelta(seconds=30)
+                    participant_count = StreamParticipant.objects.filter(
+                        stream=stream,
+                        is_active=True,
+                        last_active__gte=active_time
+                    ).count()
+                    
                     followed_artists.append({
                         'id': follow.id,
                         'user': {
@@ -201,7 +256,7 @@ class LiveStreamViewSet(viewsets.ModelViewSet):
                         },
                         'artist': artist_data,
                         'channel_name': stream.channel_name,
-                        'participant_count': stream.participants.count()
+                        'participant_count': participant_count
                     })
         
         return Response(followed_artists)

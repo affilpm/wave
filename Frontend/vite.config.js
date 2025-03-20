@@ -12,14 +12,14 @@ export default defineConfig({
   server: {
     proxy: {
       '/ws/webrtc': {
-        target: 'ws://localhost:8000', // Updated to 8000
+        target: 'ws://localhost:8000',
         ws: true,
         changeOrigin: true,
       },
     },
     headers: {
       'Content-Security-Policy': `
-        default-src 'self' https://accounts.google.com https://*.gstatic.com blob: https://*.razorpay.com;
+        default-src 'self' https://accounts.google.com https://*.gstatic.com blob: https://*.razorpay.com 'unsafe-eval' 'unsafe-inline' data:;
         script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://*.gstatic.com https://*.razorpay.com;
         style-src 'self' 'unsafe-inline' https://accounts.google.com https://*.gstatic.com;
         frame-src 'self' https://accounts.google.com https://*.gstatic.com https://*.razorpay.com;
@@ -38,6 +38,7 @@ export default defineConfig({
         img-src 'self' http://localhost:* https: data: blob:;
         media-src 'self' blob: data: http://localhost:* https://localhost:*;
         font-src 'self' data:;
+        worker-src 'self' blob:;
       `.replace(/\s+/g, ' ').trim(),
     },
   },
