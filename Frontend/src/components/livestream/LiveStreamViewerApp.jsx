@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
 import { apiInstance } from '../../api';
-import { Play, Pause, ChevronLeft, ChevronRight, User, Users, Maximize, Minimize, X, RefreshCw } from "lucide-react";
+import { Play, Pause, ChevronLeft, User, Users, Maximize, Minimize, X, RefreshCw, ArrowLeft, Video, VideoOff, Mic, MicOff } from "lucide-react";
+import { useNavigate } from 'react-router-dom';
+
 
 const LivestreamViewerApp = () => {
   // State variables
@@ -21,15 +23,22 @@ const LivestreamViewerApp = () => {
   const [selectedStream, setSelectedStream] = useState(null);
   const [showControls, setShowControls] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showExitWarning, setShowExitWarning] = useState(false);
+  const [videoInitialized, setVideoInitialized] = useState(false);
+  // Add state for video aspect ratio
+  const [videoAspectRatio, setVideoAspectRatio] = useState(16/9); // Default aspect ratio
 
+  const navigate = useNavigate();
   // Reference to Agora client
   const clientRef = useRef(null);
   // References to video containers
   const remoteVideoRefs = useRef({});
-  // Reference for stream scroll container
-  const scrollContainerRef = useRef(null);
   // Reference for fullscreen container
   const fullscreenContainerRef = useRef(null);
+  // Reference for stream container
+  const streamContainerRef = useRef(null);
+  // Reference for video wrapper
+  const videoWrapperRef = useRef(null);
 
   // Initialize on page load
   useEffect(() => {
@@ -41,6 +50,52 @@ const LivestreamViewerApp = () => {
       cleanupResources();
     };
   }, []);
+
+// 1. First, add videoInitialized to the dependency array
+useEffect(() => {
+  if (!videoWrapperRef.current || !started) return;
+
+  const updateVideoSize = () => {
+    const container = videoWrapperRef.current;
+    if (!container) return;
+
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    const containerAspectRatio = containerWidth / containerHeight;
+
+    const videoElements = container.querySelectorAll('.remote-video-element');
+    videoElements.forEach(videoElement => {
+      // If container is wider than video, fit to height
+      if (containerAspectRatio > videoAspectRatio) {
+        const newWidth = containerHeight * videoAspectRatio;
+        videoElement.style.width = `${newWidth}px`;
+        videoElement.style.height = '100%';
+      } else {
+        // If container is taller than video, fit to width
+        const newHeight = containerWidth / videoAspectRatio;
+        videoElement.style.width = '100%';
+        videoElement.style.height = `${newHeight}px`;
+      }
+    });
+  };
+
+  // Initialize ResizeObserver
+  const resizeObserver = new ResizeObserver(() => {
+    updateVideoSize();
+  });
+
+  resizeObserver.observe(videoWrapperRef.current);
+  
+  // Call once to set initial size
+  updateVideoSize();
+
+  return () => {
+    if (videoWrapperRef.current) {
+      resizeObserver.unobserve(videoWrapperRef.current);
+    }
+    resizeObserver.disconnect();
+  };
+}, [started, videoAspectRatio, videoWrapperRef.current, videoInitialized]); // Added videoInitialized here
 
   // Handle network quality updates
   useEffect(() => {
@@ -72,12 +127,20 @@ const LivestreamViewerApp = () => {
   useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
+      
+      // When entering fullscreen, modify body to prevent scrolling
+      if (document.fullscreenElement) {
+        document.body.style.overflow = 'hidden';
+      } else {
+        document.body.style.overflow = '';
+      }
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     
     return () => {
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.body.style.overflow = ''; // Reset on unmount
     };
   }, []);
 
@@ -189,6 +252,14 @@ const LivestreamViewerApp = () => {
           
           // Play the remote video with retry logic
           if (user.videoTrack) {
+            // Get stream information to set proper aspect ratio
+            user.videoTrack.getMediaStreamTrack().addEventListener('loadedmetadata', (e) => {
+              if (e.target.videoWidth && e.target.videoHeight) {
+                setVideoAspectRatio(e.target.videoWidth / e.target.videoHeight);
+                console.log(`Video dimensions: ${e.target.videoWidth}x${e.target.videoHeight}`);
+              }
+            });
+            
             setTimeout(() => {
               const attemptPlay = async (attempts = 0) => {
                 if (attempts > 3) {
@@ -198,20 +269,51 @@ const LivestreamViewerApp = () => {
                 
                 try {
                   if (remoteVideoRefs.current[user.uid]) {
-                    await user.videoTrack.play(remoteVideoRefs.current[user.uid]);
+                    await user.videoTrack.play(remoteVideoRefs.current[user.uid], {
+                      fit: "contain" // Use contain mode to show full video
+                    });
                     console.log("Remote video playing successfully");
+                    setVideoInitialized(true);
+                    
+                    // Add this explicit call to update video size after successful play
+                    if (videoWrapperRef.current) {
+                      // Force resize calculation after video is initialized
+                      const updateVideoSize = () => {
+                        const container = videoWrapperRef.current;
+                        if (!container) return;
+                        
+                        const containerWidth = container.clientWidth;
+                        const containerHeight = container.clientHeight;
+                        const containerAspectRatio = containerWidth / containerHeight;
+                        
+                        const videoElement = remoteVideoRefs.current[user.uid];
+                        if (videoElement) {
+                          if (containerAspectRatio > videoAspectRatio) {
+                            const newWidth = containerHeight * videoAspectRatio;
+                            videoElement.style.width = `${newWidth}px`;
+                            videoElement.style.height = '100%';
+                          } else {
+                            const newHeight = containerWidth / videoAspectRatio;
+                            videoElement.style.width = '100%';
+                            videoElement.style.height = `${newHeight}px`;
+                          }
+                        }
+                      };
+                      
+                      // Call immediately and also with a small delay to ensure DOM updates
+                      updateVideoSize();
+                      setTimeout(updateVideoSize, 100);
+                    }
                   } else {
-                    console.log("Remote video ref not ready, retrying...");
-                    setTimeout(() => attemptPlay(attempts + 1), 500);
+                    // ... rest of the existing code ...
                   }
                 } catch (error) {
-                  console.error("Error playing remote video:", error);
-                  setTimeout(() => attemptPlay(attempts + 1), 500);
+                  // ... existing error handling ...
                 }
               };
               
               attemptPlay();
-            }, 500); // Added delay before first attempt
+            }, 500);
           }
         }
         
@@ -340,13 +442,36 @@ const LivestreamViewerApp = () => {
       setConnectionStatus("Not connected");
       setErrorMessage("");
       setNetworkQuality(null);
+      setVideoInitialized(false);
       
     } catch (error) {
       console.error("Error leaving channel:", error);
       setErrorMessage(`Leave error: ${error.message}`);
     } finally {
       setIsLoading(false);
+      setShowExitWarning(false);
     }
+  };
+  
+  // Retry video playback
+  const retryVideoPlayback = () => {
+    if (remoteUsers.length === 0) return;
+    
+    remoteUsers.forEach(user => {
+      if (user.videoTrack && remoteVideoRefs.current[user.uid]) {
+        user.videoTrack.play(remoteVideoRefs.current[user.uid], {
+          fit: "contain" // Use contain mode to show full video
+        })
+          .then(() => {
+            setVideoInitialized(true);
+            setErrorMessage("");
+          })
+          .catch(error => {
+            console.error("Error retrying video playback:", error);
+            setErrorMessage(`Unable to play video: ${error.message}`);
+          });
+      }
+    });
   };
 
   // Refresh the list of available streams
@@ -354,33 +479,10 @@ const LivestreamViewerApp = () => {
     fetchAvailableStreams();
   };
 
-  // Toggle fullscreen
-  const toggleFullscreen = () => {
-    if (!fullscreenContainerRef.current) return;
-    
-    if (!document.fullscreenElement) {
-      fullscreenContainerRef.current.requestFullscreen().catch(err => {
-        console.error(`Error attempting to enable fullscreen: ${err.message}`);
-      });
-    } else {
-      document.exitFullscreen();
-    }
-  };
-
-  // Handle scroll buttons for stream list
-  const handleScroll = (direction) => {
-    const container = scrollContainerRef.current;
-    if (container) {
-      const scrollAmount = 300;
-      container.scrollBy({
-        left: direction === 'left' ? -scrollAmount : scrollAmount,
-        behavior: 'smooth'
-      });
-    }
-  };
-
   // Get artist full name with fallbacks
   const getArtistName = (stream) => {
+    if (!stream) return 'Unknown';
+    
     if (stream.artist) {
       const firstName = stream.artist.first_name || '';
       const lastName = stream.artist.last_name || '';
@@ -432,125 +534,6 @@ const LivestreamViewerApp = () => {
     return name.charAt(0).toUpperCase();
   };
 
-  // Render the stream list in a modern gallery style
-  const renderStreamList = () => {
-    return (
-      <div className="relative mb-12">
-        <div 
-          className="relative"
-          onMouseEnter={() => setShowControls(true)}
-          onMouseLeave={() => setShowControls(false)}
-        >
-          {showControls && availableStreams.length > 3 && (
-            <>
-              <button
-                onClick={() => handleScroll('left')}
-                className="absolute -left-3 top-1/2 z-10 p-2 bg-gray-900 hover:bg-gray-800 text-white rounded-full transform -translate-y-1/2 shadow-lg transition-all hover:scale-110"
-                aria-label="Scroll left"
-              >
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              
-              <button
-                onClick={() => handleScroll('right')}
-                className="absolute -right-3 top-1/2 z-10 p-2 bg-gray-900 hover:bg-gray-800 text-white rounded-full transform -translate-y-1/2 shadow-lg transition-all hover:scale-110"
-                aria-label="Scroll right"
-              >
-                <ChevronRight className="h-5 w-5" />
-              </button>
-            </>
-          )}
-
-          <div 
-            ref={scrollContainerRef}
-            className="overflow-x-auto py-6 -mx-4 px-4 hide-scrollbar"
-            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-          >
-            {availableStreams.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-64 rounded-xl bg-gray-800/50 text-gray-400 px-4">
-                <div className="text-lg mb-3">No streams available right now</div>
-                <button 
-                  onClick={refreshStreams}
-                  className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  <span>Refresh</span>
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-                {availableStreams.map((stream) => (
-                  <div
-                    key={stream.id}
-                    className="group"
-                    onClick={() => startStream(stream)}
-                  >
-                    <div className="relative cursor-pointer overflow-hidden rounded-2xl bg-gray-800 aspect-video shadow-md transition-all group-hover:shadow-xl group-hover:shadow-indigo-900/20">
-                      {stream.thumbnail ? (
-                        <img
-                          src={stream.thumbnail}
-                          alt={`Stream by ${getArtistName(stream)}`}
-                          className="w-full h-full object-cover transform transition-transform group-hover:scale-105"
-                        />
-                      ) : (
-                        <div
-                          className={`w-full h-full flex items-center justify-center ${getAvatarBackground(stream)} text-3xl font-bold text-white transform transition-transform group-hover:scale-105`}
-                        >
-                          {getArtistInitial(stream)}
-                        </div>
-                      )}
-                      
-                      {/* Overlay and controls */}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20 opacity-80 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-4">
-                        <div className="flex justify-between">
-                          <div className="bg-red-600 text-white text-xs px-2 py-1 rounded-full font-bold tracking-wide flex items-center space-x-1">
-                            <span className="h-2 w-2 bg-white rounded-full animate-pulse"></span>
-                            <span>LIVE</span>
-                          </div>
-                          
-                          {stream.participant_count > 0 && (
-                            <div className="bg-black/70 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                              <Users className="h-3 w-3" />
-                              <span>{stream.participant_count}</span>
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div
-                          className={`absolute bottom-4 right-4 w-12 h-12 ${
-                            selectedStream?.id === stream.id && started
-                              ? 'bg-red-600 group-hover:bg-red-700'
-                              : 'bg-indigo-600 group-hover:bg-indigo-500'
-                          } rounded-full flex items-center justify-center shadow-xl transition-transform group-hover:scale-110`}
-                        >
-                          {selectedStream?.id === stream.id && started ? (
-                            <Pause className="w-6 h-6 text-white" />
-                          ) : (
-                            <Play className="w-6 h-6 text-white" />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-3 px-1">
-                      <h3 className="font-bold text-white text-lg leading-tight">
-                        {stream.title || `${getArtistName(stream)}'s Stream`}
-                      </h3>
-                      <p className="text-sm text-gray-400 mt-1 flex items-center gap-1">
-                        <User className="h-3 w-3" />
-                        <span>{getArtistName(stream)}</span>
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // Render quality indicator
   const renderQualityIndicator = () => {
     if (!networkQuality) return null;
@@ -582,191 +565,330 @@ const LivestreamViewerApp = () => {
     };
 
     return (
-      <div className="bg-black/60 backdrop-blur-sm px-3 py-1 rounded-full text-sm flex items-center">
-        <span className="mr-1">Quality:</span>
+      <div className="flex items-center space-x-1 text-gray-400">
         <span className={getQualityColor(networkQuality.downlinkNetworkQuality)}>
           {getQualityText(networkQuality.downlinkNetworkQuality)}
         </span>
       </div>
     );
   };
-
-  // Render video stream with modern UI
-  const renderVideoStream = () => {
-    if (!started) return null;
+  
+  // Render exit warning modal
+  const renderExitWarningModal = () => {
+    if (!showExitWarning) return null;
     
     return (
-      <div 
-        ref={fullscreenContainerRef} 
-        className={`relative ${isFullscreen ? 'fixed inset-0 z-50 bg-black' : 'w-full aspect-video bg-black rounded-lg shadow-lg overflow-hidden'}`}
-        onMouseEnter={() => setShowControls(true)}
-        onMouseLeave={() => setShowControls(false)}
-      >
-        {remoteUsers.length > 0 ? (
-          remoteUsers.map(user => (
-            <div key={user.uid} className="w-full h-full relative">
-              <div 
-                ref={el => remoteVideoRefs.current[user.uid] = el} 
-                className="w-full h-full"
-              ></div>
-              
-              {/* Overlay controls - only show on hover or when controls active */}
-              <div className={`absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 transition-opacity duration-300 ${showControls ? 'opacity-100' : ''}`}>
-                <div className="absolute top-4 left-4">
-                  <div className="flex items-center bg-black/60 backdrop-blur-sm rounded-full px-3 py-1">
-                    <div className="h-2 w-2 bg-red-500 rounded-full animate-pulse mr-2"></div>
-                    <span className="text-white text-sm font-medium">LIVE</span>
-                  </div>
-                </div>
-                
-                <div className="absolute bottom-0 left-0 right-0 p-4 flex justify-between items-center">
-                  <div className="text-white font-medium text-lg max-w-md truncate bg-black/40 backdrop-blur-sm rounded-full px-4 py-2">
-                    {selectedStream?.title || `${getArtistName(selectedStream)}'s Stream`}
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    {renderQualityIndicator()}
-                    <button 
-                      onClick={toggleFullscreen}
-                      className="bg-black/60 backdrop-blur-sm hover:bg-black/80 text-white rounded-full p-2 transition-colors"
-                      aria-label={isFullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-                    >
-                      {isFullscreen ? (
-                        <Minimize className="w-5 h-5" />
-                      ) : (
-                        <Maximize className="w-5 h-5" />
-                      )}
-                    </button>
-                    <button 
-                      onClick={leaveChannel}
-                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-full flex items-center gap-2 transition-colors"
-                    >
-                      <X className="h-4 w-4" />
-                      <span>Exit</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 to-black">
-            <div className="text-center px-6 py-8 rounded-xl bg-black/40 backdrop-blur-sm">
-              <div className="animate-pulse mb-6">
-                <div className="h-3 w-3 bg-indigo-500 rounded-full mx-auto"></div>
-                <div className="h-3 w-3 bg-indigo-500 rounded-full mx-auto mt-1"></div>
-                <div className="h-3 w-3 bg-indigo-500 rounded-full mx-auto mt-1"></div>
-              </div>
-              <div className="text-white text-xl font-medium mb-6">Waiting for stream to start...</div>
-              <div className="text-gray-400 text-sm mb-8">The broadcast may take a moment to connect</div>
-              <button 
-                onClick={leaveChannel}
-                className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-              >
-                Go Back
-              </button>
-            </div>
+      <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50">
+        <div className="bg-gray-900 p-4 sm:p-6 rounded-xl shadow-2xl max-w-xs sm:max-w-sm w-full mx-4">
+          <h3 className="text-lg sm:text-xl font-bold text-white mb-2 sm:mb-4">Exit Stream?</h3>
+          <p className="text-sm sm:text-base text-gray-300 mb-4 sm:mb-6">Are you sure you want to exit this stream? You'll need to reconnect to watch again.</p>
+          <div className="flex justify-end space-x-3">
+            <button 
+              onClick={() => setShowExitWarning(false)}
+              className="px-3 sm:px-4 py-1.5 sm:py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors text-sm sm:text-base"
+            >
+              Cancel
+            </button>
+            <button 
+              onClick={leaveChannel}
+              className="px-3 sm:px-4 py-1.5 sm:py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm sm:text-base"
+            >
+              Exit
+            </button>
           </div>
-        )}
+        </div>
       </div>
     );
   };
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
-      {started ? (
-        // Render full screen video when stream is started
-        <>
-          <div className="mb-8">
-            <button 
-              onClick={leaveChannel}
-              className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-            >
-              <ChevronLeft className="h-5 w-5" />
-              <span>Back to all streams</span>
-            </button>
-          </div>
-          
-          {renderVideoStream()}
-          
-          <div className="mt-6">
-            <h1 className="text-2xl font-bold text-white">
-              {selectedStream?.title || `${getArtistName(selectedStream)}'s Stream`}
-            </h1>
-            <p className="text-gray-400 mt-2 flex items-center gap-2">
-              <User className="h-4 w-4" />
-              <span>{getArtistName(selectedStream)}</span>
-              
-              {selectedStream?.participant_count > 0 && (
-                <>
-                  <span className="mx-2">•</span>
-                  <Users className="h-4 w-4" />
-                  <span>{selectedStream?.participant_count} watching</span>
-                </>
-              )}
-            </p>
-          </div>
-        </>
-      ) : (
-        // Render stream list when not watching
-        <>
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-white mb-1">Livestreams</h1>
-              <div className="flex items-center">
-                <div className={`h-2 w-2 rounded-full mr-2 ${
-                  connectionStatus === 'Not connected' ? 'bg-red-500' : 
-                  connectionStatus === 'Initialized' || connectionStatus === 'Connecting' ? 'bg-yellow-500' : 
-                  'bg-green-500'
-                }`}></div>
-                <span className="text-sm text-gray-400">{connectionStatus}</span>
-              </div>
-            </div>
-            
-            <button 
-              onClick={refreshStreams}
-              className="mt-4 sm:mt-0 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow-md transition-colors"
-            >
-              <RefreshCw className="h-4 w-4" />
-              <span>Refresh Streams</span>
-            </button>
-          </div>
+  // Toggle fullscreen
+  const toggleFullscreen = () => {
+    if (!fullscreenContainerRef.current) return;
+    
+    if (!document.fullscreenElement) {
+      fullscreenContainerRef.current.requestFullscreen().catch(err => {
+        console.error(`Error attempting to enable fullscreen: ${err.message}`);
+      });
+    } else {
+      document.exitFullscreen();
+    }
+  };
 
-          {errorMessage && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-500 px-4 py-3 rounded-lg mb-6">
-              <p>{errorMessage}</p>
+  // Render the stream list in a compact grid gallery
+  const renderStreamList = () => {
+    return (
+      <div className="h-full w-full">
+        <div className="relative h-full">
+          {availableStreams.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full rounded-xl bg-gray-800/50 text-gray-400 px-4">
+              <div className="text-base sm:text-lg mb-3">No streams available right now</div>
+              <button 
+                onClick={refreshStreams}
+                className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>Refresh</span>
+              </button>
             </div>
-          )}
-          
-          {renderStreamList()}
-          
-          {isLoading && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50">
-              <div className="bg-gray-900 p-8 rounded-xl shadow-2xl text-center">
-                <div className="flex justify-center">
-                  <svg className="animate-spin h-10 w-10 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 p-2 sm:p-4 h-full overflow-y-auto">
+              {availableStreams.map((stream) => (
+                <div
+                  key={stream.id}
+                  className="group"
+                  onClick={() => startStream(stream)}
+                >
+                  <div className="relative cursor-pointer overflow-hidden rounded-lg sm:rounded-xl bg-gray-800 aspect-video shadow-md transition-all group-hover:shadow-xl group-hover:shadow-indigo-900/20">
+                    {stream.thumbnail ? (
+                      <img
+                        src={stream.thumbnail}
+                        alt={`Stream by ${getArtistName(stream)}`}
+                        className="w-full h-full object-cover transform transition-transform group-hover:scale-105"
+                      />
+                    ) : (
+                      <div
+                        className={`w-full h-full flex items-center justify-center ${getAvatarBackground(stream)} text-xl sm:text-3xl font-bold text-white transform transition-transform group-hover:scale-105`}
+                      >
+                        {getArtistInitial(stream)}
+                      </div>
+                    )}
+                    
+                    {/* Overlay and controls */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/20 opacity-80 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2 sm:p-3">
+                      <div className="flex justify-between">
+                        <div className="bg-red-600 text-white text-xs px-2 py-0.5 rounded-full font-bold tracking-wide flex items-center space-x-1">
+                          <span className="h-1.5 w-1.5 bg-white rounded-full animate-pulse"></span>
+                          <span>LIVE</span>
+                        </div>
+                        
+                        {stream.participant_count > 0 && (
+                          <div className="bg-black/70 text-white text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                            <Users className="h-3 w-3" />
+                            <span>{stream.participant_count}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div
+                        className={`absolute bottom-2 sm:bottom-3 right-2 sm:right-3 w-8 h-8 sm:w-10 sm:h-10 ${
+                          selectedStream?.id === stream.id && started
+                            ? 'bg-red-600 group-hover:bg-red-700'
+                            : 'bg-indigo-600 group-hover:bg-indigo-500'
+                        } rounded-full flex items-center justify-center shadow-xl transition-transform group-hover:scale-110`}
+                      >
+                        {selectedStream?.id === stream.id && started ? (
+                          <Pause className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                        ) : (
+                          <Play className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-1 sm:mt-2 px-0.5">
+                    <h3 className="font-bold text-white text-sm sm:text-base leading-tight truncate">
+                      {stream.title || `${getArtistName(stream)}'s Stream`}
+                    </h3>
+                    <p className="text-xs sm:text-sm text-gray-400 mt-0.5 flex items-center gap-1">
+                      <User className="h-3 w-3" />
+                      <span className="truncate">{getArtistName(stream)}</span>
+                    </p>
+                  </div>
                 </div>
-                <div className="text-lg font-medium text-white mt-4">Connecting to stream...</div>
-                <div className="text-gray-400 text-sm mt-2">This may take a moment</div>
-              </div>
+              ))}
             </div>
           )}
-        </>
-      )}
+        </div>
+      </div>
+    );
+  };
 
-      <style jsx>{`
-        /* Hide scrollbar */
-        .hide-scrollbar::-webkit-scrollbar {
-          display: none;
-        }
-        .hide-scrollbar {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-      `}</style>
+  // Render the active stream view (Google Meet-like container)
+  const renderActiveStreamView = () => {
+    if (!started) return null;
+    
+    const streamTitle = selectedStream?.title || `${getArtistName(selectedStream)}'s Stream`;
+    const streamerName = getArtistName(selectedStream);
+    const viewerCount = selectedStream?.participant_count || 0;
+    
+    return (
+      <div 
+        ref={fullscreenContainerRef}
+        className="fixed inset-0 bg-black z-40 flex flex-col h-screen w-screen"
+      >
+        {/* Minimal Header - fixed height */}
+        <div className="bg-black/80 backdrop-blur-sm px-2 sm:px-4 py-1 sm:py-2 flex items-center justify-between border-b border-gray-800 h-10 sm:h-12 flex-shrink-0">
+          <div className="flex items-center space-x-2">
+            {/* <button
+              onClick={() => leaveChannel()}
+              className="p-1 rounded-full bg-gray-800/80 text-white"
+              aria-label="Back to streams"
+            >
+              <ChevronLeft size={16} />
+            </button> */}
+            <div className="flex items-center">
+              <span className="bg-red-600 text-white text-xs px-1 sm:px-2 py-0.5 rounded flex items-center">
+                <span className="w-1.5 h-1.5 bg-white rounded-full mr-1 animate-pulse"></span> 
+                LIVE
+              </span>
+              <h3 className="text-sm font-medium text-white truncate max-w-xs ml-2">{streamerName}</h3>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-1 text-gray-400 text-xs">
+              <Users size={12} />
+              <span>{viewerCount}</span>
+            </div>
+            <div className="text-xs hidden sm:block">{renderQualityIndicator()}</div>
+            <button
+              onClick={toggleFullscreen}
+              className="p-1 rounded-full bg-gray-800/80 text-white"
+            >
+              {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Google Meet-like video container - takes all available space */}
+        <div 
+          className="flex-1 relative bg-black overflow-hidden"
+          onTouchStart={() => setShowControls(true)}
+          onTouchEnd={() => setTimeout(() => setShowControls(false), 3000)}
+          onMouseEnter={() => setShowControls(true)}
+          onMouseLeave={() => setShowControls(false)}
+        >
+          {/* Video container with center alignment */}
+          <div 
+            ref={videoWrapperRef}
+            className="w-full h-full flex items-center justify-center bg-black"
+          >
+            {remoteUsers.length > 0 ? (
+              remoteUsers.map(user => (
+                <div key={user.uid} className="w-full h-full flex items-center justify-center">
+                  <div 
+                    ref={el => remoteVideoRefs.current[user.uid] = el} 
+                    className="remote-video-element flex items-center justify-center"
+                    style={{
+                      // Start with max dimensions to let the ResizeObserver handle the rest
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      overflow: 'hidden', // Prevent any overflow
+                      backgroundColor: 'black' // Black background for letterboxing
+                    }}
+                  ></div>
+                </div>
+              ))
+            ) : (
+              <div className="flex items-center justify-center">
+                <div className="text-center">
+                  <div className="w-10 h-10 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+                  <p className="text-white text-sm">Connecting to stream...</p>
+                </div>
+              </div>
+            )}
+          </div>
+          
+{/* Loading overlay */}
+{!videoInitialized && remoteUsers.length > 0 && (
+  <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+    <div className="text-center">
+      <button 
+        onClick={retryVideoPlayback}
+        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+      >
+        <Play className="w-5 h-5" />
+        <span>Start Video</span>
+      </button>
     </div>
+  </div>
+)}
+          
+          {/* Controls overlay - shows on hover/touch */}
+          <div 
+            className={`absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent transition-opacity duration-300 pointer-events-none
+                       ${showControls ? 'opacity-100' : 'opacity-0'}`}
+          >
+            {/* Stream title at bottom */}
+            <div className="absolute bottom-4 left-4 right-4 flex justify-between items-center pointer-events-auto">
+              <div className="text-white font-medium text-sm sm:text-base max-w-full truncate bg-black/50 backdrop-blur-sm rounded-lg px-3 py-1.5">
+                {streamTitle}
+              </div>
+              <button 
+                onClick={() => setShowExitWarning(true)}
+                className="bg-red-600 hover:bg-red-700 text-white rounded-full p-2 sm:px-3 sm:py-2 transition-colors flex items-center gap-1"
+              >
+                <X className="w-4 h-4" />
+                <span className="hidden sm:inline text-sm">Exit</span>
+              </button>
+            </div>
+          </div>
+          
+          {/* Error message */}
+          {errorMessage && (
+            <div className="absolute top-14 right-2 left-2 sm:left-auto sm:right-4 bg-red-900/80 border border-red-800 text-white px-3 py-2 rounded-md text-xs sm:text-sm">
+              {errorMessage}
+              {!videoInitialized && (
+                <button 
+                  onClick={retryVideoPlayback}
+                  className="ml-2 bg-red-700 px-2 py-0.5 rounded text-xs hover:bg-red-600"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Render the streams browser view
+  const renderStreamsBrowserView = () => {
+    if (started) return null;
+    
+    return (
+      <div className="min-h-screen bg-gray-900 flex flex-col">
+        {/* Minimal header */}
+        <div className="bg-gray-900 border-b border-gray-800 px-3 py-3 flex justify-between items-center">
+        <button
+              onClick={() => navigate('/home')}
+              className="p-1 rounded-full bg-gray-800/80 text-white"
+              aria-label="Back to streams"
+            >
+              <ChevronLeft size={16} />
+            </button>
+          <h1 className="text-lg font-bold text-white">Live Streams</h1>
+
+          <button
+            onClick={refreshStreams}
+            className="flex items-center justify-center gap-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 text-white rounded-lg transition-colors text-sm"
+            disabled={isLoading}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Refresh</span>
+          </button>
+        </div>
+
+        {/* Main content area - fills remaining height */}
+        <div className="flex-1 overflow-hidden">
+          {renderStreamList()}
+        </div>
+      </div>
+    );
+  };
+
+  // Render the main application UI
+  return (
+    <>
+      {/* Browser view when no stream is active */}
+      {renderStreamsBrowserView()}
+      
+      {/* Active stream view */}
+      {renderActiveStreamView()}
+      
+      {/* Exit warning modal */}
+      {renderExitWarningModal()}
+    </>
   );
 };
 

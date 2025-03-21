@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from users.models import CustomUser
-from .models import LiveStream, StreamParticipant
+from .models import LiveStream, StreamParticipant, ChatMessage
 from artists.models import Artist, Follow
 from users.serializers import UserSerializer
 
@@ -28,7 +28,7 @@ class StreamParticipantSerializer(serializers.ModelSerializer):
 
 class LiveStreamSerializer(serializers.ModelSerializer):
     host = UserSerializer(read_only=True)
-    participant_count = serializers.IntegerField(read_only=True)
+    participant_count = serializers.SerializerMethodField()
     is_following = serializers.SerializerMethodField()
     
     class Meta:
@@ -39,6 +39,9 @@ class LiveStreamSerializer(serializers.ModelSerializer):
             'participant_count', 'is_following'
         ]
         read_only_fields = ['channel_name', 'started_at', 'ended_at', 'status']
+    
+    def get_participant_count(self, obj):
+        return obj.participants.filter(left_at__isnull=True).count()
     
     def get_is_following(self, obj):
         """Check if the request user follows the stream host"""
@@ -64,3 +67,11 @@ class LiveStreamSerializer(serializers.ModelSerializer):
             validated_data['channel_name'] = f"stream-{request.user.id}-{int(time.time())}"
             
         return super().create(validated_data)   
+    
+class ChatMessageSerializer(serializers.ModelSerializer):
+    sender = UserSerializer(read_only=True)
+    
+    class Meta:
+        model = ChatMessage
+        fields = ['id', 'sender', 'message', 'timestamp']
+    
