@@ -4,10 +4,8 @@ import { ArrowLeft, Video, Mic, MicOff, VideoOff, Users, X, Send, MessageCircle 
 import { apiInstance } from '../../api';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-import "./chat.css";
-import Chat from './chat';
-import MobileChat from './chat';
-import LargeScreenChat from './LargeScreenChat';
+// import "./chat.css";
+
 
 const ArtistLiveStream = () => {
   // State variables
@@ -67,6 +65,130 @@ const [unreadCount, setUnreadCount] = useState(0);
   };
   
 
+
+//   //chat//
+//   const connectToWebsocket = useCallback(() => {
+//     if (!streamSettings.channel || !isStreaming) return;
+    
+//     // Create WebSocket connection
+//     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+//     const wsUrl = `${protocol}//${import.meta.env.VITE_API_W}/ws/livestream/${streamSettings.channel}/`;
+//     const ws = new WebSocket(wsUrl);
+    
+//     ws.onopen = () => {
+//       console.log('WebSocket connection established');
+//       setWsConnection(ws);
+//     };
+    
+//     ws.onmessage = (e) => {
+//       const data = JSON.parse(e.data);
+//       console.log('WebSocket message received:', data);
+      
+//       if (data.type === 'chat_message') {
+//         // Add isHost flag when the sender username matches your username
+//         setMessages(prev => [...prev, {
+//           ...data,
+//           isHost: data.username === username
+//         }]);
+//       } else if (data.type === 'viewer_count') {
+//         setViewerCount(data.count);
+//       } else if (data.type === 'system_message') {
+//         setMessages(prev => [...prev, {
+//           type: 'system_message',
+//           message: data.message,
+//           timestamp: new Date().toISOString()
+//         }]);
+//       }
+//     };
+
+//     ws.onclose = () => {
+//       console.log('WebSocket connection closed');
+//       setWsConnection(null);
+//     };
+    
+//     return ws;
+//   }, [streamSettings.channel, isStreaming]);
+  
+//   // Add this useEffect to initialize WebSocket when streaming starts
+//   useEffect(() => {
+//     let ws = null;
+    
+//     if (isStreaming && streamSettings.channel) {
+//       ws = connectToWebsocket();
+//     }
+    
+//     return () => {
+//       if (ws) {
+//         ws.close();
+//       }
+//     };
+//   }, [isStreaming, streamSettings.channel, connectToWebsocket]);
+  
+//   // Add a heartbeat effect to keep the connection alive
+//   useEffect(() => {
+//     let heartbeatInterval;
+    
+//     if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
+//       heartbeatInterval = setInterval(() => {
+//         wsConnection.send(JSON.stringify({
+//           type: 'heartbeat'
+//         }));
+//       }, 15000); // Every 15 seconds
+//     }
+    
+//     return () => {
+//       if (heartbeatInterval) {
+//         clearInterval(heartbeatInterval);
+//       }
+//     };
+//   }, [wsConnection]);
+  
+//   // Add auto-scroll effect for chat messages
+//   useEffect(() => {
+//     if (messagesEndRef.current) {
+//       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+//     }
+//   }, [messages]);
+  
+  
+//   // const sendMessage = () => {
+//   //   if (!newMessage.trim() || !wsConnection) return;
+    
+//   //   wsConnection.send(JSON.stringify({
+//   //     type: 'chat_message',
+//   //     message: newMessage.trim()
+//   //   }));
+    
+//   //   setNewMessage('');
+//   // };
+
+
+// // Modified sendMessage function to add the message to the local state
+// const sendMessage = () => {
+//   if (!newMessage.trim() || !wsConnection || wsConnection.readyState !== WebSocket.OPEN) return;
+  
+//   console.log('Sending message:', newMessage.trim());
+  
+//   // Create a message object for the current user (host)
+//   const messageObj = {
+//     type: 'chat_message',
+//     message: newMessage.trim(),
+//     username: username,
+//     isHost: true,
+//     timestamp: new Date().toISOString()
+//   };
+  
+//   // Update local state first to show the message immediately
+//   setMessages(prev => [...prev, messageObj]);
+  
+//   // Then send to WebSocket
+//   wsConnection.send(JSON.stringify({
+//     type: 'chat_message',
+//     message: newMessage.trim()
+//   }));
+  
+//   setNewMessage('');
+// };
 
 
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import AgoraRTC from 'agora-rtc-sdk-ng';
-import { apiInstance } from '../../api';
+import { apiInstance } from '../../../api';
 import { 
   Play, Pause, ChevronLeft, User, Users, X, RefreshCw, 
   Video, VideoOff, Mic, MicOff
