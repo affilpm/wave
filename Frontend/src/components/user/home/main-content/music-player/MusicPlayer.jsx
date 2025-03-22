@@ -14,8 +14,7 @@ import {
   ListMusic,
   X,
   Music,
-  MoreHorizontal,
-  GripHorizontal
+  RefreshCw
 } from 'lucide-react';
 import api from '../../../../../api';
 import {
@@ -28,7 +27,7 @@ import {
   markAsPlayed,
   setMusicId,
 } from '../../../../../slices/user/musicPlayerSlice';
-import MediaSessionControl from './MediaSessionControl';
+
 
 const MusicPlayer = () => {
   const dispatch = useDispatch();
@@ -49,7 +48,8 @@ const MusicPlayer = () => {
     loading: false,
     error: null,
     volume: 1,
-    isMuted: false
+    isMuted: false,
+    retryCount: 0
   });
   
   const [metadata, setMetadata] = useState(null);
@@ -57,13 +57,18 @@ const MusicPlayer = () => {
   const [isSeeking, setIsSeeking] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const howlRef = useRef(null);
-  const audioRef = useRef(null); // Reference to pass to MediaSessionControl
+  const audioRef = useRef(null);
   const animationFrameRef = useRef(null);
+  const lastUpdateTimeRef = useRef(0); // Track last UI update time
   const [isLiked, setIsLiked] = useState(false);
   const playStartTimeRef = useRef(null);
   const reportedPlayRef = useRef(false);
   const [playId, setPlayId] = useState(null);
   const tokenMusicIdRef = useRef(null);
+  const retryTimeoutRef = useRef(null);
+  const MAX_RETRIES = 3;
+  const mediaSessionInitializedRef = useRef(false);
+  const seekPositionRef = useRef(null); // Track pending seek position
 
   // Format current track for MediaSessionControl
   const currentTrack = metadata ? {
@@ -74,7 +79,144 @@ const MusicPlayer = () => {
     duration: metadata.duration || 0
   } : null;
 
-  // Sync howlRef with audioRef for MediaSessionControl
+  // Initialize Media Session with debouncing for position updates
+  useEffect(() => {
+    if (!('mediaSession' in navigator)) {
+      return; // Media Session API not supported
+    }
+
+    if (!currentTrack || !howlRef.current) {
+      return; // No track information or player yet
+    }
+
+    // Configure Media Session metadata
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: currentTrack.name,
+      artist: currentTrack.artist,
+      album: currentTrack.album,
+      artwork: currentTrack.cover_photo ? [
+        { src: currentTrack.cover_photo, sizes: '512x512', type: 'image/jpeg' }
+      ] : []
+    });
+
+    // Set playback state
+    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+
+    // Set up Media Session actions
+    navigator.mediaSession.setActionHandler('play', () => {
+      dispatch(setIsPlaying(true));
+    });
+
+    navigator.mediaSession.setActionHandler('pause', () => {
+      dispatch(setIsPlaying(false));
+    });
+
+    navigator.mediaSession.setActionHandler('previoustrack', () => {
+      handlePrevious();
+    });
+
+    navigator.mediaSession.setActionHandler('nexttrack', () => {
+      handleNext();
+    });
+
+    // Add seekto handler if supported
+    try {
+      navigator.mediaSession.setActionHandler('seekto', (details) => {
+        if (details.seekTime && howlRef.current) {
+          seekPositionRef.current = details.seekTime;
+          handleSeek(details.seekTime);
+        }
+      });
+    } catch (error) {
+      console.warn('Media Session "seekto" action is not supported');
+    }
+
+    // Add seekbackward/seekforward handlers if supported
+    try {
+      navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+        const skipTime = details.seekOffset || 10;
+        const newTime = Math.max(0, playerState.progress - skipTime);
+        seekPositionRef.current = newTime;
+        handleSeek(newTime);
+      });
+    } catch (error) {
+      console.warn('Media Session "seekbackward" action is not supported');
+    }
+
+    try {
+      navigator.mediaSession.setActionHandler('seekforward', (details) => {
+        const skipTime = details.seekOffset || 10;
+        const newTime = Math.min(playerState.duration, playerState.progress + skipTime);
+        seekPositionRef.current = newTime;
+        handleSeek(newTime);
+      });
+    } catch (error) {
+      console.warn('Media Session "seekforward" action is not supported');
+    }
+
+    mediaSessionInitializedRef.current = true;
+  }, [currentTrack, howlRef.current, dispatch]);
+
+  // Centralized seek handler to ensure consistency
+  const handleSeek = (position) => {
+    if (!howlRef.current) return;
+    
+    // Ensure position is within bounds
+    const safePosition = Math.max(0, Math.min(position, howlRef.current.duration() || 0));
+    
+    // Apply seek to Howl
+    howlRef.current.seek(safePosition);
+    
+    // Update UI state
+    setPlayerState(prev => ({ ...prev, progress: safePosition }));
+    
+    // Update Media Session position state (with error handling)
+    if ('mediaSession' in navigator && mediaSessionInitializedRef.current) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: howlRef.current.duration() || 0,
+          playbackRate: 1.0,
+          position: safePosition
+        });
+      } catch (error) {
+        console.warn('Error updating position state:', error);
+      }
+    }
+  };
+
+  // Update Media Session playback state when isPlaying changes
+  useEffect(() => {
+    if ('mediaSession' in navigator && mediaSessionInitializedRef.current) {
+      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+    }
+  }, [isPlaying]);
+
+  // Debounced Media Session position state updates
+  useEffect(() => {
+    if ('mediaSession' in navigator && 
+        mediaSessionInitializedRef.current && 
+        howlRef.current && 
+        playerState.duration > 0 &&
+        !isSeeking) { // Don't update during seeking
+      
+      const now = Date.now();
+      // Only update if it's been at least 250ms since last update
+      if (now - lastUpdateTimeRef.current >= 250) {
+        try {
+          navigator.mediaSession.setPositionState({
+            duration: playerState.duration,
+            playbackRate: 1.0,
+            position: playerState.progress
+          });
+          lastUpdateTimeRef.current = now;
+        } catch (error) {
+          console.warn('Error updating position state:', error);
+        }
+      }
+    }
+  }, [playerState.progress, playerState.duration, isSeeking]);
+
+  // Sync howlRef with audioRef for Media controls
   useEffect(() => {
     if (howlRef.current) {
       // Create a proxy object that adapts Howl methods to standard HTMLAudioElement methods
@@ -96,7 +238,6 @@ const MusicPlayer = () => {
     }
   }, [playerState.progress, playerState.duration]);
 
-  // Rest of your component code remains the same
   const reportPlayCompletion = async (duration, percentage = null) => {
     if (!musicId || !playId) return;
     
@@ -129,7 +270,7 @@ const MusicPlayer = () => {
       if (!musicId) return;
       
       try {
-        setPlayerState(prev => ({ ...prev, loading: true }));
+        setPlayerState(prev => ({ ...prev, loading: true, error: null }));
         const response = await api.get(`/api/music/metadata/${musicId}/`);
         setMetadata(response.data);
 
@@ -139,14 +280,20 @@ const MusicPlayer = () => {
           ...prev, 
           loading: false,
           duration: response.data.duration,
-          error: null
+          progress: 0, // Reset progress when changing tracks
+          error: null,
+          retryCount: 0
         }));
+
+        // Reset Media Session initialized flag when metadata changes
+        mediaSessionInitializedRef.current = false;
       } catch (error) {
         console.error("Failed to fetch metadata:", error);
         setPlayerState(prev => ({
           ...prev, 
           loading: false,  
-          error: "Failed to load track information"
+          error: "Failed to load track information",
+          retryCount: 0
         }));
       }
     };
@@ -157,12 +304,11 @@ const MusicPlayer = () => {
   const handlelike = async () => {
     try {
       const response = await api.post(`/api/playlist/playlists/like_songs/`, { music_id: musicId });
-      console.log(response.data)
       setIsLiked(response.data.liked);
     } catch (error) {
       console.error("Failed to toggle like status:", error);
     }
-  }
+  };
   
   useEffect(() => {
     if (!queue.length) return;
@@ -173,6 +319,7 @@ const MusicPlayer = () => {
     }
   }, [queue, currentIndex]);
 
+  // Fetch signed token with retry logic
   useEffect(() => {
     const fetchSignedToken = async () => {
       if (!musicId) return;
@@ -184,41 +331,72 @@ const MusicPlayer = () => {
         setSignedToken(response.data.token);
         setPlayId(response.data.play_id);
         tokenMusicIdRef.current = musicId;
+        setPlayerState(prev => ({ ...prev, retryCount: 0 }));
       } catch (error) {
         console.error("Failed to fetch signed token:", error);
         setPlayerState(prev => ({
           ...prev,
-          error: "Authentication error. Please try again."
+          error: "Authentication error. Please try again.",
+          loading: false
         }));
       }
     };
 
     fetchSignedToken();
+    
+    return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
+    };
   }, [musicId]);
 
-  // Initialize audio stream
+  // Initialize audio stream with enhanced error handling and retries
   useEffect(() => {
     if (!musicId || !signedToken || !metadata || tokenMusicIdRef.current !== musicId) return;
   
+    // Clear any previous timeout
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+    }
+    
     if (howlRef.current) {
       howlRef.current.unload();
+    }
+
+    // Cancel any ongoing animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
   
     const initializeAudio = () => {
       try {
+        setPlayerState(prev => ({ ...prev, loading: true, error: null, progress: 0 }));
+        
         const audioUrl = `${api.defaults.baseURL}/api/music/stream/${musicId}/?token=${signedToken}`;
         const sound = new Howl({
           src: [audioUrl],
           format: [metadata.format],
           html5: true,
           preload: true,
+          xhr: {
+            // Add timeout for Howler XHR requests
+            timeout: 15000
+          },
           onload: () => {
+            // Set accurate duration from loaded audio
+            const actualDuration = sound.duration();
+            
             setPlayerState(prev => ({
               ...prev,
-              duration: sound.duration(),
+              duration: actualDuration,
               loading: false,
-              error: null
+              error: null,
+              retryCount: 0,
+              progress: 0 // Reset progress on load
             }));
+            
             dispatch(setChangeComplete());
             
             if (isPlaying) {
@@ -227,25 +405,86 @@ const MusicPlayer = () => {
           },
           onloaderror: (id, error) => {
             console.error('Audio loading error:', error);
-            setPlayerState(prev => ({
-              ...prev,
-              loading: false,
-              error: 'Failed to load audio. Please try again.'
-            }));
+            
+            // Implement retry logic
+            setPlayerState(prev => {
+              const newRetryCount = prev.retryCount + 1;
+              
+              if (newRetryCount <= MAX_RETRIES) {
+                console.log(`Retry attempt ${newRetryCount}/${MAX_RETRIES}...`);
+                
+                // Exponential backoff for retries
+                const retryDelay = Math.min(1000 * Math.pow(2, newRetryCount - 1), 10000);
+                
+                retryTimeoutRef.current = setTimeout(() => {
+                  // Get fresh token and retry
+                  api.get(`/api/music/token/${musicId}/`)
+                    .then(response => {
+                      setSignedToken(response.data.token);
+                      setPlayId(response.data.play_id);
+                      initializeAudio(); // Retry initialization
+                    })
+                    .catch(tokenError => {
+                      console.error("Failed to refresh token for retry:", tokenError);
+                      setPlayerState(prevState => ({
+                        ...prevState,
+                        loading: false,
+                        error: "Stream unavailable after multiple attempts. Please try again later."
+                      }));
+                    });
+                }, retryDelay);
+                
+                return {
+                  ...prev,
+                  retryCount: newRetryCount,
+                  loading: true,
+                  error: `Loading audio... (Attempt ${newRetryCount}/${MAX_RETRIES})`
+                };
+              }
+              
+              return {
+                ...prev,
+                loading: false,
+                error: "Failed to load audio after multiple attempts. Please try a different track or check your connection.",
+                retryCount: 0
+              };
+            });
+          },
+          onplayerror: (id, error) => {
+            console.error('Audio playback error:', error);
+            
+            // Try to recover from playback errors
+            sound.once('unlock', function() {
+              sound.play();
+            });
           },
           onplay: () => {
+            // Update Media Session playback state
+            if ('mediaSession' in navigator) {
+              navigator.mediaSession.playbackState = 'playing';
+            }
+            
             playStartTimeRef.current = Date.now();
   
             if (tokenMusicIdRef.current !== musicId) {
               reportedPlayRef.current = false;
             }
           
+            // Start progress tracking with throttling
+            if (animationFrameRef.current) {
+              cancelAnimationFrame(animationFrameRef.current);
+            }
             updateSeeker();
           },
           onpause: () => {
+            // Update Media Session playback state
+            if ('mediaSession' in navigator) {
+              navigator.mediaSession.playbackState = 'paused';
+            }
+            
             if (playStartTimeRef.current) {
               const playDuration = (Date.now() - playStartTimeRef.current) / 1000;
-              const percentage = howlRef.current ? howlRef.current.seek() / howlRef.current.duration() : null;
+              const percentage = sound ? sound.seek() / sound.duration() : null;
               
               reportPlayCompletion(playDuration, percentage)
               .then(() => {
@@ -253,44 +492,94 @@ const MusicPlayer = () => {
               });
             }
 
+            // Stop progress tracking
             if (animationFrameRef.current) {
               cancelAnimationFrame(animationFrameRef.current);
+              animationFrameRef.current = null;
             }
           },
           onstop: () => {
+            // Update Media Session playback state
+            if ('mediaSession' in navigator) {
+              navigator.mediaSession.playbackState = 'paused';
+            }
+            
             if (playStartTimeRef.current) {
               const playedDuration = (Date.now() - playStartTimeRef.current) / 1000;
               reportPlayCompletion(playedDuration);
+              playStartTimeRef.current = null;
             }
+            
             setPlayerState(prev => ({ ...prev, progress: 0 }));
+            
+            // Stop progress tracking
             if (animationFrameRef.current) {
               cancelAnimationFrame(animationFrameRef.current);
+              animationFrameRef.current = null;
             }
           },
           onend: () => {
+            // Report full play completion
             if (metadata && metadata.duration){
               reportPlayCompletion(metadata.duration, 1.0);
             }
 
             dispatch(markAsPlayed(musicId));
+            
+            // Stop progress tracking
+            if (animationFrameRef.current) {
+              cancelAnimationFrame(animationFrameRef.current);
+              animationFrameRef.current = null;
+            }
+            
+            // Move to next track
             dispatch(playNext());
           },
           onseek: () => {
-            updateSeeker();
+            // Get actual position after seek completed
+            const actualPosition = sound.seek();
+            
+            // Update UI state with actual position
+            setPlayerState(prev => ({ ...prev, progress: actualPosition }));
+            
+            // Update Media Session position state with debouncing
+            if ('mediaSession' in navigator && sound && sound.duration()) {
+              const now = Date.now();
+              if (now - lastUpdateTimeRef.current >= 250) {
+                try {
+                  navigator.mediaSession.setPositionState({
+                    duration: sound.duration(),
+                    playbackRate: 1.0,
+                    position: actualPosition
+                  });
+                  lastUpdateTimeRef.current = now;
+                } catch (error) {
+                  console.warn('Error updating position state:', error);
+                }
+              }
+            }
+            
+            // Resume progress tracking if playing
+            if (isPlaying && !animationFrameRef.current) {
+              updateSeeker();
+            }
           }
         });
+        
         howlRef.current = sound;
       } catch (error) {
         console.error('Error initializing audio:', error);
         setPlayerState(prev => ({
           ...prev,
           loading: false,
-          error: 'Failed to initialize audio player'
+          error: 'Failed to initialize audio player',
+          retryCount: 0
         }));
       }
     };
   
     initializeAudio();
+    
     return () => {
       if (howlRef.current && playStartTimeRef.current && !reportedPlayRef.current) {
         const playedDuration = (Date.now() - playStartTimeRef.current) / 1000;
@@ -300,56 +589,140 @@ const MusicPlayer = () => {
 
       if (howlRef.current) {
         howlRef.current.unload();
+        howlRef.current = null;
       }
+      
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+      
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
+      
+      // Clear media session handlers when component unmounts
+      if ('mediaSession' in navigator) {
+        navigator.mediaSession.metadata = null;
+        try {
+          navigator.mediaSession.setActionHandler('play', null);
+          navigator.mediaSession.setActionHandler('pause', null);
+          navigator.mediaSession.setActionHandler('previoustrack', null);
+          navigator.mediaSession.setActionHandler('nexttrack', null);
+          navigator.mediaSession.setActionHandler('seekto', null);
+          navigator.mediaSession.setActionHandler('seekbackward', null);
+          navigator.mediaSession.setActionHandler('seekforward', null);
+        } catch (error) {
+          console.warn('Error clearing media session handlers:', error);
+        }
       }
     };
   }, [musicId, signedToken, metadata, dispatch]);
   
+  // Improved updateSeeker with throttling to prevent excessive updates
   const updateSeeker = () => {
-    if (!howlRef.current || isSeeking) return;
+    if (!howlRef.current || isSeeking) {
+      animationFrameRef.current = null;
+      return;
+    }
   
-    setPlayerState(prev => ({
-      ...prev,
-      progress: howlRef.current.seek()
-    }));
-  
+    // Get current time directly from Howl
+    let currentTime;
+    try {
+      currentTime = howlRef.current.seek() || 0;
+    } catch (error) {
+      console.warn('Error getting current time from Howl:', error);
+      currentTime = playerState.progress;
+    }
+    
+    // Avoid unnecessary updates if value hasn't changed significantly (> 0.1s)
+    if (Math.abs(currentTime - playerState.progress) > 0.1) {
+      setPlayerState(prev => ({
+        ...prev,
+        progress: currentTime
+      }));
+    }
+    
+    // Schedule next update (aim for ~30fps for UI updates = ~33ms)
     animationFrameRef.current = requestAnimationFrame(updateSeeker);
   };
 
+  // Improved seek handlers
   const handleSeekChange = (e) => {
     const value = parseFloat(e.target.value);
-    setPlayerState(prev => ({
-      ...prev,
-      progress: value
-    }));
-  
-    if (howlRef.current && isSeeking) {
-      howlRef.current.seek(value);
+    
+    // Only update UI during seeking
+    if (isSeeking) {
+      setPlayerState(prev => ({
+        ...prev,
+        progress: value
+      }));
     }
   };
 
   const handleSeekMouseDown = () => {
     setIsSeeking(true);
-    cancelAnimationFrame(animationFrameRef.current);
+    
+    // Pause updates during seeking
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
   };
 
   const handleSeekMouseUp = (e) => {
     const value = parseFloat(e.target.value);
-    if (howlRef.current) {
-      howlRef.current.seek(value);
-    }
     setIsSeeking(false);
-    cancelAnimationFrame(animationFrameRef.current);
-    updateSeeker();
+    
+    // Use centralized seek handler
+    handleSeek(value);
+    
+    // Resume updates if playing
+    if (isPlaying && !animationFrameRef.current) {
+      updateSeeker();
+    }
+  };
+
+  const handleRetry = () => {
+    // Manual retry function
+    setPlayerState(prev => ({ ...prev, retryCount: 0, loading: true, error: null }));
+    
+    // Refresh token and reinitialize
+    api.get(`/api/music/token/${musicId}/`)
+      .then(response => {
+        setSignedToken(response.data.token);
+        setPlayId(response.data.play_id);
+      })
+      .catch(error => {
+        console.error("Failed to refresh token for manual retry:", error);
+        setPlayerState(prev => ({
+          ...prev,
+          loading: false,
+          error: "Could not refresh audio session. Please try again later."
+        }));
+      });
   };
 
   const handleNext = () => {
+    // Stop current playback tracking
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    
+    // Move to next track
     dispatch(playNext());
   };
 
   const handlePrevious = () => {
+    // Stop current playback tracking
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    
+    // Move to previous track
     dispatch(playPrevious());
   };
 
@@ -375,14 +748,30 @@ const MusicPlayer = () => {
     }
   };
 
+  // Enhanced isPlaying effect with proper cleanup
   useEffect(() => {
-    if (howlRef.current) {
-      if (isPlaying) {
-        howlRef.current.play();
-      } else {
+    if (!howlRef.current) return;
+    
+    let playTimeout;
+    
+    if (isPlaying) {
+      // Small timeout to avoid rapid play/pause toggling issues
+      playTimeout = setTimeout(() => {
+        if (howlRef.current) {
+          howlRef.current.play();
+        }
+      }, 10);
+    } else {
+      if (howlRef.current) {
         howlRef.current.pause();
       }
     }
+    
+    return () => {
+      if (playTimeout) {
+        clearTimeout(playTimeout);
+      }
+    };
   }, [isPlaying]);
   
   const togglePlayPause = () => {
@@ -420,9 +809,18 @@ const MusicPlayer = () => {
 
   return (
     <div className="relative">
-      {/* Render MediaSessionControl component */}
-      <MediaSessionControl currentTrack={currentTrack} audioRef={audioRef} />
-      
+      {/* Error Message Banner */}
+      {playerState.error && !playerState.loading && (
+        <div className="bg-red-900 text-white p-2 flex items-center justify-between">
+          <span className="text-sm">{playerState.error}</span>
+          <button 
+            onClick={handleRetry} 
+            className="bg-red-700 hover:bg-red-600 rounded-full p-1 flex items-center justify-center"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
+      )}
       
       {/* Main Player - Slimmer design */}
       <div className="bg-black bg-opacity-90 text-white border-t border-gray-900 backdrop-blur-lg p-1 sm:p-2 shadow-lg">
@@ -466,35 +864,47 @@ const MusicPlayer = () => {
             </div>
           </div>
           
+          {/* Loading Indicator */}
+          {playerState.loading && (
+            <div className="flex items-center justify-center py-1">
+              <div className="w-full bg-gray-800 rounded-full h-1 overflow-hidden">
+                <div className="bg-indigo-500 h-1 rounded-full animate-pulse w-full"></div>
+              </div>
+            </div>
+          )}
+
+          
           {/* Slim progress bar */}
-          <div className="px-1">
-            <div className="relative h-1 bg-gray-800 rounded-full overflow-hidden">
-              <div 
-                className="absolute top-0 left-0 h-full bg-indigo-500"
-                style={{ width: `${progressPercentage}%` }}
-              ></div>
-              <input
-                type="range"
-                min="0"
-                max={playerState.duration || 100}
-                value={playerState.progress || 0}
-                onChange={handleSeekChange}
-                onMouseDown={handleSeekMouseDown}
-                onTouchStart={handleSeekMouseDown}
-                onMouseUp={handleSeekMouseUp}
-                onTouchEnd={handleSeekMouseUp}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              />
+          {!playerState.loading && (
+            <div className="px-1">
+              <div className="relative h-1 bg-gray-800 rounded-full overflow-hidden">
+                <div 
+                  className="absolute top-0 left-0 h-full bg-indigo-500"
+                  style={{ width: `${progressPercentage}%` }}
+                ></div>
+                <input
+                  type="range"
+                  min="0"
+                  max={playerState.duration || 100}
+                  value={playerState.progress || 0}
+                  onChange={handleSeekChange}
+                  onMouseDown={handleSeekMouseDown}
+                  onTouchStart={handleSeekMouseDown}
+                  onMouseUp={handleSeekMouseUp}
+                  onTouchEnd={handleSeekMouseUp}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className="text-xs text-gray-500">
+                  {formatTime(playerState.progress)}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {formatTime(playerState.duration)}
+                </span>
+              </div>
             </div>
-            <div className="flex justify-between mt-1">
-              <span className="text-xs text-gray-500">
-                {formatTime(playerState.progress)}
-              </span>
-              <span className="text-xs text-gray-500">
-                {formatTime(playerState.duration)}
-              </span>
-            </div>
-          </div>
+          )}
           
           {/* Compact playback controls */}
           <div className="flex items-center justify-between px-2">
@@ -514,11 +924,13 @@ const MusicPlayer = () => {
               </button>
               
               <button 
-                onClick={togglePlayPause}
+                onClick={playerState.loading ? handleRetry : togglePlayPause}
                 className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center shadow-md disabled:opacity-50"
-                disabled={playerState.loading}
+                disabled={playerState.loading && playerState.retryCount === 0}
               >
-                {isPlaying ? (
+                {playerState.loading ? (
+                  <RefreshCw className="w-5 h-5 text-white animate-spin" />
+                ) : isPlaying ? (
                   <Pause className="w-5 h-5 text-white" />
                 ) : (
                   <Play className="w-5 h-5 text-white ml-0.5" />
@@ -590,11 +1002,13 @@ const MusicPlayer = () => {
               </button>
               
               <button 
-                onClick={togglePlayPause}
+                onClick={playerState.loading && playerState.retryCount > 0 ? handleRetry : togglePlayPause}
                 className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center shadow-md disabled:opacity-50"
-                disabled={playerState.loading}
+                disabled={playerState.loading && playerState.retryCount === 0}
               >
-                {isPlaying ? (
+                {playerState.loading ? (
+                  <RefreshCw className="w-5 h-5 text-white animate-spin" />
+                ) : isPlaying ? (
                   <Pause className="w-5 h-5 text-white" />
                 ) : (
                   <Play className="w-5 h-5 text-white ml-0.5" />
@@ -616,30 +1030,41 @@ const MusicPlayer = () => {
               </button>
             </div>
 
+            {/* Loading Indicator */}
+            {playerState.loading && (
+              <div className="w-full px-4 mb-1">
+                <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
+                  <div className="bg-indigo-500 h-1 rounded-full animate-pulse w-full"></div>
+                </div>
+              </div>
+            )}
+
             {/* Slim Progress Bar */}
-            <div className="w-full px-4 space-y-1">
-              <div className="relative h-1 bg-gray-800 rounded-full overflow-hidden group">
-                <div 
-                  className="absolute top-0 left-0 h-full bg-indigo-500"
-                  style={{ width: `${progressPercentage}%` }}
-                ></div>
-                <input
-                  type="range"
-                  min="0"
-                  max={playerState.duration || 100}
-                  value={playerState.progress || 0}
-                  onChange={handleSeekChange}
-                  onMouseDown={handleSeekMouseDown}
-                  onMouseUp={handleSeekMouseUp}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
+            {!playerState.loading && (
+              <div className="w-full px-4 space-y-1">
+                <div className="relative h-1 bg-gray-800 rounded-full overflow-hidden group">
+                  <div 
+                    className="absolute top-0 left-0 h-full bg-indigo-500"
+                    style={{ width: `${progressPercentage}%` }}
+                  ></div>
+                  <input
+                    type="range"
+                    min="0"
+                    max={playerState.duration || 100}
+                    value={playerState.progress || 0}
+                    onChange={handleSeekChange}
+                    onMouseDown={handleSeekMouseDown}
+                    onMouseUp={handleSeekMouseUp}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                </div>
+                
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>{formatTime(playerState.progress)}</span>
+                  <span>{formatTime(playerState.duration)}</span>
+                </div>
               </div>
-              
-              <div className="flex justify-between text-xs text-gray-500">
-                <span>{formatTime(playerState.progress)}</span>
-                <span>{formatTime(playerState.duration)}</span>
-              </div>
-            </div>
+            )}
           </div>
 
           {/* Volume and Queue - Right */}
@@ -675,6 +1100,7 @@ const MusicPlayer = () => {
           </div>
         </div>
       </div>
+
 
       {/* Queue Panel - Minimal Design */}
       {isQueueOpen && (

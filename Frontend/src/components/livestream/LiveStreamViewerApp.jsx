@@ -749,13 +749,13 @@ useEffect(() => {
           {availableStreams.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full rounded-xl bg-gray-800/50 text-gray-400 px-4">
               <div className="text-base sm:text-lg mb-3">No streams available right now</div>
-              <button 
+              {/* <button 
                 onClick={refreshStreams}
                 className="flex items-center gap-2 bg-gray-700 hover:bg-gray-600 text-white px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors"
               >
                 <RefreshCw className="h-4 w-4" />
                 <span>Refresh</span>
-              </button>
+              </button> */}
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 sm:gap-3 md:gap-4 p-2 sm:p-4 h-full overflow-y-auto">
