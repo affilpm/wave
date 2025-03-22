@@ -1,5 +1,4 @@
 from django.shortcuts import render
-
 # Create your views here.
 from django.conf import settings
 from django.http import JsonResponse
@@ -9,16 +8,10 @@ import time
 import random
 import string
 from agora_token_builder import RtcTokenBuilder
-
 from .models import LiveStream, StreamParticipant
 from .serializers import LiveStreamSerializer, StreamParticipantSerializer
-
-
-
 from rest_framework.exceptions import PermissionDenied
-
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import PermissionDenied
 from rest_framework.views import APIView
 from django.http import JsonResponse
 from rest_framework import viewsets, permissions, filters, status
@@ -90,9 +83,45 @@ class AgoraTokenView(APIView):
                 if not Follow.objects.filter(user_id=request.user.id, artist=stream.host.artist_profile).exists():
                     raise PermissionDenied("You must follow the artist to join the stream.")
 
-                # Record the participant
-                StreamParticipant.objects.get_or_create(stream=stream, user_id=request.user.id)
-            # Add this before your problematic code
+                # Important: First, clean up any possibly stale participant records for this user in this stream
+                # This ensures if a user refreshes or reconnects, they don't get counted twice
+                existing_participant = StreamParticipant.objects.filter(
+                    stream=stream, 
+                    user_id=request.user.id
+                ).first()
+                
+                if existing_participant:
+                    existing_participant.is_active = True
+                    existing_participant.last_active = timezone.now()
+                    existing_participant.save()
+                else:
+                    # Create new participant record
+                    StreamParticipant.objects.create(
+                        stream=stream,
+                        user_id=request.user.id,
+                        is_active=True,
+                        last_active=timezone.now()
+                    )
+                
+                # Clean up stale participants before returning active count
+                # This ensures accurate counts on new joins
+                stale_time = timezone.now() - timezone.timedelta(minutes=1)
+                StreamParticipant.objects.filter(
+                    stream=stream,
+                    is_active=True,
+                    last_active__lt=stale_time
+                ).update(is_active=False)
+                
+                # Add to LiveStreamViewSet.list
+                active_time = timezone.now() - timezone.timedelta(seconds=30)
+                participants = StreamParticipant.objects.filter(
+                    stream=stream,
+                    is_active=True,
+                    last_active__gte=active_time
+                )
+                print(f"Stream {stream.id}: Found {participants.count()} active participants")
+                print(f"Active participants: {[p.user_id for p in participants]}")
+
 
             # Generate Agora token
             token = self.generate_token(channel_name, request.user.id, role)
@@ -126,6 +155,8 @@ class AgoraTokenView(APIView):
             print(f"Error generating token: {str(e)}")
             raise e
 
+
+
 class EndStreamView(APIView):
     permission_classes = [IsAuthenticated]
     
@@ -155,7 +186,8 @@ class EndStreamView(APIView):
 
 
 
-# Update in your views.py
+
+
 
 class LiveStreamViewSet(viewsets.ModelViewSet):
     queryset = LiveStream.objects.filter(status='active')
@@ -235,4 +267,126 @@ class LiveStreamViewSet(viewsets.ModelViewSet):
     
     
     
+
+class ParticipantHeartbeatView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        channel_name = request.data.get('channel_name')
         
+        # Get the stream
+        stream = LiveStream.objects.filter(
+            channel_name=channel_name,
+            status='active'
+        ).first()
+        
+        if not stream:
+            return JsonResponse({'error': 'Stream not found or inactive'}, status=404)
+        
+        # Update the last_active timestamp for this participant
+        participant = StreamParticipant.objects.filter(
+            stream=stream,
+            user=request.user
+        ).first()
+        
+        # Mark stale participants as inactive - reduced from 5 minutes to 1 minute
+        # This ensures we clean up inactive participants more aggressively
+        stale_time = timezone.now() - timezone.timedelta(minutes=1)
+        stale_participants_count = StreamParticipant.objects.filter(
+            stream=stream,
+            is_active=True, 
+            last_active__lt=stale_time
+        ).count()
+        
+        if stale_participants_count > 0:
+            print(f"Stream {stream.id}: Marking {stale_participants_count} stale participants as inactive")
+            StreamParticipant.objects.filter(
+                stream=stream,
+                is_active=True, 
+                last_active__lt=stale_time
+            ).update(is_active=False)
+        
+        if participant:
+            participant.last_active = timezone.now()
+            participant.is_active = True
+            participant.save()
+            
+            # Return current active count for the stream
+            active_time = timezone.now() - timezone.timedelta(seconds=30)
+            active_count = StreamParticipant.objects.filter(
+                stream=stream,
+                is_active=True,
+                last_active__gte=active_time
+            ).count()
+            
+            return JsonResponse({
+                'status': 'success',
+                'active_participants': active_count
+            })
+        
+        return JsonResponse({'error': 'Participant not found'}, status=404)
+
+
+
+class ParticipantLeaveView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        channel_name = request.data.get('channel_name')
+        # Mark the participant as inactive
+        participant = StreamParticipant.objects.filter(
+            stream__channel_name=channel_name,
+            user=request.user
+        ).first()
+        
+        if participant:
+            participant.is_active = False
+            participant.save()
+            
+            # Return updated active count for the stream
+            active_time = timezone.now() - timezone.timedelta(seconds=30)
+            active_count = StreamParticipant.objects.filter(
+                stream__channel_name=channel_name,
+                is_active=True,
+                last_active__gte=active_time
+            ).count()
+            
+            return JsonResponse({
+                'status': 'success', 
+                'active_participants': active_count
+            })
+        return JsonResponse({'error': 'Participant not found'}, status=404)
+    
+
+
+class ViewerCountView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        channel_name = request.GET.get('channel_name')
+        
+        # Get the stream
+        stream = LiveStream.objects.filter(
+            channel_name=channel_name,
+            status='active'
+        ).first()
+        
+        if not stream:
+            return JsonResponse({'error': 'Stream not found or inactive'}, status=404)
+        
+        # Ensure the requester is the host
+        if stream.host_id != request.user.id:
+            return JsonResponse({'error': 'Only the host can view participant count'}, status=403)
+        
+        # Get active participants count (excluding the host)
+        active_time = timezone.now() - timezone.timedelta(seconds=30)
+        active_count = StreamParticipant.objects.filter(
+            stream=stream,
+            is_active=True,
+            last_active__gte=active_time
+        ).exclude(user_id=request.user.id).count()
+        
+        return JsonResponse({
+            'status': 'success',
+            'active_participants': active_count
+        })    

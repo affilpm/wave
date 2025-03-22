@@ -121,7 +121,7 @@ MIDDLEWARE = [
     'allauth.account.middleware.AccountMiddleware',  # Add this line
     'django.middleware.common.CommonMiddleware',  # Make sure this is included
     'csp.middleware.CSPMiddleware',
-    
+    'agora.middleware.LivestreamCleanupMiddleware',
     
 ]
 

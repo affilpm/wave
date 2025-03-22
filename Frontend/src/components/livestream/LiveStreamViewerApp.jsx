@@ -27,6 +27,11 @@ const LivestreamViewerApp = () => {
   const [videoInitialized, setVideoInitialized] = useState(false);
   // Add state for video aspect ratio
   const [videoAspectRatio, setVideoAspectRatio] = useState(16/9); // Default aspect ratio
+  
+  // Add state for polling interval ID to clean up
+  const [pollingIntervalId, setPollingIntervalId] = useState(null);
+  // Add state to track if stream has ended
+  const [streamHasEnded, setStreamHasEnded] = useState(false);
 
   const navigate = useNavigate();
   // Reference to Agora client
@@ -40,62 +45,95 @@ const LivestreamViewerApp = () => {
   // Reference for video wrapper
   const videoWrapperRef = useRef(null);
 
-  // Initialize on page load
+
   useEffect(() => {
     fetchAvailableStreams();
     initializeAgora();
     
+    // Start interval for polling active streams - increase from 15 to 30 seconds
+    const intervalId = setInterval(() => {
+      if (!isLoading) {
+        fetchAvailableStreams();
+      }
+    }, 30000); // Poll every 30 seconds
+    
+    setPollingIntervalId(intervalId);
+    
     // Cleanup function
     return () => {
       cleanupResources();
+      // Clear polling interval
+      if (pollingIntervalId) {
+        clearInterval(pollingIntervalId);
+      }
     };
   }, []);
 
-// 1. First, add videoInitialized to the dependency array
-useEffect(() => {
-  if (!videoWrapperRef.current || !started) return;
 
-  const updateVideoSize = () => {
-    const container = videoWrapperRef.current;
-    if (!container) return;
-
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
-    const containerAspectRatio = containerWidth / containerHeight;
-
-    const videoElements = container.querySelectorAll('.remote-video-element');
-    videoElements.forEach(videoElement => {
-      // If container is wider than video, fit to height
-      if (containerAspectRatio > videoAspectRatio) {
-        const newWidth = containerHeight * videoAspectRatio;
-        videoElement.style.width = `${newWidth}px`;
-        videoElement.style.height = '100%';
-      } else {
-        // If container is taller than video, fit to width
-        const newHeight = containerWidth / videoAspectRatio;
-        videoElement.style.width = '100%';
-        videoElement.style.height = `${newHeight}px`;
+  useEffect(() => {
+    if (started && selectedStream) {
+      const isStreamStillActive = availableStreams.some(
+        stream => stream.channel_name === selectedStream.channel_name
+      );
+      
+      if (!isStreamStillActive && !streamHasEnded) {
+        console.log("Stream has ended, leaving channel");
+        setStreamHasEnded(true);
+        setErrorMessage("The stream has ended");
+        
+        // Wait a moment to show the message before disconnecting
+        setTimeout(() => {
+          leaveChannel();
+        }, 2000);
       }
-    });
-  };
-
-  // Initialize ResizeObserver
-  const resizeObserver = new ResizeObserver(() => {
-    updateVideoSize();
-  });
-
-  resizeObserver.observe(videoWrapperRef.current);
-  
-  // Call once to set initial size
-  updateVideoSize();
-
-  return () => {
-    if (videoWrapperRef.current) {
-      resizeObserver.unobserve(videoWrapperRef.current);
     }
-    resizeObserver.disconnect();
-  };
-}, [started, videoAspectRatio, videoWrapperRef.current, videoInitialized]); // Added videoInitialized here
+  }, [availableStreams, selectedStream, started]);
+
+
+  useEffect(() => {
+    if (!videoWrapperRef.current || !started) return;
+
+    const updateVideoSize = () => {
+      const container = videoWrapperRef.current;
+      if (!container) return;
+
+      const containerWidth = container.clientWidth;
+      const containerHeight = container.clientHeight;
+      const containerAspectRatio = containerWidth / containerHeight;
+
+      const videoElements = container.querySelectorAll('.remote-video-element');
+      videoElements.forEach(videoElement => {
+        // If container is wider than video, fit to height
+        if (containerAspectRatio > videoAspectRatio) {
+          const newWidth = containerHeight * videoAspectRatio;
+          videoElement.style.width = `${newWidth}px`;
+          videoElement.style.height = '100%';
+        } else {
+          // If container is taller than video, fit to width
+          const newHeight = containerWidth / videoAspectRatio;
+          videoElement.style.width = '100%';
+          videoElement.style.height = `${newHeight}px`;
+        }
+      });
+    };
+
+    // Initialize ResizeObserver
+    const resizeObserver = new ResizeObserver(() => {
+      updateVideoSize();
+    });
+
+    resizeObserver.observe(videoWrapperRef.current);
+    
+    // Call once to set initial size
+    updateVideoSize();
+
+    return () => {
+      if (videoWrapperRef.current) {
+        resizeObserver.unobserve(videoWrapperRef.current);
+      }
+      resizeObserver.disconnect();
+    };
+  }, [started, videoAspectRatio, videoWrapperRef.current, videoInitialized]); // Added videoInitialized here
 
   // Handle network quality updates
   useEffect(() => {
@@ -121,6 +159,11 @@ useEffect(() => {
     if (clientRef.current) {
       clientRef.current.leave().catch(console.error);
     }
+    
+    // Clear polling interval
+    if (pollingIntervalId) {
+      clearInterval(pollingIntervalId);
+    }
   };
 
   // Handle fullscreen changes
@@ -144,11 +187,69 @@ useEffect(() => {
     };
   }, []);
 
+// Send heartbeat to update participant activity status
+const sendHeartbeat = async () => {
+  if (!started || !selectedStream) return;
+  
+  try {
+    // Add a random jitter (0-2 seconds) to prevent all clients from hitting the server simultaneously
+    const jitter = Math.floor(Math.random() * 2000);
+    await new Promise(resolve => setTimeout(resolve, jitter));
+    
+    const response = await apiInstance.api.post('/api/livestream/participant/heartbeat/', {
+      channel_name: selectedStream.channel_name
+    });
+    
+    // Check if we need to update our local participant count
+    if (response.data && response.data.active_participants) {
+      setSelectedStream(prev => ({
+        ...prev,
+        participant_count: response.data.active_participants
+      }));
+    }
+  } catch (error) {
+    console.error("Error sending heartbeat:", error);
+    // Don't show error message to user for heartbeat failures
+  }
+};
+
+
+useEffect(() => {
+  let heartbeatInterval;
+  
+  if (started && selectedStream) {
+    // Send initial heartbeat
+    sendHeartbeat();
+    
+    // Increase interval to 30 seconds instead of 20
+    heartbeatInterval = setInterval(sendHeartbeat, 30000);
+  }
+  
+  return () => {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+    }
+  };
+}, [started, selectedStream]);
+
   // Fetch available streams
   const fetchAvailableStreams = async () => {
     try {
       setIsLoading(true);
       const response = await apiInstance.api.get('/api/livestream/streams/');
+      
+      // Update the participant count of the selected stream if it exists
+      if (selectedStream) {
+        const updatedStream = response.data.find(
+          stream => stream.channel_name === selectedStream.channel_name
+        );
+        
+        if (updatedStream) {
+          // Create a new object to ensure React detects the state change
+          setSelectedStream({...updatedStream});
+        }
+      }
+      
       setAvailableStreams(response.data);
       console.log('Available streams:', response.data);
     } catch (error) {
@@ -158,6 +259,7 @@ useEffect(() => {
       setIsLoading(false);
     }
   };
+  
   
   // Initialize the Agora engine
   const initializeAgora = async () => {
@@ -221,7 +323,7 @@ useEffect(() => {
     }
   };
   
-  // Set up event listeners for the Agora client
+
   const setupEventListeners = () => {
     const client = clientRef.current;
     
@@ -231,6 +333,11 @@ useEffect(() => {
     client.on("connection-state-change", (curState, prevState) => {
       console.log("Connection state changed from", prevState, "to", curState);
       setConnectionStatus(curState);
+      
+      // If connection is interrupted or disconnected, check if stream still exists
+      if (curState === "DISCONNECTED" && selectedStream) {
+        fetchAvailableStreams();
+      }
     });
     
     // When a remote user publishes a stream
@@ -304,11 +411,14 @@ useEffect(() => {
                       updateVideoSize();
                       setTimeout(updateVideoSize, 100);
                     }
-                  } else {
-                    // ... rest of the existing code ...
                   }
                 } catch (error) {
-                  // ... existing error handling ...
+                  console.error(`Error playing video (attempt ${attempts + 1}):`, error);
+                  
+                  // Wait and retry
+                  setTimeout(() => {
+                    attemptPlay(attempts + 1);
+                  }, 1000);
                 }
               };
               
@@ -348,12 +458,23 @@ useEffect(() => {
       setRemoteUsers(prevUsers => {
         return prevUsers.filter(u => u.uid !== user.uid);
       });
+      
+      // Check if this was the host leaving
+      if (selectedStream && selectedStream.host_id === user.uid) {
+        console.log("Host has left, checking if stream is ended");
+        fetchAvailableStreams();
+      }
     });
     
     // Exception handling
     client.on("exception", (event) => {
       console.warn("Exception:", event);
       setErrorMessage(`Exception: ${event.code} - ${event.msg}`);
+      
+      // For channel closed errors, refresh stream list
+      if (event.code === 'CHANNEL_CLOSED') {
+        fetchAvailableStreams();
+      }
     });
   };
   
@@ -367,6 +488,9 @@ useEffect(() => {
     
     // Update selected stream
     setSelectedStream(stream);
+    
+    // Reset stream ended flag
+    setStreamHasEnded(false);
     
     // If already watching a different stream, leave that channel first
     if (started) {
@@ -437,12 +561,26 @@ useEffect(() => {
       await client.leave();
       console.log("Left channel successfully");
       
+      // Update participant status in the backend
+      if (selectedStream) {
+        try {
+          await apiInstance.api.post('/api/livestream/participant/leave/', {
+            channel_name: selectedStream.channel_name
+          });
+        } catch (err) {
+          console.error("Error updating participant status:", err);
+        }
+      }
+      
       setRemoteUsers([]);
       setStarted(false);
       setConnectionStatus("Not connected");
       setErrorMessage("");
       setNetworkQuality(null);
       setVideoInitialized(false);
+      
+      // Refresh stream list to get updated viewer counts
+      fetchAvailableStreams();
       
     } catch (error) {
       console.error("Error leaving channel:", error);
@@ -702,6 +840,8 @@ useEffect(() => {
       </div>
     );
   };
+
+
 
   // Render the active stream view (Google Meet-like container)
   const renderActiveStreamView = () => {
