@@ -735,7 +735,7 @@ class MusicMetadataView(APIView):
                 "cover_photo": request.build_absolute_uri(music.cover_photo.url) if music.cover_photo else None,
                 "duration": music.duration,
                 "title": music.name,
-                "artist": music.artist.user.email,
+                "artist": music.artist.user.username,
                 "format": "mp3",
             }
             print(f"Metadata extracted: {metadata}")
