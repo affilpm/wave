@@ -12,8 +12,6 @@ class ArtistVerificationStatus(models.TextChoices):
 class Artist(models.Model):
     user = models.OneToOneField('users.CustomUser', on_delete=models.CASCADE, related_name='artist_profile')
     bio = models.TextField(max_length=1000, blank=True)
-    photo = models.ImageField(upload_to='artist_photo/', null=True, blank=True)
-    banner_photo = models.ImageField(upload_to='banner_photo/', null=True, blank=True)
     genres = models.ManyToManyField(Genre, related_name='artists')
     status = models.CharField(
         max_length=20,

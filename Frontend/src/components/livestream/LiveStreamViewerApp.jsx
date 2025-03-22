@@ -622,25 +622,14 @@ useEffect(() => {
     if (!stream) return 'Unknown';
     
     if (stream.artist) {
-      const firstName = stream.artist.first_name || '';
-      const lastName = stream.artist.last_name || '';
-      
-      if (firstName || lastName) {
-        return `${firstName} ${lastName}`.trim();
-      }
+
       
       return stream.artist.username || 'Unknown Artist';
     }
     
     // Fallback to user if artist isn't available
     if (stream.user) {
-      const firstName = stream.user.first_name || '';
-      const lastName = stream.user.last_name || '';
-      
-      if (firstName || lastName) {
-        return `${firstName} ${lastName}`.trim();
-      }
-      
+
       return stream.user.username || 'Unknown';
     }
     
@@ -779,7 +768,7 @@ useEffect(() => {
                   <div className="relative cursor-pointer overflow-hidden rounded-lg sm:rounded-xl bg-gray-800 aspect-video shadow-md transition-all group-hover:shadow-xl group-hover:shadow-indigo-900/20">
                     {stream.thumbnail ? (
                       <img
-                        src={stream.thumbnail}
+                        src={stream.artist.profile_photo}
                         alt={`Stream by ${getArtistName(stream)}`}
                         className="w-full h-full object-cover transform transition-transform group-hover:scale-105"
                       />
