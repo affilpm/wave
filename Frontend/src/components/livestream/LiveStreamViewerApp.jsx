@@ -766,9 +766,9 @@ useEffect(() => {
                   onClick={() => startStream(stream)}
                 >
                   <div className="relative cursor-pointer overflow-hidden rounded-lg sm:rounded-xl bg-gray-800 aspect-video shadow-md transition-all group-hover:shadow-xl group-hover:shadow-indigo-900/20">
-                    {stream.thumbnail ? (
+                    {stream.artist.profile_photo ? (
                       <img
-                        src={stream.artist.profile_photo}
+                        src={`${import.meta.env.VITE_API_W}${stream.artist.profile_photo}`}
                         alt={`Stream by ${getArtistName(stream)}`}
                         className="w-full h-full object-cover transform transition-transform group-hover:scale-105"
                       />
