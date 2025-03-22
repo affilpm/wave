@@ -239,17 +239,7 @@ class LiveStreamViewSet(viewsets.ModelViewSet):
                     ).count()
                     
                     followed_artists.append({
-                        'id': follow.id,
-                        'user': {
-                            'id': request.user.id,
-                            'email': request.user.email,
-                            'username': request.user.username,
-                            'first_name': request.user.first_name,
-                            'last_name': request.user.last_name,
-                            'profile_photo': request.user.profile_photo.url if request.user.profile_photo else None,
-                            'created_at': request.user.created_at,
-                            'updated_at': request.user.updated_at
-                        },
+
                         'artist': artist_data,
                         'channel_name': stream.channel_name,
                         'participant_count': participant_count
