@@ -248,7 +248,7 @@ const MusicPlayer = () => {
         play_percentage: percentage,
         play_id: playId
       });
-      
+
       if (response.data.counted_as_play) {
         reportedPlayRef.current = true;
         console.log("Play counted successfully");
@@ -328,6 +328,8 @@ const MusicPlayer = () => {
         reportedPlayRef.current = false;
         
         const response = await api.get(`/api/music/token/${musicId}/`);
+      console.log(response.data, "Play reported successfully");
+
         setSignedToken(response.data.token);
         setPlayId(response.data.play_id);
         tokenMusicIdRef.current = musicId;
