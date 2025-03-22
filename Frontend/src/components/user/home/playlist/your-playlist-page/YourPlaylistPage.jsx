@@ -41,6 +41,8 @@ const YourPlaylistPage = () => {
   const [error, setError] = useState(null);
   const [isShuffling, setIsShuffling] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [trackToRemove, setTrackToRemove] = useState(null);
+  const [showRemoveConfirmation, setShowRemoveConfirmation] = useState(false);
   const { playlistId } = useParams();
   const navigate = useNavigate();
   const [totalDuration, setTotalDuration] = useState("");
@@ -173,15 +175,33 @@ const handlePlayTrack = (track, index) => {
     }
   };
 
-  const handleRemoveTrack = async (trackId) => {
+  // Show confirmation dialog for track removal
+  const confirmRemoveTrack = (trackId, trackName) => {
+    setTrackToRemove({ id: trackId, name: trackName });
+    setShowRemoveConfirmation(true);
+  };
+
+  // Handle actual track removal after confirmation
+  const handleRemoveTrack = async () => {
+    if (!trackToRemove) return;
+    
     try {
       await api.post(`/api/playlist/playlists/${playlistId}/remove_tracks/`, {
-        track_ids: [trackId],
+        track_ids: [trackToRemove.id],
       });
       handleTracksUpdate();
+      setShowRemoveConfirmation(false);
+      setTrackToRemove(null);
     } catch (err) {
       setError("Failed to remove track");
+      setShowRemoveConfirmation(false);
     }
+  };
+
+  // Cancel track removal
+  const cancelRemoveTrack = () => {
+    setShowRemoveConfirmation(false);
+    setTrackToRemove(null);
   };
 
   const handleTracksUpdate = async () => {
@@ -266,22 +286,22 @@ const handlePlayTrack = (track, index) => {
           {formatDuration(track.music_details.duration)}
         </td>
         <td className="py-3 pr-6 text-right">
-  {playlist.name === 'Liked Songs' ? (
-    <button
-      className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-all"
-      onClick={() => handleRemoveTrack(track.music_details.id)}
-    >
-      <Heart className="h-4 w-4" fill="currentColor" />
-    </button>
-  ) : (
-    <button
-      className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-all"
-      onClick={() => handleRemoveTrack(track.music_details.id)}
-    >
-      <X className="h-4 w-4" />
-    </button>
-  )}
-</td>
+          {playlist.name === 'Liked Songs' ? (
+            <button
+              className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-all"
+              onClick={() => confirmRemoveTrack(track.music_details.id, track.music_details.name)}
+            >
+              <Heart className="h-4 w-4" fill="currentColor" />
+            </button>
+          ) : (
+            <button
+              className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-all"
+              onClick={() => confirmRemoveTrack(track.music_details.id, track.music_details.name)}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </td>
       </tr>
     );
   };
@@ -403,6 +423,32 @@ const handlePlayTrack = (track, index) => {
           onEditPlaylist={handleEditPlaylist}
           playlist={playlist}
         />
+      )}
+      
+      {/* Remove Track Confirmation Modal */}
+      {showRemoveConfirmation && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold mb-4">Remove from playlist?</h3>
+            <p className="text-gray-300 mb-6">
+              Are you sure you want to remove "{trackToRemove?.name}" from this playlist?
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={cancelRemoveTrack}
+                className="px-4 py-2 bg-transparent hover:bg-white/10 rounded-md text-white transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleRemoveTrack}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-md text-white transition-colors"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

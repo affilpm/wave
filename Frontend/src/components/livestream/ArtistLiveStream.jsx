@@ -1,11 +1,9 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AgoraRTC from 'agora-rtc-sdk-ng';
-import { ArrowLeft, Video, Mic, MicOff, VideoOff, Users, X, Send, MessageCircle  } from 'lucide-react';
+import { ArrowLeft, Video, Mic, MicOff, VideoOff, Users } from 'lucide-react';
 import { apiInstance } from '../../api';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
-// import "./chat.css";
-
 
 const ArtistLiveStream = () => {
   // State variables
@@ -31,14 +29,10 @@ const ArtistLiveStream = () => {
   const [isLeavingPage, setIsLeavingPage] = useState(false);
   const [showExitWarning, setShowExitWarning] = useState(false);
   const [fullscreenMode, setFullscreenMode] = useState(false);
-  const [messages, setMessages] = useState([]);
-  const [newMessage, setNewMessage] = useState('');
-  const [wsConnection, setWsConnection] = useState(null);
-  const messagesEndRef = useRef(null);
-  const [showChat, setShowChat] = useState(false);
-  const [commonEmojis, setCommonEmojis] = useState(['👍', '❤️', '😂', '🔥', '👏', '😮']);
+  const [heartbeatInterval, setHeartbeatInterval] = useState(null);
+  
   // Get user data from Redux store
-  const { username, photo, image } = useSelector((state) => state.user);
+  const { username } = useSelector((state) => state.user);
   
   // Navigation
   const navigate = useNavigate();
@@ -52,147 +46,55 @@ const ArtistLiveStream = () => {
   const streamContainerRef = useRef(null);
 
 
-const [unreadCount, setUnreadCount] = useState(0);
 
 
 
-  const toggleChat = () => {
-    setShowChat(prevShowChat => !prevShowChat);
-    // Reset unread count when opening chat
-    if (!showChat) {
-      setUnreadCount(0);
+
+
+const fetchViewerCount = async () => {
+  if (!streamSettings.channel) return;
+  
+  try {
+    const response = await apiInstance.api.get('/api/livestream/viewer-count/', {
+      params: {
+        channel_name: streamSettings.channel
+      }
+    });
+    
+    if (response.data.active_participants !== undefined) {
+      setViewerCount(response.data.active_participants);
+    }
+  } catch (error) {
+    console.error("Error fetching viewer count:", error);
+  }
+};
+
+
+
+
+useEffect(() => {
+  if (isStreaming && streamSettings.channel) {
+    // Fetch immediately when streaming begins
+    fetchViewerCount();
+    
+    // Start interval to periodically fetch viewer count
+    const interval = setInterval(fetchViewerCount, 30000); // Every 5 seconds
+    setHeartbeatInterval(interval);
+  } else {
+    // Clear interval when streaming ends
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
+      setHeartbeatInterval(null);
+    }
+  }
+  
+  return () => {
+    if (heartbeatInterval) {
+      clearInterval(heartbeatInterval);
     }
   };
+}, [isStreaming, streamSettings.channel]);
   
-
-
-//   //chat//
-//   const connectToWebsocket = useCallback(() => {
-//     if (!streamSettings.channel || !isStreaming) return;
-    
-//     // Create WebSocket connection
-//     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-//     const wsUrl = `${protocol}//${import.meta.env.VITE_API_W}/ws/livestream/${streamSettings.channel}/`;
-//     const ws = new WebSocket(wsUrl);
-    
-//     ws.onopen = () => {
-//       console.log('WebSocket connection established');
-//       setWsConnection(ws);
-//     };
-    
-//     ws.onmessage = (e) => {
-//       const data = JSON.parse(e.data);
-//       console.log('WebSocket message received:', data);
-      
-//       if (data.type === 'chat_message') {
-//         // Add isHost flag when the sender username matches your username
-//         setMessages(prev => [...prev, {
-//           ...data,
-//           isHost: data.username === username
-//         }]);
-//       } else if (data.type === 'viewer_count') {
-//         setViewerCount(data.count);
-//       } else if (data.type === 'system_message') {
-//         setMessages(prev => [...prev, {
-//           type: 'system_message',
-//           message: data.message,
-//           timestamp: new Date().toISOString()
-//         }]);
-//       }
-//     };
-
-//     ws.onclose = () => {
-//       console.log('WebSocket connection closed');
-//       setWsConnection(null);
-//     };
-    
-//     return ws;
-//   }, [streamSettings.channel, isStreaming]);
-  
-//   // Add this useEffect to initialize WebSocket when streaming starts
-//   useEffect(() => {
-//     let ws = null;
-    
-//     if (isStreaming && streamSettings.channel) {
-//       ws = connectToWebsocket();
-//     }
-    
-//     return () => {
-//       if (ws) {
-//         ws.close();
-//       }
-//     };
-//   }, [isStreaming, streamSettings.channel, connectToWebsocket]);
-  
-//   // Add a heartbeat effect to keep the connection alive
-//   useEffect(() => {
-//     let heartbeatInterval;
-    
-//     if (wsConnection && wsConnection.readyState === WebSocket.OPEN) {
-//       heartbeatInterval = setInterval(() => {
-//         wsConnection.send(JSON.stringify({
-//           type: 'heartbeat'
-//         }));
-//       }, 15000); // Every 15 seconds
-//     }
-    
-//     return () => {
-//       if (heartbeatInterval) {
-//         clearInterval(heartbeatInterval);
-//       }
-//     };
-//   }, [wsConnection]);
-  
-//   // Add auto-scroll effect for chat messages
-//   useEffect(() => {
-//     if (messagesEndRef.current) {
-//       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-//     }
-//   }, [messages]);
-  
-  
-//   // const sendMessage = () => {
-//   //   if (!newMessage.trim() || !wsConnection) return;
-    
-//   //   wsConnection.send(JSON.stringify({
-//   //     type: 'chat_message',
-//   //     message: newMessage.trim()
-//   //   }));
-    
-//   //   setNewMessage('');
-//   // };
-
-
-// // Modified sendMessage function to add the message to the local state
-// const sendMessage = () => {
-//   if (!newMessage.trim() || !wsConnection || wsConnection.readyState !== WebSocket.OPEN) return;
-  
-//   console.log('Sending message:', newMessage.trim());
-  
-//   // Create a message object for the current user (host)
-//   const messageObj = {
-//     type: 'chat_message',
-//     message: newMessage.trim(),
-//     username: username,
-//     isHost: true,
-//     timestamp: new Date().toISOString()
-//   };
-  
-//   // Update local state first to show the message immediately
-//   setMessages(prev => [...prev, messageObj]);
-  
-//   // Then send to WebSocket
-//   wsConnection.send(JSON.stringify({
-//     type: 'chat_message',
-//     message: newMessage.trim()
-//   }));
-  
-//   setNewMessage('');
-// };
-
-
-
-
 
 
 
@@ -206,6 +108,9 @@ const [unreadCount, setUnreadCount] = useState(0);
       setFullscreenMode(true);
     }
   }, [isStreaming]);
+
+
+
 
   // Block navigation when streaming is active
   useEffect(() => {
@@ -249,6 +154,9 @@ const [unreadCount, setUnreadCount] = useState(0);
     };
   }, [isStreaming]);
 
+
+
+
   // Enhanced cleanup on component unmount
   useEffect(() => {
     return () => {
@@ -258,6 +166,9 @@ const [unreadCount, setUnreadCount] = useState(0);
       }
     };
   }, []);
+
+
+
 
   // Helper function to end stream specifically during exit scenarios
   const endStreamOnExit = async () => {
@@ -275,20 +186,20 @@ const [unreadCount, setUnreadCount] = useState(0);
         localVideoTrack.close();
       }
       
-          // Use sendBeacon to notify backend that stream has ended
-    if (streamSettings.channel) {
-      const endStreamData = JSON.stringify({
-        channel: streamSettings.channel,
-        abruptExit: true
-      });
-      
-      // Use the sendBeacon API which works during page unload
-      navigator.sendBeacon(
-        `${apiInstance.api.defaults.baseURL}/api/livestream/end-stream/`, 
-        endStreamData
-      );
-      console.log("Sent stream end notification via beacon");
-    }
+      // Use sendBeacon to notify backend that stream has ended
+      if (streamSettings.channel) {
+        const endStreamData = JSON.stringify({
+          channel: streamSettings.channel,
+          abruptExit: true
+        });
+        
+        // Use the sendBeacon API which works during page unload
+        navigator.sendBeacon(
+          `${apiInstance.api.defaults.baseURL}/api/livestream/end-stream/`, 
+          endStreamData
+        );
+        console.log("Sent stream end notification via beacon");
+      }
 
       // Notify backend that stream has ended
       if (streamSettings.channel) {
@@ -313,25 +224,18 @@ const [unreadCount, setUnreadCount] = useState(0);
       console.error("Error in endStreamOnExit:", error);
     }
   };
+
+
+
   
-
-  // Confirmation dialog for navigation within the app
-  const handleNavigateAway = (destination) => {
-    if (isStreaming) {
-      setShowExitWarning(true);
-      return false;
-    } else {
-      // If not streaming, just navigate
-      navigate(destination);
-      return true;
-    }
-  };
-
   // Safe exit after ending stream
   const safeExit = () => {
     setFullscreenMode(false);
     navigate('/studio');
   };
+
+
+
 
   // Helper function to play video with retry logic
   const playVideoTrack = async (track, retryCount = 0) => {
@@ -382,12 +286,17 @@ const [unreadCount, setUnreadCount] = useState(0);
     }
   };
 
+
+
   // Use a ref to keep track of the video track
   useEffect(() => {
     if (localVideoTrack) {
       videoTrackRef.current = localVideoTrack;
     }
   }, [localVideoTrack]);
+
+
+
 
   // Play video track when both video and container are available
   useEffect(() => {
@@ -423,6 +332,9 @@ const [unreadCount, setUnreadCount] = useState(0);
     };
   }, [localVideoTrack, localVideoRef.current]);
 
+
+
+
   // Handle video enabled state changes
   useEffect(() => {
     if (localVideoTrack && videoInitialized) {
@@ -450,6 +362,8 @@ const [unreadCount, setUnreadCount] = useState(0);
     }
   }, [videoEnabled, videoInitialized]);
 
+
+
   // Initialize AgoraRTC client
   useEffect(() => {
     clientRef.current = AgoraRTC.createClient({
@@ -464,6 +378,9 @@ const [unreadCount, setUnreadCount] = useState(0);
       cleanupResources();
     };
   }, []);
+
+
+
 
   // Setup event listeners for the Agora client
   const setupEventListeners = () => {
@@ -501,6 +418,9 @@ const [unreadCount, setUnreadCount] = useState(0);
     });
   };
 
+
+
+
   // Clean up resources when component unmounts
   const cleanupResources = async () => {
     try {
@@ -522,6 +442,9 @@ const [unreadCount, setUnreadCount] = useState(0);
       console.error("Error cleaning up resources:", error);
     }
   };
+
+
+
 
   // Get streaming token from backend
   const getStreamToken = async () => {
@@ -550,6 +473,9 @@ const [unreadCount, setUnreadCount] = useState(0);
       throw error;
     }
   };
+
+
+
 
   // Start the livestream
   const startStream = async () => {
@@ -658,6 +584,9 @@ const [unreadCount, setUnreadCount] = useState(0);
     }
   };
 
+
+
+
   // End the livestream
   const endStream = async () => {
     if (isLoading) return;
@@ -713,6 +642,9 @@ const [unreadCount, setUnreadCount] = useState(0);
     }
   };
 
+
+
+
   // Toggle video with retry capability
   const toggleVideo = async () => {
     if (!localVideoTrack) return;
@@ -755,6 +687,9 @@ const [unreadCount, setUnreadCount] = useState(0);
     }
   };
 
+
+
+
   // Toggle audio
   const toggleAudio = async () => {
     if (!localAudioTrack) return;
@@ -768,6 +703,10 @@ const [unreadCount, setUnreadCount] = useState(0);
       setErrorMessage("Failed to toggle audio");
     }
   };
+
+
+
+
   
   // Manual retry function for video playback
   const retryVideoPlayback = () => {
@@ -792,6 +731,9 @@ const [unreadCount, setUnreadCount] = useState(0);
       playVideoTrack(trackToUse);
     }, 200);
   };
+
+
+
 
   // Render quality indicator
   const renderQualityIndicator = () => {
@@ -827,6 +769,9 @@ const [unreadCount, setUnreadCount] = useState(0);
       </div>
     );
   };
+
+
+
 
   // Exit warning modal
   const renderExitWarningModal = () => {
@@ -864,133 +809,117 @@ const [unreadCount, setUnreadCount] = useState(0);
     );
   };
 
-// Render the stream view
-if (fullscreenMode) {
-  return (
-    <div 
-      ref={streamContainerRef}
-      className="fixed inset-0 bg-black z-50 flex flex-col h-screen"
-    >
-      {/* Header - fixed height */}
-      <div className="bg-gray-900 px-6 py-3 flex items-center justify-between border-b border-gray-800 h-14 flex-shrink-0">
-        <div className="flex items-center space-x-3">
-          <span className="bg-red-600 text-white text-xs px-2 py-1 rounded-md flex items-center">
-            <span className="w-2 h-2 bg-white rounded-full mr-1 animate-pulse"></span> 
-            LIVE
-          </span>
-          <h3 className="text-lg font-semibold text-white">{username}'s Stream</h3>
-        </div>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-1 text-gray-400">
-            <Users size={16} />
-            <span className="text-sm">{viewerCount}</span>
-          </div>
-          {renderQualityIndicator()}
-        </div>
-      </div>
 
-      {/* Main content area - flexible height between header and controls */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Video container - takes remaining space */}
-        <div className="flex-1 bg-gray-900 flex items-center justify-center">
-          <div className="relative w-full h-full flex items-center justify-center mx-auto">
-            <div className="w-full h-full flex items-center justify-center overflow-hidden rounded-lg relative bg-black">
-              <video 
-                ref={localVideoRef} 
-                className="max-w-full max-h-full object-contain"
-                autoPlay 
-                playsInline 
-                muted 
-              />
-              
-              {!videoInitialized && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/70">
-                  <div className="text-center">
-                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-white">Initializing video...</p>
+
+  // Render the stream view
+  if (fullscreenMode) {
+    return (
+      <div 
+        ref={streamContainerRef}
+        className="fixed inset-0 bg-black z-50 flex flex-col h-screen"
+      >
+        {/* Header - fixed height */}
+        <div className="bg-gray-900 px-6 py-3 flex items-center justify-between border-b border-gray-800 h-14 flex-shrink-0">
+          <div className="flex items-center space-x-3">
+            <span className="bg-red-600 text-white text-xs px-2 py-1 rounded-md flex items-center">
+              <span className="w-2 h-2 bg-white rounded-full mr-1 animate-pulse"></span> 
+              LIVE
+            </span>
+            <h3 className="text-lg font-semibold text-white">{username}'s Stream</h3>
+          </div>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-1 text-gray-400">
+              <Users size={16} />
+              <span className="text-sm">{viewerCount}</span>
+            </div>
+            {renderQualityIndicator()}
+          </div>
+        </div>
+
+        {/* Main content area - flexible height between header and controls */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Video container - takes remaining space */}
+          <div className="flex-1 bg-gray-900 flex items-center justify-center">
+            <div className="relative w-full h-full flex items-center justify-center mx-auto">
+              <div className="w-full h-full flex items-center justify-center overflow-hidden rounded-lg relative bg-black">
+                <video 
+                  ref={localVideoRef} 
+                  className="max-w-full max-h-full object-contain"
+                  autoPlay 
+                  playsInline 
+                  muted 
+                />
+                
+                {!videoInitialized && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+                    <div className="text-center">
+                      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                      <p className="text-white">Initializing video...</p>
+                    </div>
                   </div>
+                )}
+                
+                {/* Stream info overlay */}
+                <div className="absolute top-4 left-4 bg-black/60 text-white px-3 py-2 rounded-md text-sm flex items-center">
+                  <span className={`w-2 h-2 rounded-full mr-2 ${videoEnabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                  {username} (You)
                 </div>
-              )}
-              
-              {/* Stream info overlay */}
-              <div className="absolute top-4 left-4 bg-black/60 text-white px-3 py-2 rounded-md text-sm flex items-center">
-                <span className={`w-2 h-2 rounded-full mr-2 ${videoEnabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                {username} (You)
+                
+                {/* Error message */}
+                {errorMessage && (
+                  <div className="absolute top-4 right-4 bg-red-900/80 border border-red-800 text-white px-4 py-2 rounded-md max-w-md">
+                    {errorMessage}
+                    {!videoInitialized && (
+                      <button 
+                        onClick={retryVideoPlayback}
+                        className="ml-4 bg-red-700 px-2 py-1 rounded text-sm hover:bg-red-600"
+                      >
+                        Retry Video
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-              
-              {/* Error message */}
-              {errorMessage && (
-                <div className="absolute top-4 right-4 bg-red-900/80 border border-red-800 text-white px-4 py-2 rounded-md max-w-md">
-                  {errorMessage}
-                  {!videoInitialized && (
-                    <button 
-                      onClick={retryVideoPlayback}
-                      className="ml-4 bg-red-700 px-2 py-1 rounded text-sm hover:bg-red-600"
-                    >
-                      Retry Video
-                    </button>
-                  )}
-                </div>
-              )}
             </div>
           </div>
         </div>
-        
 
-      </div>
-
-
-
-      {/* Controls - fixed height at bottom */}
-      <div className="bg-gray-900 px-6 py-3 border-t border-gray-800 h-16 flex-shrink-0 z-10">
-        <div className="flex items-center justify-between h-full">
-          <div className="flex space-x-4">
+        {/* Controls - fixed height at bottom */}
+        <div className="bg-gray-900 px-6 py-3 border-t border-gray-800 h-16 flex-shrink-0 z-10">
+          <div className="flex items-center justify-between h-full">
+            <div className="flex space-x-4">
+              <button
+                onClick={toggleVideo}
+                className={`p-3 rounded-full ${videoEnabled ? 'bg-gray-700 text-white' : 'bg-red-600 text-white'}`}
+                disabled={isLoading}
+              >
+                {videoEnabled ? <Video size={20} /> : <VideoOff size={20} />}
+              </button>
+              <button
+                onClick={toggleAudio}
+                className={`p-3 rounded-full ${audioEnabled ? 'bg-gray-700 text-white' : 'bg-red-600 text-white'}`}
+                disabled={isLoading}
+              >
+                {audioEnabled ? <Mic size={20} /> : <MicOff size={20} />}
+              </button>
+            </div>
+            
             <button
-              onClick={toggleVideo}
-              className={`p-3 rounded-full ${videoEnabled ? 'bg-gray-700 text-white' : 'bg-red-600 text-white'}`}
+              onClick={() => setShowExitWarning(true)}
+              className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-lg font-medium transition-colors disabled:opacity-60"
               disabled={isLoading}
             >
-              {videoEnabled ? <Video size={20} /> : <VideoOff size={20} />}
-            </button>
-            <button
-              onClick={toggleAudio}
-              className={`p-3 rounded-full ${audioEnabled ? 'bg-gray-700 text-white' : 'bg-red-600 text-white'}`}
-              disabled={isLoading}
-            >
-              {audioEnabled ? <Mic size={20} /> : <MicOff size={20} />}
+              {isLoading ? "Ending..." : "End Stream & Exit"}
             </button>
           </div>
-          
-          <button
-            onClick={() => setShowExitWarning(true)}
-            className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-lg font-medium transition-colors disabled:opacity-60"
-            disabled={isLoading}
-          >
-            {isLoading ? "Ending..." : "End Stream & Exit"}
-          </button>
         </div>
+        
+        {/* Exit warning modal */}
+        {renderExitWarningModal()}
       </div>
-      
-      {/* Exit warning modal */}
-      {renderExitWarningModal()}
-      
-      <style jsx>{`
-        .overflow-y-auto::-webkit-scrollbar {
-          width: 4px;
-        }
-        
-        .overflow-y-auto::-webkit-scrollbar-track {
-          background: transparent;
-        }
-        
-        .overflow-y-auto::-webkit-scrollbar-thumb {
-          background-color: rgba(75, 85, 99, 0.5);
-          border-radius: 20px;
-        }
-      `}</style>
-    </div>
-  );
-}
+    );
+  }
+
 
   // Non-fullscreen view (for starting stream)
   return (
@@ -1025,8 +954,6 @@ if (fullscreenMode) {
           </button>
         </div>
       </div>
-
-
     </div>
   );
 };
