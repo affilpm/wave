@@ -1,53 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Music, Download } from 'lucide-react';
+import { CheckCircle2, Music, Download, Calendar } from 'lucide-react';
 import api from '../../../../api';
 import { useNavigate } from 'react-router-dom';
 
 const Premium = () => {
-  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [plans, setPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
-
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
 
-  const premiumPlans = [
-    {
-      name: 'Individual',
-      price: 1099,
-      features: [
-        'Ad-free music listening',
-        'Play anywhere - even offline',
-        'On-demand playback',
-        'High quality audio'
-      ],
-      backgroundColor: 'bg-green-600',
-      textColor: 'text-white'
-    },
-    {
-      name: 'Duo',
-      price: 1499,
-      features: [
-        'For 2 people living at the same address',
-        'Ad-free music listening',
-        'Play anywhere - even offline',
-        'Spotify Family Mix playlist'
-      ],
-      backgroundColor: 'bg-blue-600',
-      textColor: 'text-white'
-    },
-    {
-      name: 'Family',
-      price: 1599,
-      features: [
-        'Up to 6 people',
-        'Block explicit music',
-        'Ad-free music listening',
-        'Spotify Kids app'
-      ],
-      backgroundColor: 'bg-purple-600',
-      textColor: 'text-white'
-    }
-  ];
+  // Fetch available plans
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get('/api/premium/plans/');
+        setPlans(response.data);
+        setError(null);
+      } catch (err) {
+        setError('Failed to load premium plans. Please try again later.');
+        console.error('Error fetching plans:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
 
+    fetchPlans();
+  }, []);
+
+  // Load Razorpay script
   useEffect(() => {
     if (!document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]')) {
       const script = document.createElement('script');
@@ -60,16 +42,26 @@ const Premium = () => {
     }
   }, []);
 
+  // Get background color based on duration days
+  const getPlanColor = (durationDays) => {
+    // Color scheme based on duration length
+    if (durationDays <= 7) return 'bg-green-600'; // Weekly or less
+    if (durationDays <= 31) return 'bg-blue-600'; // Monthly
+    if (durationDays <= 100) return 'bg-purple-600'; // Quarterly
+    return 'bg-red-600'; // Yearly or more
+  };
+
   const handleGetStarted = async (plan) => {
     if (!razorpayLoaded) {
-      alert('Razorpay is still loading. Please try again.');
+      alert('Payment gateway is still loading. Please try again.');
       return;
     }
 
     try {
       const orderResponse = await api.post('/api/premium/create-order/', { 
-        plan: plan.name 
+        plan_id: plan.id 
       });
+      
       const { order_id, key_id, amount } = orderResponse.data;
 
       const options = {
@@ -77,7 +69,7 @@ const Premium = () => {
         amount: amount * 100,
         currency: 'INR',
         name: 'Your App Name',
-        description: `${plan.name} Premium Subscription`,
+        description: `${plan.name} (${plan.duration_label}) Premium Subscription`,
         order_id: order_id,
         handler: async (response) => {
           try {
@@ -104,16 +96,45 @@ const Premium = () => {
     } catch (error) {
       console.error('Order creation failed', error);
       alert('Failed to create order. Please try again.');
-      navigate('/home');
     }
   };
+
+  // Render loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Loading Premium Plans...</h2>
+          <div className="animate-spin h-10 w-10 border-4 border-white rounded-full border-t-transparent mx-auto"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Render error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+        <div className="text-center max-w-md p-6 bg-gray-800 rounded-lg">
+          <h2 className="text-2xl font-bold mb-4">Error</h2>
+          <p className="text-red-400 mb-4">{error}</p>
+          <button 
+            onClick={() => navigate('/home')}
+            className="bg-white text-black font-bold py-3 px-6 rounded-full hover:bg-gray-200 transition"
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black text-white p-6">
       <div className="max-w-6xl mx-auto">
         <header className="text-center mb-12">
           <button
-            onClick={() => navigate('/home')} // Navigates to the /home route
+            onClick={() => navigate('/home')}
             className="text-white font-semibold text-lg mb-6 flex items-center justify-start space-x-2"
           >
             <svg
@@ -134,27 +155,33 @@ const Premium = () => {
           </button>
 
           <h1 className="text-5xl font-bold mb-4">Premium</h1>
-          <p className="text-xl text-gray-300">Discover more with Premium</p>
+          <p className="text-xl text-gray-300">Choose a plan that fits your needs</p>
         </header>
 
         {/* Premium Plan Cards */}
         <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {premiumPlans.map((plan) => (
+          {plans.map((plan) => (
             <div
-              key={plan.name}
-              className={`${plan.backgroundColor} ${plan.textColor} rounded-lg p-6 shadow-xl transform transition hover:scale-105`}
+              key={plan.id}
+              className={`${getPlanColor(plan.duration_days)} text-white rounded-lg p-6 shadow-xl transform transition hover:scale-105`}
             >
               <h2 className="text-2xl font-bold mb-4">{plan.name}</h2>
-              <p className="text-4xl font-extrabold mb-6">₹{plan.price}/month</p>
+              <div className="flex items-baseline mb-2">
+                <p className="text-4xl font-extrabold">₹{plan.price}</p>
+              </div>
+              <div className="mb-6 flex items-center">
+                <Calendar className="mr-2" size={16} />
+                <span>{plan.duration_label}</span>
+              </div>
 
               <ul className="space-y-3 mb-8">
-                {plan.features.map((feature, index) => (
-                  <li key={index} className="flex items-center">
-                    <CheckCircle2 className="mr-2" />
-                    {feature}
-                  </li>
-                ))}
-              </ul>
+  {Array.isArray(plan.features) && plan.features.map((feature, index) => (
+    <li key={index} className="flex items-center">
+      <CheckCircle2 className="mr-2" size={16} />
+      <span>{feature}</span>
+    </li>
+  ))}
+</ul>
 
               <button
                 onClick={() => handleGetStarted(plan)}
@@ -169,7 +196,7 @@ const Premium = () => {
         {/* Why Go Premium Section */}
         <div className="mt-16 text-center">
           <h2 className="text-3xl font-bold mb-12">Why Go Premium?</h2>
-          <div className="grid sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid sm:grid-cols-1 md:grid-cols-3 gap-8">
             <div className="flex flex-col items-center">
               <Music size={64} className="text-green-500 mb-4" />
               <h3 className="text-xl font-semibold mb-2">Music Without Limits</h3>
@@ -179,6 +206,11 @@ const Premium = () => {
               <Download size={64} className="text-purple-500 mb-4" />
               <h3 className="text-xl font-semibold mb-2">Download & Go</h3>
               <p className="text-gray-300">Save music for offline listening</p>
+            </div>
+            <div className="flex flex-col items-center">
+              <Calendar size={64} className="text-blue-500 mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Flexible Plans</h3>
+              <p className="text-gray-300">Choose from various subscription durations</p>
             </div>
           </div>
         </div>
