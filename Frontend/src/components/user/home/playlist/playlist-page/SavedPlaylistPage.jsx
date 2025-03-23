@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Play, Pause, Clock, Share2, Shuffle, Plus } from "lucide-react";
+import { Play, Pause, Clock, Share2, Shuffle, Plus, Check } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector } from 'react-redux';
 import api from "../../../../../api";
@@ -24,6 +24,8 @@ const SavedPlaylistPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalDuration, setTotalDuration] = useState("");
+  const [isInLibrary, setIsInLibrary] = useState(false);
+  const [isLibraryLoading, setIsLibraryLoading] = useState(false);
   const { playlistId } = useParams();
   const navigate = useNavigate();
 
@@ -36,7 +38,6 @@ const SavedPlaylistPage = () => {
     cover_photo: track.music_details.cover_photo,
     duration: track.music_details.duration,
     release_date: track.music_details.release_date
-
   });
 
   const isCurrentTrackFromPlaylist = () => {
@@ -48,7 +49,6 @@ const SavedPlaylistPage = () => {
     // Check if current track exists in playlist
     return playlist.tracks.some(track => Number(track.music_details.id) === Number(musicId));
   };
-
 
   const handlePlayPlaylist = () => {
     if (!playlist?.tracks?.length) return;
@@ -111,9 +111,6 @@ const SavedPlaylistPage = () => {
     }
   };
 
-
-
-
   // Handle shuffle
   const handleShuffle = () => {
     dispatch(toggleShuffle());
@@ -122,6 +119,41 @@ const SavedPlaylistPage = () => {
     }
   };
 
+  // Check if playlist is in library
+  const checkLibraryStatus = async () => {
+    try {
+      const response = await api.get(`/api/library/library/check-playlist/${playlistId}/`);
+      setIsInLibrary(response.data.is_in_library);
+    } catch (error) {
+      console.error("Failed to check library status:", error);
+    }
+  };
+
+  // Toggle playlist in library
+  const handleToggleLibrary = async () => {
+    if (playlist?.created_by === "current_user") {
+      // Don't allow adding your own playlists to library
+      return;
+    }
+
+    try {
+      setIsLibraryLoading(true);
+      
+      if (isInLibrary) {
+        // Remove from library
+        await api.post('/api/library/remove_playlist/', { playlist_id: playlistId });
+        setIsInLibrary(false);
+      } else {
+        // Add to library
+        await api.post('/api/library/library/add-playlist/', { playlist_id: playlistId });
+        setIsInLibrary(true);
+      }
+    } catch (error) {
+      console.error("Failed to update library:", error);
+    } finally {
+      setIsLibraryLoading(false);
+    }
+  };
 
   useEffect(() => {
     const calculateTotalDuration = () => {
@@ -144,6 +176,9 @@ const SavedPlaylistPage = () => {
         const response = await api.get(`/api/playlist/playlists/${playlistId}/`);
         console.log(response.data, 'sdfas')
         setPlaylist(response.data);
+        
+        // Check if this playlist is in the user's library
+        checkLibraryStatus();
       } catch (err) {
         setError("Failed to load playlist");
       } finally {
@@ -214,6 +249,9 @@ const SavedPlaylistPage = () => {
     );
   };
 
+  // Don't show library toggle for own playlists
+  const isOwnPlaylist = playlist?.created_by_username === "YOUR_USERNAME"; // Replace with actual check
+
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 via-black to-black text-white">
       {/* Header Section */}
@@ -261,9 +299,27 @@ const SavedPlaylistPage = () => {
         <button className="p-2 text-gray-400 hover:text-white transition-colors">
           <Share2 className="h-6 w-6" />
         </button>
-        <button className="group p-1 border-2 border-gray-400 rounded-full w-8 h-8 flex items-center justify-center transition-all duration-200 transform group-hover:scale-90 hover:border-gray-100 hover:bg-transparent">
-          <Plus className="h-6 w-6 text-gray-400 group-hover:text-white transition-colors" />
-        </button>
+
+        {/* Library Toggle Button - Only show for other people's playlists */}
+        {!isOwnPlaylist && (
+          <button 
+            className={`group p-1 border-2 rounded-full w-8 h-8 flex items-center justify-center 
+              transition-all duration-200 transform hover:scale-105
+              ${isInLibrary 
+                ? "border-green-500 bg-green-500/20 hover:bg-green-500/30" 
+                : "border-gray-400 hover:border-gray-100 hover:bg-transparent"}`}
+            onClick={handleToggleLibrary}
+            disabled={isLibraryLoading}
+          >
+            {isLibraryLoading ? (
+              <div className="h-4 w-4 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+            ) : isInLibrary ? (
+              <Check className="h-5 w-5 text-green-500" />
+            ) : (
+              <Plus className="h-6 w-6 text-gray-400 group-hover:text-white transition-colors" />
+            )}
+          </button>
+        )}
       </div>
 
       {/* Track List */}
