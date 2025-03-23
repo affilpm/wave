@@ -4,6 +4,7 @@ import { Search, ChevronLeft, ChevronRight, Home, Video } from 'lucide-react';
 import { useSelector } from 'react-redux';
 import { useArtistStatus } from '../../../../hooks/useArtistStatus';
 import api from '../../../../api';
+import PremiumDetailsModal from './PremiumDetailsModal'; // Import the new component
 
 const restrictedUrls = ['/studio'];
 
@@ -12,6 +13,7 @@ const Header = () => {
   const [searchFocused, setSearchFocused] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isPremium, setIsPremium] = useState(false);
+  const [showPremiumModal, setShowPremiumModal] = useState(false); // New state for premium modal
   const navigate = useNavigate();
   const isNavigatingWithButtons = useRef(false);
   const { username, photo, image } = useSelector((state) => state.user);
@@ -20,8 +22,8 @@ const Header = () => {
   const location = useLocation();
   const [history, setHistory] = useState([]);
 
-  const profileMenuRef = useRef(null); // Ref to track the profile menu
-  const profileButtonRef = useRef(null); // New ref for the toggle button
+  const profileMenuRef = useRef(null);
+  const profileButtonRef = useRef(null);
 
   useEffect(() => {
     // Check if a click is outside the profile menu and the toggle button
@@ -110,131 +112,146 @@ const Header = () => {
     setShowProfileMenu((prev) => !prev);
   };
 
+  // Handle premium button click
+  const handlePremiumClick = () => {
+    if (isPremium) {
+      setShowPremiumModal(true); // Show modal for premium users
+    } else {
+      handleNavigation('/premium'); // Navigate to premium page for non-premium users
+    }
+  };
+
   return (
-    <div className="h-16 bg-black flex items-center justify-between px-4 sticky top-0 z-50">
-      {/* Left Section */}
-      <div className="flex gap-3">
-        {/* Previous Button */}
-        <button
-          onClick={handleBack}
-          className={`w-10 h-10 flex items-center justify-center rounded-full 
-            ${currentPosition <= 0
-              ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
-              : 'bg-gray-900 hover:bg-gray-800 text-white transition transform hover:scale-105 active:scale-95'} 
-            border border-gray-800`}
-          disabled={currentPosition <= 0}
-        >
-          <ChevronLeft className="h-6 w-6" />
-        </button>
+    <>
+      <div className="h-16 bg-black flex items-center justify-between px-4 sticky top-0 z-50">
+        {/* Left Section */}
+        <div className="flex gap-3">
+          {/* Previous Button */}
+          <button
+            onClick={handleBack}
+            className={`w-10 h-10 flex items-center justify-center rounded-full 
+              ${currentPosition <= 0
+                ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
+                : 'bg-gray-900 hover:bg-gray-800 text-white transition transform hover:scale-105 active:scale-95'} 
+              border border-gray-800`}
+            disabled={currentPosition <= 0}
+          >
+            <ChevronLeft className="h-6 w-6" />
+          </button>
 
-        {/* Next Button */}
-        <button
-          onClick={handleForward}
-          className={`w-10 h-10 flex items-center justify-center rounded-full 
-            ${currentPosition >= history.length - 1
-              ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
-              : 'bg-gray-900 hover:bg-gray-800 text-white transition transform hover:scale-105 active:scale-95'} 
-            border border-gray-800`}
-          disabled={currentPosition >= history.length - 1}
-        >
-          <ChevronRight className="h-6 w-6" />
-        </button>
-      </div>
+          {/* Next Button */}
+          <button
+            onClick={handleForward}
+            className={`w-10 h-10 flex items-center justify-center rounded-full 
+              ${currentPosition >= history.length - 1
+                ? 'bg-gray-700 text-gray-500 cursor-not-allowed' 
+                : 'bg-gray-900 hover:bg-gray-800 text-white transition transform hover:scale-105 active:scale-95'} 
+              border border-gray-800`}
+            disabled={currentPosition >= history.length - 1}
+          >
+            <ChevronRight className="h-6 w-6" />
+          </button>
+        </div>
 
-      {/* Center Section */}
-      <div className="flex items-center justify-center gap-8 max-w-3xl flex-1">
-        <button
-          className="flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors"
-          onClick={() => handleNavigation('/home')}
-        >
-          <Home className="h-6 w-6" />
-          <span className="text-base font-medium">Home</span>
-        </button>
-        
-        {/* Livestream Button */}
-        <button
-          className="flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors"
-          onClick={() => handleNavigation('/livestreams')}
-        >
-          <Video className="h-6 w-6" />
-          <span className="text-base font-medium">Livestream</span>
-        </button>
-        
-        <div className="flex-1 mx-4 max-w-md">
-          <div className="flex items-center bg-gray-800 rounded-full px-2">
-            <Search className="h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="bg-transparent text-white text-sm placeholder-gray-400 outline-none flex-1 p-2"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+        {/* Center Section */}
+        <div className="flex items-center justify-center gap-8 max-w-3xl flex-1">
+          <button
+            className="flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors"
+            onClick={() => handleNavigation('/home')}
+          >
+            <Home className="h-6 w-6" />
+            <span className="text-base font-medium">Home</span>
+          </button>
+          
+          {/* Livestream Button */}
+          <button
+            className="flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors"
+            onClick={() => handleNavigation('/livestreams')}
+          >
+            <Video className="h-6 w-6" />
+            <span className="text-base font-medium">Livestream</span>
+          </button>
+          
+          <div className="flex-1 mx-4 max-w-md">
+            <div className="flex items-center bg-gray-800 rounded-full px-2">
+              <Search className="h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search..."
+                className="bg-transparent text-white text-sm placeholder-gray-400 outline-none flex-1 p-2"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Right Section */}
+        <div className="flex gap-4 items-center">
+          <button
+            className={`text-sm font-medium px-4 py-2 rounded-full transition-colors ${
+              isPremium ? 'bg-yellow-500 hover:bg-yellow-400' : 'bg-green-600 hover:bg-green-500'
+            }`}
+            onClick={handlePremiumClick} // Updated to use the new handler
+          >
+            {isPremium ? 'Premium' : 'Join Premium'}
+          </button>
+          <div className="relative">
+            <button
+              ref={profileButtonRef}
+              className="flex items-center gap-2 bg-gray-800 rounded-full p-1 pr-3 hover:bg-gray-700"
+              onClick={toggleProfileMenu}
+            >
+              <div
+                className={`w-8 h-8 rounded-full flex items-center justify-center ${image ? '' : 'bg-gray-500'}`}
+                style={{
+                  backgroundImage: image ? `url(${image})` : 'none',
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }}
+              >
+                {!image && username && (
+                  <span className="text-white text-lg font-bold">
+                    {username.charAt(0).toUpperCase()}
+                  </span>
+                )}
+              </div>
+              {username && <span className="text-white text-sm">{username}</span>}
+            </button>
+            {showProfileMenu && (
+              <div 
+                ref={profileMenuRef}
+                className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-md shadow-lg py-1"
+              >
+                {['Profile', 'Settings', isArtist && 'Studio', 'Log out'].map(
+                  (item, idx) =>
+                    item && (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          item === 'Log out'
+                            ? handleNavigation('/logout')
+                            : handleNavigation(`/${item.toLowerCase()}`);
+                        }}
+                        className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-700"
+                      >
+                        {item}
+                      </button>
+                    )
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Right Section */}
-      <div className="flex gap-4 items-center">
-        <button
-          className={`text-sm font-medium px-4 py-2 rounded-full transition-colors ${
-            isPremium ? 'bg-yellow-500 hover:bg-yellow-400' : 'bg-green-600 hover:bg-green-500'
-          }`}
-          onClick={() =>
-            isPremium ? console.log('Already premium') : handleNavigation('/premium')
-          }
-        >
-          {isPremium ? 'Premium' : 'Join Premium'}
-        </button>
-        <div className="relative">
-          <button
-            ref={profileButtonRef}
-            className="flex items-center gap-2 bg-gray-800 rounded-full p-1 pr-3 hover:bg-gray-700"
-            onClick={toggleProfileMenu}
-          >
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center ${image ? '' : 'bg-gray-500'}`}
-              style={{
-                backgroundImage: image ? `url(${image})` : 'none',
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-              }}
-            >
-              {!image && username && (
-                <span className="text-white text-lg font-bold">
-                  {username.charAt(0).toUpperCase()}
-                </span>
-              )}
-            </div>
-            {username && <span className="text-white text-sm">{username}</span>}
-          </button>
-          {showProfileMenu && (
-            <div 
-              ref={profileMenuRef}
-              className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-md shadow-lg py-1"
-            >
-              {['Profile', 'Settings', isArtist && 'Studio', 'Log out'].map(
-                (item, idx) =>
-                  item && (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        setShowProfileMenu(false);
-                        item === 'Log out'
-                          ? handleNavigation('/logout')
-                          : handleNavigation(`/${item.toLowerCase()}`);
-                      }}
-                      className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-700"
-                    >
-                      {item}
-                    </button>
-                  )
-              )}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+      {/* Premium Details Modal */}
+      <PremiumDetailsModal 
+        isOpen={showPremiumModal} 
+        onClose={() => setShowPremiumModal(false)} 
+      />
+    </>
   );
 };
 

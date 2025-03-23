@@ -311,33 +311,3 @@ class TransactionViewSet(viewsets.ReadOnlyModelViewSet):
         })            
         
      
-class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    ViewSet for viewing subscription details.
-    """
-    serializer_class = UserSubscriptionSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def get_queryset(self):
-        return UserSubscription.objects.filter(user=self.request.user)
-    
-    def retrieve(self, request, pk=None):
-        # Override to get the user's subscription directly
-        subscription = get_object_or_404(UserSubscription, user=request.user)
-        serializer = self.get_serializer(subscription)
-        return Response(serializer.data)
-    
-    @action(detail=False, methods=['get'])
-    def current(self, request):
-        """
-        Get current user's subscription details
-        """
-        try:
-            subscription = UserSubscription.objects.get(user=request.user)
-            serializer = self.get_serializer(subscription)
-            return Response(serializer.data)
-        except UserSubscription.DoesNotExist:
-            return Response(
-                {"detail": "No active subscription found for this user."},
-                status=status.HTTP_404_NOT_FOUND
-            )        
