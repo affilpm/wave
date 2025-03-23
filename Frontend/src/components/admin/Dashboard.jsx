@@ -25,7 +25,6 @@ const Dashboard = () => {
     topArtists: []
   });
 
-  // Get dashboard data from backend
   useEffect(() => {
     const fetchDashboardData = async () => {
       try {
@@ -34,30 +33,38 @@ const Dashboard = () => {
         // Fetch data from all endpoints in parallel
         const [totalUsersRes, statsRes, topSongsRes, topArtistsRes] = await Promise.all([
           apiInstance.get('/api/admins/total-users/'),
-          apiInstance.get('/api/admins/stats/'),
+          apiInstance.get('/api/admins/premium_stats/'),
           apiInstance.get('/api/admins/top-songs/'),
           apiInstance.get('/api/admins/top-artists/')
         ]);
-
+  console.log(statsRes.data)
         // Format top songs data for chart
         const formattedSongs = topSongsRes.data.map(song => ({
           name: song.music__name,
           plays: song.play_count,
           artist: song.music__artist__user__email
         }));
-
+  
         // Format top artists data for chart
         const formattedArtists = topArtistsRes.data.map(artist => ({
           name: artist.user__email,
           plays: artist.follower_count
         }));
-
+  
+        // Calculate growth rate if previous month data is available
+        // This is a placeholder - you'd implement actual calculation based on your data
+        const currentRevenue = statsRes.data.monthly_revenue || 0;
+        const previousRevenue = statsRes.data.previous_monthly_revenue || 0;
+        const growthRate = previousRevenue > 0 
+          ? ((currentRevenue - previousRevenue) / previousRevenue * 100).toFixed(1)
+          : 0;
+  
         // Combine all data
         setDashboardData({
           totalUsers: totalUsersRes.data.total_users,
           premiumUsers: statsRes.data.total_premium_users,
-          monthlyRevenue: statsRes.data.monthly_revenue,
-          growthRate: 0, // You might want to calculate this based on previous data
+          monthlyRevenue: statsRes.data.total_revenue,
+          growthRate: growthRate,
           topSongs: formattedSongs,
           topArtists: formattedArtists
         });
@@ -68,7 +75,7 @@ const Dashboard = () => {
         setLoading(false);
       }
     };
-
+  
     fetchDashboardData();
   }, []);
 
@@ -173,12 +180,16 @@ const Dashboard = () => {
           />
           
           <DashboardCard 
-            title="Monthly Revenue"
-            value={`$${formatNumber(dashboardData.monthlyRevenue / 100)}`}
-            subtext={dashboardData.growthRate > 0 ? `↑ ${dashboardData.growthRate}% from last month` : 'Current month'}
-            icon={RevenueIcon}
-            color="from-emerald-600 to-emerald-800"
-          />
+      title="Monthly Revenue"
+      value={`$${formatNumber(dashboardData.monthlyRevenue / 100)}`}
+      subtext={dashboardData.growthRate > 0 
+        ? `↑ ${dashboardData.growthRate}%` 
+        : dashboardData.growthRate < 0 
+          ? `↓ ${Math.abs(dashboardData.growthRate)}%` 
+          : 'No change from last month'}
+      icon={RevenueIcon}
+      color="from-emerald-600 to-emerald-800"
+    />
         </div>
 
         {/* Charts */}

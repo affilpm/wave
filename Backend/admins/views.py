@@ -488,22 +488,40 @@ def total_premium_users(request):
 
 
 
+from django.db.models import Sum, Count
+from django.utils.timezone import now
+import datetime
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAdminUser
+from rest_framework.response import Response
+
 @api_view(['GET'])
 @permission_classes([IsAdminUser]) 
 def total_premium_users_and_revenue(request):
-    # Count active premium users
-    total_users = UserSubscription.objects.filter(status='active').count()
-
-    # Calculate revenue from successful transactions in the last 30 days
-    last_30_days = now() - timedelta(days=30)
+    today = now().date()
+    start_of_month = today.replace(day=1)
+    end_of_month = (start_of_month + datetime.timedelta(days=32)).replace(day=1) - datetime.timedelta(days=1)
+    
+    # Query to sum all transactions in the current month
     total_revenue = RazorpayTransaction.objects.filter(
-        timestamp__gte=last_30_days, 
-        status='captured'  # Ensure you're only considering successful payments
-    ).aggregate(total=models.Sum('amount'))['total'] or 0  # Handle None case
-
+        timestamp__date__gte=start_of_month,
+        timestamp__date__lte=end_of_month,
+        status="success"  # Filter only successful payments
+    ).aggregate(total=Sum('amount'))['total'] or 0.0
+    
+    # Count active premium users in the current month
+    active_users_count = UserSubscription.objects.filter(
+        status='active',
+        expires_at__gt=now()
+    ).count()
+    
     return Response({
-        'total_premium_users': total_users,
-        'monthly_revenue': total_revenue
+        'month': today.strftime('%B %Y'),
+        'start_date': start_of_month.strftime('%Y-%m-%d'),
+        'end_date': end_of_month.strftime('%Y-%m-%d'),
+        'total_premium_users': active_users_count,
+        'total_revenue': total_revenue,
+        'currency': 'INR'  # Assuming INR as default from your model
     })
     
 
