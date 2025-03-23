@@ -5,13 +5,14 @@ from .views import (
     VerifyPaymentView,
     PremiumPlanViewSet,
     UserSubscriptionView,
-    CheckSubscriptionStatusView
+    CheckSubscriptionStatusView,
+    TransactionViewSet
 )
 
 # Create a router for the PremiumPlanViewSet
 router = DefaultRouter()
 router.register(r'plans', PremiumPlanViewSet, basename='premiumplan')
-
+router.register(r'transactions', TransactionViewSet, basename='transaction')
 urlpatterns = [
     path('create-order/', CreateRazorpayOrderView.as_view(), name='create_razorpay_order'),
     path('verify-payment/', VerifyPaymentView.as_view(), name='verify_payment'),

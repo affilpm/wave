@@ -39,6 +39,7 @@ import { useDispatch } from 'react-redux';
 import { handlePageReload } from './slices/user/musicPlayerSlice';
 // import LivestreamViewerApp from './components/live';
 import StreamListingPage from './components/livestream/LiveStreamViewerApp';
+import TransactionHistory from './components/user/home/header/settings/TransactionHistory';
 // import VideoStreamingPage from './components/livestream/testing/VideoStreamingPage';
 // import StreamsList from './components/livestream/testing/list';
 // import LiveStreamPage from './components/livestream/testing/fdf';
@@ -113,6 +114,7 @@ function App() {
           <Route path="/editalbum/:id" element={<EditAlbum/>} />
           <Route path="/premium" element={<Premium/>} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/transactions" element={<TransactionHistory />} />
 
           <Route path="/" element={<HomePage />}>
               <Route index element={<Navigate to="/home" replace />} />
