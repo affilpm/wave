@@ -11,7 +11,7 @@ import TransactionSession from './TransactionSession';
 import PremiumPlansManagement from './PremiumPlansManagement';
 
 const AdminDashboard = () => {
-  const [activeTab, setActiveTab] = useState('users');
+  const [activeTab, setActiveTab] = useState('dashboard');
   const navigate = useNavigate();
 
   // Get email from Redux state

@@ -2,7 +2,7 @@ from django.urls import path, include
 from . import views  # Correct import for views from the same app
 from .views import AdminLoginView # or TokenObtainPairView if using the default
 from rest_framework.routers import DefaultRouter
-from .views import UserTableViewSet, AdminTransactionViewSet, TransactionStatsView, TransactionMonthlyStatsView, total_users, top_5_songs, total_premium_users_and_revenue, top_5_artists, MusicVerificationViewSet
+from .views import UserTableViewSet, AdminTransactionViewSet, TransactionStatsView, TransactionMonthlyStatsView, total_users, top_5_songs, total_premium_users_and_revenue, top_5_artists, ArtistViewSet, MusicVerificationViewSet
 
 router = DefaultRouter()
 router.register(r'user-table', UserTableViewSet)
@@ -18,7 +18,7 @@ urlpatterns = [
     # path('transaction-monthly-stats/', TransactionMonthlyStatsView.as_view(), name='transaction-monthly-stats'),         
     path('login/', AdminLoginView.as_view(), name='admin-login'),
     path('total-users/', total_users, name='total-users'),
-    path('stats/', total_premium_users_and_revenue, name='stats'),
+    path('premium_stats/', total_premium_users_and_revenue, name='stats'),
     path('top-songs/', top_5_songs, name='top_songs'),
     path('top-artists/', top_5_artists, name='top_artists'),
 
