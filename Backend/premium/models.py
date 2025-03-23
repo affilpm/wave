@@ -1,37 +1,48 @@
 from django.db import models
-
-# Create your models here.
-from django.db import models
 from django.conf import settings
 from django.utils import timezone
 import razorpay
 
 class PremiumPlan(models.Model):
-    PLAN_CHOICES = [
-        ('individual', 'Individual'),
-        ('duo', 'Duo'),
-        ('family', 'Family')
-    ]
-    
-    name = models.CharField(
-        max_length=20, 
-        choices=PLAN_CHOICES, 
-        unique=True
+    name = models.CharField(max_length=100)
+    # Custom duration in days instead of predefined choices
+    duration_days = models.PositiveIntegerField(help_text="Duration in days")
+    duration_label = models.CharField(
+        max_length=50, 
+        help_text="Label for the duration (e.g., '1 Week', '3 Months')"
     )
     price = models.DecimalField(max_digits=6, decimal_places=2)
-    max_users = models.IntegerField()
     description = models.TextField(blank=True)
-
+    features = models.JSONField(default=list)  # Store features as a JSON array
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        related_name='created_plans'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    display_order = models.PositiveIntegerField(default=0, help_text="Order to display plans")
+    
+    def get_duration_days(self):
+        """Return the plan duration in days"""
+        return self.duration_days
+    
     def __str__(self):
-        return self.get_name_display()
+        return f"{self.name} ({self.duration_label})"
+    
+    class Meta:
+        ordering = ['display_order', 'price']
 
 class UserSubscription(models.Model):
     STATUS_CHOICES = [
         ('active', 'Active'),
         ('expired', 'Expired'),
-        ('pending', 'Pending')
+        ('pending', 'Pending'),
+        ('cancelled', 'Cancelled')
     ]
-
+    
     user = models.OneToOneField(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE, 
@@ -55,22 +66,18 @@ class UserSubscription(models.Model):
     )
     started_at = models.DateTimeField(null=True, blank=True)
     expires_at = models.DateTimeField(null=True, blank=True)
-
+    
     def is_active(self):
-        return (self.status == 'active' and 
-                self.expires_at and 
-                self.expires_at > timezone.now())
-
+        return (self.status == 'active' and self.expires_at and self.expires_at > timezone.now())
+    
     def renew_subscription(self, plan):
-        """
-        Renew or upgrade subscription
-        """
+        """Renew or upgrade subscription"""
         self.plan = plan
         self.status = 'active'
         self.started_at = timezone.now()
-        self.expires_at = timezone.now() + timezone.timedelta(days=30)
+        self.expires_at = timezone.now() + timezone.timedelta(days=plan.get_duration_days())
         self.save()
-
+    
     def __str__(self):
         return f"{self.user.email} - {self.plan.name if self.plan else 'No Plan'}"
 
@@ -86,6 +93,6 @@ class RazorpayTransaction(models.Model):
     currency = models.CharField(max_length=10, default='INR')
     timestamp = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20)
-
+    
     def __str__(self):
         return f"{self.user.email} - {self.razorpay_payment_id}"
