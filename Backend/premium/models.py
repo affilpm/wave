@@ -13,7 +13,7 @@ class PremiumPlan(models.Model):
     )
     price = models.DecimalField(max_digits=6, decimal_places=2)
     description = models.TextField(blank=True)
-    features = models.JSONField(default=list)  # Store features as a JSON array
+    features = models.TextField(blank=True, help_text="Store features as pipe-separated values")
     is_active = models.BooleanField(default=True)
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
