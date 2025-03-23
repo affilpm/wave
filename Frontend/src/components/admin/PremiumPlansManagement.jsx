@@ -111,10 +111,7 @@ const PremiumPlansManagement = () => {
         formattedData.features = '';
       }
       
-      // Note: We don't need this anymore as we're generating the label automatically
-      // if (!formattedData.duration_label) {
-      //   formattedData.duration_label = `${formattedData.duration_days} days`;
-      // }
+
       
       console.log('Sending data to server:', formattedData);
       

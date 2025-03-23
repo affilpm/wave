@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, User, Bell, Globe, Lock, Shield, Volume2, Download, Plus, Clock, Info, Music, Star, ArrowLeft, Sliders } from 'lucide-react';
+import { ChevronRight, User, Bell, Globe, Lock, Shield, Volume2, Download, Plus, Clock, Info, Music, Star, ArrowLeft, Sliders, CreditCard } from 'lucide-react';
 import api from '../../../../../api';
 import CreatorStudio from './CreatorStudio';
 import EqualizerControl from '../../main-content/music-player/Equalizer';
@@ -47,6 +47,23 @@ const Settings = () => {
                 <div>
                   <div className="font-semibold">Profile</div>
                   <div className="text-sm text-gray-400">Edit your profile</div>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-gray-400" />
+            </div>
+            
+            <div className="border-t border-gray-700"></div>
+            
+            {/* New Transactions Button */}
+            <div 
+              className="p-4 flex items-center justify-between hover:bg-gray-700 cursor-pointer"
+              onClick={() => navigate('/transactions')}
+            >
+              <div className="flex items-center gap-4">
+                <CreditCard className="h-6 w-6 text-gray-400" />
+                <div>
+                  <div className="font-semibold">Transactions</div>
+                  <div className="text-sm text-gray-400">View your payment history</div>
                 </div>
               </div>
               <ChevronRight className="h-5 w-5 text-gray-400" />

@@ -11,6 +11,17 @@ import uuid
 import logging
 from .models import PremiumPlan, UserSubscription, RazorpayTransaction
 from .serializers import PremiumPlanSerializer, UserSubscriptionSerializer, RazorpayTransactionSerializer
+from django_filters.rest_framework import DjangoFilterBackend
+from .models import RazorpayTransaction, UserSubscription, PremiumPlan
+from .serializers import RazorpayTransactionSerializer, UserSubscriptionSerializer, PremiumPlanSerializer
+import csv
+from django.http import HttpResponse
+from rest_framework import viewsets, permissions, status, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+
 
 logger = logging.getLogger(__name__)
 
@@ -231,3 +242,102 @@ class CheckSubscriptionStatusView(APIView):
                 "is_active": False,
                 "message": "You do not have a subscription.",
             })
+            
+            
+class TransactionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing transaction history.
+    """
+    serializer_class = RazorpayTransactionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ['status', 'currency']
+    search_fields = ['razorpay_payment_id', 'razorpay_order_id']
+    ordering_fields = ['timestamp', 'amount']
+    ordering = ['-timestamp']  # Default ordering is newest first
+
+    def get_queryset(self):
+        """
+        This view returns a list of all transactions for the currently authenticated user.
+        """
+        return RazorpayTransaction.objects.filter(user=self.request.user)
+    
+    @action(detail=False, methods=['get'])
+    def export_csv(self, request):
+        """
+        Export user's transaction history as a CSV file
+        """
+        transactions = self.get_queryset()
+        
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="transaction_history_{timezone.now().strftime("%Y%m%d")}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(['Date', 'Transaction ID', 'Order ID', 'Amount', 'Currency', 'Status'])
+        
+        for transaction in transactions:
+            writer.writerow([
+                transaction.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+                transaction.razorpay_payment_id,
+                transaction.razorpay_order_id,
+                transaction.amount,
+                transaction.currency,
+                transaction.status
+            ])
+        
+        return response
+    
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        """
+        Get a summary of user's transaction history
+        """
+        transactions = self.get_queryset()
+        total_spent = sum(float(t.amount) for t in transactions if t.status.lower() in ['success', 'completed'])
+        transaction_count = transactions.count()
+        
+        # Get current subscription details
+        try:
+            subscription = UserSubscription.objects.get(user=request.user)
+            subscription_data = UserSubscriptionSerializer(subscription).data
+        except UserSubscription.DoesNotExist:
+            subscription_data = None
+        
+        return Response({
+            'total_transactions': transaction_count,
+            'total_spent': total_spent,
+            'current_subscription': subscription_data,
+            'latest_transaction': RazorpayTransactionSerializer(transactions.first()).data if transaction_count > 0 else None,
+        })            
+        
+     
+class SubscriptionViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    ViewSet for viewing subscription details.
+    """
+    serializer_class = UserSubscriptionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        return UserSubscription.objects.filter(user=self.request.user)
+    
+    def retrieve(self, request, pk=None):
+        # Override to get the user's subscription directly
+        subscription = get_object_or_404(UserSubscription, user=request.user)
+        serializer = self.get_serializer(subscription)
+        return Response(serializer.data)
+    
+    @action(detail=False, methods=['get'])
+    def current(self, request):
+        """
+        Get current user's subscription details
+        """
+        try:
+            subscription = UserSubscription.objects.get(user=request.user)
+            serializer = self.get_serializer(subscription)
+            return Response(serializer.data)
+        except UserSubscription.DoesNotExist:
+            return Response(
+                {"detail": "No active subscription found for this user."},
+                status=status.HTTP_404_NOT_FOUND
+            )        
