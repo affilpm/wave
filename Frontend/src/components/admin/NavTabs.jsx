@@ -1,6 +1,5 @@
-// components/NavTabs.js
 import React from 'react';
-import { Users, CheckCircle, Music , LayoutDashboard, IndianRupee} from 'lucide-react';
+import { Users, CheckCircle, Music, LayoutDashboard, IndianRupee, CreditCard } from 'lucide-react';
 
 export const NavTabs = ({ activeTab, setActiveTab }) => {
   const tabs = [
@@ -23,6 +22,11 @@ export const NavTabs = ({ activeTab, setActiveTab }) => {
       id: 'music-verification',
       label: 'Music Verification',
       icon: Music,
+    },
+    {
+      id: 'plans',
+      label: 'Plans',
+      icon: CreditCard,
     },
     {
       id: 'transactions',
@@ -77,6 +81,5 @@ export const NavTabs = ({ activeTab, setActiveTab }) => {
     </div>
   );
 };
-
 
 export default NavTabs;

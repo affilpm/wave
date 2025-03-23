@@ -8,8 +8,7 @@ import ArtistVerification from './ArtistVerification';
 import MusicVerification from './music_section/MusicVerification';
 import Dashboard from './Dashboard';
 import TransactionSession from './TransactionSession';
-
-
+import PremiumPlansManagement from './PremiumPlansManagement';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('users');
@@ -33,7 +32,7 @@ const AdminDashboard = () => {
         {activeTab === 'artist-verification' && <ArtistVerification />}
         {activeTab === 'music-verification' && <MusicVerification />}
         {activeTab === 'transactions' && <TransactionSession />}
-
+        {activeTab === 'plans' && <PremiumPlansManagement />}
       </div>
     </div>
   );
