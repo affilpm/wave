@@ -13,6 +13,7 @@ router.register(r'album_data', AlbumData, basename='albumData')
 
 
 
+
 urlpatterns = [
     path('', include(router.urls)),
     

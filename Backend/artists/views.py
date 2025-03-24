@@ -13,7 +13,7 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from .models import Artist, Follow
 from .serializers import FollowSerializer
-from music.models import Music
+from music.models import Album
 from listening_history.models import PlaySession
 
 
@@ -388,3 +388,23 @@ class Artist_listeners(APIView):
         total_listeners = PlaySession.objects.filter(music__artist = artist).values('user').distinct().count()
         
         return Response({'total_listeners': total_listeners}, status=status.HTTP_200_OK)
+
+
+
+
+class HasAlbumsView(APIView):
+    """
+    API endpoint that returns a boolean indicating if the authenticated artist has any albums.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        # Get the current user
+        user = request.user
+        
+        # Check if the user has any albums
+        # Adjust the query based on your actual relationship between User and Album
+        has_albums = Album.objects.filter(artist__user=user).exists()
+        
+        # Return a simple boolean response
+        return Response({'has_albums': has_albums})    
