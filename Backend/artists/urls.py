@@ -1,6 +1,6 @@
 from django.urls import path
 from . import views
-from .views import FollowArtistView, ArtistFollowersListView, UserFollowingListView, Artist_Albumcount, Artist_listeners, Artist_totalplays, Artist_Trackcount, ArtistFollowCountView, UserFollowingCountView
+from .views import FollowArtistView, ArtistFollowersListView, UserFollowingListView, Artist_Albumcount, Artist_listeners, Artist_totalplays, Artist_Trackcount, ArtistFollowCountView, UserFollowingCountView, HasAlbumsView
 
 # Existing URL patterns
 urlpatterns = [
@@ -23,6 +23,7 @@ urlpatterns = [
     
     path('<int:artist_id>/followers-count/', ArtistFollowCountView.as_view()),
     path('me/following-count/', UserFollowingCountView.as_view()),
+    path('has-albums/', HasAlbumsView.as_view(), name='has-albums'),
 
 ]
 # Add these to your project's main urls.py
