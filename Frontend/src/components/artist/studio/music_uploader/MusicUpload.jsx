@@ -31,8 +31,10 @@ const MusicUpload = () => {
       cover: null,
       video: null,
     });
+
     const [fileErrors, setFileErrors] = useState({
-      cover: null
+      cover: null,
+      audio: null
     });
 
     const [isGenreDropdownOpen, setIsGenreDropdownOpen] = useState(false);
@@ -221,7 +223,45 @@ const MusicUpload = () => {
     const handleFileChange = async (e, type) => {
       const file = e.target.files[0];
       if (file) {
-        if (type === 'cover') {
+        if (type === 'audio') {
+          // Audio file validation
+          try {
+            const allowedAudioTypes = ['audio/mpeg', 'audio/wav', 'audio/aac', 'audio/mp3', 'audio/x-wav'];
+            
+            if (!file.type.startsWith('audio/')) {
+              throw new Error('Please select an audio file');
+            }
+            
+            if (!allowedAudioTypes.includes(file.type)) {
+              throw new Error('Only MP3, WAV, and AAC files are accepted');
+            }
+            
+            if (file.size > 10 * 1024 * 1024) {
+              throw new Error('Audio file must be smaller than 10MB');
+            }
+            
+            // Clear errors and set the file
+            setFileErrors((prev) => ({
+              ...prev,
+              audio: null,
+            }));
+            setFiles((prev) => ({ ...prev, [type]: file }));
+            
+          } catch (error) {
+            console.error('Audio processing error:', error);
+            setFileErrors((prev) => ({
+              ...prev,
+              audio: error.message,
+            }));
+            toast.error(error.message);
+            
+            // Reset audio input
+            const audioInput = document.getElementById('audio-upload');
+            if (audioInput) {
+              audioInput.value = '';
+            }
+          }
+        } else if (type === 'cover') {
           try {
             // Validate image file type
             if (!file.type.startsWith('image/')) {
@@ -378,47 +418,23 @@ const MusicUpload = () => {
     
     const handleDragLeave = () => setDragActive(false);
     
-    const handleDrop = (e) => {
-      e.preventDefault();
-      setDragActive(false);
-    
-      const file = Array.from(e.dataTransfer.files)[0];
-      if (file) {
-        if (file.type.startsWith('audio/')) {
-          const allowedAudioTypes = ['audio/mpeg', 'audio/wav', 'audio/aac'];
-          if (!allowedAudioTypes.includes(file.type)) {
-            setFileErrors((prev) => ({
-              ...prev,
-              audio: 'Only MP3, WAV, and AAC files are accepted',
-            }));
-            toast.error('Only MP3, WAV, and AAC files are accepted');
-            return;
-          }
-    
-          if (file.size > 10 * 1024 * 1024) {
-            setFileErrors((prev) => ({
-              ...prev,
-              audio: 'Audio file must be smaller than 10MB',
-            }));
-            toast.error('Audio file must be smaller than 10MB');
-            return;
-          }
-    
-          // Clear errors for valid drag-and-drop audio file
-          setFileErrors((prev) => ({
-            ...prev,
-            audio: null,
-          }));
-          setFiles((prev) => ({ ...prev, audio: file }));
-        } else {
-          setFileErrors((prev) => ({
-            ...prev,
-            audio: 'Please select a valid audio file',
-          }));
-          toast.error('Please select a valid audio file');
-        }
-      }
-    };
+  const handleDrop = (e) => {
+  e.preventDefault();
+  setDragActive(false);
+
+  const file = Array.from(e.dataTransfer.files)[0];
+  if (file) {
+    if (file.type.startsWith('audio/')) {
+      handleFileChange({ target: { files: [file] } }, 'audio');
+    } else {
+      setFileErrors((prev) => ({
+        ...prev,
+        audio: 'Please select a valid audio file',
+      }));
+      toast.error('Please select a valid audio file');
+    }
+  }
+};
   
   
     const getAudioDuration = (file) => {
@@ -567,7 +583,9 @@ const MusicUpload = () => {
     const isFormValid = () => {
       return (
         files.audio && 
+        // !fileErrors.audio &&
         files.cover && 
+        !fileErrors.cover &&
         formData.name && 
         formData.name.trim() !== "" && 
         formData.name.length >= 3 && formData.name.length <= 30 && 
@@ -672,7 +690,7 @@ const MusicUpload = () => {
         <div
           className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
             dragActive ? 'border-blue-500 bg-blue-50' : 'border-gray-300'
-          } ${files.audio ? 'bg-green-50 border-green-500' : ''}`}
+          } ${files.audio ? 'bg-green-50 border-green-500' : fileErrors.audio ? 'bg-red-50 border-red-500' : ''}`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -694,6 +712,9 @@ const MusicUpload = () => {
               <p className="text-sm text-white">or click to browse</p>
               <p className="text-xs text-white mt-2">Supported formats: MP3, WAV, AAC</p>
             </>
+          )}
+          {fileErrors.audio && (
+            <p className="mt-2 text-sm text-red-500">{fileErrors.audio}</p>
           )}
         </div>
 
