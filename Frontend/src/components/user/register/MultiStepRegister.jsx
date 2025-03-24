@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { registerService } from '../../../services/user/registerService';
 import EmailStep from './EmailStep';
 import OTPStep from './OtpStep';
 import ProfileStep from './ProfileStep';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify'; 
 
 const MultiStepRegister = () => {
@@ -17,16 +17,27 @@ const MultiStepRegister = () => {
     verificationToken: '',
   });
 
-  const navigate = useNavigate()
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Track if we have a valid OTP verification in progress
+  const [otpVerified, setOtpVerified] = useState(false);
+
+  useEffect(() => {
+    // Check for expired message in location state
+    if (location.state?.expiredMessage) {
+      toast.error(location.state.expiredMessage);
+      // Clear the state to prevent showing the message again on refresh
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location, navigate]);
 
   const validateEmail = (email) => /\S+@\S+\.\S+/.test(email);
   const validateOTP = (otp) => otp.length === 6 && !isNaN(otp);
   const validateUsername = (username) => /^[a-zA-Z0-9_]+$/.test(username);
   const validateName = (name) => /^[a-zA-Z ]+$/.test(name);
-
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -42,7 +53,7 @@ const MultiStepRegister = () => {
     }
     setIsSubmitting(true);
     try {
-      await registerService .initiateRegistration(formData.email);
+      await registerService.initiateRegistration(formData.email);
       setStep(2);
     } catch (error) {
       setErrors({ email: error.error || 'Failed to send OTP. Please try again.' });
@@ -65,28 +76,37 @@ const MultiStepRegister = () => {
         ...prev,
         verificationToken: response.verification_token
       }));
+      setOtpVerified(true);
       setStep(3);
+      // Show a success message with the time left to complete registration
+      toast.success('Email verified! You have 5 minutes to complete your registration.');
     } catch (error) {
-      setErrors({ otp: error.error || 'Invalid OTP. Please try again.' });
+      // Handle expired OTP specifically
+      if (error.error === 'Invalid or expired OTP') {
+        setErrors({ otp: 'Your verification code has expired. Please request a new one.' });
+      } else {
+        setErrors({ otp: error.error || 'Invalid OTP. Please try again.' });
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // In your parent component
   const resendOTP = async () => {
-    
     try {
-      console.log(formData.email)
       await registerService.resendOTP(formData.email);
-      // Optionally show a success message
+      // Show a success message
+      toast.info('A new verification code has been sent to your email.');
+      return true;
     } catch (error) {
-      setErrors({ otp: 'Failed to resend OTP. Please try again.' });
+      if (error.isRateLimited) {
+        toast.error(error.message);
+      } else {
+        setErrors({ otp: error.error || 'Failed to resend OTP. Please try again.' });
+      }
+      return false;
     }
   };
-
-
-
 
   const handleFinalSubmit = async (e) => {
     e.preventDefault();
@@ -110,7 +130,7 @@ const MultiStepRegister = () => {
 
     setIsSubmitting(true);
     try {
-      await registerService .completeRegistration({
+      await registerService.completeRegistration({
         email: formData.email,
         username: formData.username,
         firstName: formData.firstName,
@@ -118,15 +138,16 @@ const MultiStepRegister = () => {
         verification_token: formData.verificationToken,
       });
 
-      navigate('/login')
+      // Show a success message
+      toast.success('Registration completed successfully!');
+      navigate('/login');
       
     } catch (error) {
-      // Check for OTP expiration error
+      // Check for session expiration error
       const errorMessage = error.error || 'Registration failed. Please try again.';
-      if (errorMessage === 'OTP verification expired. Please start over.') {
-        // Redirect to home page with OTP expired message
-        navigate('/register', { state: { expiredMessage: 'OTP verification expired. Please start over.' } });
-        toast.error('OTP verification expired. Please start over.');
+      if (errorMessage === 'Registration session expired. Please start over.') {
+        // Redirect to home page with session expired message
+        navigate('/register', { state: { expiredMessage: 'Your registration session has expired. Please start over.' } });
       } else {
         // Set other errors
         setErrors({ submit: errorMessage });
@@ -136,6 +157,13 @@ const MultiStepRegister = () => {
     }
   };
 
+  // If we're on step 3 (profile) and we haven't verified OTP, go back to step 1
+  useEffect(() => {
+    if (step === 3 && !otpVerified) {
+      setStep(1);
+      toast.error('Please complete the verification process first.');
+    }
+  }, [step, otpVerified]);
 
   const renderStepContent = () => {
     switch (step) {
@@ -183,6 +211,6 @@ const MultiStepRegister = () => {
       </div>
     </div>
   );
-
 };
+
 export default MultiStepRegister;

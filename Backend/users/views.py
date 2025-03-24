@@ -9,7 +9,6 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import UserSerializer
 from .models import CustomUser
 from datetime import timedelta
-from rest_framework.decorators import api_view, authentication_classes, permission_classes
 from rest_framework import status
 from rest_framework_simplejwt.exceptions import TokenError
 from google.auth.transport.requests import Request
@@ -18,6 +17,12 @@ from .utils import generate_otp, send_otp_email
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 import re
+from rest_framework.permissions import IsAuthenticated
+from django.db.models import Count, F
+from .models import CustomUser
+from playlist.models import Playlist
+from .serializers import UserProfileSerializer, PlaylistSerializer
+
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -535,7 +540,20 @@ def initiate_registration(request):
     # Generate and store OTP
     otp = generate_otp()
     cache_key = f'registration_otp_{email}'
-    cache.set(cache_key, str(otp), timeout=300)  # 5 minutes expiry
+    
+    # Set a shorter expiry for OTP (30 seconds)
+    cache.set(cache_key, str(otp), timeout=30)
+    
+    # Add rate limiting for OTP generation
+    rate_limit_key = f'otp_rate_limit_{email}'
+    if cache.get(rate_limit_key):
+        return Response(
+            {'error': 'Please wait before requesting another OTP'}, 
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
+    
+    # Set rate limit for 30 seconds
+    cache.set(rate_limit_key, True, timeout=30)
     
     try:
         send_otp_email(email, otp)
@@ -548,8 +566,6 @@ def initiate_registration(request):
             {'error': 'Failed to send OTP'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-        
-        
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -569,26 +585,28 @@ def verify_otp(request):
     
     if not stored_otp or stored_otp != submitted_otp:
         return Response(
-            {'error': 'Invalid OTP'}, 
+            {'error': 'Invalid or expired OTP'}, 
             status=status.HTTP_400_BAD_REQUEST
         )
     
-    # OTP verified, create verification token
-    verification_token = generate_otp()  # Using same function for simplicity
+    # OTP verified, create verification token with longer expiry (5 minutes)
+    verification_token = generate_otp()
     cache_key = f'verification_token_{email}'
-    cache.set(cache_key, verification_token, timeout=600)  # 10 minutes expiry
+    cache.set(cache_key, verification_token, timeout=300)  # 5 minutes expiry
+    
+    # Set an extended flag to allow completion
+    extended_key = f'registration_extended_{email}'
+    cache.set(extended_key, True, timeout=300)  # 5 minutes to complete the form
     
     return Response({
         'message': 'OTP verified successfully',
         'verification_token': verification_token
     })
-    
-    
-    
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def resend_otp(request):
-    """Resend OTP endpoint"""
+    """Resend OTP endpoint with rate limiting"""
     email = request.data.get('email')
     
     if not email:
@@ -604,10 +622,22 @@ def resend_otp(request):
             status=status.HTTP_400_BAD_REQUEST
         )
     
+    # Rate limiting for resends
+    rate_limit_key = f'otp_rate_limit_{email}'
+    if cache.get(rate_limit_key):
+        remaining_time = cache.ttl(rate_limit_key)
+        return Response(
+            {'error': f'Please wait {remaining_time} seconds before requesting another OTP'}, 
+            status=status.HTTP_429_TOO_MANY_REQUESTS
+        )
+    
     # Generate new OTP
     otp = generate_otp()
     cache_key = f'registration_otp_{email}'
-    cache.set(cache_key, str(otp), timeout=300)  # 5 minutes expiry
+    cache.set(cache_key, str(otp), timeout=30)  # 30 seconds expiry
+    
+    # Set rate limit for 30 seconds
+    cache.set(rate_limit_key, True, timeout=30)
     
     try:
         send_otp_email(email, otp)
@@ -620,8 +650,6 @@ def resend_otp(request):
             {'error': 'Failed to send OTP'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
-        
-            
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -658,19 +686,20 @@ def complete_registration(request):
         'username': username,
     }
     
-    # Verify OTP was sent and verified
-    cache_key = f'registration_otp_{email}'
-    if not cache.get(cache_key):
+    # Check if extended registration period is still valid
+    extended_key = f'registration_extended_{email}'
+    if not cache.get(extended_key):
         return Response(
-            {'error': 'OTP verification expired. Please start over.'}, 
+            {'error': 'Registration session expired. Please start over.'}, 
             status=status.HTTP_400_BAD_REQUEST
         )
     
     serializer = UserSerializer(data=user_data)
     if serializer.is_valid():
         user = serializer.save()
-        # Clear the OTP cache after successful registration
-        cache.delete(cache_key)
+        # Clear the registration cache after successful registration
+        cache.delete(extended_key)
+        cache.delete(f'verification_token_{email}')
         return Response(
             serializer.data, 
             status=status.HTTP_201_CREATED
@@ -680,16 +709,11 @@ def complete_registration(request):
         serializer.errors, 
         status=status.HTTP_400_BAD_REQUEST
     )
-    
-# views.py
-from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from django.db.models import Count, F
-from .models import CustomUser
-from playlist.models import Playlist
-from .serializers import UserProfileSerializer, PlaylistSerializer
+
+
+
+
+
 
 @api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
