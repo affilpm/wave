@@ -83,7 +83,7 @@ class AgoraTokenView(APIView):
                 if not Follow.objects.filter(user_id=request.user.id, artist=stream.host.artist_profile).exists():
                     raise PermissionDenied("You must follow the artist to join the stream.")
 
-                # Important: First, clean up any possibly stale participant records for this user in this stream
+                
                 # This ensures if a user refreshes or reconnects, they don't get counted twice
                 existing_participant = StreamParticipant.objects.filter(
                     stream=stream, 
@@ -103,7 +103,7 @@ class AgoraTokenView(APIView):
                         last_active=timezone.now()
                     )
                 
-                # Clean up stale participants before returning active count
+                
                 # This ensures accurate counts on new joins
                 stale_time = timezone.now() - timezone.timedelta(minutes=1)
                 StreamParticipant.objects.filter(

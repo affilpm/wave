@@ -5,7 +5,7 @@ import { useDispatch } from 'react-redux';
 import { setUserData } from '../../../slices/user/userSlice';
 import { decodeToken } from '../../../utils/tokenUtils';
 import { ACCESS_TOKEN, REFRESH_TOKEN } from '../../../constants/authConstants';
-import { Loader, Shield } from 'lucide-react';
+import { Loader, Shield, AlertTriangle } from 'lucide-react';
 
 const OTPVerification = ({ email, setIsOtpSent }) => {
     const [otp, setOtp] = useState('');
@@ -14,9 +14,12 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
     const [timeLeft, setTimeLeft] = useState(30);
     const [canResend, setCanResend] = useState(false);
     const [resendLoading, setResendLoading] = useState(false);
+    const [otpExpired, setOtpExpired] = useState(false);
+    const [cooldownTime, setCooldownTime] = useState(30);
     const navigate = useNavigate();
     const dispatch = useDispatch();
 
+    // Timer for OTP expiration
     useEffect(() => {
         if (timeLeft > 0) {
             const timer = setInterval(() => {
@@ -25,21 +28,46 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
             return () => clearInterval(timer);
         } else {
             setCanResend(true);
+            setOtpExpired(true); // Mark OTP as expired when timer reaches 0
         }
     }, [timeLeft]);
+
+    // Reset fields when component mounts
+    useEffect(() => {
+        setOtp('');
+        setError('');
+        setTimeLeft(30);
+        setCanResend(false);
+        setOtpExpired(false);
+    }, []);
 
     const handleResendOTP = async () => {
         if (!canResend) return;
         
         setResendLoading(true);
         setError('');
+        setOtp(''); // Clear OTP field when resending
 
         try {
-            await api.post('/api/users/resend-otp/', { email });
-            setTimeLeft(30);
+            const response = await api.post('/api/users/resend-otp/', { email });
+            
+            // Get expiration and cooldown data from response
+            const expiresIn = response.data?.expiresIn || 30;
+            const newCooldownTime = response.data?.cooldownTime || 30;
+            
+            setTimeLeft(expiresIn);
+            setCooldownTime(newCooldownTime);
             setCanResend(false);
+            setOtpExpired(false); // Reset expired status when new OTP is sent
         } catch (err) {
             const errorMessage = err.response?.data?.message || 'Failed to resend OTP';
+            const cooldownRemaining = err.response?.data?.cooldownRemaining;
+            
+            if (cooldownRemaining) {
+                setTimeLeft(cooldownRemaining);
+                setCooldownTime(cooldownRemaining);
+            }
+            
             setError(errorMessage);
         } finally {
             setResendLoading(false);
@@ -47,48 +75,70 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
     };
     
     const handleVerifyOTP = async (e) => {
-      e.preventDefault();
-      setLoading(true);
-      setError('');
-      
-      try {
-          const response = await api.post('/api/users/verify-otp/', { email, otp });
-  
-          if (!response.data.tokens?.access || !response.data.tokens?.refresh) {
-              throw new Error('Invalid token data received from server');
-          }
-  
-          // Store tokens
-          localStorage.setItem(ACCESS_TOKEN, response.data.tokens.access);
-          localStorage.setItem(REFRESH_TOKEN, response.data.tokens.refresh);
-          
-          // Decode token
-          const decodedToken = decodeToken(response.data.tokens.access);
-  
-          if (!decodedToken?.user_id || !decodedToken?.email) {
-              throw new Error('Invalid user data in token');
-          }
-  
-          // Store user data in Redux
-          dispatch(setUserData({
-              user_id: decodedToken.user_id,
-              email: decodedToken.email,
-              username: decodedToken.username,
-              first_name: decodedToken.first_name,
-              last_name: decodedToken.last_name,
-              image: decodedToken.profile_photo || null,
-              isAuthenticated: true,
-          }));
-  
-  
-          // Navigate to home **AFTER** updating state
-          navigate('/home');
-      } catch (err) {
-          setError(err.response?.data?.error || 'Failed to verify OTP');
-      } finally {
-          setLoading(false);
-      }
-  };
+        e.preventDefault();
+        
+        // Prevent verification if OTP is already marked as expired in UI
+        if (otpExpired) {
+            setError('OTP has expired. Please request a new OTP.');
+            return;
+        }
+        
+        setLoading(true);
+        setError('');
+        
+        try {
+            // Include the current timestamp when the user submitted the OTP
+            // This helps the server determine if the submission was made before expiration
+            const submitted_at = Date.now() / 1000; // Convert to seconds to match server time
+            
+            const response = await api.post('/api/users/verify-otp/', { 
+                email, 
+                otp,
+                submitted_at
+            });
+    
+            if (!response.data.tokens?.access || !response.data.tokens?.refresh) {
+                throw new Error('Invalid token data received from server');
+            }
+    
+            // Store tokens
+            localStorage.setItem(ACCESS_TOKEN, response.data.tokens.access);
+            localStorage.setItem(REFRESH_TOKEN, response.data.tokens.refresh);
+            
+            // Decode token
+            const decodedToken = decodeToken(response.data.tokens.access);
+    
+            if (!decodedToken?.user_id || !decodedToken?.email) {
+                throw new Error('Invalid user data in token');
+            }
+    
+            // Store user data in Redux
+            dispatch(setUserData({
+                user_id: decodedToken.user_id,
+                email: decodedToken.email,
+                username: decodedToken.username,
+                first_name: decodedToken.first_name,
+                last_name: decodedToken.last_name,
+                image: decodedToken.profile_photo || null,
+                isAuthenticated: true,
+            }));
+    
+            // Navigate to home **AFTER** updating state
+            navigate('/home');
+        } catch (err) {
+            const errorMessage = err.response?.data?.error || 'Failed to verify OTP';
+            setError(errorMessage);
+            
+            // If OTP has expired according to server response
+            if (err.response?.data?.expired) {
+                setOtpExpired(true);
+                setTimeLeft(0);
+                setCanResend(true);
+            }
+        } finally {
+            setLoading(false);
+        }
+    };
   
     const handleOTPChange = (e) => {
         const value = e.target.value.replace(/\D/g, '');
@@ -109,6 +159,13 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
                 </p>
             </div>
 
+            {otpExpired && (
+                <div className="mb-6 p-3 bg-red-900/30 border border-red-800 rounded-lg flex items-center justify-center text-red-300">
+                    <AlertTriangle className="h-5 w-5 mr-2" />
+                    <span>OTP has expired. Please request a new one.</span>
+                </div>
+            )}
+
             <form onSubmit={handleVerifyOTP} className="max-w-md mx-auto space-y-6">
                 <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -124,16 +181,26 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
                         placeholder="Enter 6-digit code"
                         value={otp}
                         onChange={handleOTPChange}
-                        className="pl-10 w-full px-4 py-3 bg-gray-700/50 border border-gray-600/30 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition duration-300"
+                        className={`pl-10 w-full px-4 py-3 bg-gray-700/50 border ${
+                            otpExpired ? 'border-red-600/50' : 'border-gray-600/30'
+                        } rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition duration-300`}
+                        disabled={otpExpired}
                     />
                 </div>
+                
+                {!otpExpired && timeLeft > 0 && (
+                    <div className={`text-sm ${timeLeft <= 5 ? 'text-red-400' : 'text-yellow-400'}`}>
+                        OTP expires in {timeLeft} seconds
+                    </div>
+                )}
+                
                 {error && (
-                        <div className="mt-2 text-sm text-red-400">{error}</div>
-                    )}
+                    <div className="mt-2 text-sm text-red-400">{error}</div>
+                )}
 
                 <button
                     type="submit"
-                    disabled={loading || otp.length !== 6}
+                    disabled={loading || otp.length !== 6 || otpExpired}
                     className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl 
                     hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 
                     transition duration-300 ease-in-out transform hover:scale-[1.02] 
