@@ -50,13 +50,18 @@ def login(request):
         # Generate and store OTP
         otp = generate_otp()
         cache_key = f'login_otp_{email}'
-        cache.set(cache_key, otp, timeout=300)  # 5 minutes expiry
+        # Store OTP for only 30 seconds
+        cache.set(cache_key, otp, timeout=30)  # 30 seconds expiry
+        
+        # Set initial cooldown for resend
+        cache_key_cooldown = f'resend_cooldown_{email}'
+        cache.set(cache_key_cooldown, True, timeout=30)  # 30 seconds cooldown
         
         # Send OTP
         try:
             send_otp_email(email, otp)
             return Response(
-                {'message': 'OTP sent successfully'}, 
+                {'message': 'OTP sent successfully', 'expiresIn': 30}, 
                 status=status.HTTP_200_OK
             )
         except Exception as e:
@@ -73,44 +78,76 @@ def login(request):
 
 
 
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_verify_otp(request):
-    """Verify OTP and generate tokens"""
+    """Verify OTP and generate tokens with grace period"""
     try:
         email = request.data.get('email')
         submitted_otp = str(request.data.get('otp'))  # Convert to string
+        submitted_time = request.data.get('submitted_at')  # Timestamp when user submitted the OTP
         print(f"Received verify request - Email: {email}, OTP: {submitted_otp}")
-        print(f"OTP type: {type(submitted_otp)}")
-
+        
         # Check cache for stored OTP
         cache_key = f'login_otp_{email}'
-        stored_otp = str(cache.get(cache_key))  # Convert to string
-        print(f"Stored OTP from cache: {stored_otp}")
-        print(f"Stored OTP type: {type(stored_otp)}")
+        stored_otp = cache.get(cache_key)
         
-        # Print ASCII values for debugging
-        print(f"Submitted OTP ASCII: {[ord(c) for c in submitted_otp]}")
-        print(f"Stored OTP ASCII: {[ord(c) for c in stored_otp]}")
+        # Check cache for last valid OTP (for grace period)
+        grace_key = f'login_otp_grace_{email}'
+        grace_data = cache.get(grace_key)
         
-        if not stored_otp:
+        if stored_otp is None and grace_data is None:
             return Response(
-                {'error': 'OTP has expired or does not exist'}, 
+                {'error': 'OTP has expired. Please request a new OTP.', 'expired': True}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # If current OTP exists, use it, otherwise check grace period OTP
+        if stored_otp is not None:
+            valid_otp = str(stored_otp).strip()
+            print(f"Using current OTP from cache: {valid_otp}")
+        elif grace_data is not None:
+            # Ensure grace_data is a tuple of (otp, expiry_time)
+            if isinstance(grace_data, tuple) and len(grace_data) == 2:
+                grace_otp, grace_expiry = grace_data
+                
+                # Convert submitted_time to float if it's a string
+                if isinstance(submitted_time, str):
+                    try:
+                        submitted_time = float(submitted_time)
+                    except (ValueError, TypeError):
+                        submitted_time = None
+                
+                # Check if submission was made before grace period expired
+                if submitted_time and submitted_time <= grace_expiry:
+                    valid_otp = str(grace_otp).strip()
+                    print(f"Using grace period OTP: {valid_otp}")
+                else:
+                    return Response(
+                        {'error': 'OTP has expired. Please request a new OTP.', 'expired': True}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+            else:
+                return Response(
+                    {'error': 'OTP has expired. Please request a new OTP.', 'expired': True}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        else:
+            return Response(
+                {'error': 'OTP has expired. Please request a new OTP.', 'expired': True}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
             
-        # Strip any whitespace
+        # Strip any whitespace from submitted OTP
         submitted_otp = submitted_otp.strip()
-        stored_otp = stored_otp.strip()
         
-        if submitted_otp != stored_otp:
-            print(f"OTP mismatch - Submitted: '{submitted_otp}', Stored: '{stored_otp}'")
-            print(f"Length - Submitted: {len(submitted_otp)}, Stored: {len(stored_otp)}")
+        if submitted_otp != valid_otp:
+            print(f"OTP mismatch - Submitted: '{submitted_otp}', Valid: '{valid_otp}'")
             return Response(
                 {'error': 'Invalid OTP'}, 
                 status=status.HTTP_400_BAD_REQUEST
             )
-
 
         # Get user and generate tokens
         try:
@@ -132,6 +169,7 @@ def login_verify_otp(request):
                 
             # Clear OTP from cache after successful verification
             cache.delete(cache_key)
+            cache.delete(grace_key)
 
             return Response({
                 'tokens': {
@@ -156,14 +194,15 @@ def login_verify_otp(request):
 
 
 
+
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def login_resend_otp(request):
-    """Resend OTP"""
-    print("Resend OTP request data:", request.data)  # Add this
+    """Resend OTP with rate limiting"""
+    print("Resend OTP request data:", request.data)
     try:
         email = request.data.get('email')
-        print("Email from request:", email)  # Add this
+        print("Email from request:", email)
         
         if not email:
             return Response(
@@ -183,8 +222,14 @@ def login_resend_otp(request):
         # Check cooldown period
         cache_key_cooldown = f'resend_cooldown_{email}'
         if cache.get(cache_key_cooldown):
+            # Get remaining cooldown time
+            ttl = cache.ttl(cache_key_cooldown)
             return Response(
-                {'message': 'Please wait 60 seconds before requesting another OTP', 'field': 'email'},
+                {
+                    'message': f'Please wait {ttl} seconds before requesting another OTP', 
+                    'field': 'email',
+                    'cooldownRemaining': ttl
+                },
                 status=status.HTTP_429_TOO_MANY_REQUESTS
             )
 
@@ -196,19 +241,43 @@ def login_resend_otp(request):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+        # Implement rate limiting
+        rate_limit_key = f'otp_rate_limit_{email}'
+        attempts = cache.get(rate_limit_key, 0)
+        
+        # Increase cooldown time based on number of attempts
+        cooldown_time = min(60 * (2 ** min(attempts, 4)), 600)  # Max 10 minutes (600 seconds)
+        
         # Generate new OTP
         otp = generate_otp()
         cache_key = f'login_otp_{email}'
-        cache.set(cache_key, otp, timeout=300)  # 5 minutes expiry
         
-        # Set cooldown
-        cache.set(cache_key_cooldown, True, timeout=60)  # 60 seconds cooldown
+        # Save the current OTP to grace period cache before replacing it
+        grace_key = f'login_otp_grace_{email}'
+        current_otp = cache.get(cache_key)
+        if current_otp:
+            # Store the OTP with the server timestamp for when it expires
+            # This allows us to verify if the user submitted before expiry
+            import time
+            grace_expiry = time.time() + 30  # Current time + 30 seconds
+            cache.set(grace_key, (current_otp, grace_expiry), timeout=5)  # 5 second grace period
+        
+        # Store the new OTP
+        cache.set(cache_key, otp, timeout=30)  # 30 seconds expiry
+        
+        # Set cooldown and increment rate limit counter
+        cache.set(cache_key_cooldown, True, timeout=cooldown_time)
+        cache.set(rate_limit_key, attempts + 1, timeout=86400)  # 24 hours expiry for rate limit counter
         
         # Send new OTP
         try:
             send_otp_email(email, otp)
             return Response(
-                {'message': 'OTP resent successfully'}, 
+                {
+                    'message': 'OTP resent successfully',
+                    'expiresIn': 30,
+                    'cooldownTime': cooldown_time
+                }, 
                 status=status.HTTP_200_OK
             )
         except Exception as e:
@@ -222,6 +291,7 @@ def login_resend_otp(request):
             {'message': str(e)}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
+
 
 
 @api_view(['POST'])
