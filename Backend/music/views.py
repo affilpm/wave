@@ -118,7 +118,7 @@ class MusicViewSet(ModelViewSet):
                         {'error': f'Invalid duration format: {str(e)}'},
                         status=status.HTTP_400_BAD_REQUEST
                     )
-            print(duration)        
+
             # Prepare music data
             music_data = {
                 'name': request.data.get('name'),
@@ -301,23 +301,23 @@ def verify_signed_token(signed_token, music_id, secret_key):
     try:
         parts = signed_token.split(':')
         if len(parts) != 4:
-            print("Token format error:", signed_token)
+
             return False
         token_user_id, token_music_id, expiry, token_signature = parts
         if int(token_music_id) != music_id:
-            print("Music ID mismatch:", token_music_id, "expected:", music_id)
+
             return False
         if int(expiry) < time.time():
-            print("Token expired. Expiry:", expiry, "Now:", int(time.time()))
+
             return False
         message = f"{token_user_id}:{token_music_id}:{expiry}"
         expected_signature = hmac.new(secret_key.encode(), message.encode(), hashlib.sha256).hexdigest()
         if not hmac.compare_digest(expected_signature, token_signature):
-            print("Signature mismatch. Expected:", expected_signature, "Got:", token_signature)
+
             return False
         return int(token_user_id)
     except Exception as e:
-        print("Exception during token verification:", str(e))
+
         return False
 
 
@@ -402,14 +402,12 @@ def Record_play_completion(request):
                     music.play_count = F('play_count') + 1
                     music.last_played = timezone.now()
                     music.save()
-                    print(f"Updated music play count for session completion")
+
                 else:
                     play_session.status = 'in_progress'
                 
                 play_session.save()
                 
-                # Log for debugging
-                print(f"Play session update: user={request.user.id}, music={music_id}, new_duration={new_total_duration}, should_count={should_count}")
                 
                 return Response({
                     'success': True,
@@ -419,7 +417,7 @@ def Record_play_completion(request):
                 
             except PlaySession.DoesNotExist:
                 # No session found, create a new play history entry
-                print(f"Creating new play session for play_id={play_id}")
+                
                 play_session = PlaySession.objects.create(
                     play_id=play_id,
                     user=request.user,
@@ -440,7 +438,7 @@ def Record_play_completion(request):
                     music.play_count = F('play_count') + 1
                     music.last_played = timezone.now()
                     music.save()
-                    print(f"Updated music play count for new completed session")
+                    
                 
                 return Response({
                     'success': True,
@@ -464,15 +462,13 @@ def Record_play_completion(request):
             completed_at=timezone.now() if should_count else None
         )
         
-        # Log for debugging
-        print(f"Play completion without play_id (created {generated_play_id}): user={request.user.id}, music={music_id}, duration={played_duration}, should_count={should_count}")
         
         # Only increment play count for legitimate plays
         if should_count:
             music.play_count = F('play_count') + 1
             music.last_played = timezone.now()
             music.save()
-            print(f"Updated music play count for direct play")
+            
         
         return Response({
             'success': True,
@@ -482,7 +478,7 @@ def Record_play_completion(request):
         })
             
     except Exception as e:
-        print(f"Error in Record_play_completion: {str(e)}")
+        
         return Response({'error': str(e)}, status=500)
 
 
@@ -530,7 +526,7 @@ def user_equalizer_preset(request):
             return Response({'error': 'Preset not found'}, status=404)
 
 
-# Modified MusicStreamView to support equalization
+
 class MusicStreamView(APIView):
     permission_classes = [AllowAny]  
     CHUNK_SIZE = 8192  # 8KB chunks
@@ -597,7 +593,7 @@ class MusicStreamView(APIView):
         
         # If Normal preset, just return the original file
         if preset.name == 'Normal' and all(getattr(preset, f'band_{band}') == 0 
-                                          for band in ['31', '62', '125', '250', '500', '1k', '2k', '4k', '8k', '16k']):
+                for band in ['31', '62', '125', '250', '500', '1k', '2k', '4k', '8k', '16k']):
             return input_path
             
         # Create a unique filename for the processed file
@@ -632,7 +628,7 @@ class MusicStreamView(APIView):
             subprocess.run(cmd, check=True, capture_output=True)
             return output_path
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            print(f"Error applying equalizer: {str(e)}")
+            
             # If processing fails, return original file
             return input_path
 
@@ -709,7 +705,7 @@ class MusicStreamView(APIView):
             return response
 
         except Exception as e:
-            print(f"Error streaming audio: {str(e)}")
+            
             return Response({'error': 'Internal server error'}, status=500)
 
     def options(self, request, *args, **kwargs):
@@ -729,8 +725,6 @@ class MusicMetadataView(APIView):
         try:
             music = get_object_or_404(Music, pk=music_id)
 
-
-
             metadata = {
                 "cover_photo": request.build_absolute_uri(music.cover_photo.url) if music.cover_photo else None,
                 "duration": music.duration,
@@ -738,11 +732,10 @@ class MusicMetadataView(APIView):
                 "artist": music.artist.user.username,
                 "format": "mp3",
             }
-            print(f"Metadata extracted: {metadata}")
-
+            
             return Response(metadata)
         except Exception as e:
-            print(f"Internal Server Error: {e}")
+            
             return Response({"error": str(e)}, status=500)
         
         

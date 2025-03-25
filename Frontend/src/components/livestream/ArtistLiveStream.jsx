@@ -447,32 +447,70 @@ useEffect(() => {
 
 
   // Get streaming token from backend
-  const getStreamToken = async () => {
-    try {
-      setErrorMessage("");
-      
-      const response = await apiInstance.api.get('/api/livestream/token/', {
-        params: {
-          role: 'host'
-        }
-      });
-      
-      const { token, channel, app_id, uid } = response.data;
-      
-      setStreamSettings({
-        appId: app_id,
-        channel: channel,
-        token: token,
-        uid: uid
-      });
-      
-      return { token, channel, app_id, uid };
-    } catch (error) {
-      console.error("Error getting token:", error);
-      setErrorMessage(`Unable to start stream: ${error.response?.data?.message || error.message}`);
-      throw error;
+const getStreamToken = async (options = {}) => {
+  try {
+    setErrorMessage("");
+    
+    // Prepare query parameters with default and optional values
+    const queryParams = {
+      role: 'host',  // Default role
+      title: `${username}'s Stream`,  // Optional title
+      ...options  // Spread any additional options to allow overriding
+    };
+    
+    const response = await apiInstance.api.get('/api/livestream/token/', {
+      params: queryParams
+    });
+    
+    // Destructure with fallback values for extra safety
+    const { 
+      token, 
+      channel, 
+      app_id: appId, 
+      uid, 
+      role 
+    } = response.data;
+    
+    // Validate essential data
+    if (!token || !channel || !appId) {
+      throw new Error("Incomplete token response from server");
     }
-  };
+    
+    // Update stream settings with comprehensive information
+    setStreamSettings({
+      appId: appId,
+      channel: channel,
+      token: token,
+      uid: uid,
+      role: role || 'host'  // Ensure role is set
+    });
+    
+    // Return comprehensive token information
+    return { 
+      token, 
+      channel, 
+      app_id: appId, 
+      uid,
+      role: role || 'host'
+    };
+  } catch (error) {
+    // Enhanced error handling
+    console.error("Error getting stream token:", error);
+    
+    // Extract most informative error message
+    const errorMessage = 
+      error.response?.data?.error || 
+      error.response?.data?.message || 
+      error.message || 
+      "Unable to start stream";
+    
+    // Set a descriptive error message
+    setErrorMessage(`Stream Initialization Failed: ${errorMessage}`);
+    
+    // Re-throw to allow caller to handle the error
+    throw error;
+  }
+};
 
 
 
@@ -494,8 +532,10 @@ useEffect(() => {
         throw new Error("Stream client not initialized");
       }
       
-      // Get token from backend
-      const { token, channel, app_id, uid } = await getStreamToken();
+      const { token, channel, app_id, uid } = await getStreamToken({
+        title: `${username}'s Stream`, 
+        
+      });
       
       // Set role as host
       await client.setClientRole("host");
@@ -616,7 +656,8 @@ useEffect(() => {
       try {
         await apiInstance.api.post('/api/livestream/end-stream/', {
           channel: streamSettings.channel,
-          abruptExit: false // Normal end, not an abrupt exit
+          abruptExit: false,
+
         });
         console.log("Successfully notified backend of stream end");
       } catch (endError) {
@@ -636,7 +677,9 @@ useEffect(() => {
       
     } catch (error) {
       console.error("Error ending stream:", error);
-      setErrorMessage(`Error ending stream: ${error.message}`);
+      const errorMessage = error.response?.data?.error || error.message;
+      setErrorMessage(`Error ending stream: ${errorMessage}`);
+  
     } finally {
       setIsLoading(false);
     }

@@ -1,5 +1,6 @@
 from django.shortcuts import render
 # Create your views here.
+import logging
 from django.conf import settings
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
@@ -31,129 +32,165 @@ APP_CERTIFICATE = settings.AGORA_APP_CERTIFICATE
 EXPIRATION_TIME_IN_SECONDS = 3600  # 1 hour
 
 
+
+
+
+logger = logging.getLogger(__name__)
+
 class AgoraTokenView(APIView):
+    """
+    Handle token generation for Agora livestreaming with multiple access controls.
+    """
     permission_classes = [IsAuthenticated]
-    
+
     def get(self, request):
+        """
+        Generate Agora token with comprehensive access and stream management.
+        """
         try:
-            channel_name = request.GET.get('channel', '')
-            if not channel_name:
-                channel_name = f"stream-{request.user.id}-{int(time.time())}"
-            print(f"Type of request.user: {type(request.user)}")
-            print(f"Type of request.user.id: {type(request.user.id)}")
-            print(f"User ID value: {request.user.id}")
-            is_host = request.GET.get('role', 'audience').lower() == 'host'
+            channel_name = self._get_channel_name(request)
+            is_host = self._is_host_request(request)
             role = 1 if is_host else 2  # 1=host, 2=audience
 
-            if is_host:
-                
-                if request.user.is_superuser:
-                    raise PermissionDenied("Superusers cannot host a stream.")
-    
-                # Check if user is an approved artist
-                if not hasattr(request.user, 'artist_profile') or request.user.artist_profile.status != 'approved':
-                    raise PermissionDenied("Only approved artists can start a stream.")
-                
-                # Check for an existing active stream and end it
-                existing_stream = LiveStream.objects.filter(host_id=request.user.id, status='active').first()
-                if existing_stream:
-                    existing_stream.status = 'ended'
-                    existing_stream.ended_at = timezone.now()
-                    existing_stream.save()
+            stream = self._manage_stream(request, channel_name, is_host)
+            token = self._generate_token(channel_name, request.user.id, role)
 
-                # Create a new stream
-                stream = LiveStream.objects.create(
-                    host_id=request.user.id,
-                    channel_name=channel_name,
-                    status='active',
-                    title=request.GET.get('title', f"{request.user.username}'s Stream")
-                )
-            else:
-                # Check if the stream exists and is active
-                stream = LiveStream.objects.filter(channel_name=channel_name, status='active').first()
-                if not stream:
-                    raise PermissionDenied("Stream not found or not active.")
-
-                # Prevent superusers from joining streams
-                if request.user.is_superuser:
-                    print("Superuser attempted to join a stream, blocking...")  # Debugging
-                    return JsonResponse({'error': "Superusers cannot join streams."}, status=403)
-                
-                # Ensure the user is following the artist before joining
-                if not Follow.objects.filter(user_id=request.user.id, artist=stream.host.artist_profile).exists():
-                    raise PermissionDenied("You must follow the artist to join the stream.")
-
-                
-                # This ensures if a user refreshes or reconnects, they don't get counted twice
-                existing_participant = StreamParticipant.objects.filter(
-                    stream=stream, 
-                    user_id=request.user.id
-                ).first()
-                
-                if existing_participant:
-                    existing_participant.is_active = True
-                    existing_participant.last_active = timezone.now()
-                    existing_participant.save()
-                else:
-                    # Create new participant record
-                    StreamParticipant.objects.create(
-                        stream=stream,
-                        user_id=request.user.id,
-                        is_active=True,
-                        last_active=timezone.now()
-                    )
-                
-                
-                # This ensures accurate counts on new joins
-                stale_time = timezone.now() - timezone.timedelta(minutes=1)
-                StreamParticipant.objects.filter(
-                    stream=stream,
-                    is_active=True,
-                    last_active__lt=stale_time
-                ).update(is_active=False)
-                
-                # Add to LiveStreamViewSet.list
-                active_time = timezone.now() - timezone.timedelta(seconds=30)
-                participants = StreamParticipant.objects.filter(
-                    stream=stream,
-                    is_active=True,
-                    last_active__gte=active_time
-                )
-                print(f"Stream {stream.id}: Found {participants.count()} active participants")
-                print(f"Active participants: {[p.user_id for p in participants]}")
-
-
-            # Generate Agora token
-            token = self.generate_token(channel_name, request.user.id, role)
-
-            return JsonResponse({
-                'token': token,
-                'channel': channel_name,
-                'uid': int(request.user.id),
-                'app_id': APP_ID,
-                'role': 'host' if is_host else 'audience'
-            })
+            return self._prepare_token_response(token, channel_name, request.user.id, is_host)
 
         except Exception as e:
-            print(f"Error occurred: {str(e)}")  # Debugging output
-            return JsonResponse({'error': str(e)}, status=400)
-    
+            logger.error(f"Token generation error: {str(e)}")
+            return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-    
-    def generate_token(self, channel_name, uid, role):
+    def _get_channel_name(self, request):
+        """
+        Generate or retrieve channel name.
+        """
+        channel_name = request.GET.get('channel', '')
+        return channel_name or f"stream-{request.user.id}-{int(time.time())}"
+
+    def _is_host_request(self, request):
+        """
+        Determine if the request is for a host or audience.
+        """
+        return request.GET.get('role', 'audience').lower() == 'host'
+
+    def _validate_host_permissions(self, user):
+        """
+        Validate artist's permissions to start a stream.
+        """
+        if user.is_superuser:
+            raise PermissionDenied("Superusers cannot host a stream.")
+
+        if not hasattr(user, 'artist_profile') or user.artist_profile.status != 'approved':
+            raise PermissionDenied("Only approved artists can start a stream.")
+
+    def _manage_host_stream(self, user, channel_name):
+        """
+        Manage host's stream - end existing active streams and create new one.
+        """
+        # End any existing active stream
+        LiveStream.objects.filter(
+            host_id=user.id, 
+            status='active'
+        ).update(
+            status='ended', 
+            ended_at=timezone.now()
+        )
+
+        # Create new stream
+        return LiveStream.objects.create(
+            host_id=user.id,
+            channel_name=channel_name,
+            status='active',
+            title=self.request.GET.get('title', f"{user.username}'s Stream")
+        )
+
+    def _validate_audience_permissions(self, user, stream):
+        """
+        Validate audience's permissions to join a stream.
+        """
+        if not stream:
+            raise PermissionDenied("Stream not found or not active.")
+
+        if user.is_superuser:
+            logger.warning("Superuser attempted to join a stream")
+            raise PermissionDenied("Superusers cannot join streams.")
+
+        # Check if audience follows the artist
+        if not Follow.objects.filter(user_id=user.id, artist=stream.host.artist_profile).exists():
+            raise PermissionDenied("You must follow the artist to join the stream.")
+
+    def _manage_stream_participant(self, stream, user):
+        """
+        Manage stream participant tracking and cleanup.
+        """
+        # Update or create participant record
+        participant, created = StreamParticipant.objects.get_or_create(
+            stream=stream,
+            user_id=user.id,
+            defaults={
+                'is_active': True,
+                'last_active': timezone.now()
+            }
+        )
+
+        if not created:
+            participant.is_active = True
+            participant.last_active = timezone.now()
+            participant.save()
+
+        # Clean up stale participants
+        stale_time = timezone.now() - timezone.timedelta(minutes=1)
+        StreamParticipant.objects.filter(
+            stream=stream,
+            is_active=True,
+            last_active__lt=stale_time
+        ).update(is_active=False)
+
+    def _manage_stream(self, request, channel_name, is_host):
+        """
+        Centralized stream management logic.
+        """
+        if is_host:
+            self._validate_host_permissions(request.user)
+            return self._manage_host_stream(request.user, channel_name)
+        else:
+            stream = LiveStream.objects.filter(channel_name=channel_name, status='active').first()
+            self._validate_audience_permissions(request.user, stream)
+            self._manage_stream_participant(stream, request.user)
+            return stream
+
+    def _generate_token(self, channel_name, uid, role):
+        """
+        Generate Agora RTC token with error handling.
+        """
         try:
             current_timestamp = int(time.time())
             expiration_timestamp = current_timestamp + EXPIRATION_TIME_IN_SECONDS
 
-            # Assign a unique UID if the provided one is 0 or None
             uid = int(uid) if uid else random.randint(1, 2**32 - 1)
 
             return RtcTokenBuilder.buildTokenWithUid(
                 APP_ID, APP_CERTIFICATE, channel_name, uid, role, expiration_timestamp
             )
         except Exception as e:
-            print(f"Error generating token: {str(e)}")
-            raise e
+            logger.error(f"Token generation error: {str(e)}")
+            raise
+
+    def _prepare_token_response(self, token, channel_name, user_id, is_host):
+        """
+        Prepare standardized token response.
+        """
+        return JsonResponse({
+            'token': token,
+            'channel': channel_name,
+            'uid': int(user_id),
+            'app_id': APP_ID,
+            'role': 'host' if is_host else 'audience'
+        })
+
+    
+
 
 
 

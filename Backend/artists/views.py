@@ -36,12 +36,11 @@ class ArtistViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['POST'])
     def request_verification(self, request):
         try:
-            print("Received request to verify artist")  # Log for debugging
+            
             artist, created = Artist.objects.get_or_create(
                 user=request.user,
                 defaults={'bio': request.data.get('bio', '')}
             )
-            print(f"Artist: {artist}, Created: {created}") 
 
             if not created:
                 artist.bio = request.data.get('bio', '')
@@ -60,7 +59,7 @@ class ArtistViewSet(viewsets.ModelViewSet):
             }, status=200)
 
         except Exception as e:
-            print(f"Error: {str(e)}")
+
             return Response({'error': str(e)}, status=500)
 
     # Custom action for checking verification status
@@ -295,7 +294,7 @@ class UserFollowingListView(APIView):
         """Get the list of artists the authenticated user is following"""
         following = Follow.objects.filter(user=request.user)
         serializer = FollowSerializer(following, many=True)
-        print(serializer.data)
+
         return Response(serializer.data, status=status.HTTP_200_OK)
     
     

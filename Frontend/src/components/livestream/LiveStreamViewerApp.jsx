@@ -295,15 +295,15 @@ useEffect(() => {
       setConnectionStatus("Getting token...");
       
       const params = {
-        role: 'audience',
-        channel: channelName
+        channel: channelName,
+        role: 'audience'  // Explicitly set role to audience
       };
       
       const response = await apiInstance.api.get('/api/livestream/token/', {
         params: params
       });
       
-      const { token, channel, app_id, uid } = response.data;
+      const { token, channel, app_id, uid, role } = response.data;
       
       setStreamSettings({
         appId: app_id,
@@ -312,16 +312,24 @@ useEffect(() => {
         uid: uid
       });
       
-      console.log("Token received:", token);
+      console.log("Token received:", { token, channel, app_id, uid, role });
       setConnectionStatus("Token received");
       
       return { token, channel, app_id, uid };
     } catch (error) {
       console.error("Error getting token:", error);
-      setErrorMessage(`Token error: ${error.response?.data?.message || error.message}`);
+      
+      // Improved error handling
+      const errorMessage = error.response?.data?.error || 
+                           error.response?.data?.detail || 
+                           error.message || 
+                           "Unable to get stream token";
+      
+      setErrorMessage(`Token error: ${errorMessage}`);
       throw error;
     }
   };
+
   
 
   const setupEventListeners = () => {
