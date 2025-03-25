@@ -200,55 +200,55 @@ class ArtistViewSet(viewsets.ModelViewSet):
 
     
 
-class MusicVerificationViewSet(viewsets.ModelViewSet):
-    serializer_class = MusicVerificationSerializer
-    permission_classes = [IsAdminUser]
+# class MusicVerificationViewSet(viewsets.ModelViewSet):
+#     serializer_class = MusicVerificationSerializer
+#     permission_classes = [IsAdminUser]
     
-    def get_queryset(self):
-        return Music.objects.select_related(
-            'artist', 
-            'artist__user'
-        ).prefetch_related(
-            'genres'
-        ).order_by('-created_at')
+#     def get_queryset(self):
+#         return Music.objects.select_related(
+#             'artist', 
+#             'artist__user'
+#         ).prefetch_related(
+#             'genres'
+#         ).order_by('-created_at')
     
-    def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['request'] = self.request
-        return context
+#     def get_serializer_context(self):
+#         context = super().get_serializer_context()
+#         context['request'] = self.request
+#         return context
 
-    @action(detail=True, methods=['post'])
-    def approve(self, request, pk=None):
-        try:
-            music = self.get_object()
-            music.approval_status = MusicApprovalStatus.APPROVED
-            # music.is_public = True
-            music.save()
+#     @action(detail=True, methods=['post'])
+#     def approve(self, request, pk=None):
+#         try:
+#             music = self.get_object()
+#             music.approval_status = MusicApprovalStatus.APPROVED
+#             # music.is_public = True
+#             music.save()
             
-            # Re-serialize the updated object
-            serializer = self.get_serializer(music)
-            return Response(serializer.data)
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+#             # Re-serialize the updated object
+#             serializer = self.get_serializer(music)
+#             return Response(serializer.data)
+#         except Exception as e:
+#             return Response(
+#                 {'error': str(e)},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
     
-    @action(detail=True, methods=['post'])
-    def reject(self, request, pk=None):
-        try:
-            music = self.get_object()
-            music.approval_status = MusicApprovalStatus.REJECTED
-            music.save()
+#     @action(detail=True, methods=['post'])
+#     def reject(self, request, pk=None):
+#         try:
+#             music = self.get_object()
+#             music.approval_status = MusicApprovalStatus.REJECTED
+#             music.save()
             
-            # Re-serialize the updated object
-            serializer = self.get_serializer(music)
-            return Response(serializer.data)
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+#             # Re-serialize the updated object
+#             serializer = self.get_serializer(music)
+#             return Response(serializer.data)
+#         except Exception as e:
+#             return Response(
+#                 {'error': str(e)},
+#                 status=status.HTTP_400_BAD_REQUEST
+#             )
 
                     
                    

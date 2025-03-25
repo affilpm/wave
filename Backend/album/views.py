@@ -100,10 +100,7 @@ class AlbumViewSet(viewsets.ModelViewSet):
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         try:
-            # Debug logging
-            print("Received data:", request.data)
-            print("Received files:", request.FILES)
-            
+
             # Extract tracks data from request
             tracks_data = []
             if 'tracks' in request.data:
@@ -113,7 +110,7 @@ class AlbumViewSet(viewsets.ModelViewSet):
             # Create serializer with album data
             serializer = self.get_serializer(data=request.data)
             if not serializer.is_valid():
-                print("Serializer errors:", serializer.errors)
+                
                 return Response({
                     'error': 'Validation failed',
                     'details': serializer.errors
@@ -138,7 +135,7 @@ class AlbumViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
             
         except Exception as e:
-            print("Create album error:", str(e))
+            
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_400_BAD_REQUEST
@@ -301,7 +298,7 @@ class MusicViewSet(ModelViewSet):
             approval_status=MusicApprovalStatus.APPROVED  # Ensure only approved tracks are retrieved
         ).exclude(id__in=used_tracks).select_related('artist__user').prefetch_related('genres')
 
-        print(f"Queryset for user {self.request.user}: {queryset}")
+        
         return queryset
     
     

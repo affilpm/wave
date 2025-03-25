@@ -462,5 +462,6 @@ def create_liked_playlist(sender, instance, created, **kwargs):
             )
         except Exception as e:
             # Log the error or handle it appropriately
-            print(f"Failed to create Liked Tracks playlist for user {instance.username}: {e}")
+            # print(f"Failed to create Liked Tracks playlist for user {instance.username}: {e}")
+            pass
     

@@ -2,12 +2,12 @@ from django.urls import path, include
 from . import views  # Correct import for views from the same app
 from .views import AdminLoginView # or TokenObtainPairView if using the default
 from rest_framework.routers import DefaultRouter
-from .views import UserTableViewSet, AdminTransactionViewSet, TransactionStatsView, TransactionMonthlyStatsView, total_users, top_5_songs, total_premium_users_and_revenue, top_5_artists, ArtistViewSet, MusicVerificationViewSet
+from .views import UserTableViewSet, AdminTransactionViewSet, TransactionStatsView, TransactionMonthlyStatsView, total_users, top_5_songs, total_premium_users_and_revenue, top_5_artists, ArtistViewSet
 
 router = DefaultRouter()
 router.register(r'user-table', UserTableViewSet)
 router.register(r'transactions', AdminTransactionViewSet, basename='admin-transactions')
-router.register(r'music-verification', MusicVerificationViewSet, basename='music-verification')
+# router.register(r'music-verification', MusicVerificationViewSet, basename='music-verification')
 
 
 urlpatterns = [

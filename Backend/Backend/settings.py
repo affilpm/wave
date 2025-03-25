@@ -27,7 +27,13 @@ SECRET_KEY = 'django-insecure-8g%xp0pm@my*k-#oo95-hi-@&w7kh^w8&!v_3l22tk9hcht3fw
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [
+    'localhost',
+    '127.0.0.1',
+    '192.168.x.x',  # Your local IP address (replace with actual IP)
+    '[::1]',        # Allow IPv6 localhost (optional)
+    '.ngrok-free.app',  # If using Ngrok, add this for wildcard matching
+]
 
 
 REST_FRAMEWORK = {
@@ -240,11 +246,18 @@ CORS_ALLOW_METHODS = [
     'PUT',
 ]
 
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:5173",  # Your Vite dev server
+#     "https://*.ngrok-free.app",  
+# ]
+
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Your Vite dev server
+    "http://localhost:5173",          # React app on local device
+    "http://192.168.0.100:5173",      # IP-based access for LAN
+    "https://abcd-202-164-149-48.ngrok-free.app",  # Ngrok tunnel (if used)
 ]
 
-
+CORS_ALLOW_CREDENTIALS = True  # Allow cookies and credentials
 # Add these headers to your response
 SECURE_CONTENT_TYPE_NOSNIFF = False
 CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
