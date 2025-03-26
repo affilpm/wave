@@ -77,6 +77,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
     'users',
     'artists',
     'rest_framework',
@@ -89,11 +90,11 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.google',
     'dj_rest_auth',
     'dj_rest_auth.registration',
-    'django.contrib.sites',
     'rest_framework.authtoken',
     'music',
     'album',
     'channels',
+    'admins',
     'rest_framework_simplejwt.token_blacklist',
     'playlist',
     'home',
@@ -101,10 +102,9 @@ INSTALLED_APPS = [
     'premium',
     'listening_history',
     'agora',
-    # 'zugocloud',
-    # 'csp',
-    # 'django_csp', 
+    'storages',
 ]
+                                                                                                                
 
 AUTH_USER_MODEL = 'users.CustomUser'
 
@@ -360,16 +360,161 @@ AUTHENTICATION_BACKENDS = (
 
 
 
+# s3 bucket configuratio
+# Media Storage Configuration
+DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+
+# S3 Media Configuration
+AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME', default='your-bucket-name')
+AWS_S3_REGION_NAME = 'eu-north-1'
+AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
+AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
+
+# S3 Media Storage Settings
+AWS_S3_OBJECT_PARAMETERS = {
+    'CacheControl': 'max-age=86400',
+}
+
+# Remove AWS_DEFAULT_ACL
+# AWS_DEFAULT_ACL = 'public-read'  # Comment out or remove this line
+
+AWS_LOCATION = 'media'
+
+# Media URL configuration
+MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/'
+
+STORAGES = {
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {
+            "bucket_name": AWS_STORAGE_BUCKET_NAME,
+            "location": "media",
+            # Remove ACL-related options
+        }
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    }
+}
+# Ensure you also have these settings for static files
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_URL = '/static/'
+    
+
 
 import os
+import boto3
+from django.core.management.base import BaseCommand
+from django.conf import settings
+from botocore.exceptions import ClientError, NoCredentialsError
 
-MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+class Command(BaseCommand):
+    help = 'Upload media files to S3 bucket'
+
+    def handle(self, *args, **options):
+        # Media directory path
+        media_root = settings.MEDIA_ROOT
+
+        # S3 Configuration
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            region_name=settings.AWS_S3_REGION_NAME
+        )
+
+        bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+
+        # Track upload statistics
+        total_files = 0
+        uploaded_files = 0
+        skipped_files = 0
+        error_files = 0
+
+        # Walk through media directory
+        for root, dirs, files in os.walk(media_root):
+            for filename in files:
+                total_files += 1
+                
+                # Get full local path of the file
+                local_path = os.path.join(root, filename)
+                
+                # Get relative path from media root
+                relative_path = os.path.relpath(local_path, media_root)
+                
+                # S3 key (path in the bucket)
+                s3_key = f'media/{relative_path}'
+
+                try:
+                    # Open the file
+                    with open(local_path, 'rb') as file_obj:
+                        # Determine content type
+                        content_type = self.get_content_type(filename)
+
+                        # Upload to S3 without ACL
+                        s3_client.upload_fileobj(
+                            file_obj, 
+                            bucket_name, 
+                            s3_key,
+                            ExtraArgs={
+                                'ContentType': content_type,
+                                # Remove ACL parameter
+                            }
+                        )
+                        
+                        uploaded_files += 1
+                        self.stdout.write(self.style.SUCCESS(f'Uploaded: {s3_key}'))
+
+                except Exception as e:
+                    error_files += 1
+                    self.stdout.write(self.style.ERROR(f'Error uploading {filename}: {str(e)}'))
+
+        # Print summary
+        self.stdout.write(self.style.SUCCESS('\n--- Upload Summary ---'))
+        self.stdout.write(f'Total files scanned: {total_files}')
+        self.stdout.write(f'Files uploaded: {uploaded_files}')
+        self.stdout.write(f'Files with errors: {error_files}')
+
+    def get_content_type(self, filename):
+        """
+        Determine content type based on file extension
+        """
+        ext = os.path.splitext(filename)[1].lower()
+        content_types = {
+            '.jpg': 'image/jpeg',
+            '.jpeg': 'image/jpeg',
+            '.png': 'image/png',
+            '.gif': 'image/gif',
+            '.mp3': 'audio/mpeg',
+            '.mp4': 'video/mp4',
+            '.wav': 'audio/wav',
+            '.pdf': 'application/pdf',
+            '.txt': 'text/plain',
+            '.csv': 'text/csv',
+        }
+        return content_types.get(ext, 'application/octet-stream')
 
 
 
-
-SITE_ID = 1
-
-
-
+    
+# Optional: Add to your settings for detailed logging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django.request': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'storages': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    },
+}

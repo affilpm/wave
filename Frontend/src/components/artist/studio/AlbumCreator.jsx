@@ -8,6 +8,7 @@ import api from '../../../api';
 import { useDispatch } from 'react-redux';
 import { openModal, closeModal } from '../../../slices/artist/modalSlice';
 import { debounce } from 'lodash';
+import { v4 as uuidv4 } from 'uuid';  
 
 const MIN_IMAGE_SIZE = 500;
 const TARGET_SIZE = 500;
@@ -36,7 +37,7 @@ const AlbumCreator = () => {
   const [successMessage, setSuccessMessage] = useState([]);
   const [albumNameError, setAlbumNameError] = useState('');
 
-
+  const uniqueId = uuidv4();  // Generate a unique ID
 
 
 
@@ -248,7 +249,7 @@ const handleCropSave = async (isCover) => {
         return;
       }
 
-      const fileName = isCover ? 'album-cover.jpg' : 'album-banner.jpg';
+      const fileName = isCover ? `album-cover-${Date.now()}-${uniqueId}.jpg` : `album-banner-${Date.now()}-${uniqueId}.jpg`;
       const croppedFile = new File([blob], fileName, {
         type: 'image/jpeg',
         lastModified: Date.now(),

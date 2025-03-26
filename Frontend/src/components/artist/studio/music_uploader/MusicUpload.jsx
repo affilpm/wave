@@ -9,11 +9,12 @@ import AlbumSelector from './AlbumSelector';
 import { toast } from 'react-toastify';
 import ImageCropper from './ImageCropper';
 import ResizeImage from './RezizeImage';
+import { v4 as uuidv4 } from 'uuid';  
+
 
 const MIN_IMAGE_SIZE = 500;
 const MAX_IMAGE_SIZE = 2048;
 const TARGET_SIZE = 500;
-
 
 
 
@@ -240,12 +241,37 @@ const MusicUpload = () => {
               throw new Error('Audio file must be smaller than 10MB');
             }
             
+            // Generate a unique filename
+            const generateUniqueFileName = (originalName) => {
+              // Get file extension
+              const extension = originalName.split('.').pop();
+              
+              // Create unique identifier
+              const timestamp = new Date().getTime();
+              const randomString = Math.random().toString(36).substring(2, 15);
+              
+              // Combine to create unique filename
+              return `${timestamp}_${randomString}.${extension}`;
+            };
+
+            // Generate unique filename
+            const uniqueFileName = generateUniqueFileName(file.name);
+
+            // Create a new File object with the unique filename
+            const uniqueFile = new File([file], uniqueFileName, {
+              type: file.type,
+              lastModified: file.lastModified
+            });
+            
             // Clear errors and set the file
             setFileErrors((prev) => ({
               ...prev,
               audio: null,
             }));
-            setFiles((prev) => ({ ...prev, [type]: file }));
+            setFiles((prev) => ({ 
+              ...prev, 
+              [type]: uniqueFile 
+            }));
             
           } catch (error) {
             console.error('Audio processing error:', error);
@@ -383,7 +409,8 @@ const MusicUpload = () => {
   
         canvas.toBlob((blob) => {
           if (blob) {
-            const croppedFile = new File([blob], 'cropped-cover.jpg', {
+            const uniqueId = uuidv4();  // Generate a unique ID
+            const croppedFile = new File([blob], `cropped-cover-${Date.now()}-${uniqueId}.jpg`, {
               type: 'image/jpeg',
               lastModified: Date.now(),
             });
@@ -437,6 +464,28 @@ const MusicUpload = () => {
 };
   
   
+
+const formatAudioFileName = () => {
+  if (!files.audio || !formData.name || !formData.releaseDate) return files.audio.name;
+
+  // Remove invalid characters from the track name
+  const sanitizedName = formData.name.replace(/[<>:"/\|?*]/g, '_');
+  
+  // Format the release date
+  const releaseDate = new Date(formData.releaseDate);
+  const formattedDate = releaseDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+
+  // Get the original file extension
+  const fileExtension = files.audio.name.split('.').pop();
+
+  // Create new filename
+  const newFileName = `${sanitizedName}_${formattedDate}.${fileExtension}`;
+
+  return newFileName;
+};
+
+
+
     const getAudioDuration = (file) => {
       return new Promise((resolve) => {
         const audio = new Audio();

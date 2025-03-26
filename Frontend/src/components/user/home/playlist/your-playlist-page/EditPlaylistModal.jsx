@@ -3,6 +3,8 @@ import { Music, Upload } from 'lucide-react';
 import api from '../../../../../api';
 import Cropper from 'react-easy-crop';
 import { toast } from 'react-toastify';
+import { v4 as uuidv4 } from 'uuid';  
+
 
 const MIN_IMAGE_SIZE = 500;
 const TARGET_SIZE = 500;
@@ -242,16 +244,20 @@ const EditPlaylistModal = ({ isOpen, onClose, onEditPlaylist, playlist }) => {
 
       canvas.toBlob((blob) => {
         if (blob) {
-          const croppedFile = new File([blob], 'playlist-cover.jpg', {
+          const uniqueId = uuidv4();  // Generate a unique ID
+          const uniqueFilename = `playlist-cover-${Date.now()}-${uniqueId}.jpg`;
+  
+          const croppedFile = new File([blob], uniqueFilename, {
             type: 'image/jpeg',
             lastModified: Date.now(),
           });
-
+  
           setCoverPhoto(croppedFile);
           setPreviewUrl(URL.createObjectURL(blob));
           setShowCropper(false);
         }
       }, 'image/jpeg', 0.95);
+  
     } catch (error) {
       console.error('Error cropping image:', error);
       toast.error('Failed to crop image. Please try again.');
