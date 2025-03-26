@@ -3,6 +3,7 @@ import { Music, Upload, Globe, Lock } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 import api from '../../../../api';
 import { toast } from 'react-toastify';
+import { v4 as uuidv4 } from 'uuid';  
 
 const MIN_IMAGE_SIZE = 500;
 const TARGET_SIZE = 500;
@@ -151,7 +152,8 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
 
       canvas.toBlob((blob) => {
         if (blob) {
-          const croppedFile = new File([blob], 'playlist-cover.jpg', {
+          const uniqueId = uuidv4();  // Generate a unique ID
+          const croppedFile = new File([blob], `playlist-cover-${Date.now()}-${uniqueId}.jpg`, {
             type: 'image/jpeg',
             lastModified: Date.now(),
           });

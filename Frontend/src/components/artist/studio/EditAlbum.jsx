@@ -4,6 +4,7 @@ import Cropper from 'react-easy-crop';
 import api from '../../../api';
 import albumService from '../../../services/artist/albumService';
 import { debounce } from 'lodash';
+import { v4 as uuidv4 } from 'uuid';  
 
 const MIN_IMAGE_SIZE = 500;
 const TARGET_SIZE = 500;
@@ -295,8 +296,8 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
           console.error('Failed to generate blob');
           return;
         }
-  
-        const fileName = isCover ? 'album-cover.jpg' : 'album-banner.jpg';
+        const uniqueId = uuidv4();  // Generate a unique ID
+        const fileName = isCover ? `album-cover-${Date.now()}-${uniqueId}.jpg` : `album-banner-${Date.now()}-${uniqueId}.jpg`;
         const croppedFile = new File([blob], fileName, {
           type: 'image/jpeg',
           lastModified: Date.now(),

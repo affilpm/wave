@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Camera, X } from 'lucide-react';
 import Cropper from 'react-easy-crop';
+import { v4 as uuidv4 } from 'uuid';  
+
 
 const MIN_IMAGE_SIZE = 300;
 const TARGET_SIZE = 300;
@@ -93,7 +95,8 @@ const ProfileEditModal = ({ isOpen, onClose, onSave, initialUsername, initialPho
 
       canvas.toBlob((blob) => {
         if (blob) {
-          const croppedFile = new File([blob], 'profile-photo.jpg', {
+          const uniqueId = uuidv4();  // Generate a unique ID
+          const croppedFile = new File([blob], `profile-photo-${Date.now()}-${uniqueId}.jpg`, {
             type: 'image/jpeg',
             lastModified: Date.now(),
           });
