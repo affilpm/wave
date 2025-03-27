@@ -24,6 +24,7 @@ from .models import AlbumTrack
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 import json
+import tempfile
 from django.http import HttpResponse, FileResponse
 from django.utils import timezone
 import os
@@ -38,6 +39,7 @@ from rest_framework.permissions import AllowAny
 from listening_history.models import PlaySession
 from .models import EqualizerPreset
 import traceback
+import logging
 from rest_framework import generics
 from django.db.models import F
 from rest_framework.pagination import PageNumberPagination
@@ -50,9 +52,16 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 import re
-import logging
+import boto3
+import redis
+from botocore.exceptions import ClientError
+from storages.backends.s3boto3 import S3Boto3Storage
+from rest_framework.decorators import api_view, permission_classes
+import uuid
 
-logger = logging.getLogger(__name__)
+
+
+
 
 class GenreViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Genre.objects.all()
@@ -60,12 +69,18 @@ class GenreViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     
     
+    
+    
+    
 class PublicGenresViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Genre.objects.filter(musical_works__is_public=True).distinct()
     serializer_class = GenreSerializer
 
 
-##
+
+
+
+
 class PublicSongsView(generics.ListAPIView):
     serializer_class = MusicDataSerializer
     permission_classes = [IsAuthenticated]
@@ -76,6 +91,10 @@ class PublicSongsView(generics.ListAPIView):
             is_public=True,
             approval_status='approved'
         ).order_by('-release_date')
+        
+        
+        
+        
         
 
 class SongsByArtistView(generics.ListAPIView):
@@ -93,10 +112,14 @@ class SongsByArtistView(generics.ListAPIView):
 
 
 
+
+
 class MusicPagination(PageNumberPagination):
     page_size = 8
     page_size_query_param = 'page_size'
     max_page_size = 100
+    
+    
     
     
 class MusicViewSet(ModelViewSet):
@@ -240,12 +263,11 @@ class MusicViewSet(ModelViewSet):
     
       
 
-###
+
          
 
     
     
-    
 
 
 
@@ -256,11 +278,9 @@ class MusicViewSet(ModelViewSet):
 
 
 
-####################streaming$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-from rest_framework.decorators import api_view, permission_classes
-import uuid
 
 
+#############################token implementation for streaming!!!!!!!!!!!!!!!!!!!!!
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_signed_token(request, music_id):
@@ -322,6 +342,16 @@ def verify_signed_token(signed_token, music_id, secret_key):
         return False
 
 
+
+
+
+
+
+
+
+
+
+########################listening tracker######################################################
 
 
 
@@ -486,6 +516,13 @@ def Record_play_completion(request):
 
 
 
+
+
+
+
+#############################equalizer##############################################
+
+
 # Add API endpoint to get all available presets
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
@@ -497,6 +534,7 @@ def get_equalizer_presets(request):
         'band_1k', 'band_2k', 'band_4k', 'band_8k', 'band_16k'
     )
     return Response(list(presets))
+
 
 
 # Add API endpoint to get user's current preset preference
@@ -526,13 +564,21 @@ def user_equalizer_preset(request):
         except EqualizerPreset.DoesNotExist:
             return Response({'error': 'Preset not found'}, status=404)
 
-import boto3
-from botocore.exceptions import ClientError
-from storages.backends.s3boto3 import S3Boto3Storage
+
+
+
+
+
+
+
+
+
+
+
+###########################music streaming view#########################################
 
 class MusicStreamView(APIView):
     permission_classes = [AllowAny]  
-    CHUNK_SIZE = 65536  # 8KB chunks
     RATE_LIMIT_REQUESTS = 2100
     RATE_LIMIT_DURATION = 3600  # 1 hour
     MIN_PLAY_DURATION_SECONDS = 30  # Minimum seconds to count as a play
@@ -548,17 +594,17 @@ class MusicStreamView(APIView):
         # Ensure the processed audio directory exists
         os.makedirs(self.PROCESSED_AUDIO_DIR, exist_ok=True)
     
-    # def get_content_type(self, file_path):
-    #     ext = os.path.splitext(file_path)[1].lower()
-    #     content_types = {
-    #         ".mp3": "audio/mpeg",
-    #         ".wav": "audio/wav",
-    #         ".ogg": "audio/ogg",
-    #         ".m4a": "audio/mp4",
-    #         ".aac": "audio/aac",
-    #         ".flac": "audio/flac",
-    #     }
-    #     return content_types.get(ext, "application/octet-stream")
+    def get_content_type(self, file_path):
+        ext = os.path.splitext(file_path)[1].lower()
+        content_types = {
+            ".mp3": "audio/mpeg",
+            ".wav": "audio/wav",
+            ".ogg": "audio/ogg",
+            ".m4a": "audio/mp4",
+            ".aac": "audio/aac",
+            ".flac": "audio/flac",
+        }
+        return content_types.get(ext, "application/octet-stream")
 
     def check_rate_limit(self, request, user_id):
         cache_key = f"stream_rate_limit_{user_id}"
@@ -580,11 +626,25 @@ class MusicStreamView(APIView):
 
         return False
 
-    def apply_equalizer(self, input_path, user_id, preset_id=None):
+    def apply_s3_equalizer(self, s3_client, bucket, s3_key, user_id, preset_id=None):
         """
-        Apply equalizer preset to audio file using FFmpeg
-        Returns the path to the processed file
+        Apply equalizer to S3 file with Django's Redis-backed caching
+        
+        Args:
+            s3_client (boto3.client): S3 client
+            bucket (str): S3 bucket name
+            s3_key (str): S3 key of the file
+            user_id (int): User ID for preset selection
+            preset_id (int, optional): Specific equalizer preset ID
+        
+        Returns:
+            tuple: (processed_s3_key, should_restore_original)
         """
+        # Generate a consistent cache key
+        def generate_cache_key(base_key, preset_id):
+            # Use hashlib to create a consistent, fixed-length key
+            return f"eq_cache:{hashlib.md5(f'{base_key}_{preset_id}'.encode()).hexdigest()}"
+
         # If no preset specified, use user's preferred preset or default to Normal
         if not preset_id:
             preset_id = cache.get(f"user_eq_preset:{user_id}", 1)  # Default to Normal (ID 1)
@@ -592,140 +652,141 @@ class MusicStreamView(APIView):
         try:
             preset = EqualizerPreset.objects.get(pk=preset_id)
         except EqualizerPreset.DoesNotExist:
-            preset = EqualizerPreset.objects.get(name='Normal')
+            # Fallback to Normal preset if specified preset doesn't exist
+            try:
+                preset = EqualizerPreset.objects.get(name='Normal')
+            except EqualizerPreset.DoesNotExist:
+                # If no Normal preset exists, skip equalization
+                return s3_key, True
+
+        # Check if Normal preset with all bands at 0
+        if preset.name == 'Normal' and all(
+            getattr(preset, f'band_{band}') == 0 
+            for band in ['31', '62', '125', '250', '500', '1k', '2k', '4k', '8k', '16k']
+        ):
+            return s3_key, False
+
+        # Generate unique cache key
+        redis_cache_key = generate_cache_key(s3_key, preset.id)
         
-        # If Normal preset, just return the original file
-        if preset.name == 'Normal' and all(getattr(preset, f'band_{band}') == 0 
-                for band in ['31', '62', '125', '250', '500', '1k', '2k', '4k', '8k', '16k']):
-            return input_path
-            
-        # Create a unique filename for the processed file
-        file_ext = os.path.splitext(input_path)[1].lower()
-        filename = f"{os.path.basename(input_path).split('.')[0]}_eq_{preset.id}{file_ext}"
-        output_path = os.path.join(self.PROCESSED_AUDIO_DIR, filename)
+        # Check Django cache first
+        cached_s3_key = cache.get(redis_cache_key)
         
-        # Check if processed file already exists and is recent
-        if os.path.exists(output_path):
-            # Get file modification time
-            mod_time = os.path.getmtime(output_path)
-            # If file is not older than cache timeout, return it
-            if (datetime.utcnow() - datetime.fromtimestamp(mod_time)).total_seconds() < self.PROCESSED_AUDIO_CACHE_TIMEOUT:
-                return output_path
-        
+        if cached_s3_key:
+            # Verify the cached file still exists in S3
+            try:
+                s3_client.head_object(Bucket=bucket, Key=cached_s3_key)
+                return cached_s3_key, False
+            except ClientError:
+                # Cached file no longer exists, proceed with processing
+                pass
+
         # Get equalizer filter parameters
         eq_filter = preset.get_eq_filter_params()
+
+        # Create a unique processed file key
+        file_ext = os.path.splitext(s3_key)[1].lower()
+        processed_filename = f"processed/{os.path.basename(s3_key).split('.')[0]}_eq_{preset.id}{file_ext}"
+        processed_s3_key = processed_filename
+
+        # Create a temporary local file for processing
+        with tempfile.TemporaryDirectory() as tmpdir:
+            local_input_path = os.path.join(tmpdir, f'input{file_ext}')
+            local_output_path = os.path.join(tmpdir, f'output{file_ext}')
+
+            try:
+                # Download the input file
+                s3_client.download_file(bucket, s3_key, local_input_path)
+
+                # Process with FFmpeg
+                cmd = [
+                    'ffmpeg',
+                    '-y',  # Overwrite output file if exists
+                    '-i', local_input_path,
+                    '-af', eq_filter,
+                    '-c:a', 'libmp3lame' if file_ext == '.mp3' else 'copy',
+                    local_output_path
+                ]
+                
+                subprocess.run(cmd, check=True, capture_output=True)
+
+                # Upload processed file back to S3
+                s3_client.upload_file(
+                    local_output_path, 
+                    bucket, 
+                    processed_s3_key
+                )
+
+                # Cache the processed S3 key using Django's cache
+                # Use a long-term cache with expiration (e.g., 7 days)
+                cache.set(
+                    redis_cache_key, 
+                    processed_s3_key, 
+                    timeout=7 * 24 * 60 * 60  # 7 days in seconds
+                )
+
+                return processed_s3_key, False
+
+            except (subprocess.CalledProcessError, FileNotFoundError) as e:
+                # Log the error
+                logger = logging.getLogger(__name__)
+                logger.error(f"Equalizer processing error: {e}")
+                
+                # If processing fails, return original file
+                return s3_key, True
+
+
+
+    _s3_key_cache = {}
+
+    def get_s3_key(self, music_id, s3_client):
+        """
+        Efficiently retrieve the correct S3 key with caching.
         
-        # Process the audio file using FFmpeg
-        try:
-            # Build FFmpeg command
-            cmd = [
-                'ffmpeg',
-                '-y',  # Overwrite output file if exists
-                '-i', input_path,
-                '-af', eq_filter,
-                '-c:a', 'libmp3lame' if file_ext == '.mp3' else 'copy',
-                output_path
-            ]
-            
-            # Execute FFmpeg command
-            subprocess.run(cmd, check=True, capture_output=True)
-            return output_path
-        except (subprocess.CalledProcessError, FileNotFoundError) as e:
-            
-            # If processing fails, return original file
-            return input_path
-
-    def stream_file(self, path, start, end):
-        with open(path, 'rb') as f:
-            f.seek(start)
-            remaining = end - start + 1
-            while remaining > 0:
-                chunk_size = min(self.CHUNK_SIZE, remaining)
-                data = f.read(chunk_size)
-                if not data:
-                    break
-                remaining -= len(data)
-                yield data
-
-
-
-
-    def _get_s3_client(self):
-        """
-        Create and cache S3 client to reduce resource allocation
-        """
-        if not hasattr(self, '_s3_client'):
-            self._s3_client = boto3.client(
-                's3',
-                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-                region_name=settings.AWS_S3_REGION_NAME
-            )
-        return self._s3_client
-
-    def _get_content_type(self, file_path):
-        """
-        Determine content type based on file extension
-        """
-        ext = os.path.splitext(file_path)[1].lower()
-        content_types = {
-            ".mp3": "audio/mpeg",
-            ".wav": "audio/wav",
-            ".ogg": "audio/ogg",
-            ".m4a": "audio/mp4",
-            ".aac": "audio/aac",
-            ".flac": "audio/flac",
-        }
-        return content_types.get(ext, "application/octet-stream")
-
-    def _validate_range_header(self, range_header, file_size):
-        """
-        Safely parse and validate range headers
-        """
-        try:
-            match = re.match(r'bytes=(\d+)?-(\d+)?', range_header)
-            if not match:
-                return None, None
-
-            start, end = match.groups()
-            start = int(start) if start else 0
-            end = int(end) if end else (file_size - 1)
-
-            # Ensure range is valid
-            start = max(0, start)
-            end = min(end, file_size - 1)
-            
-            return start, end
+        Args:
+            music_id (int): The ID of the music track
+            s3_client (boto3.client): S3 client instance
         
-        except (TypeError, ValueError) as e:
-            logger.warning(f"Invalid range header parsing: {e}")
-            return None, None
+        Returns:
+            str: The correct S3 key for the audio file
+        """
+        # Check if we have a cached key for this music_id
+        if music_id in self._s3_key_cache:
+            return self._s3_key_cache[music_id]
 
-    def _stream_s3_object(self, s3_client, bucket, key, start, end):
-        """
-        Generator for streaming S3 object with controlled chunk size
-        """
-        try:
-            response = s3_client.get_object(
-                Bucket=bucket, 
-                Key=key, 
-                Range=f'bytes={start}-{end}'
-            )
-            
-            stream = response['Body']
-            
-            # Stream in controlled chunks
-            for chunk in iter(lambda: stream.read(self.CHUNK_SIZE), b''):
-                yield chunk
+        # Fetch music object
+        music = get_object_or_404(Music, pk=music_id)
         
-        except ClientError as e:
-            logger.error(f"S3 streaming error: {e}")
-            # Optional: Add more granular error handling
-            yield b''
+        # Potential S3 key variations
+        s3_key_attempts = [
+            music.audio_file.name,
+            f"media/{music.audio_file.name}"
+        ]
+        
+        for attempt_key in s3_key_attempts:
+            try:
+                # Check if the key exists
+                s3_client.head_object(
+                    Bucket=settings.AWS_STORAGE_BUCKET_NAME, 
+                    Key=attempt_key
+                )
+                
+                # Cache the successful key
+                self._s3_key_cache[music_id] = attempt_key
+                return attempt_key
+            
+            except ClientError:
+                continue
+        
+        # If no key works, raise an exception
+        raise FileNotFoundError(f"Could not find audio file for music_id {music_id}")
 
     def get(self, request, music_id):
+        import logging
+        logger = logging.getLogger(__name__)
+
         try:
-            # Validate token (assuming verify_signed_token function exists)
+            # Token verification
             signed_token = request.GET.get('token')
             if not signed_token:
                 return Response({'error': 'Token required'}, status=401)
@@ -734,52 +795,103 @@ class MusicStreamView(APIView):
             if not token_user_id:
                 return Response({'error': 'Unauthorized'}, status=401)
 
+            # Rate limit check
+            if not self.check_rate_limit(request, token_user_id):
+                return Response({'error': 'Rate limit exceeded'}, status=429)
+
             # Fetch music object
             music = get_object_or_404(Music, pk=music_id)
             
-            s3_client = self._get_s3_client()
-            bucket = settings.AWS_STORAGE_BUCKET_NAME
-            
-            # Attempt multiple key variations
-            s3_key_attempts = [
-                music.audio_file.name,
-                f"media/{music.audio_file.name}"
-            ]
-            
-            # Find correct S3 object
-            s3_object_metadata = None
-            for attempt_key in s3_key_attempts:
-                try:
-                    s3_object_metadata = s3_client.head_object(Bucket=bucket, Key=attempt_key)
-                    s3_key = attempt_key
-                    break
-                except ClientError:
-                    continue
-            
-            if not s3_object_metadata:
-                logger.error(f"Audio file not found for music_id {music_id}")
-                return Response({'error': 'Audio file not found'}, status=404)
+            # S3 client setup
+            s3_client = boto3.client(
+                's3',
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=settings.AWS_S3_REGION_NAME
+            )
 
-            file_size = s3_object_metadata['ContentLength']
-            content_type = self._get_content_type(s3_key)
+            # Get S3 key for the file
+            s3_key = self.get_s3_key(music_id, s3_client)
+            bucket = settings.AWS_STORAGE_BUCKET_NAME
+
+            # Apply equalizer processing
+            try:
+                processed_s3_key, restore_original = self.apply_s3_equalizer(
+                    s3_client, 
+                    bucket, 
+                    s3_key, 
+                    token_user_id
+                )
+            except Exception as eq_error:
+                logger.error(f"Equalizer processing error: {eq_error}")
+                processed_s3_key = s3_key
+                restore_original = True
+
+            # Fallback to original file if processing fails
+            if restore_original:
+                processed_s3_key = s3_key
+
+            # Get file metadata
+            file_metadata = s3_client.head_object(
+                Bucket=bucket, 
+                Key=processed_s3_key
+            )
+            file_size = file_metadata['ContentLength']
+            content_type = self.get_content_type(processed_s3_key)
 
             # Handle range request
             range_header = request.headers.get('Range', '')
-            start, end = (0, file_size - 1)
+            start = 0
+            end = file_size - 1
 
             if range_header:
-                range_result = self._validate_range_header(range_header, file_size)
-                if range_result[0] is not None:
-                    start, end = range_result
+                try:
+                    range_match = re.match(r'bytes=(\d+)?-(\d+)?', range_header)
+                    if range_match:
+                        start_group, end_group = range_match.groups()
+                        start = int(start_group) if start_group else 0
+                        end = int(end_group) if end_group else (file_size - 1)
+                        
+                        # Validate range
+                        start = max(0, start)
+                        end = min(end, file_size - 1)
+                except (TypeError, ValueError):
+                    return Response({'error': 'Invalid range'}, status=400)
+
+            def s3_chunked_stream():
+                """
+                Generator to stream S3 object in efficient chunks
+                """
+                try:
+                    # Stream the object using S3 Range parameter
+                    s3_response = s3_client.get_object(
+                        Bucket=bucket,
+                        Key=processed_s3_key,
+                        Range=f'bytes={start}-{end}'
+                    )
+                    
+                    # Get the stream
+                    stream = s3_response['Body']
+                    
+                    # Stream in predefined chunk sizes
+                    chunk_size = 32768  # 32 KB chunks
+                    while True:
+                        chunk = stream.read(chunk_size)
+                        if not chunk:
+                            break
+                        yield chunk
+                    
+                except Exception as e:
+                    logger.error(f"S3 streaming error: {e}")
 
             # Create streaming response
             response = StreamingHttpResponse(
-                self._stream_s3_object(s3_client, bucket, s3_key, start, end),
+                s3_chunked_stream(),
                 content_type=content_type,
                 status=206 if range_header else 200
             )
 
-            # Set precise headers
+            # Set necessary headers
             response['Accept-Ranges'] = 'bytes'
             response['Content-Length'] = str(end - start + 1)
             
@@ -789,21 +901,39 @@ class MusicStreamView(APIView):
             return response
 
         except Exception as e:
-            logger.error(f"Streaming error: {e}", exc_info=True)
-            return Response({'error': 'Streaming failed'}, status=500)
+            logger.error(f"Unexpected streaming error: {traceback.format_exc()}")
+            return Response({'error': 'Streaming failed', 'details': str(e)}, status=500)
 
-    def options(self, request, *args, **kwargs):
+
+
+    def options(self, request, music_id=None):
         """
-        CORS handling for preflight requests
+        Handle CORS preflight requests for music streaming.
+        
+        Args:
+            request (Request): Incoming HTTP request
+            music_id (int, optional): Music track ID
+        
+        Returns:
+            Response: CORS configuration response
         """
-        response = Response()
-        response['Access-Control-Allow-Origin'] = '*'
+        response = Response(status=204)  # No Content status for OPTIONS
+        response['Access-Control-Allow-Origin'] = '*'  # Consider restricting in production
         response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
-        response['Access-Control-Allow-Headers'] = 'Range, Authorization, Content-Type, Accept'
+        response['Access-Control-Allow-Headers'] = (
+            'Range, Authorization, Content-Type, '
+            'Accept, X-Requested-With'
+        )
+        response['Access-Control-Max-Age'] = '86400'  # Cache preflight response for 24 hours
         return response
 
 
 
+
+
+
+
+########music data view#################################
 
 class MusicMetadataView(APIView):
     permission_classes = [IsAuthenticated]
@@ -834,8 +964,7 @@ class MusicMetadataView(APIView):
             
             
             
-##   admin side 
-    
+################admin side music verification view###################################
     
 
 class MusicVerificationViewSet(viewsets.ModelViewSet):
