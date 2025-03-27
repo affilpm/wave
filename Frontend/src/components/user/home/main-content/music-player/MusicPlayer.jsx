@@ -122,6 +122,8 @@ const MusicPlayer = () => {
     // Add seekto handler if supported
     try {
       navigator.mediaSession.setActionHandler('seekto', (details) => {
+        console.log('Media Session Seek:', details);
+        
         if (details.seekTime && howlRef.current) {
           seekPositionRef.current = details.seekTime;
           handleSeek(details.seekTime);
@@ -157,32 +159,29 @@ const MusicPlayer = () => {
     mediaSessionInitializedRef.current = true;
   }, [currentTrack, howlRef.current, dispatch]);
 
-  // Centralized seek handler to ensure consistency
+
   const handleSeek = (position) => {
+    console.log('Handle Seek Called:', {
+      position, 
+      currentHowl: !!howlRef.current,
+      duration: howlRef.current?.duration()
+    });
+  
     if (!howlRef.current) return;
     
-    // Ensure position is within bounds
     const safePosition = Math.max(0, Math.min(position, howlRef.current.duration() || 0));
     
-    // Apply seek to Howl
-    howlRef.current.seek(safePosition);
-    
-    // Update UI state
-    setPlayerState(prev => ({ ...prev, progress: safePosition }));
-    
-    // Update Media Session position state (with error handling)
-    if ('mediaSession' in navigator && mediaSessionInitializedRef.current) {
-      try {
-        navigator.mediaSession.setPositionState({
-          duration: howlRef.current.duration() || 0,
-          playbackRate: 1.0,
-          position: safePosition
-        });
-      } catch (error) {
-        console.warn('Error updating position state:', error);
-      }
+    try {
+      howlRef.current.seek(safePosition);
+      
+      setPlayerState(prev => ({ ...prev, progress: safePosition }));
+      
+      console.log('Seek successful:', safePosition);
+    } catch (error) {
+      console.error('Seek failed:', error);
     }
   };
+
 
   // Update Media Session playback state when isPlaying changes
   useEffect(() => {
@@ -650,18 +649,53 @@ const MusicPlayer = () => {
     animationFrameRef.current = requestAnimationFrame(updateSeeker);
   };
 
-  // Improved seek handlers
-  const handleSeekChange = (e) => {
-    const value = parseFloat(e.target.value);
+const handleSeekChange = (e) => {
+  const value = parseFloat(e.target.value);
+  console.log('Seek Change:', {
+    value, 
+    isSeeking, 
+    isPlaying, 
+    currentProgress: playerState.progress
+  });
+  
+  setPlayerState(prev => ({
+    ...prev,
+    progress: value
+  }));
+};
+
+  
+const handleSeekMouseUp = (e) => {
+  const value = parseFloat(e.target.value);
+  
+  console.log('Seek Mouse Up:', {
+    value, 
+    isPlaying, 
+    currentHowl: !!howlRef.current
+  });
+
+  setIsSeeking(false);
+  
+  // Force seek even if not playing
+  if (howlRef.current) {
+    howlRef.current.seek(value);
     
-    // Only update UI during seeking
-    if (isSeeking) {
-      setPlayerState(prev => ({
-        ...prev,
-        progress: value
-      }));
-    }
-  };
+    setPlayerState(prev => ({ 
+      ...prev, 
+      progress: value 
+    }));
+  }
+  
+  // Optionally restart playing if it was playing before
+  if (isPlaying) {
+    howlRef.current?.play();
+  }
+  
+  // Resume progress tracking
+  if (!animationFrameRef.current) {
+    updateSeeker();
+  }
+};
 
   const handleSeekMouseDown = () => {
     setIsSeeking(true);
@@ -673,18 +707,6 @@ const MusicPlayer = () => {
     }
   };
 
-  const handleSeekMouseUp = (e) => {
-    const value = parseFloat(e.target.value);
-    setIsSeeking(false);
-    
-    // Use centralized seek handler
-    handleSeek(value);
-    
-    // Resume updates if playing
-    if (isPlaying && !animationFrameRef.current) {
-      updateSeeker();
-    }
-  };
 
   const handleRetry = () => {
     // Manual retry function
