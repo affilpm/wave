@@ -37,6 +37,7 @@ from django.http import StreamingHttpResponse
 from rest_framework.permissions import AllowAny  
 from listening_history.models import PlaySession
 from .models import EqualizerPreset
+import traceback
 from rest_framework import generics
 from django.db.models import F
 from rest_framework.pagination import PageNumberPagination
@@ -48,7 +49,10 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
+import re
+import logging
 
+logger = logging.getLogger(__name__)
 
 class GenreViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Genre.objects.all()
@@ -254,25 +258,23 @@ class MusicViewSet(ModelViewSet):
 
 ####################streaming$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 from rest_framework.decorators import api_view, permission_classes
+import uuid
 
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_signed_token(request, music_id):
     """
-    a
+    Generate a signed token with a unique play_id
     """
+    # Use UUID to ensure unique play_id
+    play_id = f"{request.user.id}-{music_id}-{str(uuid.uuid4())}"
     
-    # Create a play session with a unique ID
-    play_id = f"{request.user.id}-{music_id}-{int(time.time())}"
-    
-    # Create a token (standard format)
+    # Rest of the existing code remains the same
     signed_token = generate_signed_token(request.user.id, music_id, settings.SECRET_KEY, expiry_seconds=3600)
     
-    # Store the relationship between token and play_id
     cache.set(f"play_session:{signed_token}", play_id, timeout=3600)
     
-    # Create a play session entry to track this attempt
     PlaySession.objects.create(
         user=request.user,
         music_id=music_id,
@@ -281,7 +283,6 @@ def get_signed_token(request, music_id):
     )
     
     return Response({'token': signed_token, 'play_id': play_id})
-
 
 
 def generate_signed_token(user_id, music_id, secret_key, expiry_seconds=3600):
@@ -525,11 +526,13 @@ def user_equalizer_preset(request):
         except EqualizerPreset.DoesNotExist:
             return Response({'error': 'Preset not found'}, status=404)
 
-
+import boto3
+from botocore.exceptions import ClientError
+from storages.backends.s3boto3 import S3Boto3Storage
 
 class MusicStreamView(APIView):
     permission_classes = [AllowAny]  
-    CHUNK_SIZE = 8192  # 8KB chunks
+    CHUNK_SIZE = 65536  # 8KB chunks
     RATE_LIMIT_REQUESTS = 2100
     RATE_LIMIT_DURATION = 3600  # 1 hour
     MIN_PLAY_DURATION_SECONDS = 30  # Minimum seconds to count as a play
@@ -545,17 +548,17 @@ class MusicStreamView(APIView):
         # Ensure the processed audio directory exists
         os.makedirs(self.PROCESSED_AUDIO_DIR, exist_ok=True)
     
-    def get_content_type(self, file_path):
-        ext = os.path.splitext(file_path)[1].lower()
-        content_types = {
-            ".mp3": "audio/mpeg",
-            ".wav": "audio/wav",
-            ".ogg": "audio/ogg",
-            ".m4a": "audio/mp4",
-            ".aac": "audio/aac",
-            ".flac": "audio/flac",
-        }
-        return content_types.get(ext, "application/octet-stream")
+    # def get_content_type(self, file_path):
+    #     ext = os.path.splitext(file_path)[1].lower()
+    #     content_types = {
+    #         ".mp3": "audio/mpeg",
+    #         ".wav": "audio/wav",
+    #         ".ogg": "audio/ogg",
+    #         ".m4a": "audio/mp4",
+    #         ".aac": "audio/aac",
+    #         ".flac": "audio/flac",
+    #     }
+    #     return content_types.get(ext, "application/octet-stream")
 
     def check_rate_limit(self, request, user_id):
         cache_key = f"stream_rate_limit_{user_id}"
@@ -644,71 +647,155 @@ class MusicStreamView(APIView):
                 remaining -= len(data)
                 yield data
 
+
+
+
+    def _get_s3_client(self):
+        """
+        Create and cache S3 client to reduce resource allocation
+        """
+        if not hasattr(self, '_s3_client'):
+            self._s3_client = boto3.client(
+                's3',
+                aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+                aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+                region_name=settings.AWS_S3_REGION_NAME
+            )
+        return self._s3_client
+
+    def _get_content_type(self, file_path):
+        """
+        Determine content type based on file extension
+        """
+        ext = os.path.splitext(file_path)[1].lower()
+        content_types = {
+            ".mp3": "audio/mpeg",
+            ".wav": "audio/wav",
+            ".ogg": "audio/ogg",
+            ".m4a": "audio/mp4",
+            ".aac": "audio/aac",
+            ".flac": "audio/flac",
+        }
+        return content_types.get(ext, "application/octet-stream")
+
+    def _validate_range_header(self, range_header, file_size):
+        """
+        Safely parse and validate range headers
+        """
+        try:
+            match = re.match(r'bytes=(\d+)?-(\d+)?', range_header)
+            if not match:
+                return None, None
+
+            start, end = match.groups()
+            start = int(start) if start else 0
+            end = int(end) if end else (file_size - 1)
+
+            # Ensure range is valid
+            start = max(0, start)
+            end = min(end, file_size - 1)
+            
+            return start, end
+        
+        except (TypeError, ValueError) as e:
+            logger.warning(f"Invalid range header parsing: {e}")
+            return None, None
+
+    def _stream_s3_object(self, s3_client, bucket, key, start, end):
+        """
+        Generator for streaming S3 object with controlled chunk size
+        """
+        try:
+            response = s3_client.get_object(
+                Bucket=bucket, 
+                Key=key, 
+                Range=f'bytes={start}-{end}'
+            )
+            
+            stream = response['Body']
+            
+            # Stream in controlled chunks
+            for chunk in iter(lambda: stream.read(self.CHUNK_SIZE), b''):
+                yield chunk
+        
+        except ClientError as e:
+            logger.error(f"S3 streaming error: {e}")
+            # Optional: Add more granular error handling
+            yield b''
+
     def get(self, request, music_id):
         try:
-            # Verify the signed token from the query parameter
+            # Validate token (assuming verify_signed_token function exists)
             signed_token = request.GET.get('token')
             if not signed_token:
                 return Response({'error': 'Token required'}, status=401)
 
-            # Get equalizer preset ID from query parameter
-            preset_id = request.GET.get('eq')
-
-            # Verify token
             token_user_id = verify_signed_token(signed_token, music_id, settings.SECRET_KEY)
             if not token_user_id:
                 return Response({'error': 'Unauthorized'}, status=401)
 
-            # Rate limit check
-            if not self.check_rate_limit(request, token_user_id):
-                return Response({'error': 'Rate limit exceeded'}, status=429)
-
+            # Fetch music object
             music = get_object_or_404(Music, pk=music_id)
-            original_path = music.audio_file.path
-
-            if not os.path.exists(original_path):
-                return Response({'error': 'Audio file not found'}, status=404)
             
-            # Apply equalizer if requested
-            path = self.apply_equalizer(original_path, token_user_id, preset_id)
+            s3_client = self._get_s3_client()
+            bucket = settings.AWS_STORAGE_BUCKET_NAME
+            
+            # Attempt multiple key variations
+            s3_key_attempts = [
+                music.audio_file.name,
+                f"media/{music.audio_file.name}"
+            ]
+            
+            # Find correct S3 object
+            s3_object_metadata = None
+            for attempt_key in s3_key_attempts:
+                try:
+                    s3_object_metadata = s3_client.head_object(Bucket=bucket, Key=attempt_key)
+                    s3_key = attempt_key
+                    break
+                except ClientError:
+                    continue
+            
+            if not s3_object_metadata:
+                logger.error(f"Audio file not found for music_id {music_id}")
+                return Response({'error': 'Audio file not found'}, status=404)
 
-            file_size = os.path.getsize(path)
-            content_type = self.get_content_type(path)
+            file_size = s3_object_metadata['ContentLength']
+            content_type = self._get_content_type(s3_key)
 
             # Handle range request
-            range_header = request.headers.get('Range')
-            start = 0
-            end = file_size - 1
+            range_header = request.headers.get('Range', '')
+            start, end = (0, file_size - 1)
 
             if range_header:
-                try:
-                    ranges = range_header.replace('bytes=', '').split('-')
-                    start = int(ranges[0])
-                    if ranges[1]:
-                        end = min(int(ranges[1]), file_size - 1)
-                except (ValueError, IndexError):
-                    return Response({'error': 'Invalid range header'}, status=400)
+                range_result = self._validate_range_header(range_header, file_size)
+                if range_result[0] is not None:
+                    start, end = range_result
 
-            # Prepare streaming response
+            # Create streaming response
             response = StreamingHttpResponse(
-                self.stream_file(path, start, end),
-                status=206 if range_header else 200,
-                content_type=content_type
+                self._stream_s3_object(s3_client, bucket, s3_key, start, end),
+                content_type=content_type,
+                status=206 if range_header else 200
             )
 
-            # Set response headers
+            # Set precise headers
             response['Accept-Ranges'] = 'bytes'
             response['Content-Length'] = str(end - start + 1)
+            
             if range_header:
                 response['Content-Range'] = f'bytes {start}-{end}/{file_size}'
 
             return response
 
         except Exception as e:
-            
-            return Response({'error': 'Internal server error'}, status=500)
+            logger.error(f"Streaming error: {e}", exc_info=True)
+            return Response({'error': 'Streaming failed'}, status=500)
 
     def options(self, request, *args, **kwargs):
+        """
+        CORS handling for preflight requests
+        """
         response = Response()
         response['Access-Control-Allow-Origin'] = '*'
         response['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
