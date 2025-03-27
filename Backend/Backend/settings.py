@@ -273,7 +273,7 @@ CORS_ALLOW_HEADERS = default_headers + (
     'content-type',
 )
 
-##
+
 
 
 
@@ -341,11 +341,11 @@ RAZORPAY_KEY_SECRET = config('RAZOR_KEY_SECRET')
 
 
 
+SITE_ID = 1
 
 
 
-
-
+#agora configuration
 AGORA_APP_ID = config('AGORA_APP_ID')
 AGORA_APP_CERTIFICATE = config('AGORA_APP_CERTIFICATE')
 
@@ -390,6 +390,7 @@ STORAGES = {
             "bucket_name": AWS_STORAGE_BUCKET_NAME,
             "location": "media",
             # Remove ACL-related options
+            "file_overwrite": False,
         }
     },
     "staticfiles": {
@@ -402,3 +403,23 @@ STATIC_URL = '/static/'
     
 
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+}

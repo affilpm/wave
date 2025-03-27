@@ -10,13 +10,11 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <StrictMode>
-    <CssBaseline />
     <Provider store={store}>
+      <CssBaseline />
       <PersistGate loading={null} persistor={persistor}>
       <ToastContainer theme="dark" />
           <App />
       </PersistGate>
     </Provider>
-  </StrictMode>
 );
