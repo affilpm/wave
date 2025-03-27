@@ -901,7 +901,7 @@ class MusicStreamView(APIView):
             return response
 
         except Exception as e:
-            logger.error(f"Unexpected streaming error: {traceback.format_exc()}")
+            logger.error(f"Unexpected streaming error: {traceback.format_exc()}") 
             return Response({'error': 'Streaming failed', 'details': str(e)}, status=500)
 
 

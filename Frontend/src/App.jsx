@@ -40,6 +40,7 @@ import { handlePageReload } from './slices/user/musicPlayerSlice';
 // import LivestreamViewerApp from './components/live';
 import StreamListingPage from './components/livestream/LiveStreamViewerApp';
 import TransactionHistory from './components/user/home/header/settings/TransactionHistory';
+import ArtistsShowMorePage from './components/user/home/main-content/Artist-section/ArtistsShowMorePage';
 // import VideoStreamingPage from './components/livestream/testing/VideoStreamingPage';
 // import StreamsList from './components/livestream/testing/list';
 // import LiveStreamPage from './components/livestream/testing/fdf';
@@ -129,6 +130,7 @@ function App() {
               <Route path="/playlist-show-more" element={<PlaylistShowMorePage/>} />
               <Route path="/albums-show-more" element={<AlbumShowMorePage/>} />
               <Route path="/artist/:artistId" element={<ArtistPage />} />
+              <Route path="/artists-show-more" element={<ArtistsShowMorePage/>} />
 
 
               {/* <LivestreamViewerApp/> */}

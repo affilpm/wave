@@ -143,7 +143,7 @@ class ArtistOnlyView(APIView):
             try:
                 artist = Artist.objects.get(id=artist_id)
                 if artist.user == request.user:
-                        return Response(
+                    return Response(
                         {"error": "You cannot view your own artist data."}, 
                         status=status.HTTP_403_FORBIDDEN
                     )
@@ -162,13 +162,57 @@ class ArtistOnlyView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
         else:
-            artists = Artist.objects.exclude(user=request.user).filter(musical_works__is_public = True).distinct()
+            # Filter artists excluding the current user and with public musical works
+            artists = Artist.objects.exclude(user=request.user).filter(musical_works__is_public=True).distinct()
+            
+            # Limit to 10 artists
+            artists = artists[:10]
+            
             serializer = ArtistSerializer(artists, many=True, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
-    
-    
+        
    
+class ArtistListView(APIView):
+    permission_classes = [IsAuthenticated]
+    pagination_class = Pagination
     
+    def get(self, request, *args, **kwargs):
+        artist_id = kwargs.get('artist_id')
+        if artist_id:
+            try:
+                artist = Artist.objects.get(id=artist_id)
+                if artist.user == request.user:
+                    return Response(
+                        {"error": "You cannot view your own artist data."}, 
+                        status=status.HTTP_403_FORBIDDEN
+                    )
+                        
+                has_public_music = artist.musical_works.filter(is_public=True).exists()
+                if not has_public_music:
+                    return Response(
+                        {"error": "You cannot view your own artist data."},
+                        status=status.HTTP_403_FORBIDDEN
+                    )        
+                serializer = ArtistSerializer(artist, context={'request': request})
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            except Artist.DoesNotExist:
+                return Response(
+                    {"error": "Artist not found"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+        else:
+            # Filter artists excluding the current user and with public musical works
+            artists = Artist.objects.exclude(user=request.user).filter(musical_works__is_public=True).distinct()
+            
+            # Apply pagination
+            paginator = self.pagination_class()
+            paginated_artists = paginator.paginate_queryset(artists, request)
+            
+            serializer = ArtistSerializer(paginated_artists, many=True, context={'request': request})
+            return paginator.get_paginated_response(serializer.data)
+        
+        
+            
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def home_playlist(request):
