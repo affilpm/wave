@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 
 from pathlib import Path
 from datetime import timedelta
+from decouple import config
 
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -22,18 +23,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-8g%xp0pm@my*k-#oo95-hi-@&w7kh^w8&!v_3l22tk9hcht3fw'
+SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG')
 
-ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    '192.168.x.x',  # Your local IP address (replace with actual IP)
-    '[::1]',        # Allow IPv6 localhost (optional)
-    '.ngrok-free.app',  # If using Ngrok, add this for wildcard matching
-]
+ALLOWED_HOSTS = config('ALLOWED_HOSTS').split(',')
 
 
 REST_FRAMEWORK = {
@@ -108,11 +103,6 @@ INSTALLED_APPS = [
 
 AUTH_USER_MODEL = 'users.CustomUser'
 
-ASGI_APPLICATION = 'Backend.asgi.application'
-
-
-
-
 
 
 MIDDLEWARE = [
@@ -151,23 +141,26 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'Backend.wsgi.application'
+# WSGI_APPLICATION = 'Backend.wsgi.application'
+
+ASGI_APPLICATION = 'Backend.asgi.application'
+
 
 
 # Database
 # https://docs.djangoproject.com/en/5.0/ref/settings/#databases
 
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'wave',  
-        'USER': 'postgres',  
-        'PASSWORD': '1234', 
-        'HOST': 'localhost',  
-        'PORT': '5432',  
+        'NAME': config('DB_NAME'),
+        'USER': config('DB_USER'),
+        'PASSWORD': config('DB_PASSWORD'),
+        'HOST': config('DB_HOST'),
+        'PORT': config('DB_PORT'),
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/5.0/ref/settings/#auth-password-validators
@@ -280,7 +273,6 @@ CORS_ALLOW_HEADERS = default_headers + (
 
 
 
-from decouple import config
 
 
 
@@ -401,6 +393,8 @@ STORAGES = {
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATIC_URL = '/static/'
     
+
+
 
 
 LOGGING = {
