@@ -104,11 +104,10 @@ function App() {
          {/* <Route path="/stream/:streamId" element={<VideoStreamingPage/>} /> */}
 
 
-         <Route path="/livestreams" element={<StreamListingPage/>} />
+
 
 
         <Route element={<PrivateRoute isAuthenticated={isAuthenticated} />}>
-
           <Route path="/studio" element={<StudioPage/>} />
           <Route path="/musicupload" element={<MusicUpload/>} />
           <Route path="/albumcreator" element={<AlbumCreator/>} />
@@ -116,6 +115,7 @@ function App() {
           <Route path="/premium" element={<Premium/>} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/transactions" element={<TransactionHistory />} />
+          <Route path="/livestreams" element={<StreamListingPage/>} />
 
           <Route path="/" element={<HomePage />}>
               <Route index element={<Navigate to="/home" replace />} />

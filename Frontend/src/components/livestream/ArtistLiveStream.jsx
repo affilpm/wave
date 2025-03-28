@@ -540,25 +540,25 @@ const getStreamToken = async (options = {}) => {
       // Set role as host
       await client.setClientRole("host");
       
-      console.log("Joining channel as host...");
+      // console.log("Joining channel as host...");
       
       // Join the channel
       try {
         await client.join(app_id, channel, token, uid);
-        console.log("Successfully joined channel!");
+        // console.log("Successfully joined channel!");
       } catch (error) {
-        console.error("Error joining channel:", error);
+        // console.error("Error joining channel:", error);
         setErrorMessage(`Couldn't start stream: ${error.message}`);
         throw error;
       }
       
       // Get permissions before creating tracks
       try {
-        console.log("Requesting camera/mic permissions...");
+        // console.log("Requesting camera/mic permissions...");
         await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
         
         // Create tracks with better error handling
-        console.log("Creating audio and video tracks...");
+        // console.log("Creating audio and video tracks...");
         const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
           {
             echoCancellation: true,
@@ -575,7 +575,7 @@ const getStreamToken = async (options = {}) => {
           }
         );
         
-        console.log("Tracks created successfully");
+        // console.log("Tracks created successfully");
         
         // Save tracks to refs immediately for use outside state updates
         videoTrackRef.current = videoTrack;
@@ -593,7 +593,7 @@ const getStreamToken = async (options = {}) => {
         
         // Publish tracks to remote users
         await client.publish([audioTrack, videoTrack]); 
-        console.log("Local tracks published successfully!");
+        // console.log("Local tracks published successfully!");
         
         // Set streaming state to true with a delay to allow initialization
         setTimeout(() => {
@@ -608,7 +608,7 @@ const getStreamToken = async (options = {}) => {
         }, 1000);
         
       } catch (error) {
-        console.error("Error with local tracks:", error);
+        // console.error("Error with local tracks:", error);
         setErrorMessage(`Camera/microphone error: ${error.message}`);
         
         // Important: Leave the channel if we fail to publish tracks
@@ -617,7 +617,7 @@ const getStreamToken = async (options = {}) => {
       }
       
     } catch (error) {
-      console.error("Error starting stream:", error);
+      // console.error("Error starting stream:", error);
       setIsStartingStream(false);
     } finally {
       setIsLoading(false);

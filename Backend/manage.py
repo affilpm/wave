@@ -2,7 +2,8 @@
 """Django's command-line utility for administrative tasks."""
 import os
 import sys
-
+import logging
+logging.getLogger('asyncio').setLevel(logging.WARNING)
 
 def main():
     """Run administrative tasks."""
