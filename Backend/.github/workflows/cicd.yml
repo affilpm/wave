@@ -4,33 +4,82 @@ on:
   push:
     paths:
       - 'Backend/**'  # Trigger deployment on Backend folder changes
+    branches:
+      - main  # Only trigger on main branch
 
 jobs:
   deploy:
     runs-on: self-hosted  # Use EC2 self-hosted runner
 
     steps:
-      - name: Navigate to project and pull latest changes
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          
+      - name: Set up environment
         run: |
-          cd /home/ubuntu/Wave  # Navigate to your cloned repo
-          git reset --hard       # Ensure a clean slate
-          git checkout main
-          git pull origin main
-
-      - name: Deploy Backend with Docker Compose
+          echo "Starting deployment at $(date)"
+          echo "Current directory: $(pwd)"
+          # Verify Docker and Docker Compose are available
+          docker --version
+          docker-compose --version
+          
+      - name: Create/update .env file if needed
         run: |
-          # Run Docker Compose from the root, since docker-compose.yml is in root
-          sudo docker-compose up -d --build
-
+          # Check if .env exists, if not create it from secrets
+          if [ ! -f .env ]; then
+            echo "Creating .env file from secrets"
+            echo "DB_NAME=${{ secrets.DB_NAME }}" > .env
+            echo "DB_USER=${{ secrets.DB_USER }}" > .env
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+            # Add other environment variables as needed
+          fi
+          
+      - name: Deploy with Docker Compose
+        run: |
+          echo "Building and starting containers..."
+          docker-compose down || true  # Shutdown gracefully if running
+          docker-compose up -d --build
+          echo "Containers started successfully"
+          
+      - name: Wait for services to be ready
+        run: |
+          echo "Waiting for services to be ready..."
+          sleep 30  # Give more time for PostgreSQL and Redis to initialize
+          
       - name: Apply Django Migrations
         run: |
-          # Apply migrations inside the backend Django container
-          sudo docker exec backend-django-production python manage.py migrate
-
-      - name: Restart NGINX and Clean Docker Resources
+          echo "Applying migrations..."
+          # Use the container name from your docker-compose.yml
+          docker exec backend python manage.py migrate
+          
+      - name: Collect static files
         run: |
+          echo "Collecting static files..."
+          docker exec backend python manage.py collectstatic --noinput
+          
+      - name: Restart NGINX
+        run: |
+          echo "Restarting NGINX..."
           sudo service nginx restart
           sleep 10  # Allow NGINX time to restart
-          sudo docker image prune -a -f
-          sudo docker builder prune -f
+          
+      - name: Clean Docker Resources
+        run: |
+          echo "Cleaning unused Docker resources..."
+          docker image prune -a -f --filter "until=24h"
+          docker builder prune -f --filter "until=24h"
+          
+      - name: Verify deployment
+        run: |
+          echo "Verifying deployment..."
+          # Check if the containers are running
+          docker ps | grep backend
+          docker ps | grep backend-postgres
+          docker ps | grep backend-redis
+          # Test the endpoint (adjust URL as needed)
+          curl -s -o /dev/null -w "%{http_code}\n" http://localhost:8000/ || echo "Server not responding"
+
+
 
