@@ -1,28 +1,47 @@
-
-
-name: Deployment to AWS EC2
+name: CI/CD Pipeline for Backend
 
 on:
   push:
     branches:
       - main
+      - develop
   pull_request:
-    types: [closed]
+    types: [opened, synchronize, reopened, closed]
 
 jobs:
-  deploy:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+  test:
     runs-on: self-hosted
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged != true
 
     steps:
       - name: Check out code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+
+      - name: Run CI/CD in Docker
+        run: |
+          echo "TEST_DB_NAME=test_db_${{ github.run_id }}" >> .env
+          docker-compose --profile ci up ci --build --exit-code-from ci
+          EXIT_CODE=$?
+          docker-compose --profile ci down
+          exit $EXIT_CODE
+
+  deploy:
+    runs-on: self-hosted
+    needs: test
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+        with:
+          ref: main
 
       - name: Build and Deploy
         run: |
           cd /home/ubuntu/Wave
           git checkout main
           git pull origin main
+          echo "CI_DEPLOY=true" >> .env
           sudo docker-compose up -d --build
           sudo docker exec backend python manage.py migrate
           sudo service nginx restart
