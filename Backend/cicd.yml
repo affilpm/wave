@@ -1,0 +1,35 @@
+name: Deploy Django Backend to AWS EC2
+
+on:
+  push:
+    paths:
+      - 'Backend/**'  # Trigger deployment on Backend folder changes
+
+jobs:
+  deploy:
+    runs-on: self-hosted  # Use EC2 self-hosted runner
+
+    steps:
+      - name: Navigate to project and pull latest changes
+        run: |
+          cd /home/ubuntu/Wave  # Navigate to your cloned repo
+          git reset --hard       # Ensure a clean slate
+          git checkout main
+          git pull origin main
+
+      - name: Deploy Backend with Docker Compose
+        run: |
+          # Run Docker Compose from the root, since docker-compose.yml is in root
+          sudo docker-compose up -d --build
+
+      - name: Apply Django Migrations
+        run: |
+          # Apply migrations inside the backend Django container
+          sudo docker exec backend-django-production python manage.py migrate
+
+      - name: Restart NGINX and Clean Docker Resources
+        run: |
+          sudo service nginx restart
+          sleep 10  # Allow NGINX time to restart
+          sudo docker image prune -a -f
+          sudo docker builder prune -f
