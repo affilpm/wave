@@ -34,4 +34,3 @@ jobs:
           sudo docker image prune -a -f
           sudo docker builder prune -f
 
-#ci/cd          
