@@ -4,6 +4,7 @@ services:
   web:
     build: .
     container_name: backend
+    restart: always
     volumes:
       - .:/app
       - static_volume:/app/staticfiles
@@ -14,25 +15,71 @@ services:
     depends_on:
       - postgres
       - redis
+    command: daphne -b 0.0.0.0 -p 8000 Backend.asgi:application
+    environment:
+      - CI_MODE=${CI_MODE:-false}
+      - CI_DEPLOY=${CI_DEPLOY:-false}
+
+  # CI service specifically for CI/CD operations
+  ci:
+    build: .
+    profiles: ["ci"]
+    volumes:
+      - .:/app
+      - ci_reports:/app/reports
+    env_file:
+      - .env
+    environment:
+      - CI_MODE=true
+      - CI_DEPLOY=${CI_DEPLOY:-false}
+    depends_on:
+      - postgres_test
+    command: /app/ci/run_ci.sh
 
   postgres:
     image: postgres:15-alpine
     container_name: backend-postgres
+    restart: always
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      - POSTGRES_DB=${DB_NAME}
-      - POSTGRES_USER=${DB_USER}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      retries: 5
+
+  # Separate database for testing
+  postgres_test:
+    image: postgres:15-alpine
+    container_name: backend-postgres-test
+    profiles: ["ci"]
+    environment:
+      POSTGRES_DB: ${TEST_DB_NAME:-test_db}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 5s
+      retries: 3
 
   redis:
     image: redis:alpine
     container_name: backend-redis
+    restart: always
     ports:
       - "6379:6379"
+    command: redis-server --save 60 1 --loglevel warning
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
 
 volumes:
   postgres_data:
   static_volume:
+  ci_reports:
