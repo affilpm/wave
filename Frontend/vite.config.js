@@ -17,7 +17,6 @@ export default defineConfig({
         secure: false,
       },
     },
-  },
     headers: {
       'Content-Security-Policy': `
         default-src 'self' https://accounts.google.com https://*.gstatic.com blob: https://*.razorpay.com 'unsafe-eval' 'unsafe-inline' data:;
