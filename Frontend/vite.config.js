@@ -14,7 +14,7 @@ export default defineConfig({
       '/api': {
         target: 'http://13.49.227.70:8000',
         changeOrigin: true,
-        secure: false,
+        secure: false, // Avoids HTTPS issues for local testing
       },
     },
     headers: {
