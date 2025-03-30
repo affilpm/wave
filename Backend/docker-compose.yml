@@ -83,3 +83,4 @@ volumes:
   postgres_data:
   static_volume:
   ci_reports:
+
