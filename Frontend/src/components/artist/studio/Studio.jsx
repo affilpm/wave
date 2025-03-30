@@ -4,7 +4,7 @@ import { ArrowLeft, Plus, BarChart, Upload, Settings, Music, Library, Video, Men
 import DashboardStats from './DashboardStats';
 import UploadOptions from './UploadOptions';
 import RecentActivity from './RecentActivity';
-import Modal from '../../modal';
+import Modal from '../../Modal';
 import { useDispatch, useSelector } from 'react-redux';
 import { openModal, closeModal } from '../../../slices/artist/modalSlice';
 import MusicUpload from './music_uploader/MusicUpload';
