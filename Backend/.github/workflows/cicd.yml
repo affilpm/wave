@@ -1,0 +1,50 @@
+name: CI/CD Pipeline for Backend
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+jobs:
+  test:
+    runs-on: self-hosted
+    if: github.event_name != 'pull_request' || github.event.pull_request.merged != true
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: Run CI/CD in Docker
+        run: |
+          cd Wave/Backend  # Move inside Backend directory
+          echo "TEST_DB_NAME=test_db_${{ github.run_id }}" >> .env
+          docker-compose --profile ci up ci --build --exit-code-from ci
+          EXIT_CODE=$?
+          docker-compose --profile ci down
+          exit $EXIT_CODE
+
+  deploy:
+    runs-on: self-hosted
+    needs: test
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main')
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+        with:
+          ref: main
+
+      - name: Build and Deploy
+        run: |
+          cd /home/ubuntu/Wave/Backend  # Move into the correct directory
+          git pull origin main  # Pull latest changes
+          echo "CI_DEPLOY=true" >> .env
+          sudo docker-compose up -d --build
+          sudo docker exec backend python manage.py migrate
+          sudo service nginx restart
+          sleep 10  # Allow nginx to restart
+          sudo docker image prune -a -f
+          sudo docker builder prune -f
