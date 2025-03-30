@@ -29,10 +29,7 @@ SECRET_KEY = config('SECRET_KEY')
 DEBUG = config('DEBUG')
 
 ALLOWED_HOSTS = ['*']
-<<<<<<< Updated upstream
-=======
 
->>>>>>> Stashed changes
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [

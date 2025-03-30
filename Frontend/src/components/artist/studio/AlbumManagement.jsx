@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { PenSquare, Trash2, Search, AlertCircle, Eye, EyeOff, ToggleLeftIcon } from 'lucide-react';
 import api from '../../../api';
 import { useNavigate } from 'react-router-dom';
-import Modal from '../../modal';
+import Modal from '../../Modal';
 import { toast } from 'react-toastify';
 import EditAlbum from './EditAlbum';
 
