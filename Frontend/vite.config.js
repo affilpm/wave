@@ -11,12 +11,13 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/ws/webrtc': {
-        target: 'ws://13.49.227.70:8000',
-        ws: true,
+      '/api': {
+        target: 'http://13.49.227.70:8000',
         changeOrigin: true,
+        secure: false,
       },
     },
+  },
     headers: {
       'Content-Security-Policy': `
         default-src 'self' https://accounts.google.com https://*.gstatic.com blob: https://*.razorpay.com 'unsafe-eval' 'unsafe-inline' data:;
