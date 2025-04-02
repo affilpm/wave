@@ -497,6 +497,7 @@ const formatAudioFileName = () => {
       });
     };
   
+
     const handleSubmit = async (e) => {
       e.preventDefault();
       setError(null);
@@ -507,52 +508,45 @@ const formatAudioFileName = () => {
       }
     
       setIsLoading(true);
+      const toastId = toast.loading('Uploading track...'); // Show loading toast
     
       try {
         const formDataToSubmit = new FormData();
-
-
+        
         if (files.audio) {
           const audioDuration = await getAudioDuration(files.audio);
-          // Convert seconds to ISO 8601 duration format
-          // This format is compatible with Django's DurationField
           const hours = Math.floor(audioDuration / 3600);
           const minutes = Math.floor((audioDuration % 3600) / 60);
           const seconds = Math.floor(audioDuration % 60);
-          const milliseconds = Math.round((audioDuration % 1) * 1000000); // microseconds for Django
-          
+          const milliseconds = Math.round((audioDuration % 1) * 1000000);
+    
           const durationString = `P0DT${hours}H${minutes}M${seconds}.${milliseconds}S`;
-          console.log('Sending duration:', durationString); // Add this line
+          console.log('Sending duration:', durationString);
           formDataToSubmit.append('duration', durationString);
         }
-
-
+    
         formDataToSubmit.append('name', formData.name);
-        
         if (formData.releaseDate) {
           formDataToSubmit.append('release_date', formData.releaseDate);
         }
-        
+    
         if (files.audio) formDataToSubmit.append('audio_file', files.audio);
         if (files.cover) formDataToSubmit.append('cover_photo', files.cover);
         if (files.video) formDataToSubmit.append('video_file', files.video);
     
-        // Append genres correctly (using genre IDs)
         formData.selectedGenres.forEach(genreId => {
-          if (genreId && genreId !== 'undefined') {  // Add validation
-            formDataToSubmit.append('genres[]', genreId.toString());  // Ensure it's a string
+          if (genreId && genreId !== 'undefined') {
+            formDataToSubmit.append('genres[]', genreId.toString());
           }
         });
-
+    
         if (selectedAlbum && trackNumber) {
           formDataToSubmit.append('album', selectedAlbum);
           formDataToSubmit.append('track_number', trackNumber);
         }
     
         const response = await api.post('/api/music/music/', formDataToSubmit, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
+          headers: { 'Content-Type': 'multipart/form-data' },
         });
     
         if (response.status === 201) {
@@ -561,39 +555,34 @@ const formatAudioFileName = () => {
           setSelectedAlbum('');
           setTrackNumber('');
           dispatch(closeModal());
-          toast.success('Track uploaded successfully!', {
-            position: 'top-right', // You can choose 'top-left', 'top-center', etc.
-            autoClose: 3000, // Duration in milliseconds
-            hideProgressBar: false,
-            closeOnClick: true,
-            pauseOnHover: true,
-            draggable: true,
-            progress: undefined,
-            theme: 'dark', // or 'dark'
+    
+          toast.update(toastId, { 
+            render: 'Track uploaded successfully!', 
+            type: 'success', 
+            isLoading: false, 
+            autoClose: 3000 
           });
         }
-    
       } catch (error) {
-        // Log error details for debugging
-        console.error('Upload error details:', {
-          message: error.message,
-          stack: error.stack,
-          response: error.response?.data,
-          status: error.response?.status,
-          statusText: error.response?.statusText
-        });
+        console.error('Upload error:', error.response?.data || error.message);
     
-        // Handle specific error response from backend
+        let errorMessage = 'An unexpected error occurred. Please try again.';
         if (error.response?.data) {
-          const errorMessage = Object.entries(error.response.data)
+          errorMessage = Object.entries(error.response.data)
             .map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`)
             .join('\n');
-          setError(errorMessage);
         } else if (error.request) {
-          setError('No response received from the server. Please check your network connection.');
-        } else {
-          setError('An unexpected error occurred. Please try again.');
+          errorMessage = 'No response received from the server. Please check your network connection.';
         }
+    
+        toast.update(toastId, { 
+          render: errorMessage, 
+          type: 'error', 
+          isLoading: false, 
+          autoClose: 4000 
+        });
+    
+        setError(errorMessage);
       } finally {
         setIsLoading(false);
       }

@@ -8,7 +8,7 @@ const UNAUTHORIZED = 401;
 export class api {
   constructor(config) {
     this.config = {
-      baseURL: 'http://13.49.227.70:8000',
+      baseURL: config.baseURL || import.meta.env.VITE_API_URL,
       accessTokenKey: config.accessTokenKey || 'access_token',
       refreshTokenKey: config.refreshTokenKey || 'refresh_token',
       onLogout: config.onLogout || (() => {}),
