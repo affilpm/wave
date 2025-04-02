@@ -2,101 +2,33 @@ version: '3.8'
 
 services:
   web:
-    build:
-      context: ./Backend
-      dockerfile: Dockerfile
-    container_name: wave-backend-prod
-    restart: always
+    build: .
+    container_name: backend
     volumes:
+      - .:/app
       - static_volume:/app/staticfiles
-    expose:
-      - "8000"
+    ports:
+      - "8000:8000"
     env_file:
-      - ./Backend/.env
+      - .env
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: daphne -b 0.0.0.0 -p 8000 Backend.asgi:application
-    networks:
-      - wave_network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-  
+      - postgres
+      - redis
+
   postgres:
     image: postgres:15-alpine
-    container_name: wave-postgres-prod
-    restart: always
+    container_name: backend-postgres
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
       - POSTGRES_DB=${DB_NAME}
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
-    networks:
-      - wave_network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-  
-  redis:
-    image: redis:7-alpine
-    container_name: wave-redis-prod
-    restart: always
-    command: redis-server --save 60 1 --loglevel warning
-    volumes:
-      - redis_data:/data
-    networks:
-      - wave_network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
-  
-  nginx:
-    image: nginx:1.25-alpine
-    container_name: wave-nginx-prod
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Backend/nginx/conf.d:/etc/nginx/conf.d
-      - ./Backend/nginx/ssl:/etc/nginx/ssl
-      - static_volume:/var/www/static
-      - ./Backend/nginx/logs:/var/log/nginx
-    depends_on:
-      - web
-    networks:
-      - wave_network
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
 
-networks:
-  wave_network:
-    driver: bridge
+  redis:
+    image: redis:alpine
+    container_name: backend-redis
 
 volumes:
   postgres_data:
-  redis_data:
   static_volume:
