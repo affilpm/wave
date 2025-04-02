@@ -1,91 +1,43 @@
-# Dockerfile with CI/CD integration
-FROM python:3.11-slim
-
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-
-# Set work directory
+FROM python:3.11-slim as builder
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
-    postgresql-client \
-    build-essential \
-    libpq-dev \
-    graphviz \
-    graphviz-dev \
-    pkg-config \
-    python3-dev \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Redis
-RUN apt-get update && apt-get install -y redis-server
-
-# Upgrade pip
-RUN pip install --upgrade pip
-
-# Copy requirements file
-COPY requirements.txt .
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc postgresql-client libpq-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt .
+RUN pip wheel --no-cache-dir --no-deps --wheel-dir /app/wheels -r requirements.txt
 
-# Install CI/CD tools
-RUN pip install pytest pytest-cov flake8
+FROM python:3.11-slim
+WORKDIR /app
+
+# Create a non-root user
+RUN useradd -m appuser
+
+# Copy built wheels and install
+COPY --from=builder /app/wheels /wheels
+COPY --from=builder /app/requirements.txt .
+RUN pip install --no-cache /wheels/*
+
+# Install runtime dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends postgresql-client libpq-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy project files
 COPY . .
 
-# Add CI/CD scripts
-RUN mkdir -p /app/ci
-
-# Create CI/CD entry script
-RUN echo '#!/bin/bash\n\
-set -e\n\
-\n\
-# Run linting\n\
-echo "Running code quality checks..."\n\
-flake8 .\n\
-\n\
-# Run tests\n\
-echo "Running tests..."\n\
-pytest --cov=. --cov-report=xml\n\
-\n\
-# If we are on main branch and this is a deployment\n\
-if [ "$CI_DEPLOY" = "true" ]; then\n\
-  echo "Performing deployment steps..."\n\
-  python manage.py collectstatic --noinput\n\
-  python manage.py migrate\n\
-fi\n\
-\n\
-echo "CI/CD process completed successfully"' > /app/ci/run_ci.sh
-
-RUN chmod +x /app/ci/run_ci.sh
-
 # Collect static files
 RUN python manage.py collectstatic --noinput
 
-# Create main entrypoint script
-RUN echo '#!/bin/sh\n\
-\n\
-# Check if running in CI mode\n\
-if [ "$CI_MODE" = "true" ]; then\n\
-  echo "Running in CI/CD mode"\n\
-  /app/ci/run_ci.sh\n\
-  exit $?\n\
-fi\n\
-\n\
-# Normal application startup\n\
-redis-server &\n\
-python manage.py migrate\n\
-daphne -b 0.0.0.0 -p 8000 Backend.asgi:application' > /entrypoint.sh
+# Change ownership to non-root user
+RUN chown -R appuser:appuser /app
+USER appuser
 
-RUN chmod +x /entrypoint.sh
-
-# Expose ports for Django and Daphne (WebSocket)
+# Run as non-root user
 EXPOSE 8000
 
-# Set entrypoint
-ENTRYPOINT ["/entrypoint.sh"]

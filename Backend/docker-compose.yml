@@ -2,85 +2,101 @@ version: '3.8'
 
 services:
   web:
-    build: .
-    container_name: backend
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: wave-backend-prod
     restart: always
     volumes:
-      - .:/app
       - static_volume:/app/staticfiles
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000"
     env_file:
-      - .env
+      - ./Backend/.env
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     command: daphne -b 0.0.0.0 -p 8000 Backend.asgi:application
-    environment:
-      - CI_MODE=${CI_MODE:-false}
-      - CI_DEPLOY=${CI_DEPLOY:-false}
-
-  # CI service specifically for CI/CD operations
-  ci:
-    build: .
-    profiles: ["ci"]
-    volumes:
-      - .:/app
-      - ci_reports:/app/reports
-    env_file:
-      - .env
-    environment:
-      - CI_MODE=true
-      - CI_DEPLOY=${CI_DEPLOY:-false}
-    depends_on:
-      - postgres_test
-    command: /app/ci/run_ci.sh
-
+    networks:
+      - wave_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+  
   postgres:
     image: postgres:15-alpine
-    container_name: backend-postgres
+    container_name: wave-postgres-prod
     restart: always
     volumes:
       - postgres_data:/var/lib/postgresql/data
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    ports:
-      - "5432:5432"
+      - POSTGRES_DB=${DB_NAME}
+      - POSTGRES_USER=${DB_USER}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    networks:
+      - wave_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
       interval: 10s
+      timeout: 5s
       retries: 5
-
-  # Separate database for testing
-  postgres_test:
-    image: postgres:15-alpine
-    container_name: backend-postgres-test
-    profiles: ["ci"]
-    environment:
-      POSTGRES_DB: ${TEST_DB_NAME:-test_db}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
-      interval: 5s
-      retries: 3
-
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+  
   redis:
-    image: redis:alpine
-    container_name: backend-redis
+    image: redis:7-alpine
+    container_name: wave-redis-prod
+    restart: always
+    command: redis-server --requirepass ${REDIS_PASSWORD} --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks:
+      - wave_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+  
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: wave-nginx-prod
     restart: always
     ports:
-      - "6379:6379"
-    command: redis-server --save 60 1 --loglevel warning
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      retries: 5
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Backend/nginx/conf.d:/etc/nginx/conf.d
+      - ./Backend/nginx/ssl:/etc/nginx/ssl
+      - static_volume:/var/www/static
+      - ./Backend/nginx/logs:/var/log/nginx
+    depends_on:
+      - web
+    networks:
+      - wave_network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  wave_network:
+    driver: bridge
 
 volumes:
   postgres_data:
+  redis_data:
   static_volume:
-  ci_reports:
-
