@@ -38,7 +38,7 @@ EXPOSE 8000
 # Create entrypoint script
 RUN echo '#!/bin/sh\n\
 python manage.py migrate\n\
-python manage.py collectstatic --noinput
+python manage.py collectstatic --noinput\n\
 daphne -b 0.0.0.0 -p 8000 Backend.asgi:application' > /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
