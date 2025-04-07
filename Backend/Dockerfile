@@ -1,4 +1,4 @@
-# Use an official Python runtime as a parent image
+# Dockerfile
 FROM python:3.11-slim
 
 # Set environment variables
@@ -19,9 +19,6 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Redis
-RUN apt-get update && apt-get install -y redis-server
-
 # Upgrade pip
 RUN pip install --upgrade pip
 
@@ -37,12 +34,11 @@ COPY . .
 # Collect static files
 RUN python manage.py collectstatic --noinput
 
-# Expose ports for Django and Daphne (WebSocket)
+# Expose port for Daphne (WebSocket)
 EXPOSE 8000
 
 # Create entrypoint script
 RUN echo '#!/bin/sh\n\
-redis-server &\n\
 python manage.py migrate\n\
 daphne -b 0.0.0.0 -p 8000 Backend.asgi:application' > /entrypoint.sh
 
