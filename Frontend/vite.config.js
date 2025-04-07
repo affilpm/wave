@@ -21,6 +21,7 @@ export default defineConfig({
       'Content-Security-Policy': `
         default-src 'self' https://accounts.google.com https://*.gstatic.com blob: https://*.razorpay.com 'unsafe-eval' 'unsafe-inline' data:;
         script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://*.gstatic.com https://*.razorpay.com;
+        script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://*.gstatic.com https://*.razorpay.com;
         style-src 'self' 'unsafe-inline' https://accounts.google.com https://*.gstatic.com;
         frame-src 'self' https://accounts.google.com https://*.gstatic.com https://*.razorpay.com;
         frame-ancestors 'self' https://accounts.google.com https://*.gstatic.com;
