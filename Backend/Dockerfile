@@ -31,8 +31,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project files
 COPY . .
 
-# Collect static files
-RUN python manage.py collectstatic --noinput
 
 # Expose port for Daphne (WebSocket)
 EXPOSE 8000
@@ -40,6 +38,7 @@ EXPOSE 8000
 # Create entrypoint script
 RUN echo '#!/bin/sh\n\
 python manage.py migrate\n\
+python manage.py collectstatic --noinput
 daphne -b 0.0.0.0 -p 8000 Backend.asgi:application' > /entrypoint.sh
 
 RUN chmod +x /entrypoint.sh
