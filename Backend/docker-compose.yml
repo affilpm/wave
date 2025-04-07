@@ -6,7 +6,7 @@ services:
     container_name: backend
     volumes:
       - .:/app
-      - static_volume:/app/staticfiles
+      - ./staticfiles:/app/staticfiles
     ports:
       - "8000:8000"  
     env_file:
@@ -31,4 +31,3 @@ services:
 
 volumes:
   postgres_data:
-  static_volume:

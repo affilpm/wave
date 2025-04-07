@@ -247,6 +247,7 @@ CORS_ALLOW_METHODS = [
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",          # React app on local device
+    "https://affils.site",
     "http://192.168.0.100:5173",      # IP-based access for LAN
     "https://abcd-202-164-149-48.ngrok-free.app",  # Ngrok tunnel (if used)
 ]
@@ -267,7 +268,12 @@ CORS_ALLOW_HEADERS = default_headers + (
     'content-type',
 )
 
-
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://192.168.0.100:5173", 
+    "https://abcd-202-164-149-48.ngrok-free.app",
+    "https://affils.site",
+]
 
 
 
