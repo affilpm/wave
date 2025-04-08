@@ -268,6 +268,8 @@ CORS_ALLOW_HEADERS = default_headers + (
     'content-type',
 )
 
+
+
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:5173",
     "http://192.168.0.100:5173", 
@@ -298,7 +300,7 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://127.0.0.1:6379/1',  # Local Redis server URL ,  # Redis server URL
+        'LOCATION': 'redis://redis:6379/1',  # Local Redis server URL ,  # Redis server URL
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         }
@@ -311,7 +313,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],  # Default Redis settings
+            "hosts": [('redis', 6379)],  # Default Redis settings
         },
     },
 }
