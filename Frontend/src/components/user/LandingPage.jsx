@@ -10,7 +10,7 @@ const LandingPage = () => {
       {/* Navigation */}
       <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
         <div className="flex items-center space-x-2">
-            <img src="/public/shape.png" alt="Music Logo" className="w-10 h-10" /> {/* Replace with your image */}
+            <img src="/shape.png" alt="Music Logo" className="w-10 h-10" /> {/* Replace with your image */}
             <span className="text-xl font-bold text-white">Wave</span>
         </div>
         <div className="space-x-4">
