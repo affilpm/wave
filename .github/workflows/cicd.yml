@@ -1,56 +1,74 @@
-deploy:
-  runs-on: self-hosted
-  needs: test
-  if: >
-    github.ref == 'refs/heads/main' ||
-    (github.event_name == 'pull_request' &&
-     github.event.pull_request.merged == true &&
-     github.event.pull_request.base.ref == 'main')
+name: CI/CD Pipeline for Backend
 
-  steps:
-    - uses: actions/checkout@v3
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
 
-    - name: Set up .env file from GitHub Secrets
-      run: |
-        cd Backend
-        cat <<EOF > .env
-        SECRET_KEY=${{ secrets.SECRET_KEY }}
-        DEBUG=${{ secrets.DEBUG }}
-        ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+jobs:
+  test:
+    runs-on: self-hosted
+    if: >
+      github.event_name != 'pull_request' || 
+      github.event.pull_request.merged != true
 
-        DB_NAME=${{ secrets.DB_NAME }}
-        DB_USER=${{ secrets.DB_USER }}
-        DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-        DB_HOST=${{ secrets.DB_HOST }}
-        DB_PORT=${{ secrets.DB_PORT }}
+    steps:
+      - uses: actions/checkout@v3
 
-        EMAIL_HOST=smtp.gmail.com
-        EMAIL_PORT=587
-        EMAIL_USE_TLS=True
-        EMAIL_HOST_USER=${{ secrets.EMAIL_HOST_USER }}
-        EMAIL_HOST_PASSWORD=${{ secrets.EMAIL_HOST_PASSWORD }}
+      - name: Run Tests in Docker
+        run: |
+          cd Backend
+          docker-compose --profile ci up --build --exit-code-from ci
+          docker-compose --profile ci down
 
-        SOCIAL_AUTH_GOOGLE_OAUTH2_KEY=${{ secrets.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY }}
-        SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET=${{ secrets.SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET }}
+  deploy:
+    runs-on: self-hosted
+    needs: test
+    if: >
+      github.ref == 'refs/heads/main' ||
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.merged == true &&
+       github.event.pull_request.base.ref == 'main')
 
-        RAZOR_KEY_ID=${{ secrets.RAZOR_KEY_ID }}
-        RAZOR_KEY_SECRET=${{ secrets.RAZOR_KEY_SECRET }}
+    steps:
+      - uses: actions/checkout@v3
 
-        AGORA_APP_ID=${{ secrets.AGORA_APP_ID }}
-        AGORA_APP_CERTIFICATE=${{ secrets.AGORA_APP_CERTIFICATE }}
+      - name: Set up .env file from GitHub Secrets
+        run: |
+          cd Backend
+          cat <<EOF > .env
+          SECRET_KEY=${{ secrets.SECRET_KEY }}
+          DEBUG=${{ secrets.DEBUG }}
+          ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+          DB_NAME=${{ secrets.DB_NAME }}
+          DB_USER=${{ secrets.DB_USER }}
+          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+          DB_HOST=${{ secrets.DB_HOST }}
+          DB_PORT=${{ secrets.DB_PORT }}
+          EMAIL_HOST=smtp.gmail.com
+          EMAIL_PORT=587
+          EMAIL_USE_TLS=True
+          EMAIL_HOST_USER=${{ secrets.EMAIL_HOST_USER }}
+          EMAIL_HOST_PASSWORD=${{ secrets.EMAIL_HOST_PASSWORD }}
+          SOCIAL_AUTH_GOOGLE_OAUTH2_KEY=${{ secrets.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY }}
+          SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET=${{ secrets.SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET }}
+          RAZOR_KEY_ID=${{ secrets.RAZOR_KEY_ID }}
+          RAZOR_KEY_SECRET=${{ secrets.RAZOR_KEY_SECRET }}
+          AGORA_APP_ID=${{ secrets.AGORA_APP_ID }}
+          AGORA_APP_CERTIFICATE=${{ secrets.AGORA_APP_CERTIFICATE }}
+          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_STORAGE_BUCKET_NAME=${{ secrets.AWS_STORAGE_BUCKET_NAME }}
+          AWS_S3_REGION_NAME=${{ secrets.AWS_S3_REGION_NAME }}
+          USE_S3_MEDIA_STORAGE=${{ secrets.USE_S3_MEDIA_STORAGE }}
+          MEDIA_URL=${{ secrets.MEDIA_URL }}
+          EOF
 
-        AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-        AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        AWS_STORAGE_BUCKET_NAME=${{ secrets.AWS_STORAGE_BUCKET_NAME }}
-        AWS_S3_REGION_NAME=${{ secrets.AWS_S3_REGION_NAME }}
-        USE_S3_MEDIA_STORAGE=${{ secrets.USE_S3_MEDIA_STORAGE }}
-        MEDIA_URL=${{ secrets.MEDIA_URL }}
-        EOF
-
-    - name: Deploy Backend
-      run: |
-        cd Backend
-        sudo docker-compose up -d --build
-        sudo docker exec backend python manage.py migrate
-        sudo service nginx restart
-        sudo docker image prune -a -f
+      - name: Deploy Backend
+        run: |
+          cd Backend
+          sudo docker-compose up -d --build
+          sudo docker exec backend python manage.py migrate
+          sudo service nginx restart
+          sudo docker image prune -a -f
