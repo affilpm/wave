@@ -45,63 +45,93 @@ const ArtistLiveStream = () => {
   const isStreamingRef = useRef(false); // Track streaming state in a ref for cleanup functions
   const streamContainerRef = useRef(null);
 
-// Add at the top of your component
+// More reliable Android detection 
 const isAndroid = () => {
-  return /Android/i.test(navigator.userAgent);
+  return /Android/i.test(navigator.userAgent) || 
+         (navigator.platform && /Android|Linux armv/i.test(navigator.platform));
 };
-// Add this function to your component
+
+// Enhanced Android camera initialization
 const initializeAndroidCamera = async () => {
   try {
     setErrorMessage("");
-    console.log("Initializing Android camera directly...");
+    console.log("Initializing Android camera with enhanced settings...");
     
-    // Get direct stream from browser
+    // Request permissions explicitly first
+    const permissions = await navigator.permissions.query({name: 'camera'});
+    if (permissions.state === 'denied') {
+      throw new Error("Camera permission denied");
+    }
+    
+    // More specific constraints for Android
     const stream = await navigator.mediaDevices.getUserMedia({
       video: {
-        width: { ideal: 640 },
-        height: { ideal: 480 },
-        frameRate: { max: 24 }
+        width: { ideal: 640, max: 1280 },
+        height: { ideal: 480, max: 720 },
+        frameRate: { max: 30 },
+        facingMode: "user"
       },
-      audio: true
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      }
     });
     
-    // Display it directly in the video element
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = stream;
+    // Ensure video element exists
+    if (!localVideoRef.current) {
+      throw new Error("Video element not found");
+    }
+    
+    // Set direct source first
+    localVideoRef.current.srcObject = stream;
+    
+    // Try explicit play with user interaction
+    try {
+      await localVideoRef.current.play();
+      setVideoInitialized(true);
+      console.log("Direct Android camera initialized successfully");
       
-      // Try explicit play
-      try {
-        await localVideoRef.current.play();
-        setVideoInitialized(true);
-        console.log("Direct Android camera initialized successfully");
-        
-        // Now create Agora tracks from this stream
-        const videoTrack = AgoraRTC.createCustomVideoTrack({
-          mediaStreamTrack: stream.getVideoTracks()[0]
-        });
-        
-        const audioTrack = AgoraRTC.createCustomAudioTrack({
-          mediaStreamTrack: stream.getAudioTracks()[0]
-        });
-        
-        setLocalVideoTrack(videoTrack);
-        setLocalAudioTrack(audioTrack);
-        
-        // Publish these tracks
-        if (clientRef.current) {
-          await clientRef.current.publish([videoTrack, audioTrack]);
-          console.log("Published Android tracks successfully");
+      // Create Agora tracks with lower bitrate settings for Android
+      const videoTrack = AgoraRTC.createCustomVideoTrack({
+        mediaStreamTrack: stream.getVideoTracks()[0],
+        optimizationMode: "detail",
+        encoderConfig: {
+          width: 640,
+          height: 480,
+          frameRate: 24,
+          bitrateMin: 400,
+          bitrateMax: 800
         }
-        
-        return true;
-      } catch (playError) {
-        console.error("Android play error:", playError);
-        return false;
+      });
+      
+      const audioTrack = AgoraRTC.createCustomAudioTrack({
+        mediaStreamTrack: stream.getAudioTracks()[0]
+      });
+      
+      // Update state
+      setLocalVideoTrack(videoTrack);
+      setLocalAudioTrack(audioTrack);
+      videoTrackRef.current = videoTrack;
+      
+      // Ensure client is initialized
+      if (!clientRef.current) {
+        throw new Error("Client not initialized");
       }
+      
+      // Explicitly publish with logging
+      console.log("Publishing Android tracks...");
+      await clientRef.current.publish([videoTrack, audioTrack]);
+      console.log("Published Android tracks successfully");
+      
+      return true;
+    } catch (playError) {
+      console.error("Android play error:", playError);
+      throw playError;
     }
   } catch (error) {
     console.error("Android camera initialization error:", error);
-    setErrorMessage(`Camera error: ${error.message || "Access denied"}`);
+    setErrorMessage(`Android camera error: ${error.message || "Access denied"}`);
     return false;
   }
 };
@@ -580,7 +610,6 @@ const startStream = async () => {
   setIsLoading(true);
   setErrorMessage("");
   setVideoInitialized(false);
-  setVideoRetryCount(0);
   
   try {
     const client = clientRef.current;
@@ -595,44 +624,64 @@ const startStream = async () => {
     // Set role as host
     await client.setClientRole("host");
     
-    // Join the channel
+    // Join the channel with more detailed error handling
     try {
       await client.join(app_id, channel, token, uid);
-    } catch (error) {
-      setErrorMessage(`Couldn't start stream: ${error.message}`);
-      throw error;
+      console.log("Successfully joined channel:", channel);
+    } catch (joinError) {
+      console.error("Channel join error:", joinError);
+      setErrorMessage(`Couldn't join stream channel: ${joinError.message}`);
+      throw joinError;
     }
     
-    // Android-specific path
+    // Try Android-specific path first if detected
     if (isAndroid()) {
-      const androidSuccess = await initializeAndroidCamera();
-      
-      if (androidSuccess) {
-        // Successfully initialized through Android-specific method
-        setTimeout(() => {
-          setIsStreaming(true);
-          setIsStartingStream(false);
-          setFullscreenMode(true);
-        }, 1000);
-        return;
+      console.log("Android device detected, trying Android-specific initialization");
+      try {
+        const androidSuccess = await initializeAndroidCamera();
+        
+        if (androidSuccess) {
+          console.log("Android camera initialization successful");
+          setTimeout(() => {
+            setIsStreaming(true);
+            setIsStartingStream(false);
+            setFullscreenMode(true);
+          }, 1000);
+          return;
+        } else {
+          console.log("Android-specific method failed, falling back to standard method");
+        }
+      } catch (androidError) {
+        console.error("Android initialization failed:", androidError);
+        // Continue to regular path instead of throwing
       }
-      // If Android-specific method failed, continue with normal path
     }
     
-    // Regular path for non-Android devices
+    // Regular path as fallback
+    console.log("Using standard camera initialization");
     try {
-      await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      // Check permissions first
+      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: true 
+      });
       
+      // Stop temporary stream
+      mediaStream.getTracks().forEach(track => track.stop());
+      
+      // Get actual tracks with optimized settings
       const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
         {
           echoCancellation: true,
           noiseSuppression: true,
+          autoGainControl: true
         }, 
         {
           encoderConfig: isAndroid() ? 
             { width: 640, height: 480, frameRate: 24, bitrateMax: 800 } : 
             { width: 1280, height: 720, frameRate: 30, bitrateMax: 1500 },
-          facingMode: "user"
+          facingMode: "user",
+          optimizationMode: isAndroid() ? "detail" : "motion"
         }
       );
       
@@ -641,37 +690,52 @@ const startStream = async () => {
       setLocalAudioTrack(audioTrack);
       setLocalVideoTrack(videoTrack);
       
+      // Explicitly publish before showing
+      console.log("Publishing tracks to Agora");
+      await client.publish([audioTrack, videoTrack]);
+      console.log("Tracks published successfully");
+      
+      // Play video with delay to ensure DOM is ready
       if (localVideoRef.current) {
         setTimeout(() => {
-          playVideoTrack(videoTrack);
-        }, 300);
+          console.log("Playing video track");
+          try {
+            videoTrack.play(localVideoRef.current);
+            setVideoInitialized(true);
+          } catch (playError) {
+            console.error("Error playing video track:", playError);
+            playVideoTrack(videoTrack);
+          }
+        }, 500);
       }
-      
-      await client.publish([audioTrack, videoTrack]); 
       
       setTimeout(() => {
         setIsStreaming(true);
         setIsStartingStream(false);
         setFullscreenMode(true);
-        
-        if (!videoInitialized && videoTrackRef.current && localVideoRef.current) {
-          playVideoTrack(videoTrackRef.current);
-        }
       }, 1000);
       
     } catch (error) {
+      console.error("Standard camera/mic error:", error);
       setErrorMessage(`Camera/microphone error: ${error.message}`);
-      await client.leave();
+      
+      // Try to leave the channel on failure
+      try {
+        await client.leave();
+      } catch (leaveError) {
+        console.error("Error leaving channel after failure:", leaveError);
+      }
+      
       throw error;
     }
     
   } catch (error) {
+    console.error("Stream start error:", error);
     setIsStartingStream(false);
   } finally {
     setIsLoading(false);
   }
 };
-
 
 
 
@@ -862,37 +926,8 @@ const startStream = async () => {
   };
 
 
-{/* In your non-fullscreenMode view */}
-{isAndroid() && (
-  <div className="mt-2">
-    <button
-      onClick={() => {
-        // Force Android workflow
-        startStream().then(() => {
-          // After starting, force Android camera initialization
-          setTimeout(() => {
-            initializeAndroidCamera();
-          }, 2000);
-        });
-      }}
-      className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-60 flex items-center justify-center mx-auto mt-3"
-    >
-      <Video size={18} className="mr-2" />
-      Android Start
-    </button>
-  </div>
-)}
-{isAndroid() && (
-  <div className="absolute bottom-4 right-4 bg-black/70 text-white p-2 rounded text-xs" style={{ maxWidth: '200px' }}>
-    <div>Android Debug:</div>
-    <div>Video Init: {videoInitialized ? 'Yes' : 'No'}</div>
-    <div>Has Video Track: {localVideoTrack ? 'Yes' : 'No'}</div>
-    <div>Has Audio Track: {localAudioTrack ? 'Yes' : 'No'}</div>
-    <div>Network: {networkQuality ? 
-      `Up: ${networkQuality.uplinkNetworkQuality}, Down: ${networkQuality.downlinkNetworkQuality}` : 
-      'Unknown'}</div>
-  </div>
-)}
+
+
   // Exit warning modal
   const renderExitWarningModal = () => {
     if (!showExitWarning) return null;
@@ -930,6 +965,26 @@ const startStream = async () => {
   };
 
 
+  {isAndroid() && (
+    <div className="absolute bottom-4 right-4 bg-black/70 text-white p-2 rounded text-xs" style={{ maxWidth: '200px' }}>
+      <div>Android Debug:</div>
+      <div>Video Init: {videoInitialized ? 'Yes' : 'No'}</div>
+      <div>Has Video Track: {localVideoTrack ? 'Yes' : 'No'}</div>
+      <div>Has Audio Track: {localAudioTrack ? 'Yes' : 'No'}</div>
+      <div>Network: {networkQuality ? 
+        `Up: ${networkQuality.uplinkNetworkQuality}, Down: ${networkQuality.downlinkNetworkQuality}` : 
+        'Unknown'}</div>
+      <div>
+        <button 
+          onClick={retryVideoPlayback}
+          className="mt-2 bg-blue-600 text-white px-2 py-1 rounded text-xs"
+        >
+          Retry Video
+        </button>
+      </div>
+    </div>
+  )}
+  
   {isAndroid() && !videoInitialized && (
     <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-10">
       <button 
