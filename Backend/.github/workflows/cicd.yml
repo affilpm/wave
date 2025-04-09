@@ -21,7 +21,7 @@ jobs:
 
       - name: Run Tests in Docker
         run: |
-          cd Wave/Backend
+          cd Backend
           docker-compose --profile ci up --build --exit-code-from ci
           docker-compose --profile ci down
 
@@ -29,9 +29,9 @@ jobs:
     runs-on: self-hosted
     needs: test
     if: >
-      github.ref == 'refs/heads/main' || 
-      (github.event_name == 'pull_request' && 
-      github.event.pull_request.merged == true && 
+      github.ref == 'refs/heads/main' ||
+      (github.event_name == 'pull_request' &&
+      github.event.pull_request.merged == true &&
       github.event.pull_request.base.ref == 'main')
 
     steps:
@@ -44,4 +44,4 @@ jobs:
           sudo docker-compose up -d --build
           sudo docker exec backend python manage.py migrate
           sudo service nginx restart
-          sudo docker image prune -a -f 
+          sudo docker image prune -a -f
