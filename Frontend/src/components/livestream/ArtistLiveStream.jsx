@@ -44,12 +44,50 @@ const ArtistLiveStream = () => {
   const videoTrackRef = useRef(null);
   const isStreamingRef = useRef(false); // Track streaming state in a ref for cleanup functions
   const streamContainerRef = useRef(null);
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
+  const videoConfig = isMobile ? 
+  {
+    encoderConfig: {
+      width: 640,
+      height: 480,
+      frameRate: 15,
+      bitrateMax: 600
+    },
+    facingMode: "user"
+  } : 
+  {
+    encoderConfig: {
+      width: 1280,
+      height: 720,
+      frameRate: 30,
+      bitrateMax: 1500
+    },
+    facingMode: "user"
+  };
 
 
-
-
-
-
+  useEffect(() => {
+    const handleOrientationChange = () => {
+      // Reapply video track if it exists
+      if (localVideoTrack && localVideoRef.current) {
+        setTimeout(() => {
+          try {
+            localVideoTrack.stop();
+            localVideoTrack.play(localVideoRef.current);
+          } catch (error) {
+            console.error("Error handling orientation change:", error);
+          }
+        }, 300);
+      }
+    };
+    
+    window.addEventListener("orientationchange", handleOrientationChange);
+    
+    return () => {
+      window.removeEventListener("orientationchange", handleOrientationChange);
+    };
+  }, [localVideoTrack]);
 
 const fetchViewerCount = async () => {
   if (!streamSettings.channel) return;
@@ -245,7 +283,19 @@ useEffect(() => {
     
     try {
       console.log("Attempting to play video track...");
-      
+          // For mobile, try to play on user interaction
+    if (isMobile) {
+      // Add a play button overlay that users can tap
+      const playPromise = track.play(localVideoRef.current);
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          // Show play button overlay that calls track.play() on tap
+          setShowPlayButton(true);
+        });
+      }
+    } else {
+      track.play(localVideoRef.current);
+    }
       // Stop previous playback if any
       try {
         track.stop();
@@ -618,7 +668,21 @@ const getStreamToken = async (options = {}) => {
       
     } catch (error) {
       // console.error("Error starting stream:", error);
+        // Mobile-specific error messages
+  if (isMobile) {
+    if (error.toString().includes("NotAllowedError")) {
+      setErrorMessage("Camera/mic permission denied. Please check browser settings.");
+    } else if (error.toString().includes("NotReadableError")) {
+      setErrorMessage("Can't access camera. It may be in use by another app.");
+    } else {
+      setErrorMessage(`Mobile streaming error: ${error.message}`);
+    }
+  } else {
+    setErrorMessage(`Error starting stream: ${error.message}`);
+  }
+
       setIsStartingStream(false);
+      
     } finally {
       setIsLoading(false);
     }
