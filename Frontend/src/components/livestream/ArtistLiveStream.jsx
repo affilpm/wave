@@ -46,11 +46,63 @@ const ArtistLiveStream = () => {
   const streamContainerRef = useRef(null);
 
 
-
-// Add at the top of your component
-const isAndroid = () => {
-  return /Android/i.test(navigator.userAgent);
+// Add this function to your component
+const initializeAndroidCamera = async () => {
+  try {
+    setErrorMessage("");
+    console.log("Initializing Android camera directly...");
+    
+    // Get direct stream from browser
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        width: { ideal: 640 },
+        height: { ideal: 480 },
+        frameRate: { max: 24 }
+      },
+      audio: true
+    });
+    
+    // Display it directly in the video element
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = stream;
+      
+      // Try explicit play
+      try {
+        await localVideoRef.current.play();
+        setVideoInitialized(true);
+        console.log("Direct Android camera initialized successfully");
+        
+        // Now create Agora tracks from this stream
+        const videoTrack = AgoraRTC.createCustomVideoTrack({
+          mediaStreamTrack: stream.getVideoTracks()[0]
+        });
+        
+        const audioTrack = AgoraRTC.createCustomAudioTrack({
+          mediaStreamTrack: stream.getAudioTracks()[0]
+        });
+        
+        setLocalVideoTrack(videoTrack);
+        setLocalAudioTrack(audioTrack);
+        
+        // Publish these tracks
+        if (clientRef.current) {
+          await clientRef.current.publish([videoTrack, audioTrack]);
+          console.log("Published Android tracks successfully");
+        }
+        
+        return true;
+      } catch (playError) {
+        console.error("Android play error:", playError);
+        return false;
+      }
+    }
+  } catch (error) {
+    console.error("Android camera initialization error:", error);
+    setErrorMessage(`Camera error: ${error.message || "Access denied"}`);
+    return false;
+  }
 };
+
 
 
 
@@ -240,6 +292,7 @@ useEffect(() => {
 
 
 
+  // Helper function to play video with retry logic
   const playVideoTrack = async (track, retryCount = 0) => {
     if (!track || !localVideoRef.current) return false;
     
@@ -248,40 +301,7 @@ useEffect(() => {
     try {
       console.log("Attempting to play video track...");
       
-      // Android-specific approach first
-      if (isAndroid()) {
-        console.log("Using Android-specific approach");
-        try {
-          // Stop any previous playback
-          track.stop();
-          
-          // Set enabled explicitly
-          track.setEnabled(true);
-          setVideoEnabled(true);
-          
-          // Wait longer for Android
-          await new Promise(resolve => setTimeout(resolve, 300));
-          
-          // Try direct MediaStream approach for Android first
-          localVideoRef.current.srcObject = new MediaStream([track.getMediaStreamTrack()]);
-          
-          // Try to play manually
-          await localVideoRef.current.play().catch(err => {
-            console.warn("Android manual play failed, falling back to normal play", err);
-            // Fall back to normal play method
-            track.play(localVideoRef.current);
-          });
-          
-          console.log("Android video playback initialized");
-          setVideoInitialized(true);
-          return true;
-        } catch (androidError) {
-          console.error("Android-specific approach failed:", androidError);
-          // Fall through to normal approach
-        }
-      }
-      
-      // Standard approach for non-Android or as fallback
+      // Stop previous playback if any
       try {
         track.stop();
       } catch (err) {
@@ -292,8 +312,8 @@ useEffect(() => {
       track.setEnabled(true);
       setVideoEnabled(true);
       
-      // Wait for DOM to be ready
-      await new Promise(resolve => setTimeout(resolve, isAndroid() ? 300 : 100));
+      // Important: Wait for DOM to be ready
+      await new Promise(resolve => setTimeout(resolve, 100));
       
       // Play the track with specific element ID
       track.play(localVideoRef.current);
@@ -306,7 +326,7 @@ useEffect(() => {
       
       // Auto-retry with exponential backoff
       if (retryCount < 3) {
-        const delayTime = (retryCount + 1) * 700;
+        const delayTime = (retryCount + 1) * 500;
         console.log(`Retrying video playback in ${delayTime}ms...`);
         
         videoInitTimeoutRef.current = setTimeout(() => {
@@ -315,12 +335,12 @@ useEffect(() => {
         
         return false;
       } else {
-        const androidMsg = "Camera not working. Try the 'Fix Android' button or restart the app";
-        setErrorMessage(isAndroid() ? androidMsg : "Failed to display video. Try toggling the video button.");
+        setErrorMessage("Failed to display video. Try toggling the video button.");
         return false;
       }
     }
   };
+
 
 
   // Use a ref to keep track of the video track
@@ -549,115 +569,105 @@ const getStreamToken = async (options = {}) => {
 
 
 
-
-  // Start the livestream
-  const startStream = async () => {
-    // Prevent multiple start attempts
-    if (isStartingStream || isLoading) return;
+const startStream = async () => {
+  // Prevent multiple start attempts
+  if (isStartingStream || isLoading) return;
+  
+  setIsStartingStream(true);
+  setIsLoading(true);
+  setErrorMessage("");
+  setVideoInitialized(false);
+  setVideoRetryCount(0);
+  
+  try {
+    const client = clientRef.current;
+    if (!client) {
+      throw new Error("Stream client not initialized");
+    }
     
-    setIsStartingStream(true);
-    setIsLoading(true);
-    setErrorMessage("");
-    setVideoInitialized(false);
-    setVideoRetryCount(0);
+    const { token, channel, app_id, uid } = await getStreamToken({
+      title: `${username}'s Stream`, 
+    });
     
+    // Set role as host
+    await client.setClientRole("host");
+    
+    // Join the channel
     try {
-      const client = clientRef.current;
-      if (!client) {
-        throw new Error("Stream client not initialized");
-      }
+      await client.join(app_id, channel, token, uid);
+    } catch (error) {
+      setErrorMessage(`Couldn't start stream: ${error.message}`);
+      throw error;
+    }
+    
+    // Android-specific path
+    if (isAndroid()) {
+      const androidSuccess = await initializeAndroidCamera();
       
-      const { token, channel, app_id, uid } = await getStreamToken({
-        title: `${username}'s Stream`, 
-        
-      });
-      
-      // Set role as host
-      await client.setClientRole("host");
-      
-      // console.log("Joining channel as host...");
-      
-      // Join the channel
-      try {
-        await client.join(app_id, channel, token, uid);
-        // console.log("Successfully joined channel!");
-      } catch (error) {
-        // console.error("Error joining channel:", error);
-        setErrorMessage(`Couldn't start stream: ${error.message}`);
-        throw error;
-      }
-      
-      // Get permissions before creating tracks
-      try {
-        // console.log("Requesting camera/mic permissions...");
-        await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-        
-        // Create tracks with better error handling
-        // console.log("Creating audio and video tracks...");
-        const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
-          {
-            echoCancellation: true,
-            noiseSuppression: true,
-          }, 
-          {
-            encoderConfig: {
-              width: 1280,
-              height: 720,
-              frameRate: 30,
-              bitrateMax: 1500
-            },
-            facingMode: "user"
-          }
-        );
-        
-        // console.log("Tracks created successfully");
-        
-        // Save tracks to refs immediately for use outside state updates
-        videoTrackRef.current = videoTrack;
-        
-        // Set local tracks state
-        setLocalAudioTrack(audioTrack);
-        setLocalVideoTrack(videoTrack);
-        
-        // Try to play the video track immediately
-        if (localVideoRef.current) {
-          setTimeout(() => {
-            playVideoTrack(videoTrack);
-          }, 300);
-        }
-        
-        // Publish tracks to remote users
-        await client.publish([audioTrack, videoTrack]); 
-        // console.log("Local tracks published successfully!");
-        
-        // Set streaming state to true with a delay to allow initialization
+      if (androidSuccess) {
+        // Successfully initialized through Android-specific method
         setTimeout(() => {
           setIsStreaming(true);
           setIsStartingStream(false);
           setFullscreenMode(true);
-          
-          // Try again to play video after some time if not initialized yet
-          if (!videoInitialized && videoTrackRef.current && localVideoRef.current) {
-            playVideoTrack(videoTrackRef.current);
-          }
         }, 1000);
-        
-      } catch (error) {
-        // console.error("Error with local tracks:", error);
-        setErrorMessage(`Camera/microphone error: ${error.message}`);
-        
-        // Important: Leave the channel if we fail to publish tracks
-        await client.leave();
-        throw error;
+        return;
+      }
+      // If Android-specific method failed, continue with normal path
+    }
+    
+    // Regular path for non-Android devices
+    try {
+      await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      
+      const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
+        {
+          echoCancellation: true,
+          noiseSuppression: true,
+        }, 
+        {
+          encoderConfig: isAndroid() ? 
+            { width: 640, height: 480, frameRate: 24, bitrateMax: 800 } : 
+            { width: 1280, height: 720, frameRate: 30, bitrateMax: 1500 },
+          facingMode: "user"
+        }
+      );
+      
+      videoTrackRef.current = videoTrack;
+      
+      setLocalAudioTrack(audioTrack);
+      setLocalVideoTrack(videoTrack);
+      
+      if (localVideoRef.current) {
+        setTimeout(() => {
+          playVideoTrack(videoTrack);
+        }, 300);
       }
       
+      await client.publish([audioTrack, videoTrack]); 
+      
+      setTimeout(() => {
+        setIsStreaming(true);
+        setIsStartingStream(false);
+        setFullscreenMode(true);
+        
+        if (!videoInitialized && videoTrackRef.current && localVideoRef.current) {
+          playVideoTrack(videoTrackRef.current);
+        }
+      }, 1000);
+      
     } catch (error) {
-      // console.error("Error starting stream:", error);
-      setIsStartingStream(false);
-    } finally {
-      setIsLoading(false);
+      setErrorMessage(`Camera/microphone error: ${error.message}`);
+      await client.leave();
+      throw error;
     }
-  };
+    
+  } catch (error) {
+    setIsStartingStream(false);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
 
 
@@ -849,8 +859,37 @@ const getStreamToken = async (options = {}) => {
   };
 
 
-
-
+{/* In your non-fullscreenMode view */}
+{isAndroid() && (
+  <div className="mt-2">
+    <button
+      onClick={() => {
+        // Force Android workflow
+        startStream().then(() => {
+          // After starting, force Android camera initialization
+          setTimeout(() => {
+            initializeAndroidCamera();
+          }, 2000);
+        });
+      }}
+      className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-60 flex items-center justify-center mx-auto mt-3"
+    >
+      <Video size={18} className="mr-2" />
+      Android Start
+    </button>
+  </div>
+)}
+{isAndroid() && (
+  <div className="absolute bottom-4 right-4 bg-black/70 text-white p-2 rounded text-xs" style={{ maxWidth: '200px' }}>
+    <div>Android Debug:</div>
+    <div>Video Init: {videoInitialized ? 'Yes' : 'No'}</div>
+    <div>Has Video Track: {localVideoTrack ? 'Yes' : 'No'}</div>
+    <div>Has Audio Track: {localAudioTrack ? 'Yes' : 'No'}</div>
+    <div>Network: {networkQuality ? 
+      `Up: ${networkQuality.uplinkNetworkQuality}, Down: ${networkQuality.downlinkNetworkQuality}` : 
+      'Unknown'}</div>
+  </div>
+)}
   // Exit warning modal
   const renderExitWarningModal = () => {
     if (!showExitWarning) return null;
@@ -888,7 +927,16 @@ const getStreamToken = async (options = {}) => {
   };
 
 
-
+  {isAndroid() && !videoInitialized && (
+    <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 z-10">
+      <button 
+        onClick={initializeAndroidCamera}
+        className="bg-green-600 text-white px-4 py-3 rounded-lg font-medium shadow-lg"
+      >
+        Initialize Android Camera
+      </button>
+    </div>
+  )}
   // Render the stream view
   if (fullscreenMode) {
     return (
@@ -917,115 +965,49 @@ const getStreamToken = async (options = {}) => {
         {/* Main content area - flexible height between header and controls */}
         <div className="flex-1 flex overflow-hidden">
           {/* Video container - takes remaining space */}
-{/* Video container - takes remaining space */}
-<div className="flex-1 bg-gray-900 flex items-center justify-center">
-  <div className="relative w-full h-full flex items-center justify-center mx-auto">
-    <div className="w-full h-full flex items-center justify-center overflow-hidden rounded-lg relative bg-black">
-      <video 
-        ref={localVideoRef} 
-        className="max-w-full max-h-full object-contain"
-        autoPlay 
-        playsInline 
-        muted 
-        controls={isAndroid()} // Add controls on Android
-        style={{ backgroundColor: 'black' }}
-      />
-      
-      {!videoInitialized && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/70 cursor-pointer"
-             onClick={() => {
-               // Try to manually play video on user interaction (for Android)
-               if (localVideoRef.current) {
-                 try {
-                   // Try explicit play for Android
-                   localVideoRef.current.play().catch(err => {
-                     console.error("Manual play failed:", err);
-                   });
-                 } catch (e) {
-                   console.error("Error on manual play:", e);
-                 }
-                 
-                 // Also retry track playback
-                 if (videoTrackRef.current) {
-                   playVideoTrack(videoTrackRef.current);
-                 } else if (localVideoTrack) {
-                   playVideoTrack(localVideoTrack);
-                 }
-               }
-             }}>
-          <div className="text-center">
-            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-white">Tap to initialize video</p>
+          <div className="flex-1 bg-gray-900 flex items-center justify-center">
+            <div className="relative w-full h-full flex items-center justify-center mx-auto">
+              <div className="w-full h-full flex items-center justify-center overflow-hidden rounded-lg relative bg-black">
+                <video 
+                  ref={localVideoRef} 
+                  className="max-w-full max-h-full object-contain"
+                  autoPlay 
+                  playsInline 
+                  muted 
+                />
+                
+                {!videoInitialized && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/70">
+                    <div className="text-center">
+                      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                      <p className="text-white">Initializing video...</p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Stream info overlay */}
+                <div className="absolute top-4 left-4 bg-black/60 text-white px-3 py-2 rounded-md text-sm flex items-center">
+                  <span className={`w-2 h-2 rounded-full mr-2 ${videoEnabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                  {username} (You)
+                </div>
+                
+                {/* Error message */}
+                {errorMessage && (
+                  <div className="absolute top-4 right-4 bg-red-900/80 border border-red-800 text-white px-4 py-2 rounded-md max-w-md">
+                    {errorMessage}
+                    {!videoInitialized && (
+                      <button 
+                        onClick={retryVideoPlayback}
+                        className="ml-4 bg-red-700 px-2 py-1 rounded text-sm hover:bg-red-600"
+                      >
+                        Retry Video
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
-      )}
-      
-      {/* Android-specific fallback button when video fails */}
-      {isAndroid() && errorMessage && !videoInitialized && (
-        <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2">
-          <button 
-            onClick={() => {
-              // Hard reset approach for Android
-              if (localVideoTrack) {
-                localVideoTrack.stop();
-                try {
-                  localVideoTrack.setEnabled(true);
-                  setTimeout(() => {
-                    localVideoTrack.play(localVideoRef.current);
-                  }, 500);
-                } catch (e) {
-                  console.error("Failed to restart video:", e);
-                }
-              }
-            }}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium"
-          >
-            Tap to Start Camera
-          </button>
-        </div>
-      )}
-      
-      {/* Stream info overlay */}
-      <div className="absolute top-4 left-4 bg-black/60 text-white px-3 py-2 rounded-md text-sm flex items-center">
-        <span className={`w-2 h-2 rounded-full mr-2 ${videoEnabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
-        {username} (You)
-      </div>
-      
-      {/* Error message */}
-      {errorMessage && (
-        <div className="absolute top-4 right-4 bg-red-900/80 border border-red-800 text-white px-4 py-2 rounded-md max-w-md">
-          {errorMessage}
-          <div className="mt-2 flex space-x-2">
-            <button 
-              onClick={retryVideoPlayback}
-              className="bg-red-700 px-2 py-1 rounded text-sm hover:bg-red-600"
-            >
-              Retry Video
-            </button>
-            {isAndroid() && (
-              <button 
-                onClick={() => {
-                  // Set srcObject directly for Android
-                  if (localVideoRef.current && localVideoTrack) {
-                    try {
-                      localVideoRef.current.srcObject = new MediaStream([localVideoTrack.getMediaStreamTrack()]);
-                      localVideoRef.current.play().catch(e => console.error("Play error:", e));
-                    } catch (e) {
-                      console.error("SrcObject error:", e);
-                    }
-                  }
-                }}
-                className="bg-blue-700 px-2 py-1 rounded text-sm hover:bg-blue-600"
-              >
-                Fix Android
-              </button>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  </div>
-</div>
         </div>
 
         {/* Controls - fixed height at bottom */}
