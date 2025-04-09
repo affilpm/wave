@@ -123,7 +123,7 @@ MIDDLEWARE = [
 ]
 
 
-
+ 
 ROOT_URLCONF = 'Backend.urls'
 import os
 TEMPLATES = [
