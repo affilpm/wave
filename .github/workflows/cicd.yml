@@ -1,11 +1,8 @@
----
 name: CI/CD Pipeline for Backend
 
 on:
   push:
-    branches:
-      - main
-      - develop
+    branches: [main, develop]
   pull_request:
     types: [opened, synchronize, reopened, closed]
 
@@ -31,16 +28,15 @@ jobs:
     if: >
       github.ref == 'refs/heads/main' ||
       (github.event_name == 'pull_request' &&
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.base.ref == 'main')
+       github.event.pull_request.merged == true &&
+       github.event.pull_request.base.ref == 'main')
 
     steps:
       - uses: actions/checkout@v3
 
       - name: Deploy Backend
         run: |
-          cd /home/ubuntu/Wave/Backend
-          git pull origin main
+          cd Backend
           sudo docker-compose up -d --build
           sudo docker exec backend python manage.py migrate
           sudo service nginx restart
