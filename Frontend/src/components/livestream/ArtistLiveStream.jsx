@@ -44,50 +44,15 @@ const ArtistLiveStream = () => {
   const videoTrackRef = useRef(null);
   const isStreamingRef = useRef(false); // Track streaming state in a ref for cleanup functions
   const streamContainerRef = useRef(null);
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
-  const videoConfig = isMobile ? 
-  {
-    encoderConfig: {
-      width: 640,
-      height: 480,
-      frameRate: 15,
-      bitrateMax: 600
-    },
-    facingMode: "user"
-  } : 
-  {
-    encoderConfig: {
-      width: 1280,
-      height: 720,
-      frameRate: 30,
-      bitrateMax: 1500
-    },
-    facingMode: "user"
-  };
 
 
-  useEffect(() => {
-    const handleOrientationChange = () => {
-      // Reapply video track if it exists
-      if (localVideoTrack && localVideoRef.current) {
-        setTimeout(() => {
-          try {
-            localVideoTrack.stop();
-            localVideoTrack.play(localVideoRef.current);
-          } catch (error) {
-            console.error("Error handling orientation change:", error);
-          }
-        }, 300);
-      }
-    };
-    
-    window.addEventListener("orientationchange", handleOrientationChange);
-    
-    return () => {
-      window.removeEventListener("orientationchange", handleOrientationChange);
-    };
-  }, [localVideoTrack]);
+
+// Add at the top of your component
+const isAndroid = () => {
+  return /Android/i.test(navigator.userAgent);
+};
+
+
 
 const fetchViewerCount = async () => {
   if (!streamSettings.channel) return;
@@ -275,7 +240,6 @@ useEffect(() => {
 
 
 
-  // Helper function to play video with retry logic
   const playVideoTrack = async (track, retryCount = 0) => {
     if (!track || !localVideoRef.current) return false;
     
@@ -283,20 +247,41 @@ useEffect(() => {
     
     try {
       console.log("Attempting to play video track...");
-          // For mobile, try to play on user interaction
-    if (isMobile) {
-      // Add a play button overlay that users can tap
-      const playPromise = track.play(localVideoRef.current);
-      if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          // Show play button overlay that calls track.play() on tap
-          setShowPlayButton(true);
-        });
+      
+      // Android-specific approach first
+      if (isAndroid()) {
+        console.log("Using Android-specific approach");
+        try {
+          // Stop any previous playback
+          track.stop();
+          
+          // Set enabled explicitly
+          track.setEnabled(true);
+          setVideoEnabled(true);
+          
+          // Wait longer for Android
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          // Try direct MediaStream approach for Android first
+          localVideoRef.current.srcObject = new MediaStream([track.getMediaStreamTrack()]);
+          
+          // Try to play manually
+          await localVideoRef.current.play().catch(err => {
+            console.warn("Android manual play failed, falling back to normal play", err);
+            // Fall back to normal play method
+            track.play(localVideoRef.current);
+          });
+          
+          console.log("Android video playback initialized");
+          setVideoInitialized(true);
+          return true;
+        } catch (androidError) {
+          console.error("Android-specific approach failed:", androidError);
+          // Fall through to normal approach
+        }
       }
-    } else {
-      track.play(localVideoRef.current);
-    }
-      // Stop previous playback if any
+      
+      // Standard approach for non-Android or as fallback
       try {
         track.stop();
       } catch (err) {
@@ -307,8 +292,8 @@ useEffect(() => {
       track.setEnabled(true);
       setVideoEnabled(true);
       
-      // Important: Wait for DOM to be ready
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Wait for DOM to be ready
+      await new Promise(resolve => setTimeout(resolve, isAndroid() ? 300 : 100));
       
       // Play the track with specific element ID
       track.play(localVideoRef.current);
@@ -321,7 +306,7 @@ useEffect(() => {
       
       // Auto-retry with exponential backoff
       if (retryCount < 3) {
-        const delayTime = (retryCount + 1) * 500;
+        const delayTime = (retryCount + 1) * 700;
         console.log(`Retrying video playback in ${delayTime}ms...`);
         
         videoInitTimeoutRef.current = setTimeout(() => {
@@ -330,12 +315,12 @@ useEffect(() => {
         
         return false;
       } else {
-        setErrorMessage("Failed to display video. Try toggling the video button.");
+        const androidMsg = "Camera not working. Try the 'Fix Android' button or restart the app";
+        setErrorMessage(isAndroid() ? androidMsg : "Failed to display video. Try toggling the video button.");
         return false;
       }
     }
   };
-
 
 
   // Use a ref to keep track of the video track
@@ -668,21 +653,7 @@ const getStreamToken = async (options = {}) => {
       
     } catch (error) {
       // console.error("Error starting stream:", error);
-        // Mobile-specific error messages
-  if (isMobile) {
-    if (error.toString().includes("NotAllowedError")) {
-      setErrorMessage("Camera/mic permission denied. Please check browser settings.");
-    } else if (error.toString().includes("NotReadableError")) {
-      setErrorMessage("Can't access camera. It may be in use by another app.");
-    } else {
-      setErrorMessage(`Mobile streaming error: ${error.message}`);
-    }
-  } else {
-    setErrorMessage(`Error starting stream: ${error.message}`);
-  }
-
       setIsStartingStream(false);
-      
     } finally {
       setIsLoading(false);
     }
@@ -946,49 +917,115 @@ const getStreamToken = async (options = {}) => {
         {/* Main content area - flexible height between header and controls */}
         <div className="flex-1 flex overflow-hidden">
           {/* Video container - takes remaining space */}
-          <div className="flex-1 bg-gray-900 flex items-center justify-center">
-            <div className="relative w-full h-full flex items-center justify-center mx-auto">
-              <div className="w-full h-full flex items-center justify-center overflow-hidden rounded-lg relative bg-black">
-                <video 
-                  ref={localVideoRef} 
-                  className="max-w-full max-h-full object-contain"
-                  autoPlay 
-                  playsInline 
-                  muted 
-                />
-                
-                {!videoInitialized && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black/70">
-                    <div className="text-center">
-                      <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                      <p className="text-white">Initializing video...</p>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Stream info overlay */}
-                <div className="absolute top-4 left-4 bg-black/60 text-white px-3 py-2 rounded-md text-sm flex items-center">
-                  <span className={`w-2 h-2 rounded-full mr-2 ${videoEnabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
-                  {username} (You)
-                </div>
-                
-                {/* Error message */}
-                {errorMessage && (
-                  <div className="absolute top-4 right-4 bg-red-900/80 border border-red-800 text-white px-4 py-2 rounded-md max-w-md">
-                    {errorMessage}
-                    {!videoInitialized && (
-                      <button 
-                        onClick={retryVideoPlayback}
-                        className="ml-4 bg-red-700 px-2 py-1 rounded text-sm hover:bg-red-600"
-                      >
-                        Retry Video
-                      </button>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
+{/* Video container - takes remaining space */}
+<div className="flex-1 bg-gray-900 flex items-center justify-center">
+  <div className="relative w-full h-full flex items-center justify-center mx-auto">
+    <div className="w-full h-full flex items-center justify-center overflow-hidden rounded-lg relative bg-black">
+      <video 
+        ref={localVideoRef} 
+        className="max-w-full max-h-full object-contain"
+        autoPlay 
+        playsInline 
+        muted 
+        controls={isAndroid()} // Add controls on Android
+        style={{ backgroundColor: 'black' }}
+      />
+      
+      {!videoInitialized && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/70 cursor-pointer"
+             onClick={() => {
+               // Try to manually play video on user interaction (for Android)
+               if (localVideoRef.current) {
+                 try {
+                   // Try explicit play for Android
+                   localVideoRef.current.play().catch(err => {
+                     console.error("Manual play failed:", err);
+                   });
+                 } catch (e) {
+                   console.error("Error on manual play:", e);
+                 }
+                 
+                 // Also retry track playback
+                 if (videoTrackRef.current) {
+                   playVideoTrack(videoTrackRef.current);
+                 } else if (localVideoTrack) {
+                   playVideoTrack(localVideoTrack);
+                 }
+               }
+             }}>
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-white">Tap to initialize video</p>
           </div>
+        </div>
+      )}
+      
+      {/* Android-specific fallback button when video fails */}
+      {isAndroid() && errorMessage && !videoInitialized && (
+        <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2">
+          <button 
+            onClick={() => {
+              // Hard reset approach for Android
+              if (localVideoTrack) {
+                localVideoTrack.stop();
+                try {
+                  localVideoTrack.setEnabled(true);
+                  setTimeout(() => {
+                    localVideoTrack.play(localVideoRef.current);
+                  }, 500);
+                } catch (e) {
+                  console.error("Failed to restart video:", e);
+                }
+              }
+            }}
+            className="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium"
+          >
+            Tap to Start Camera
+          </button>
+        </div>
+      )}
+      
+      {/* Stream info overlay */}
+      <div className="absolute top-4 left-4 bg-black/60 text-white px-3 py-2 rounded-md text-sm flex items-center">
+        <span className={`w-2 h-2 rounded-full mr-2 ${videoEnabled ? 'bg-green-500' : 'bg-red-500'}`}></span>
+        {username} (You)
+      </div>
+      
+      {/* Error message */}
+      {errorMessage && (
+        <div className="absolute top-4 right-4 bg-red-900/80 border border-red-800 text-white px-4 py-2 rounded-md max-w-md">
+          {errorMessage}
+          <div className="mt-2 flex space-x-2">
+            <button 
+              onClick={retryVideoPlayback}
+              className="bg-red-700 px-2 py-1 rounded text-sm hover:bg-red-600"
+            >
+              Retry Video
+            </button>
+            {isAndroid() && (
+              <button 
+                onClick={() => {
+                  // Set srcObject directly for Android
+                  if (localVideoRef.current && localVideoTrack) {
+                    try {
+                      localVideoRef.current.srcObject = new MediaStream([localVideoTrack.getMediaStreamTrack()]);
+                      localVideoRef.current.play().catch(e => console.error("Play error:", e));
+                    } catch (e) {
+                      console.error("SrcObject error:", e);
+                    }
+                  }
+                }}
+                className="bg-blue-700 px-2 py-1 rounded text-sm hover:bg-blue-600"
+              >
+                Fix Android
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+</div>
         </div>
 
         {/* Controls - fixed height at bottom */}
