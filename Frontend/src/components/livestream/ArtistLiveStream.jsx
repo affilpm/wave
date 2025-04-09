@@ -45,7 +45,10 @@ const ArtistLiveStream = () => {
   const isStreamingRef = useRef(false); // Track streaming state in a ref for cleanup functions
   const streamContainerRef = useRef(null);
 
-
+// Add at the top of your component
+const isAndroid = () => {
+  return /Android/i.test(navigator.userAgent);
+};
 // Add this function to your component
 const initializeAndroidCamera = async () => {
   try {
