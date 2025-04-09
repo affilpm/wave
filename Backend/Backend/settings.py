@@ -60,7 +60,7 @@ SIMPLE_JWT = {
  
  
 
-
+ 
 
 
 
