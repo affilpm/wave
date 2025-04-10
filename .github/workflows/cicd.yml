@@ -48,7 +48,7 @@ jobs:
       - name: Run Tests in Docker
         run: |
           cd Backend
-          docker-compose up -d db  # ensure DB is up before running tests
+          docker-compose up -d postgres  # ensure DB is up before running tests
           docker-compose build web
           timeout 25m docker-compose run --rm web sh -c "
             python manage.py wait_for_db &&
