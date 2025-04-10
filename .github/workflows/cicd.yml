@@ -64,10 +64,14 @@ AWS_S3_REGION_NAME=${{ secrets.AWS_S3_REGION_NAME }}
 USE_S3_MEDIA_STORAGE=${{ secrets.USE_S3_MEDIA_STORAGE }}
 MEDIA_URL=${{ secrets.MEDIA_URL }}
 EOF
+          echo "------ .env content ------"
+          cat .env
+          echo "--------------------------"
+          ls -la .env
 
       - name: Debug - check .env exists
-        working-directory: Backend
         run: |
+          cd Backend
           echo "------ .env content ------"
           cat .env
           echo "--------------------------"
