@@ -16,12 +16,23 @@ jobs:
        github.event.pull_request.base.ref == 'main')
 
     steps:
+      # 🛠️ Fix permissions before checkout clears the workspace
+      - name: Fix permissions for workspace
+        run: |
+          echo "Fixing permissions for workspace"
+          sudo chown -R $USER:$USER /home/ubuntu/actions-runner/_work/Wave || true
+
       - uses: actions/checkout@v3
 
+      # 🧹 Stop & remove old Docker containers
+      - name: Stop & clean up existing Docker containers
+        run: |
+          sudo docker-compose -f Backend/docker-compose.yml down --volumes --remove-orphans || true
+
+      # 📁 Set up .env
       - name: Set up .env file from GitHub Secrets
         working-directory: Backend
         run: |
-          echo "Creating .env file"
           echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" > .env
           echo "DEBUG=${{ secrets.DEBUG }}" >> .env
           echo "ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}" >> .env
@@ -56,6 +67,7 @@ jobs:
           echo "--------------------------"
           ls -la .env
 
+      # 🚀 Deploy
       - name: Deploy Backend
         run: |
           cd Backend
