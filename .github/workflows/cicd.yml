@@ -35,35 +35,43 @@ jobs:
       - uses: actions/checkout@v3
 
       - name: Set up .env file from GitHub Secrets
+        working-directory: Backend
         run: |
-          cd Backend
           cat <<EOF > .env
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-          DEBUG=${{ secrets.DEBUG }}
-          ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
-          DB_NAME=${{ secrets.DB_NAME }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          DB_HOST=${{ secrets.DB_HOST }}
-          DB_PORT=${{ secrets.DB_PORT }}
-          EMAIL_HOST=smtp.gmail.com
-          EMAIL_PORT=587
-          EMAIL_USE_TLS=True
-          EMAIL_HOST_USER=${{ secrets.EMAIL_HOST_USER }}
-          EMAIL_HOST_PASSWORD=${{ secrets.EMAIL_HOST_PASSWORD }}
-          SOCIAL_AUTH_GOOGLE_OAUTH2_KEY=${{ secrets.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY }}
-          SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET=${{ secrets.SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET }}
-          RAZOR_KEY_ID=${{ secrets.RAZOR_KEY_ID }}
-          RAZOR_KEY_SECRET=${{ secrets.RAZOR_KEY_SECRET }}
-          AGORA_APP_ID=${{ secrets.AGORA_APP_ID }}
-          AGORA_APP_CERTIFICATE=${{ secrets.AGORA_APP_CERTIFICATE }}
-          AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_STORAGE_BUCKET_NAME=${{ secrets.AWS_STORAGE_BUCKET_NAME }}
-          AWS_S3_REGION_NAME=${{ secrets.AWS_S3_REGION_NAME }}
-          USE_S3_MEDIA_STORAGE=${{ secrets.USE_S3_MEDIA_STORAGE }}
-          MEDIA_URL=${{ secrets.MEDIA_URL }}
-          EOF
+SECRET_KEY=${{ secrets.SECRET_KEY }}
+DEBUG=${{ secrets.DEBUG }}
+ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}
+DB_NAME=${{ secrets.DB_NAME }}
+DB_USER=${{ secrets.DB_USER }}
+DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+DB_HOST=${{ secrets.DB_HOST }}
+DB_PORT=${{ secrets.DB_PORT }}
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=${{ secrets.EMAIL_HOST_USER }}
+EMAIL_HOST_PASSWORD=${{ secrets.EMAIL_HOST_PASSWORD }}
+SOCIAL_AUTH_GOOGLE_OAUTH2_KEY=${{ secrets.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY }}
+SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET=${{ secrets.SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET }}
+RAZOR_KEY_ID=${{ secrets.RAZOR_KEY_ID }}
+RAZOR_KEY_SECRET=${{ secrets.RAZOR_KEY_SECRET }}
+AGORA_APP_ID=${{ secrets.AGORA_APP_ID }}
+AGORA_APP_CERTIFICATE=${{ secrets.AGORA_APP_CERTIFICATE }}
+AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}
+AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}
+AWS_STORAGE_BUCKET_NAME=${{ secrets.AWS_STORAGE_BUCKET_NAME }}
+AWS_S3_REGION_NAME=${{ secrets.AWS_S3_REGION_NAME }}
+USE_S3_MEDIA_STORAGE=${{ secrets.USE_S3_MEDIA_STORAGE }}
+MEDIA_URL=${{ secrets.MEDIA_URL }}
+EOF
+
+      - name: Debug - check .env exists
+        working-directory: Backend
+        run: |
+          echo "------ .env content ------"
+          cat .env
+          echo "--------------------------"
+          ls -la .env
 
       - name: Deploy Backend
         run: |
