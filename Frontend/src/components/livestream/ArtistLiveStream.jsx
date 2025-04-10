@@ -600,7 +600,7 @@ const getStreamToken = async (options = {}) => {
   }
 };
 
-
+const [existingStreamError, setExistingStreamError] = useState(null);
 
 const startStream = async () => {
   // Prevent multiple start attempts
@@ -610,6 +610,7 @@ const startStream = async () => {
   setIsLoading(true);
   setErrorMessage("");
   setVideoInitialized(false);
+  setExistingStreamError(null); 
   
   try {
     const client = clientRef.current;
@@ -617,6 +618,7 @@ const startStream = async () => {
       throw new Error("Stream client not initialized");
     }
     
+  try {
     const { token, channel, app_id, uid } = await getStreamToken({
       title: `${username}'s Stream`, 
     });
@@ -728,7 +730,17 @@ const startStream = async () => {
       
       throw error;
     }
-    
+  } catch (tokenError) {
+    // Check if this is an existing stream error
+    if (tokenError.response?.data?.error === 'stream_already_exists') {
+      console.log("User already has an active stream:", tokenError.response.data);
+      setExistingStreamError(tokenError.response.data);
+      throw new Error("Stream already exists");
+    }
+    throw tokenError;
+  }
+  
+
   } catch (error) {
     console.error("Stream start error:", error);
     setIsStartingStream(false);
@@ -1115,6 +1127,60 @@ const startStream = async () => {
       </div>
       
       <div className="p-6">
+        {/* Show existing stream error if present */}
+        {existingStreamError && (
+          <div className="mb-6 p-4 bg-yellow-900/40 border border-yellow-800 rounded-lg">
+            <h4 className="text-yellow-500 font-semibold mb-2">Stream Already Active</h4>
+            <p className="text-gray-300 mb-3">
+              {existingStreamError.message}
+            </p>
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
+              <button 
+                onClick={() => {
+                  // Navigate to the existing stream as host
+                  if (existingStreamError.existing_stream?.channel) {
+                    // Set stream settings to rejoin existing stream
+                    setStreamSettings(prev => ({
+                      ...prev,
+                      channel: existingStreamError.existing_stream.channel
+                    }));
+                    startStream();
+                  }
+                }}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors"
+              >
+                Rejoin Existing Stream
+              </button>
+              <button 
+                onClick={async () => {
+                  // End the existing stream
+                  setIsLoading(true);
+                  try {
+                    await apiInstance.api.post('/api/livestream/end-stream/', {
+                      channel: existingStreamError.existing_stream.channel,
+                      abruptExit: false
+                    });
+                    
+                    // Clear the error
+                    setExistingStreamError(null);
+                    // Show success message
+                    setErrorMessage("Previous stream ended successfully. You can now start a new stream.");
+                    
+                  } catch (error) {
+                    console.error("Error ending existing stream:", error);
+                    setErrorMessage("Failed to end the existing stream. Please try again.");
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm transition-colors"
+              >
+                End Existing Stream
+              </button>
+            </div>
+          </div>
+        )}
+        
         <div className="text-center py-8">
           <div className="w-16 h-16 bg-blue-600/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4">
             <Video size={32} />
@@ -1125,7 +1191,7 @@ const startStream = async () => {
           </p>
           <button
             onClick={startStream}
-            disabled={isLoading || isStartingStream}
+            disabled={isLoading || isStartingStream || existingStreamError !== null}
             className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center mx-auto"
           >
             {(isLoading || isStartingStream) ? (
@@ -1140,6 +1206,7 @@ const startStream = async () => {
       </div>
     </div>
   );
+  
 };
 
 export default ArtistLiveStream;
