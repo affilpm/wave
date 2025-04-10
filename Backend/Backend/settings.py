@@ -379,7 +379,7 @@ AWS_S3_OBJECT_PARAMETERS = {
 # AWS_DEFAULT_ACL = 'public-read'  # Comment out or remove this line
 
 AWS_LOCATION = 'media'
-
+ 
 # Media URL configuration
 MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/'
 
