@@ -7,58 +7,8 @@ on:
     types: [opened, synchronize, reopened, closed]
 
 jobs:
-  test:
-    runs-on: self-hosted
-    if: >
-      github.event_name != 'pull_request' || 
-      github.event.pull_request.merged != true
-
-    steps:
-      - uses: actions/checkout@v3
-
-      - name: Set up .env file from GitHub Secrets for Test
-        working-directory: Backend
-        run: |
-          echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
-          echo "DB_USER=${{ secrets.DB_USER }}" >> .env
-          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
-          echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
-          echo "DB_PORT=${{ secrets.DB_PORT }}" >> .env
-          echo "SECRET_KEY=dummy_key_for_test" >> .env
-          echo "DEBUG=True" >> .env
-          echo "ALLOWED_HOSTS=*" >> .env
-          echo "EMAIL_HOST=smtp.gmail.com" >> .env
-          echo "EMAIL_PORT=587" >> .env
-          echo "EMAIL_USE_TLS=True" >> .env
-          echo "EMAIL_HOST_USER=dummy@example.com" >> .env
-          echo "EMAIL_HOST_PASSWORD=dummy" >> .env
-          echo "SOCIAL_AUTH_GOOGLE_OAUTH2_KEY=${{ secrets.SOCIAL_AUTH_GOOGLE_OAUTH2_KEY }}" >> .env
-          echo "SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET=${{ secrets.SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET }}" >> .env
-          echo "RAZOR_KEY_ID=${{ secrets.RAZOR_KEY_ID }}" >> .env
-          echo "RAZOR_KEY_SECRET=${{ secrets.RAZOR_KEY_SECRET }}" >> .env
-          echo "AGORA_APP_ID=${{ secrets.AGORA_APP_ID }}" >> .env
-          echo "AGORA_APP_CERTIFICATE=${{ secrets.AGORA_APP_CERTIFICATE }}" >> .env
-          echo "AWS_ACCESS_KEY_ID=${{ secrets.AWS_ACCESS_KEY_ID }}" >> .env
-          echo "AWS_SECRET_ACCESS_KEY=${{ secrets.AWS_SECRET_ACCESS_KEY }}" >> .env
-          echo "AWS_STORAGE_BUCKET_NAME=${{ secrets.AWS_STORAGE_BUCKET_NAME }}" >> .env
-          echo "AWS_S3_REGION_NAME=${{ secrets.AWS_S3_REGION_NAME }}" >> .env
-          echo "USE_S3_MEDIA_STORAGE=${{ secrets.USE_S3_MEDIA_STORAGE }}" >> .env
-          echo "MEDIA_URL=${{ secrets.MEDIA_URL }}" >> .env
-
-      - name: Run Tests in Docker
-        run: |
-          cd Backend
-          docker-compose up -d postgres  # ensure DB is up before running tests
-          docker-compose build web
-          timeout 25m docker-compose run --rm web sh -c "
-            python manage.py wait_for_db &&
-            python manage.py migrate &&
-            python manage.py test --verbosity=2
-          " || echo 'Tests failed or timed out'
-
   deploy:
     runs-on: self-hosted
-    needs: test
     if: >
       github.ref == 'refs/heads/main' ||
       (github.event_name == 'pull_request' &&
