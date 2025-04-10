@@ -43,6 +43,55 @@ class AgoraTokenView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    def _manage_host_stream(self, user, channel_name):
+        """
+        Manage host's stream - check for existing active streams and enforce single stream policy.
+        """
+        # Check if user already has an active stream
+        existing_stream = LiveStream.objects.filter(
+            host_id=user.id, 
+            status='active'
+        ).first()
+        
+        if existing_stream:
+            # Return information about the existing stream instead of creating a new one
+            return {
+                'existing': True,
+                'stream': existing_stream,
+                'message': 'You already have an active stream running'
+            }
+        
+        # Create new stream if none exists
+        return LiveStream.objects.create(
+            host_id=user.id,
+            channel_name=channel_name,
+            status='active',
+            title=self.request.GET.get('title', f"{user.username}'s Stream")
+        )
+
+    def _prepare_token_response(self, token, channel_name, user_id, is_host, existing_stream=None):
+        """
+        Prepare standardized token response with support for existing stream notification.
+        """
+        if existing_stream:
+            return JsonResponse({
+                'error': 'stream_already_exists',
+                'message': 'You already have an active stream. Please end your current stream before starting a new one.',
+                'existing_stream': {
+                    'channel': existing_stream['stream'].channel_name,
+                    'title': existing_stream['stream'].title,
+                    'started_at': existing_stream['stream'].created_at,
+                }
+            }, status=status.HTTP_409_CONFLICT)
+            
+        return JsonResponse({
+            'token': token,
+            'channel': channel_name,
+            'uid': int(user_id),
+            'app_id': APP_ID,
+            'role': 'host' if is_host else 'audience'
+        })
+
     def get(self, request):
         """
         Generate Agora token with comprehensive access and stream management.
@@ -52,15 +101,18 @@ class AgoraTokenView(APIView):
             is_host = self._is_host_request(request)
             role = 1 if is_host else 2  # 1=host, 2=audience
 
-            stream = self._manage_stream(request, channel_name, is_host)
+            stream_result = self._manage_stream(request, channel_name, is_host)
+            
+            # Check if we have detected an existing stream
+            if is_host and isinstance(stream_result, dict) and stream_result.get('existing'):
+                return self._prepare_token_response(None, None, request.user.id, is_host, stream_result)
+                
             token = self._generate_token(channel_name, request.user.id, role)
-
             return self._prepare_token_response(token, channel_name, request.user.id, is_host)
 
         except Exception as e:
             logger.error(f"Token generation error: {str(e)}")
             return JsonResponse({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
     def _get_channel_name(self, request):
         """
         Generate or retrieve channel name.
@@ -84,26 +136,6 @@ class AgoraTokenView(APIView):
         if not hasattr(user, 'artist_profile') or user.artist_profile.status != 'approved':
             raise PermissionDenied("Only approved artists can start a stream.")
 
-    def _manage_host_stream(self, user, channel_name):
-        """
-        Manage host's stream - end existing active streams and create new one.
-        """
-        # End any existing active stream
-        LiveStream.objects.filter(
-            host_id=user.id, 
-            status='active'
-        ).update(
-            status='ended', 
-            ended_at=timezone.now()
-        )
-
-        # Create new stream
-        return LiveStream.objects.create(
-            host_id=user.id,
-            channel_name=channel_name,
-            status='active',
-            title=self.request.GET.get('title', f"{user.username}'s Stream")
-        )
 
     def _validate_audience_permissions(self, user, stream):
         """
@@ -176,18 +208,6 @@ class AgoraTokenView(APIView):
         except Exception as e:
             logger.error(f"Token generation error: {str(e)}")
             raise
-
-    def _prepare_token_response(self, token, channel_name, user_id, is_host):
-        """
-        Prepare standardized token response.
-        """
-        return JsonResponse({
-            'token': token,
-            'channel': channel_name,
-            'uid': int(user_id),
-            'app_id': APP_ID,
-            'role': 'host' if is_host else 'audience'
-        })
 
     
 
