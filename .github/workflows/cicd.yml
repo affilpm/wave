@@ -16,23 +16,27 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - name: Set up .env file from GitHub Secrets (Test job)
+      - name: Set up .env file from GitHub Secrets for Test
         working-directory: Backend
         run: |
-          echo "SECRET_KEY=${{ secrets.SECRET_KEY }}" > .env
-          echo "DEBUG=${{ secrets.DEBUG }}" >> .env
-          echo "ALLOWED_HOSTS=${{ secrets.ALLOWED_HOSTS }}" >> .env
           echo "DB_NAME=${{ secrets.DB_NAME }}" >> .env
           echo "DB_USER=${{ secrets.DB_USER }}" >> .env
           echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
           echo "DB_HOST=${{ secrets.DB_HOST }}" >> .env
           echo "DB_PORT=${{ secrets.DB_PORT }}" >> .env
+          echo "SECRET_KEY=dummy_key_for_test" >> .env
+          echo "DEBUG=True" >> .env
+          echo "ALLOWED_HOSTS=*" >> .env
+          echo "EMAIL_HOST=smtp.gmail.com" >> .env
+          echo "EMAIL_PORT=587" >> .env
+          echo "EMAIL_USE_TLS=True" >> .env
+          echo "EMAIL_HOST_USER=dummy@example.com" >> .env
+          echo "EMAIL_HOST_PASSWORD=dummy" >> .env
 
       - name: Run Tests in Docker
         run: |
           cd Backend
-          docker-compose --profile ci up --build --exit-code-from ci
-          docker-compose --profile ci down
+          docker-compose run --rm web python manage.py test
 
   deploy:
     runs-on: self-hosted
@@ -75,10 +79,6 @@ jobs:
           echo "AWS_S3_REGION_NAME=${{ secrets.AWS_S3_REGION_NAME }}" >> .env
           echo "USE_S3_MEDIA_STORAGE=${{ secrets.USE_S3_MEDIA_STORAGE }}" >> .env
           echo "MEDIA_URL=${{ secrets.MEDIA_URL }}" >> .env
-          echo "------ .env content ------"
-          cat .env
-          echo "--------------------------"
-          ls -la .env
 
       - name: Debug - check .env exists
         run: |
