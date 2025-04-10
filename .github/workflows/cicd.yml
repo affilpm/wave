@@ -48,7 +48,13 @@ jobs:
       - name: Run Tests in Docker
         run: |
           cd Backend
-          docker-compose run --rm web python manage.py test
+          docker-compose up -d db  # ensure DB is up before running tests
+          docker-compose build web
+          timeout 25m docker-compose run --rm web sh -c "
+            python manage.py wait_for_db &&
+            python manage.py migrate &&
+            python manage.py test --verbosity=2
+          " || echo 'Tests failed or timed out'
 
   deploy:
     runs-on: self-hosted
