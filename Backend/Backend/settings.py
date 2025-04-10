@@ -362,7 +362,7 @@ AUTHENTICATION_BACKENDS = (
 
 # s3 bucket configuratio
 # Media Storage Configuration
-DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+# DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
 # S3 Media Configuration
 AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME', default='your-bucket-name')
@@ -375,9 +375,9 @@ AWS_S3_OBJECT_PARAMETERS = {
     'CacheControl': 'max-age=86400',
 }
 
-# Remove AWS_DEFAULT_ACL
-# AWS_DEFAULT_ACL = 'public-read'  # Comment out or remove this line
 
+# AWS_DEFAULT_ACL = 'public-read'  
+AWS_QUERYSTRING_AUTH = False
 AWS_LOCATION = 'media'
  
 # Media URL configuration
@@ -389,7 +389,6 @@ STORAGES = {
         "OPTIONS": {
             "bucket_name": AWS_STORAGE_BUCKET_NAME,
             "location": "media",
-            # Remove ACL-related options
             "file_overwrite": False,
         }
     },
@@ -397,7 +396,7 @@ STORAGES = {
         "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     }
 }
-# Ensure you also have these settings for static files
+
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATIC_URL = '/static/'
     
