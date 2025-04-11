@@ -849,7 +849,7 @@ const handleSeekMouseUp = (e) => {
       {/* Main Player - Slimmer design */}
       <div className="bg-black bg-opacity-90 text-white border-t border-gray-900 backdrop-blur-lg p-1 sm:p-2 shadow-lg">
         {/* Mobile view - Vertical compact layout */}
-        <div className="flex flex-col md:hidden space-y-2">
+        <div className="flex flex-col md:hidden space-y-3 pt-2 pb-2 pl-2 pr-2">
           {/* Song info and mini controls */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
@@ -979,7 +979,7 @@ const handleSeekMouseUp = (e) => {
         </div>
 
         {/* Desktop view - Sleek horizontal layout */}
-        <div className="hidden md:grid md:grid-cols-3 md:items-center md:gap-4">
+        <div className="hidden md:grid md:grid-cols-3 md:items-center md:gap-4 pr-2 pl-2 pt-1 pb-1">
           {/* Track info - Left */}
           <div className="flex items-center space-x-3">
             {metadata?.cover_photo ? (
