@@ -208,12 +208,17 @@ useEffect(() => {
         event.preventDefault();
         event.returnValue = message;
         
-        // Call the endStreamOnExit function to clean up and notify
-        endStreamOnExit();
-        
         return message;
       }
     };
+
+    const handleUnload = () => {
+      if (isStreamingRef.current) {
+        // This runs only when the page is actually being unloaded
+        endStreamOnExit();
+      }
+    };
+
 
     // Handle history changes (navigation within the app)
     const handlePopState = (event) => {
@@ -229,6 +234,7 @@ useEffect(() => {
 
     // Add event listeners
     window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("unload", handleUnload);
     window.addEventListener("popstate", handlePopState);
     
     // Block navigation by adding a history entry
@@ -238,6 +244,7 @@ useEffect(() => {
 
     return () => {
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.addEventListener("unload", handleUnload);
       window.removeEventListener("popstate", handlePopState);
     };
   }, [isStreaming]);
