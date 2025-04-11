@@ -24,7 +24,6 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
-
   const handleChange = (e) => {
     const value = e.target.value.replace(/\s/g, ''); // Remove spaces dynamically
     setNewPlaylistName(value);
@@ -36,7 +35,6 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
     }
   };
   
-
   const resetForm = () => {
     setNewPlaylistName('');
     setDescription('');
@@ -53,8 +51,11 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
   };
 
   const handleClose = () => {
-    resetForm();
-    onClose();
+    // Only allow closing if not in loading state
+    if (!isLoading) {
+      resetForm();
+      onClose();
+    }
   };
 
   const handleImageChange = async (e) => {
@@ -192,39 +193,50 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
       });
 
       const newPlaylist = {
+        id: response.data.id,
         name: response.data.name,
+        description: response.data.description,
+        is_public: response.data.is_public,
+        cover_photo: response.data.cover_photo,
         icon: null,
         image: response.data.cover_photo || "/api/placeholder/40/40",
         songCount: 0,
         type: 'Playlist'
       };
 
-      onCreatePlaylist(newPlaylist);
-      handleClose();
       toast.success('Playlist created successfully!');
+      
+      // First call onCreatePlaylist to update parent components
+      onCreatePlaylist(newPlaylist);
+      
+      // Then reset form and close modal
+      resetForm();
+      onClose();
     } catch (error) {
       console.error('Error creating playlist:', error);
       const errorMessage = error.response?.data?.details || 
-                          error.response?.data?.error ||
-                          'Failed to create playlist. Please try again.';
+                         error.response?.data?.error ||
+                         'Failed to create playlist. Please try again.';
       setError(errorMessage);
-      // toast.error(errorMessage);
       setIsLoading(false);
     }
   };
 
+  // If modal is not open, return null
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center text-center z-50">
-      <div className="bg-gray-900 rounded-lg w-full max-w-md p-6 mx-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center text-center z-50 overflow-y-auto">
+      {/* Modal container - full screen on mobile, max-width on larger screens */}
+      <div className="bg-gray-900 w-full h-full md:h-auto md:max-w-md md:rounded-lg md:w-full p-4 md:p-6 mx-auto flex flex-col">
         {showCropper && originalImage ? (
-          <div className="space-y-4">
+          <div className="space-y-4 flex-1 flex flex-col h-full">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-white">Crop Image</h3>
               <button 
                 onClick={() => setShowCropper(false)}
                 className="text-gray-400 hover:text-white"
+                disabled={isLoading}
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -232,7 +244,8 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
               </button>
             </div>
 
-            <div className="relative h-64">
+            {/* Cropper container - needs explicit height */}
+            <div className="relative h-64 sm:h-80 md:h-64 lg:h-80 flex-1 min-h-[300px]">
               <Cropper
                 image={originalImage}
                 crop={crop}
@@ -241,10 +254,14 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
                 onCropChange={setCrop}
                 onZoomChange={setZoom}
                 onCropComplete={handleCropComplete}
+                style={{
+                  containerStyle: { height: '100%', width: '100%' },
+                  cropAreaStyle: { border: '2px solid #fff' }
+                }}
               />
             </div>
 
-            <div>
+            <div className="mt-4">
               <label className="block text-sm text-gray-400 mb-2">
                 Zoom: {zoom.toFixed(1)}x
               </label>
@@ -256,31 +273,41 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
                 value={zoom}
                 onChange={(e) => setZoom(Number(e.target.value))}
                 className="w-full"
+                disabled={isLoading}
               />
             </div>
 
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2 mt-4">
               <button
                 onClick={() => setShowCropper(false)}
-                className="px-4 py-2 text-white hover:bg-gray-800 rounded-md"
+                className={`px-4 py-2 text-white hover:bg-gray-800 rounded-md ${
+                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                disabled={isLoading}
               >
                 Cancel
               </button>
               <button
                 onClick={handleCropSave}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                className={`px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 ${
+                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+                disabled={isLoading}
               >
                 Apply
               </button>
             </div>
           </div>
         ) : (
-          <>
+          <div className="flex flex-col h-full">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-white">Create New Playlist</h2>
               <button 
                 onClick={handleClose}
-                className="text-gray-400 hover:text-white transition-colors"
+                disabled={isLoading}
+                className={`text-gray-400 hover:text-white transition-colors ${
+                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -288,94 +315,109 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
               </button>
             </div>
 
-            <div className="flex items-start gap-4 mb-6">
-              <div className="relative group">
-                <div className="w-32 h-32 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
-                  {previewUrl ? (
-                    <img src={previewUrl} alt="Cover preview" className="w-full h-full object-cover" />
-                  ) : (
-                    <Music className="w-16 h-16 text-gray-600" />
-                  )}
-                  <label className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                    <Upload className="w-8 h-8 text-white" />
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png"
-                      onChange={handleImageChange}
-                      className="hidden"
-                    />
-                  </label>
+            <div className="flex-1">
+              <div className="flex flex-col md:flex-row items-center md:items-start gap-4 mb-6">
+                <div className="relative group mx-auto md:mx-0">
+                  <div className="w-32 h-32 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    {previewUrl ? (
+                      <img src={previewUrl} alt="Cover preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <Music className="w-16 h-16 text-gray-600" />
+                    )}
+                    <label className={`absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity ${isLoading ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                      <Upload className="w-8 h-8 text-white" />
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png"
+                        onChange={handleImageChange}
+                        className="hidden"
+                        disabled={isLoading}
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex-1 space-y-4 w-full">
+                  <input
+                    type="text"
+                    placeholder="My Awesome Playlist"
+                    value={newPlaylistName}
+                    onChange={handleChange}
+                    disabled={isLoading}
+                    className={`w-full bg-gray-800 text-white px-4 py-2 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/20 ${
+                      isLoading ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
+                  />
+                  
+                  <textarea
+                    placeholder="Add an optional description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    disabled={isLoading}
+                    className={`w-full bg-gray-800 text-white px-4 py-2 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/20 resize-none h-20 ${
+                      isLoading ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setIsPublic(!isPublic)}
+                    disabled={isLoading}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-md text-gray-300 hover:text-white hover:bg-neutral-800 transition-all w-full ${
+                      isLoading ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {isPublic ? (
+                      <>
+                        <Globe size={18} />
+                        <span>Public playlist</span>
+                      </>
+                    ) : (
+                      <>
+                        <Lock size={18} />
+                        <span>Private playlist</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
 
-              <div className="flex-1 space-y-4">
-                <input
-                  type="text"
-                  placeholder="My Awesome Playlist"
-                  value={newPlaylistName}
-                  onChange={handleChange}
-                  className="w-full bg-gray-800 text-white px-4 py-2 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/20"
-                />
-                
-                <textarea
-                  placeholder="Add an optional description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  className="w-full bg-gray-800 text-white px-4 py-2 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/20 resize-none h-20"
-                />
-
-                <button
-                  type="button"
-                  onClick={() => setIsPublic(!isPublic)}
-                  className="flex items-center gap-2 px-3 py-2 rounded-md text-gray-300 hover:text-white hover:bg-neutral-800 transition-all w-full"
-                >
-                  {isPublic ? (
-                    <>
-                      <Globe size={18} />
-                      <span>Public playlist</span>
-                    </>
-                  ) : (
-                    <>
-                      <Lock size={18} />
-                      <span>Private playlist</span>
-                    </>
-                  )}
-                </button>
-              </div>
+              {error && (
+                <div className="bg-red-900 text-red-100 px-4 py-2 rounded-md mb-4">
+                  {error}
+                </div>
+              )}
             </div>
 
-            {error && (
-              <div className="bg-red-900 text-red-100 px-4 py-2 rounded-md mb-4">
-                {error}
-              </div>
-            )}
-
-            <div className="flex justify-end gap-3">
+            <div className="flex justify-end gap-3 mt-auto pt-4">
               <button
                 onClick={handleClose}
-                className="px-4 py-2 rounded-full text-white hover:bg-gray-800 transition-colors"
+                disabled={isLoading}
+                className={`px-4 py-2 rounded-full text-white hover:bg-gray-800 transition-colors ${
+                  isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               >
                 Cancel
               </button>
               <button
-  onClick={handleCreatePlaylist}
-  disabled={
-    isLoading || 
-    error ||  // Disable if there's a validation error
-    !newPlaylistName.trim() || 
-    !description.trim() || 
-    !coverPhoto
-  }
-  className={`px-6 py-2 rounded-full bg-green-500 text-white font-medium transition-colors ${
-    (isLoading || error || !newPlaylistName.trim() || !description.trim() || !coverPhoto)
-      ? 'opacity-50 cursor-not-allowed'
-      : 'hover:bg-green-400'
-  }`}
->
-  {isLoading ? 'Creating...' : 'Create'}
-</button>
+                onClick={handleCreatePlaylist}
+                disabled={
+                  isLoading || 
+                  error ||  // Disable if there's a validation error
+                  !newPlaylistName.trim() || 
+                  !description.trim() || 
+                  !coverPhoto
+                }
+                className={`px-6 py-2 rounded-full bg-green-500 text-white font-medium transition-colors ${
+                  (isLoading || error || !newPlaylistName.trim() || !description.trim() || !coverPhoto)
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:bg-green-400'
+                }`}
+              >
+                {isLoading ? 'Creating...' : 'Create'}
+              </button>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>
