@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Library, Heart, Music, ChevronLeft, MoreVertical, Share2, Delete, Edit } from 'lucide-react';
+import { Search, Plus, Library, Heart, ChevronLeft, X } from 'lucide-react';
 import CreatePlaylistModal from '../playlist/CreatePlaylistModal';
 import api from '../../../../api';
 import YourPlaylistSection from './YourPlaylistSection';
 import SavedPlaylistSection from './SavedPlaylistSection';
 import FollowedArtistsSection from './FollowedArtistsSection';
 
-const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
+const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
   // State for managing the search query in the library
   const [librarySearchQuery, setLibrarySearchQuery] = useState('');
 
@@ -100,7 +100,6 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
         
         // Fetch followed artists
         const followingResponse = await api.get('/api/artists/me/following/');
-        console.log(followingResponse.data)
         if (followingResponse.data && Array.isArray(followingResponse.data)) {
           // Extract artist data from the follow relationships
           const artistsData = followingResponse.data.map(follow => follow.artist);
@@ -130,6 +129,14 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
       description: newPlaylist.description,
       is_public: newPlaylist.is_public
     }]);
+
+    // Close the modal after creating a playlist
+    setIsCreateModalOpen(false);
+    
+    // On mobile, close the sidebar after creating a playlist
+    if (isMobile) {
+      toggleSidebar();
+    }
   };
 
   // Filter playlists and artists based on the search query
@@ -148,6 +155,10 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
   // Handle navigation to a specific playlist
   const handlePlaylistClick = (playlistId) => {
     navigate(`/playlist/${playlistId}`);
+    // On mobile, close the sidebar after navigation
+    if (isMobile) {
+      toggleSidebar();
+    }
   };
 
   // Handle updates to a playlist
@@ -171,6 +182,10 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
       prevPlaylists.filter(playlist => playlist.id !== playlistId)
     );
     navigate('/home'); // Redirect after deletion
+    // On mobile, close the sidebar after deletion
+    if (isMobile) {
+      toggleSidebar();
+    }
   };
 
   return (
@@ -178,22 +193,40 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
       {/* Header Section */}
       <div className="flex-shrink-0 p-4">
         <div className="flex items-center justify-between mb-4">
-          <button
-            onClick={toggleSidebar}
-            className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors group w-full"
-          >
-            <div className="flex items-center">
-              <Library className="h-6 w-6 flex-shrink-0" />
-              {isSidebarExpanded && (
+          {isMobile ? (
+            // Mobile header with close button
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center">
+                <Library className="h-6 w-6 flex-shrink-0" />
                 <span className="ml-2 font-semibold">Your Library</span>
-              )}
+              </div>
+              <button
+                onClick={toggleSidebar}
+                className="p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            {isSidebarExpanded && (
-              <ChevronLeft className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-            )}
-          </button>
+          ) : (
+            // Desktop header with toggle
+            <button
+              onClick={toggleSidebar}
+              className="flex items-center space-x-2 text-gray-300 hover:text-white transition-colors group w-full"
+            >
+              <div className="flex items-center">
+                <Library className="h-6 w-6 flex-shrink-0" />
+                {isSidebarExpanded && (
+                  <span className="ml-2 font-semibold">Your Library</span>
+                )}
+              </div>
+              {isSidebarExpanded && (
+                <ChevronLeft className="h-4 w-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+              )}
+            </button>
+          )}
 
-          {isSidebarExpanded && (
+          {/* Create playlist button - visible when sidebar is expanded or on mobile */}
+          {(isSidebarExpanded || isMobile) && (
             <button 
               onClick={() => setIsCreateModalOpen(true)}
               className="p-2 hover:bg-gray-800 rounded-full text-gray-400 hover:text-white transition-colors"
@@ -203,7 +236,8 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
           )}
         </div>
 
-        {isSidebarExpanded && (
+        {/* Search input - visible when sidebar is expanded or on mobile */}
+        {(isSidebarExpanded || isMobile) && (
           <div className="relative">
             <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none">
               <Search className="h-4 w-4 text-gray-400" />
@@ -231,7 +265,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
             <YourPlaylistSection 
               title="Your Playlists" 
               playlists={filteredOwnPlaylists}
-              isSidebarExpanded={isSidebarExpanded}
+              isSidebarExpanded={isSidebarExpanded || isMobile}
               onPlaylistClick={handlePlaylistClick}
               onPlaylistUpdate={handlePlaylistUpdate}
               onPlaylistDelete={handlePlaylistDelete}
@@ -241,7 +275,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
             {filteredFollowedArtists.length > 0 && (
               <FollowedArtistsSection 
                 artists={filteredFollowedArtists}
-                isSidebarExpanded={isSidebarExpanded}
+                isSidebarExpanded={isSidebarExpanded || isMobile}
               />
             )}
             
@@ -249,7 +283,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar }) => {
             {filteredLibraryPlaylists.length > 0 && (
               <SavedPlaylistSection
                 playlists={filteredLibraryPlaylists}
-                isSidebarExpanded={isSidebarExpanded}
+                isSidebarExpanded={isSidebarExpanded || isMobile}
                 setLibraryPlaylists={setLibraryPlaylists}
               />
             )}
