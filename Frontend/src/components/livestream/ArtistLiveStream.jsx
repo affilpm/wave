@@ -30,6 +30,7 @@ const ArtistLiveStream = () => {
   const [showExitWarning, setShowExitWarning] = useState(false);
   const [fullscreenMode, setFullscreenMode] = useState(false);
   const [heartbeatInterval, setHeartbeatInterval] = useState(null);
+  const [existingStreamError, setExistingStreamError] = useState(null);
   
   // Get user data from Redux store
   const { username } = useSelector((state) => state.user);
@@ -44,149 +45,141 @@ const ArtistLiveStream = () => {
   const videoTrackRef = useRef(null);
   const isStreamingRef = useRef(false); // Track streaming state in a ref for cleanup functions
   const streamContainerRef = useRef(null);
+  const clientConnectedRef = useRef(false); // Track client connection state
 
-// More reliable Android detection 
-const isAndroid = () => {
-  return /Android/i.test(navigator.userAgent) || 
-         (navigator.platform && /Android|Linux armv/i.test(navigator.platform));
-};
+  // More reliable Android detection 
+  const isAndroid = () => {
+    return /Android/i.test(navigator.userAgent) || 
+          (navigator.platform && /Android|Linux armv/i.test(navigator.platform));
+  };
 
-// Enhanced Android camera initialization
-const initializeAndroidCamera = async () => {
-  try {
-    setErrorMessage("");
-    console.log("Initializing Android camera with enhanced settings...");
-    
-    // Request permissions explicitly first
-    const permissions = await navigator.permissions.query({name: 'camera'});
-    if (permissions.state === 'denied') {
-      throw new Error("Camera permission denied");
-    }
-    
-    // More specific constraints for Android
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        width: { ideal: 640, max: 1280 },
-        height: { ideal: 480, max: 720 },
-        frameRate: { max: 30 },
-        facingMode: "user"
-      },
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
-      }
-    });
-    
-    // Ensure video element exists
-    if (!localVideoRef.current) {
-      throw new Error("Video element not found");
-    }
-    
-    // Set direct source first
-    localVideoRef.current.srcObject = stream;
-    
-    // Try explicit play with user interaction
+  // Enhanced Android camera initialization
+  const initializeAndroidCamera = async () => {
     try {
-      await localVideoRef.current.play();
-      setVideoInitialized(true);
-      console.log("Direct Android camera initialized successfully");
+      setErrorMessage("");
+      console.log("Initializing Android camera with enhanced settings...");
       
-      // Create Agora tracks with lower bitrate settings for Android
-      const videoTrack = AgoraRTC.createCustomVideoTrack({
-        mediaStreamTrack: stream.getVideoTracks()[0],
-        optimizationMode: "detail",
-        encoderConfig: {
-          width: 640,
-          height: 480,
-          frameRate: 24,
-          bitrateMin: 400,
-          bitrateMax: 800
+      // Request permissions explicitly first
+      const permissions = await navigator.permissions.query({name: 'camera'});
+      if (permissions.state === 'denied') {
+        throw new Error("Camera permission denied");
+      }
+      
+      // More specific constraints for Android
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640, max: 1280 },
+          height: { ideal: 480, max: 720 },
+          frameRate: { max: 30 },
+          facingMode: "user"
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true
         }
       });
       
-      const audioTrack = AgoraRTC.createCustomAudioTrack({
-        mediaStreamTrack: stream.getAudioTracks()[0]
-      });
-      
-      // Update state
-      setLocalVideoTrack(videoTrack);
-      setLocalAudioTrack(audioTrack);
-      videoTrackRef.current = videoTrack;
-      
-      // Ensure client is initialized
-      if (!clientRef.current) {
-        throw new Error("Client not initialized");
+      // Ensure video element exists
+      if (!localVideoRef.current) {
+        throw new Error("Video element not found");
       }
       
-      // Explicitly publish with logging
-      console.log("Publishing Android tracks...");
-      await clientRef.current.publish([videoTrack, audioTrack]);
-      console.log("Published Android tracks successfully");
+      // Set direct source first
+      localVideoRef.current.srcObject = stream;
       
-      return true;
-    } catch (playError) {
-      console.error("Android play error:", playError);
-      throw playError;
-    }
-  } catch (error) {
-    console.error("Android camera initialization error:", error);
-    setErrorMessage(`Android camera error: ${error.message || "Access denied"}`);
-    return false;
-  }
-};
-
-
-
-
-const fetchViewerCount = async () => {
-  if (!streamSettings.channel) return;
-  
-  try {
-    const response = await apiInstance.api.get('/api/livestream/viewer-count/', {
-      params: {
-        channel_name: streamSettings.channel
+      // Try explicit play with user interaction
+      try {
+        await localVideoRef.current.play();
+        setVideoInitialized(true);
+        console.log("Direct Android camera initialized successfully");
+        
+        // Create Agora tracks with lower bitrate settings for Android
+        const videoTrack = AgoraRTC.createCustomVideoTrack({
+          mediaStreamTrack: stream.getVideoTracks()[0],
+          optimizationMode: "detail",
+          encoderConfig: {
+            width: 640,
+            height: 480,
+            frameRate: 24,
+            bitrateMin: 400,
+            bitrateMax: 800
+          }
+        });
+        
+        const audioTrack = AgoraRTC.createCustomAudioTrack({
+          mediaStreamTrack: stream.getAudioTracks()[0]
+        });
+        
+        // Update state
+        setLocalVideoTrack(videoTrack);
+        setLocalAudioTrack(audioTrack);
+        videoTrackRef.current = videoTrack;
+        
+        // Ensure client is initialized
+        if (!clientRef.current) {
+          throw new Error("Client not initialized");
+        }
+        
+        // Explicitly publish with logging
+        console.log("Publishing Android tracks...");
+        await clientRef.current.publish([videoTrack, audioTrack]);
+        console.log("Published Android tracks successfully");
+        
+        return true;
+      } catch (playError) {
+        console.error("Android play error:", playError);
+        throw playError;
       }
-    });
-    
-    if (response.data.active_participants !== undefined) {
-      setViewerCount(response.data.active_participants);
-    }
-  } catch (error) {
-    console.error("Error fetching viewer count:", error);
-  }
-};
-
-
-
-
-useEffect(() => {
-  if (isStreaming && streamSettings.channel) {
-    // Fetch immediately when streaming begins
-    fetchViewerCount();
-    
-    // Start interval to periodically fetch viewer count
-    const interval = setInterval(fetchViewerCount, 30000); // Every 5 seconds
-    setHeartbeatInterval(interval);
-  } else {
-    // Clear interval when streaming ends
-    if (heartbeatInterval) {
-      clearInterval(heartbeatInterval);
-      setHeartbeatInterval(null);
-    }
-  }
-  
-  return () => {
-    if (heartbeatInterval) {
-      clearInterval(heartbeatInterval);
+    } catch (error) {
+      console.error("Android camera initialization error:", error);
+      setErrorMessage(`Android camera error: ${error.message || "Access denied"}`);
+      return false;
     }
   };
-}, [isStreaming, streamSettings.channel]);
+
+  const fetchViewerCount = async () => {
+    if (!streamSettings.channel) return;
+    
+    try {
+      const response = await apiInstance.api.get('/api/livestream/viewer-count/', {
+        params: {
+          channel_name: streamSettings.channel
+        }
+      });
+      
+      if (response.data.active_participants !== undefined) {
+        setViewerCount(response.data.active_participants);
+      }
+    } catch (error) {
+      console.error("Error fetching viewer count:", error);
+    }
+  };
+
   
-
-
-
-
+  useEffect(() => {
+    if (isStreaming && streamSettings.channel) {
+      // Fetch immediately when streaming begins
+      fetchViewerCount();
+      
+      // Start interval to periodically fetch viewer count
+      const interval = setInterval(fetchViewerCount, 30000); // Every 30 seconds
+      setHeartbeatInterval(interval);
+    } else {
+      // Clear interval when streaming ends
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        setHeartbeatInterval(null);
+      }
+    }
+    
+    return () => {
+      if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+      }
+    };
+  }, [isStreaming, streamSettings.channel]);
+    
   // Update streaming ref when state changes
   useEffect(() => {
     isStreamingRef.current = isStreaming;
@@ -198,139 +191,178 @@ useEffect(() => {
   }, [isStreaming]);
 
 
+  const [isReloading, setIsReloading] = useState(false);
 
-
-  // Block navigation when streaming is active
-  useEffect(() => {
-    const handleBeforeUnload = (event) => {
-      if (isStreamingRef.current) {
-        const message = "WARNING: You are currently live streaming. If you leave this page, your stream will end and all viewers will be disconnected.";
-        event.preventDefault();
-        event.returnValue = message;
-        
-        return message;
-      }
-    };
-
-    const handleUnload = () => {
-      if (isStreamingRef.current) {
-        // This runs only when the page is actually being unloaded
-        endStreamOnExit();
-      }
-    };
-
-
-    // Handle history changes (navigation within the app)
-    const handlePopState = (event) => {
-      if (isStreamingRef.current) {
-        // Prevent the navigation
-        event.preventDefault();
-        // Show the exit warning
-        setShowExitWarning(true);
-        // Push the current state back to the history to prevent navigation
-        window.history.pushState(null, null, window.location.pathname);
-      }
-    };
-
-    // Add event listeners
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    window.addEventListener("unload", handleUnload);
-    window.addEventListener("popstate", handlePopState);
-    
-    // Block navigation by adding a history entry
-    if (isStreaming) {
-      window.history.pushState(null, null, window.location.pathname);
-    }
-
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-      window.addEventListener("unload", handleUnload);
-      window.removeEventListener("popstate", handlePopState);
-    };
-  }, [isStreaming]);
-
-
-
-
-  // Enhanced cleanup on component unmount
-  useEffect(() => {
-    return () => {
-      if (isStreamingRef.current) {
-        // End the stream when component unmounts while streaming
-        endStreamOnExit();
-      }
-    };
-  }, []);
-
-
-
-
-  // Helper function to end stream specifically during exit scenarios
-  const endStreamOnExit = async () => {
-    try {
-      const client = clientRef.current;
-      if (!client) return;
+// Block navigation when streaming is active
+// Block navigation when streaming is active, but don't show warnings
+useEffect(() => {
+  // For page reloads or browser closes
+  const handleBeforeUnload = (event) => {
+    if (isStreamingRef.current || existingStreamError?.existing_stream?.channel) {
+      // Check if this is likely a reload
+      const isLikelyReload = event.currentTarget.performance && 
+                            event.currentTarget.performance.navigation &&
+                            event.currentTarget.performance.navigation.type === 1;
       
-      // Close local tracks
+      if (isLikelyReload) {
+        setIsReloading(true);
+        console.log("Page reload detected");
+      }
+      
+      // Handle stream ending without warning
+      handleStreamEndOnExit(isLikelyReload);
+    }
+  };
+  
+  // Handle stream end API calls
+  const handleStreamEndOnExit = async (isReload = false) => {
+    try {
+      if (isReload) {
+        await apiInstance.api.post('/api/livestream/end-stream/', {
+          channel: streamSettings.channel || existingStreamError?.existing_stream?.channel,
+          abruptExit: false,
+          isReload: true
+        });
+      } else {
+        // End existing stream if present
+        if (existingStreamError?.existing_stream?.channel) {
+          await apiInstance.api.post('/api/livestream/end-stream/', {
+            channel: existingStreamError.existing_stream.channel,
+            abruptExit: true
+          });
+        }
+        
+        // End current stream if present
+        if (streamSettings.channel && 
+            streamSettings.channel !== existingStreamError?.existing_stream?.channel) {
+          await apiInstance.api.post('/api/livestream/end-stream/', {
+            channel: streamSettings.channel,
+            abruptExit: true
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error ending stream:", error);
+    }
+  };
+
+  // This fires when user actually leaves the page
+  const handleUnload = () => {
+    if (isStreamingRef.current || existingStreamError?.existing_stream?.channel) {
+      // Close tracks immediately
       if (localAudioTrack) {
-        localAudioTrack.close();
+        try { localAudioTrack.close(); } catch (e) {}
       }
       
       if (localVideoTrack) {
-        localVideoTrack.stop();
-        localVideoTrack.close();
+        try { 
+          localVideoTrack.stop();
+          localVideoTrack.close(); 
+        } catch (e) {}
       }
       
-      // Use sendBeacon to notify backend that stream has ended
-      if (streamSettings.channel) {
-        const endStreamData = JSON.stringify({
-          channel: streamSettings.channel,
-          abruptExit: true
-        });
-        
-        // Use the sendBeacon API which works during page unload
-        navigator.sendBeacon(
-          `${apiInstance.api.defaults.baseURL}/api/livestream/end-stream/`, 
-          endStreamData
-        );
-        console.log("Sent stream end notification via beacon");
-      }
-
-      // Notify backend that stream has ended
-      if (streamSettings.channel) {
-        try {
-          await apiInstance.api.post('/api/livestream/end-stream/', {
-            channel: streamSettings.channel,
-            abruptExit: true // Flag to indicate this was an abrupt exit
-          });
-          console.log("Successfully notified backend of stream end on exit");
-        } catch (endError) {
-          console.error("Error ending stream on server during exit:", endError);
-        }
-      }
-      
-      // Leave the channel
-      try {
-        client.leave();
-      } catch (leaveError) {
-        console.error("Error leaving channel on exit:", leaveError);
-      }
-    } catch (error) {
-      console.error("Error in endStreamOnExit:", error);
+      console.log("Page is unloading, stream cleanup executed");
     }
   };
 
-
-
-  
-  // Safe exit after ending stream
-  const safeExit = () => {
-    setFullscreenMode(false);
-    navigate('/studio');
+  // For visibilitychange - can detect tab close
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      console.log("Page hidden, ensuring cleanup");
+      endStreamOnExit();
+    }
   };
 
+  // Register all event listeners
+  window.addEventListener("beforeunload", handleBeforeUnload);
+  window.addEventListener("unload", handleUnload);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  
+  // Cleanup event listeners
+  return () => {
+    window.removeEventListener("beforeunload", handleBeforeUnload);
+    window.removeEventListener("unload", handleUnload);
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+  };
+}, [existingStreamError, isStreaming, streamSettings.channel, localAudioTrack, localVideoTrack]);
 
+// Helper function to end stream during exit scenarios
+const endStreamOnExit = async () => {
+  try {
+    if (!clientRef.current && !streamSettings.channel && !existingStreamError?.existing_stream?.channel) {
+      return;
+    }
+    
+    console.log("Running stream exit cleanup...");
+    
+    // If this is a reload, skip most of the cleanup
+    if (isReloading) {
+      console.log("Skipping aggressive cleanup due to page reload");
+      return;
+    }
+    
+    // Close local tracks immediately
+    if (localAudioTrack) {
+      try {
+        localAudioTrack.close();
+      } catch (e) {}
+    }
+    
+    if (localVideoTrack) {
+      try {
+        localVideoTrack.stop();
+        localVideoTrack.close();
+      } catch (e) {}
+    }
+    
+    // Use API calls with proper error handling
+    try {
+      if (existingStreamError?.existing_stream?.channel) {
+        await apiInstance.api.post('/api/livestream/end-stream/', {
+          channel: existingStreamError.existing_stream.channel,
+          abruptExit: true
+        }, { timeout: 1000 });
+      }
+      
+      if (streamSettings.channel && 
+          streamSettings.channel !== existingStreamError?.existing_stream?.channel) {
+        await apiInstance.api.post('/api/livestream/end-stream/', {
+          channel: streamSettings.channel,
+          abruptExit: true
+        }, { timeout: 1000 });
+      }
+    } catch (e) {
+      console.error("Error calling end-stream API:", e);
+    }
+    
+    // Leave the channel if connected
+    try {
+      if (clientConnectedRef.current && clientRef.current) {
+        await clientRef.current.leave();
+        clientConnectedRef.current = false;
+      }
+    } catch (e) {
+      console.error("Error leaving client channel:", e);
+    }
+  } catch (error) {
+    console.error("Error in endStreamOnExit:", error);
+  }
+};
 
+// Safe exit after ending stream
+const safeExit = async () => {
+  await endStreamOnExit();
+  setFullscreenMode(false);
+  navigate('/studio');
+};
+
+// Component unmount cleanup
+useEffect(() => {
+  return () => {
+    // Always end any existing stream when component unmounts
+    endStreamOnExit();
+  };
+}, []);
 
   // Helper function to play video with retry logic
   const playVideoTrack = async (track, retryCount = 0) => {
@@ -381,17 +413,12 @@ useEffect(() => {
     }
   };
 
-
-
   // Use a ref to keep track of the video track
   useEffect(() => {
     if (localVideoTrack) {
       videoTrackRef.current = localVideoTrack;
     }
   }, [localVideoTrack]);
-
-
-
 
   // Play video track when both video and container are available
   useEffect(() => {
@@ -427,9 +454,6 @@ useEffect(() => {
     };
   }, [localVideoTrack, localVideoRef.current]);
 
-
-
-
   // Handle video enabled state changes
   useEffect(() => {
     if (localVideoTrack && videoInitialized) {
@@ -457,8 +481,6 @@ useEffect(() => {
     }
   }, [videoEnabled, videoInitialized]);
 
-
-
   // Initialize AgoraRTC client
   useEffect(() => {
     clientRef.current = AgoraRTC.createClient({
@@ -473,9 +495,6 @@ useEffect(() => {
       cleanupResources();
     };
   }, []);
-
-
-
 
   // Setup event listeners for the Agora client
   const setupEventListeners = () => {
@@ -506,15 +525,18 @@ useEffect(() => {
       });
     });
     
+    // Connection state change monitoring
+    client.on("connection-state-change", (curState, prevState) => {
+      console.log(`Connection state changed from ${prevState} to ${curState}`);
+      clientConnectedRef.current = curState === "CONNECTED";
+    });
+    
     // Error handling
     client.on("exception", (event) => {
       console.warn("Exception:", event);
       setErrorMessage(`Stream error: ${event.msg}`);
     });
   };
-
-
-
 
   // Clean up resources when component unmounts
   const cleanupResources = async () => {
@@ -528,8 +550,9 @@ useEffect(() => {
         localVideoTrack.close();
       }
       
-      if (clientRef.current && isStreamingRef.current) {
+      if (clientRef.current && clientConnectedRef.current) {
         await clientRef.current.leave();
+        clientConnectedRef.current = false;
       }
       
       setVideoInitialized(false);
@@ -538,225 +561,283 @@ useEffect(() => {
     }
   };
 
-
-
-
   // Get streaming token from backend
-const getStreamToken = async (options = {}) => {
-  try {
-    setErrorMessage("");
-    
-    // Prepare query parameters with default and optional values
-    const queryParams = {
-      role: 'host',  // Default role
-      title: `${username}'s Stream`,  // Optional title
-      ...options  // Spread any additional options to allow overriding
-    };
-    
-    const response = await apiInstance.api.get('/api/livestream/token/', {
-      params: queryParams
-    });
-    
-    // Destructure with fallback values for extra safety
-    const { 
-      token, 
-      channel, 
-      app_id: appId, 
-      uid, 
-      role 
-    } = response.data;
-    
-    // Validate essential data
-    if (!token || !channel || !appId) {
-      throw new Error("Incomplete token response from server");
-    }
-    
-    // Update stream settings with comprehensive information
-    setStreamSettings({
-      appId: appId,
-      channel: channel,
-      token: token,
-      uid: uid,
-      role: role || 'host'  // Ensure role is set
-    });
-    
-    // Return comprehensive token information
-    return { 
-      token, 
-      channel, 
-      app_id: appId, 
-      uid,
-      role: role || 'host'
-    };
-  } catch (error) {
-    // Enhanced error handling
-    console.error("Error getting stream token:", error);
-    
-    // Extract most informative error message
-    const errorMessage = 
-      error.response?.data?.error || 
-      error.response?.data?.message || 
-      error.message || 
-      "Unable to start stream";
-    
-    // Set a descriptive error message
-    setErrorMessage(`Stream Initialization Failed: ${errorMessage}`);
-    
-    // Re-throw to allow caller to handle the error
-    throw error;
-  }
-};
-
-const [existingStreamError, setExistingStreamError] = useState(null);
-
-const startStream = async () => {
-  // Prevent multiple start attempts
-  if (isStartingStream || isLoading) return;
-  
-  setIsStartingStream(true);
-  setIsLoading(true);
-  setErrorMessage("");
-  setVideoInitialized(false);
-  setExistingStreamError(null); 
-  
-  try {
-    const client = clientRef.current;
-    if (!client) {
-      throw new Error("Stream client not initialized");
-    }
-    
-  try {
-    const { token, channel, app_id, uid } = await getStreamToken({
-      title: `${username}'s Stream`, 
-    });
-    
-    // Set role as host
-    await client.setClientRole("host");
-    
-    // Join the channel with more detailed error handling
+  const getStreamToken = async (options = {}) => {
     try {
-      await client.join(app_id, channel, token, uid);
-      console.log("Successfully joined channel:", channel);
-    } catch (joinError) {
-      console.error("Channel join error:", joinError);
-      setErrorMessage(`Couldn't join stream channel: ${joinError.message}`);
-      throw joinError;
+      setErrorMessage("");
+      
+      // Prepare query parameters with default and optional values
+      const queryParams = {
+        role: 'host',  // Default role
+        title: `${username}'s Stream`,  // Optional title
+        ...options  // Spread any additional options to allow overriding
+      };
+      
+      const response = await apiInstance.api.get('/api/livestream/token/', {
+        params: queryParams
+      });
+      
+      // Destructure with fallback values for extra safety
+      const { 
+        token, 
+        channel, 
+        app_id: appId, 
+        uid, 
+        role 
+      } = response.data;
+      
+      // Validate essential data
+      if (!token || !channel || !appId) {
+        throw new Error("Incomplete token response from server");
+      }
+      
+      // Update stream settings with comprehensive information
+      setStreamSettings({
+        appId: appId,
+        channel: channel,
+        token: token,
+        uid: uid,
+        role: role || 'host'  // Ensure role is set
+      });
+      
+      // Return comprehensive token information
+      return { 
+        token, 
+        channel, 
+        app_id: appId, 
+        uid,
+        role: role || 'host'
+      };
+    } catch (error) {
+      // Enhanced error handling
+      console.error("Error getting stream token:", error);
+      
+      // Extract most informative error message
+      const errorMessage = 
+        error.response?.data?.error || 
+        error.response?.data?.message || 
+        error.message || 
+        "Unable to start stream";
+      
+      // Handle existing stream error with more details
+      if (error.response?.data?.error === 'stream_already_exists') {
+        setExistingStreamError({
+          message: error.response.data.message || "You already have an active stream running.",
+          existing_stream: error.response.data.existing_stream || {}
+        });
+      }
+      
+      // Set a descriptive error message
+      setErrorMessage(`Stream Initialization Failed: ${errorMessage}`);
+      
+      // Re-throw to allow caller to handle the error
+      throw error;
     }
+  };
+
+  // Function to ensure client is disconnected before reconnecting
+  const ensureClientDisconnected = async () => {
+    const client = clientRef.current;
+    if (!client) return;
     
-    // Try Android-specific path first if detected
-    if (isAndroid()) {
-      console.log("Android device detected, trying Android-specific initialization");
-      try {
-        const androidSuccess = await initializeAndroidCamera();
+    try {
+      // Check if connected and leave if needed
+      if (clientConnectedRef.current) {
+        console.log("Client is connected, leaving channel first...");
+        await client.leave();
+        clientConnectedRef.current = false;
+        console.log("Successfully left channel");
         
-        if (androidSuccess) {
-          console.log("Android camera initialization successful");
+        // Add a small delay after leaving
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    } catch (error) {
+      console.error("Error ensuring client disconnection:", error);
+      // Reset client connection state even on error
+      clientConnectedRef.current = false;
+    }
+  };
+
+  const startStream = async () => {
+    // Prevent multiple start attempts
+    if (isStartingStream || isLoading) return;
+    
+    setIsStartingStream(true);
+    setIsLoading(true);
+    setErrorMessage("");
+    setVideoInitialized(false);
+    
+    try {
+      const client = clientRef.current;
+      if (!client) {
+        throw new Error("Stream client not initialized");
+      }
+      
+      // Make sure client is disconnected first
+      await ensureClientDisconnected();
+      
+      try {
+        const { token, channel, app_id, uid } = await getStreamToken({
+          title: `${username}'s Stream`, 
+        });
+        
+        // Set role as host
+        await client.setClientRole("host");
+        
+        // Join the channel with more detailed error handling
+        try {
+          await client.join(app_id, channel, token, uid);
+          clientConnectedRef.current = true;
+          console.log("Successfully joined channel:", channel);
+        } catch (joinError) {
+          console.error("Channel join error:", joinError);
+          setErrorMessage(`Couldn't join stream channel: ${joinError.message}`);
+          throw joinError;
+        }
+        
+        // Try Android-specific path first if detected
+        if (isAndroid()) {
+          console.log("Android device detected, trying Android-specific initialization");
+          try {
+            const androidSuccess = await initializeAndroidCamera();
+            
+            if (androidSuccess) {
+              console.log("Android camera initialization successful");
+              setTimeout(() => {
+                setIsStreaming(true);
+                setIsStartingStream(false);
+                setFullscreenMode(true);
+              }, 1000);
+              return;
+            } else {
+              console.log("Android-specific method failed, falling back to standard method");
+            }
+          } catch (androidError) {
+            console.error("Android initialization failed:", androidError);
+            // Continue to regular path instead of throwing
+          }
+        }
+        
+        // Regular path as fallback
+        console.log("Using standard camera initialization");
+        try {
+          // Check permissions first
+          const mediaStream = await navigator.mediaDevices.getUserMedia({ 
+            video: true, 
+            audio: true 
+          });
+          
+          // Stop temporary stream
+          mediaStream.getTracks().forEach(track => track.stop());
+          
+          // Get actual tracks with optimized settings
+          const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
+            {
+              echoCancellation: true,
+              noiseSuppression: true,
+              autoGainControl: true
+            }, 
+            {
+              encoderConfig: isAndroid() ? 
+                { width: 640, height: 480, frameRate: 24, bitrateMax: 800 } : 
+                { width: 1280, height: 720, frameRate: 30, bitrateMax: 1500 },
+              facingMode: "user",
+              optimizationMode: isAndroid() ? "detail" : "motion"
+            }
+          );
+          
+          videoTrackRef.current = videoTrack;
+          
+          setLocalAudioTrack(audioTrack);
+          setLocalVideoTrack(videoTrack);
+          
+          // Explicitly publish before showing
+          console.log("Publishing tracks to Agora");
+          await client.publish([audioTrack, videoTrack]);
+          console.log("Tracks published successfully");
+          
+          // Play video with delay to ensure DOM is ready
+          if (localVideoRef.current) {
+            setTimeout(() => {
+              console.log("Playing video track");
+              try {
+                videoTrack.play(localVideoRef.current);
+                setVideoInitialized(true);
+              } catch (playError) {
+                console.error("Error playing video track:", playError);
+                playVideoTrack(videoTrack);
+              }
+            }, 500);
+          }
+          
           setTimeout(() => {
             setIsStreaming(true);
             setIsStartingStream(false);
             setFullscreenMode(true);
           }, 1000);
-          return;
-        } else {
-          console.log("Android-specific method failed, falling back to standard method");
-        }
-      } catch (androidError) {
-        console.error("Android initialization failed:", androidError);
-        // Continue to regular path instead of throwing
-      }
-    }
-    
-    // Regular path as fallback
-    console.log("Using standard camera initialization");
-    try {
-      // Check permissions first
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: true 
-      });
-      
-      // Stop temporary stream
-      mediaStream.getTracks().forEach(track => track.stop());
-      
-      // Get actual tracks with optimized settings
-      const [audioTrack, videoTrack] = await AgoraRTC.createMicrophoneAndCameraTracks(
-        {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        }, 
-        {
-          encoderConfig: isAndroid() ? 
-            { width: 640, height: 480, frameRate: 24, bitrateMax: 800 } : 
-            { width: 1280, height: 720, frameRate: 30, bitrateMax: 1500 },
-          facingMode: "user",
-          optimizationMode: isAndroid() ? "detail" : "motion"
-        }
-      );
-      
-      videoTrackRef.current = videoTrack;
-      
-      setLocalAudioTrack(audioTrack);
-      setLocalVideoTrack(videoTrack);
-      
-      // Explicitly publish before showing
-      console.log("Publishing tracks to Agora");
-      await client.publish([audioTrack, videoTrack]);
-      console.log("Tracks published successfully");
-      
-      // Play video with delay to ensure DOM is ready
-      if (localVideoRef.current) {
-        setTimeout(() => {
-          console.log("Playing video track");
+          
+        } catch (error) {
+          console.error("Standard camera/mic error:", error);
+          setErrorMessage(`Camera/microphone error: ${error.message}`);
+          
+          // Try to leave the channel on failure
           try {
-            videoTrack.play(localVideoRef.current);
-            setVideoInitialized(true);
-          } catch (playError) {
-            console.error("Error playing video track:", playError);
-            playVideoTrack(videoTrack);
+            await client.leave();
+            clientConnectedRef.current = false;
+          } catch (leaveError) {
+            console.error("Error leaving channel after failure:", leaveError);
           }
-        }, 500);
+          
+          throw error;
+        }
+      } catch (tokenError) {
+        // Check if this is an existing stream error
+        if (tokenError.response?.data?.error === 'stream_already_exists') {
+          console.log("User already has an active stream:", tokenError.response.data);
+          
+          // End the existing stream automatically
+          try {
+            setErrorMessage("Ending your previous stream...");
+            
+            // Get the existing stream's channel
+            const existingChannel = tokenError.response.data.existing_stream.channel;
+            
+            // Make sure we're disconnected first
+            await ensureClientDisconnected();
+            
+            // End the stream on the backend
+            await apiInstance.api.post('/api/livestream/end-stream/', {
+              channel: existingChannel,
+              abruptExit: false
+            });
+            
+            console.log("Successfully ended previous stream");
+            setErrorMessage("Previous stream ended. Starting new stream...");
+            
+            // Wait a moment for server to process the stream end
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Retry starting the stream
+            setIsStartingStream(false);
+            setIsLoading(false);
+            startStream();
+            return;
+            
+          } catch (endError) {
+            console.error("Error ending previous stream:", endError);
+            setErrorMessage("Failed to end previous stream. Please try again later.");
+            throw endError;
+          }
+        }
+        throw tokenError;
       }
-      
-      setTimeout(() => {
-        setIsStreaming(true);
-        setIsStartingStream(false);
-        setFullscreenMode(true);
-      }, 1000);
-      
     } catch (error) {
-      console.error("Standard camera/mic error:", error);
-      setErrorMessage(`Camera/microphone error: ${error.message}`);
-      
-      // Try to leave the channel on failure
-      try {
-        await client.leave();
-      } catch (leaveError) {
-        console.error("Error leaving channel after failure:", leaveError);
-      }
-      
-      throw error;
+      console.error("Stream start error:", error);
+      setIsStartingStream(false);
+    } finally {
+      setIsLoading(false);
     }
-  } catch (tokenError) {
-    // Check if this is an existing stream error
-    if (tokenError.response?.data?.error === 'stream_already_exists') {
-      console.log("User already has an active stream:", tokenError.response.data);
-      setExistingStreamError(tokenError.response.data);
-      throw new Error("Stream already exists");
-    }
-    throw tokenError;
-  }
-  
-
-  } catch (error) {
-    console.error("Stream start error:", error);
-    setIsStartingStream(false);
-  } finally {
-    setIsLoading(false);
-  }
-};
-
-
+  };
 
   // End the livestream
   const endStream = async () => {
@@ -785,19 +866,40 @@ const startStream = async () => {
       
       // Notify backend that stream has ended
       try {
-        await apiInstance.api.post('/api/livestream/end-stream/', {
-          channel: streamSettings.channel,
-          abruptExit: false,
-
-        });
-        console.log("Successfully notified backend of stream end");
+        // End current stream if it exists
+        if (streamSettings.channel) {
+          await apiInstance.api.post('/api/livestream/end-stream/', {
+            channel: streamSettings.channel,
+            abruptExit: false
+          });
+          console.log("Successfully ended current stream");
+        }
+        
+        // Also end any existing stream from error data if available
+        if (existingStreamError?.existing_stream?.channel) {
+          await apiInstance.api.post('/api/livestream/end-stream/', {
+            channel: existingStreamError.existing_stream.channel,
+            abruptExit: false
+          });
+          console.log("Successfully ended existing stream");
+          setExistingStreamError(null);
+        }
       } catch (endError) {
         console.error("Error ending stream on server:", endError);
       }
       
       // Leave the channel
-      await client.leave();
-      console.log("Left channel successfully");
+      if (clientConnectedRef.current) {
+        try {
+          await client.leave();
+          clientConnectedRef.current = false;
+          console.log("Left channel successfully");
+        } catch (leaveError) {
+          console.error("Error leaving channel:", leaveError);
+          // Force reset connection state
+          clientConnectedRef.current = false;
+        }
+      }
       
       setIsStreaming(false);
       setRemoteUsers([]);
@@ -810,14 +912,10 @@ const startStream = async () => {
       console.error("Error ending stream:", error);
       const errorMessage = error.response?.data?.error || error.message;
       setErrorMessage(`Error ending stream: ${errorMessage}`);
-  
     } finally {
       setIsLoading(false);
     }
   };
-
-
-
 
   // Toggle video with retry capability
   const toggleVideo = async () => {
@@ -860,7 +958,6 @@ const startStream = async () => {
       setErrorMessage("Failed to toggle video");
     }
   };
-
 
 
 
@@ -1134,59 +1231,7 @@ const startStream = async () => {
       </div>
       
       <div className="p-6">
-        {/* Show existing stream error if present */}
-        {existingStreamError && (
-          <div className="mb-6 p-4 bg-yellow-900/40 border border-yellow-800 rounded-lg">
-            <h4 className="text-yellow-500 font-semibold mb-2">Stream Already Active</h4>
-            <p className="text-gray-300 mb-3">
-              {existingStreamError.message}
-            </p>
-            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-3">
-              <button 
-                onClick={() => {
-                  // Navigate to the existing stream as host
-                  if (existingStreamError.existing_stream?.channel) {
-                    // Set stream settings to rejoin existing stream
-                    setStreamSettings(prev => ({
-                      ...prev,
-                      channel: existingStreamError.existing_stream.channel
-                    }));
-                    startStream();
-                  }
-                }}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm transition-colors"
-              >
-                Rejoin Existing Stream
-              </button>
-              <button 
-                onClick={async () => {
-                  // End the existing stream
-                  setIsLoading(true);
-                  try {
-                    await apiInstance.api.post('/api/livestream/end-stream/', {
-                      channel: existingStreamError.existing_stream.channel,
-                      abruptExit: false
-                    });
-                    
-                    // Clear the error
-                    setExistingStreamError(null);
-                    // Show success message
-                    setErrorMessage("Previous stream ended successfully. You can now start a new stream.");
-                    
-                  } catch (error) {
-                    console.error("Error ending existing stream:", error);
-                    setErrorMessage("Failed to end the existing stream. Please try again.");
-                  } finally {
-                    setIsLoading(false);
-                  }
-                }}
-                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded text-sm transition-colors"
-              >
-                End Existing Stream
-              </button>
-            </div>
-          </div>
-        )}
+
         
         <div className="text-center py-8">
           <div className="w-16 h-16 bg-blue-600/20 text-blue-400 rounded-full flex items-center justify-center mx-auto mb-4">
