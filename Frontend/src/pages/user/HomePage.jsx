@@ -91,14 +91,16 @@ const HomePage = () => {
           />
         </div>
 
-        {/* Desktop Sidebar */}
+        {/* Desktop Sidebar - Now has a max-height to prevent overlap with player */}
         <div 
           className={`
-            hidden md:block h-full
+            hidden md:block
             ${isSidebarExpanded ? 'w-64' : 'w-20'} 
             transition-all duration-300
             bg-black
+            overflow-y-auto
           `}
+          style={{ height: 'calc(100% - 90px)' }} // Reserve space for player
         >
           <Sidebar
             isSidebarExpanded={isSidebarExpanded}
@@ -116,7 +118,7 @@ const HomePage = () => {
           />
         )}
 
-        {/* Main Content Area */}
+        {/* Main Content Area - Also adjusted to account for player height */}
         <main className="flex-1 overflow-y-auto scrollbar-hidden">
           <div className="h-full pb-24 px-2 md:px-4 pt-2">
             <Outlet /> 
@@ -125,7 +127,7 @@ const HomePage = () => {
       </div>
 
       {/* Music Player - Fixed at bottom with higher z-index */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black to-black/95 shadow-lg">
+      <div className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black to-black/95 shadow-lg h-19">
         <div className="mx-auto max-w-screen-2xl">
           <MusicPlayer
             isPlaying={isPlaying}

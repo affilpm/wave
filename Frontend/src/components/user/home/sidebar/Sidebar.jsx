@@ -253,8 +253,8 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
         )}
       </div>
 
-      {/* Library Content */}
-      <div className="flex-1 overflow-y-auto px-2 scrollbar-hidden">
+      {/* Library Content - Adding pb-6 to ensure content doesn't get cut off at the bottom */}
+      <div className="flex-1 overflow-y-auto px-2 scrollbar-hidden pb-6">
         {isLoading ? (
           <div className="text-gray-400 text-center py-4">Loading library...</div>
         ) : error ? (
