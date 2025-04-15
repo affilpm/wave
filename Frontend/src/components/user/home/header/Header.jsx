@@ -8,11 +8,11 @@ import {
 import { useArtistStatus } from '../../../../hooks/useArtistStatus';
 import api from '../../../../api';
 import PremiumDetailsModal from './PremiumDetailsModal';
+import SearchComponent from './SearchComponent';
 
 const restrictedUrls = ['/studio'];
 
 const Header = ({ toggleMobileSidebar }) => {
-  const [searchQuery, setSearchQuery] = useState('');
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [showMobileActions, setShowMobileActions] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
@@ -205,18 +205,9 @@ const Header = ({ toggleMobileSidebar }) => {
             <span className="text-sm lg:text-base font-medium">Livestream</span>
           </button>
           
-          {/* Desktop Search */}
+          {/* Desktop Search Component */}
           <div className="flex-1 mx-2 lg:mx-4 max-w-md">
-            <div className="flex items-center bg-gray-800 rounded-full px-2">
-              <Search className="h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="bg-transparent text-white text-sm placeholder-gray-400 outline-none flex-1 p-2"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-            </div>
+            <SearchComponent isHeaderSearch={true} />
           </div>
         </div>
 
@@ -324,21 +315,11 @@ const Header = ({ toggleMobileSidebar }) => {
       {/* Mobile Search Bar - Expanded when toggle is clicked */}
       {showMobileSearch && (
         <div className="md:hidden px-2 py-2 bg-black">
-          <div className="flex items-center bg-gray-800 rounded-full px-3 py-2">
-            <Search className="h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search..."
-              className="bg-transparent text-white text-sm placeholder-gray-400 outline-none flex-1 ml-2"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              autoFocus
-            />
-          </div>
+          <SearchComponent onClose={() => setShowMobileSearch(false)} />
         </div>
       )}
 
-      {/* Mobile Actions Menu
+      {/* Mobile Actions Menu */}
       {showMobileActions && (
         <div 
           ref={mobileMenuRef}
@@ -367,7 +348,7 @@ const Header = ({ toggleMobileSidebar }) => {
             </button>
           ))}
         </div>
-      )} */}
+      )}
 
       {/* Premium Details Modal */}
       <PremiumDetailsModal 
