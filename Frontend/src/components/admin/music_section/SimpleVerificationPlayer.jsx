@@ -9,7 +9,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
   const audioRef = useRef(null);
   const secureUrlRef = useRef(null);
 
-  // Modified function to work with your CSP
+  // Improved secure media URL creation with better error handling
   const createSecureMediaUrl = (url) => {
     return new Promise((resolve, reject) => {
       // Check if URL is already a blob URL
@@ -18,33 +18,41 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
         return;
       }
       
-      // If the URL is from S3, use the proxy or direct connection based on CSP
-      try {
-        // Option 1: Use proxy path if set up
-        const proxyUrl = url.replace('https://wavebuckt12.s3.amazonaws.com', '/s3-media');
-        
-        fetch(proxyUrl, {
-          credentials: 'omit',
-          mode: 'cors',
-        })
-          .then(response => {
-            if (!response.ok) {
-              throw new Error(`Failed to fetch audio: ${response.status}`);
-            }
-            return response.blob();
-          })
-          .then(blob => {
-            const secureUrl = URL.createObjectURL(blob);
-            resolve(secureUrl);
-          })
-          .catch(error => {
-            console.error('Error creating secure URL:', error);
-            reject(error);
-          });
-      } catch (error) {
-        console.error('Error in createSecureMediaUrl:', error);
-        reject(error);
+      // Determine the appropriate way to fetch the audio
+      let fetchUrl = url;
+      
+      // If it's an S3 URL, route through our configured proxy
+      if (url.includes('s3.amazonaws.com')) {
+        // Extract the path from the S3 URL (everything after the domain)
+        const s3Path = url.split('s3.amazonaws.com/')[1];
+        if (s3Path) {
+          fetchUrl = `/s3-media/${s3Path}`;
+        }
       }
+      
+      console.log('Fetching audio from:', fetchUrl);
+      
+      fetch(fetchUrl, {
+        credentials: 'same-origin', // Use credentials for same-origin requests
+        mode: 'cors',
+        headers: {
+          'Accept': 'audio/*'
+        }
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          const secureUrl = URL.createObjectURL(blob);
+          resolve(secureUrl);
+        })
+        .catch(error => {
+          console.error('Error creating secure URL:', error);
+          reject(error);
+        });
     });
   };
 
@@ -69,7 +77,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
       } catch (err) {
         console.error('Failed to load audio:', err);
         if (isMounted) {
-          setError('Failed to load audio file');
+          setError(`Failed to load audio: ${err.message || 'Unknown error'}`);
           setLoading(false);
         }
       }
@@ -98,7 +106,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
       if (playPromise !== undefined) {
         playPromise.catch(error => {
           console.error('Error playing audio:', error);
-          setError('Playback failed. Please try again.');
+          setError(`Playback failed: ${error.message || 'Please try again'}`);
           // Update the UI state to reflect playback failure
           onPlayToggle(musicId, audioUrl);
         });
@@ -137,7 +145,31 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
 
   const handleError = (e) => {
     console.error("Audio error:", e);
-    setError('Failed to play audio file');
+    
+    // Extract more detailed error information if available
+    let errorMessage = 'Failed to play audio file';
+    
+    if (audioRef.current && audioRef.current.error) {
+      const mediaError = audioRef.current.error;
+      switch (mediaError.code) {
+        case MediaError.MEDIA_ERR_ABORTED:
+          errorMessage = 'Playback aborted by the user';
+          break;
+        case MediaError.MEDIA_ERR_NETWORK:
+          errorMessage = 'Network error while loading audio';
+          break;
+        case MediaError.MEDIA_ERR_DECODE:
+          errorMessage = 'Audio decoding failed';
+          break;
+        case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+          errorMessage = 'Audio format not supported';
+          break;
+        default:
+          errorMessage = `Playback error: ${mediaError.message || 'Unknown error'}`;
+      }
+    }
+    
+    setError(errorMessage);
     setLoading(false);
   };
 
@@ -153,8 +185,31 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
     setLoading(true);
     
     // Force reload of audio
+    if (secureUrlRef.current) {
+      URL.revokeObjectURL(secureUrlRef.current);
+      secureUrlRef.current = null;
+    }
+    
     if (audioRef.current) {
+      audioRef.current.src = "";
       audioRef.current.load();
+      
+      // Reload the audio with a slight delay
+      setTimeout(() => {
+        const loadSecureAudio = async () => {
+          try {
+            const secureUrl = await createSecureMediaUrl(audioUrl);
+            secureUrlRef.current = secureUrl;
+            audioRef.current.src = secureUrl;
+            audioRef.current.load();
+          } catch (err) {
+            console.error('Failed to reload audio:', err);
+            setError(`Failed to reload audio: ${err.message || 'Unknown error'}`);
+            setLoading(false);
+          }
+        };
+        loadSecureAudio();
+      }, 500);
     }
   };
 
