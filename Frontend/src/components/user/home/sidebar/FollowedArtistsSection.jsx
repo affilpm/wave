@@ -47,7 +47,7 @@ const FollowedArtistsSection = ({ artists, isSidebarExpanded }) => {
             `}>
               {artist.profile_photo ? (
                 <img
-                  src={`${import.meta.env.VITE_API_URL}${artist.profile_photo}`}
+                  src={`${artist.profile_photo}`}
                   alt={artist.username}
                   className={`rounded-full object-cover ${
                     isSidebarExpanded ? 'w-12 h-12' : 'w-10 h-10'
