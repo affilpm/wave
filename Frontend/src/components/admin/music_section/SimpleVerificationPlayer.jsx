@@ -17,25 +17,10 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
         return;
       }
       
-      // Determine the appropriate way to fetch the audio
-      let fetchUrl = url;
+      // Fetch directly from S3 without using the backend proxy
+      console.log('Fetching audio directly from:', url);
       
-      // If it's an S3 URL, route through our backend API proxy
-      if (url.includes('s3.amazonaws.com')) {
-        // Extract the full path after the bucket name
-        const fullPath = url.match(/s3\.amazonaws\.com\/([^/]+)\/(.+)/);
-        if (fullPath && fullPath.length >= 3) {
-          // The actual path is in capturing group 2
-          const mediaPath = fullPath[2];
-          fetchUrl = `https://api.affils.site/s3-media/${mediaPath}`;
-          console.log('Using API proxy for S3 content:', fetchUrl);
-        }
-      }
-      
-      console.log('Fetching audio from:', fetchUrl);
-      
-      fetch(fetchUrl, {
-        credentials: 'include',  // Include cookies for auth if needed
+      fetch(url, {
         mode: 'cors',
         headers: {
           'Accept': 'audio/*'
@@ -66,7 +51,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
     
     const loadSecureAudio = async () => {
       try {
-        // Use the modified createSecureMediaUrl function
+        // Directly use the S3 URL provided in props
         const secureUrl = await createSecureMediaUrl(audioUrl);
         
         if (isMounted) {
