@@ -39,12 +39,24 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
         proxyUrl = url;
       } else {
         // Default case - if it's not an S3 URL and not a relative URL
-        proxyUrl = `/s3-media/${url}`;
+        // Check if the URL contains a file name pattern (timestamp_somestring.mp3)
+        const fileNameMatch = url.match(/(\d+_[a-z0-9]+\.\w+)$/i);
+        if (fileNameMatch) {
+          proxyUrl = `/s3-media/media/music/${fileNameMatch[0]}`;
+        } else {
+          proxyUrl = `/s3-media/${url}`;
+        }
       }
       
       console.log('Fetching audio from:', proxyUrl);
       
-      fetch(proxyUrl)
+      // Make sure we're using relative URLs to benefit from the rewrite rules
+      fetch(proxyUrl, {
+        credentials: 'same-origin', // Include credentials if your API requires authentication
+        headers: {
+          'Accept': 'audio/*'
+        }
+      })
         .then(response => {
           if (!response.ok) {
             throw new Error(`Failed to fetch audio: ${response.status}`);
@@ -187,6 +199,9 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
   };
 
   const handleRetry = () => {
+    // Log the current URL to help with debugging
+    console.log('Retrying to load audio from URL:', audioUrl);
+    
     // Increment retry count to trigger the useEffect
     setRetryCount(prevCount => prevCount + 1);
     
@@ -207,19 +222,48 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
     }
   };
 
+  // Add direct fallback if everything else fails
+  const handleDirectFallback = () => {
+    setLoading(true);
+    setError(null);
+    
+    // Try to create a direct URL to the API
+    const directUrl = audioUrl.includes('s3.amazonaws.com') 
+      ? audioUrl  // Use the S3 URL directly
+      : `https://api.affils.site/s3-media/media/music/${audioUrl.split('/').pop()}`;
+    
+    console.log('Trying direct fallback URL:', directUrl);
+    
+    if (audioRef.current) {
+      audioRef.current.src = directUrl;
+      audioRef.current.crossOrigin = "anonymous";
+      audioRef.current.load();
+    }
+  };
+
   if (error) {
     return (
-      <div className="bg-red-50 dark:bg-red-900/20 rounded p-3 flex items-center justify-between">
-        <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-          <AlertCircle className="h-4 w-4" />
-          <span className="text-sm">{error}</span>
+      <div className="bg-red-50 dark:bg-red-900/20 rounded p-3 flex flex-col">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+            <AlertCircle className="h-4 w-4" />
+            <span className="text-sm">{error}</span>
+          </div>
         </div>
-        <button 
-          onClick={handleRetry}
-          className="text-xs bg-red-100 dark:bg-red-800 px-2 py-1 rounded text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-700 font-medium"
-        >
-          Retry
-        </button>
+        <div className="flex gap-2">
+          <button 
+            onClick={handleRetry}
+            className="text-xs bg-red-100 dark:bg-red-800 px-2 py-1 rounded text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-700 font-medium"
+          >
+            Retry
+          </button>
+          <button 
+            onClick={handleDirectFallback}
+            className="text-xs bg-blue-100 dark:bg-blue-800 px-2 py-1 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-700 font-medium"
+          >
+            Try Alternative Source
+          </button>
+        </div>
       </div>
     );
   }
