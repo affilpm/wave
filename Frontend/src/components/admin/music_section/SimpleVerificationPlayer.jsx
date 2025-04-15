@@ -9,7 +9,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
   const audioRef = useRef(null);
   const secureUrlRef = useRef(null);
 
-  // Modified function to work with your CSP
+  // Modified function to work with your production environment
   const createSecureMediaUrl = (url) => {
     return new Promise((resolve, reject) => {
       // Check if URL is already a blob URL
@@ -18,14 +18,31 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
         return;
       }
       
-      // If the URL is from S3, use the proxy or direct connection based on CSP
       try {
-        // Option 1: Use proxy path if set up
-        const proxyUrl = url.replace('https://wavebuckt12.s3.amazonaws.com', '/s3-media');
+        // Use a proxy approach - create a proxy URL that your server can handle
+        // This assumes your backend has an endpoint that can proxy S3 requests
+        // Example: Convert S3 URL to API proxy URL
+        let proxyUrl;
+        
+        if (url.includes('s3.amazonaws.com')) {
+          // Extract the path part from the S3 URL
+          const s3Path = url.split('amazonaws.com/')[1];
+          // Create a proxy URL through your API
+          proxyUrl = `/api/proxy-media/${s3Path}`;
+        } else {
+          // If it's not an S3 URL, use it directly with API domain
+          proxyUrl = url.startsWith('http') ? url : `https://api.affils.site${url}`;
+        }
+        
+        console.log("Fetching audio from proxy URL:", proxyUrl);
         
         fetch(proxyUrl, {
-          credentials: 'omit',
-          mode: 'cors',
+          method: 'GET',
+          headers: {
+            'Accept': 'audio/*',
+          },
+          // Include credentials if your API requires authentication
+          credentials: 'include',
         })
           .then(response => {
             if (!response.ok) {
@@ -39,7 +56,29 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
           })
           .catch(error => {
             console.error('Error creating secure URL:', error);
-            reject(error);
+            
+            // Fallback to direct URL if proxy fails
+            if (url.includes('s3.amazonaws.com') && !url.includes('proxy-attempt')) {
+              console.log("Proxy failed, attempting direct access with different approach");
+              // Create an audio element and load the URL directly
+              const audio = new Audio();
+              audio.crossOrigin = "anonymous";
+              audio.src = url + "?proxy-attempt=true"; // Add a parameter to prevent infinite recursion
+              
+              audio.oncanplaythrough = () => {
+                resolve(url);
+              };
+              
+              audio.onerror = (e) => {
+                console.error("Direct audio access failed:", e);
+                reject(new Error("Failed to load audio after multiple attempts"));
+              };
+              
+              // Try to load the audio
+              audio.load();
+            } else {
+              reject(error);
+            }
           });
       } catch (error) {
         console.error('Error in createSecureMediaUrl:', error);
@@ -69,7 +108,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
       } catch (err) {
         console.error('Failed to load audio:', err);
         if (isMounted) {
-          setError('Failed to load audio file');
+          setError('Failed to load audio file. Access might be restricted.');
           setLoading(false);
         }
       }
@@ -82,7 +121,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
     return () => {
       isMounted = false;
       // Clean up blob URL when component unmounts
-      if (secureUrlRef.current) {
+      if (secureUrlRef.current && secureUrlRef.current.startsWith('blob:')) {
         URL.revokeObjectURL(secureUrlRef.current);
       }
     };
@@ -98,7 +137,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
       if (playPromise !== undefined) {
         playPromise.catch(error => {
           console.error('Error playing audio:', error);
-          setError('Playback failed. Please try again.');
+          setError('Playback failed. This may be due to browser autoplay restrictions.');
           // Update the UI state to reflect playback failure
           onPlayToggle(musicId, audioUrl);
         });
@@ -137,7 +176,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
 
   const handleError = (e) => {
     console.error("Audio error:", e);
-    setError('Failed to play audio file');
+    setError('Failed to play audio file. Please check your connection or permissions.');
     setLoading(false);
   };
 
@@ -152,9 +191,34 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
     setError(null);
     setLoading(true);
     
-    // Force reload of audio
+    // Force reload of audio with clean state
+    if (secureUrlRef.current && secureUrlRef.current.startsWith('blob:')) {
+      URL.revokeObjectURL(secureUrlRef.current);
+      secureUrlRef.current = null;
+    }
+    
+    // Re-fetch the audio
     if (audioRef.current) {
-      audioRef.current.load();
+      audioRef.current.src = '';
+      loadSecureAudio();
+    }
+  };
+
+  // Helper function to reload the audio with clean state
+  const loadSecureAudio = async () => {
+    if (!audioUrl) return;
+    
+    try {
+      const secureUrl = await createSecureMediaUrl(audioUrl);
+      secureUrlRef.current = secureUrl;
+      if (audioRef.current) {
+        audioRef.current.src = secureUrl;
+        audioRef.current.load();
+      }
+    } catch (err) {
+      console.error('Failed to load audio on retry:', err);
+      setError('Failed to load audio file. Access might be restricted.');
+      setLoading(false);
     }
   };
 
