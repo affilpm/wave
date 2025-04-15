@@ -2,27 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Music, CheckCircle, XCircle, Play, Pause, Search, Filter, X } from 'lucide-react';
 import { musicVerificationService } from '../../../services/admin/musicVerificationService';
 import SearchSection from './SearchSection';
+import SimpleVerificationPlayer from './SimpleVerificationPlayer';
 
 
-// Existing utility function
-const createSecureMediaUrl = (url) => {
-  return new Promise((resolve, reject) => {
-    fetch(url, {
-      credentials: 'include'
-    })
-      .then(response => response.blob())
-      .then(blob => {
-        const secureUrl = URL.createObjectURL(blob);
-        resolve(secureUrl);
-      })
-      .catch(error => {
-        console.error('Error creating secure URL:', error);
-        reject(error);
-      });
-  });
-};
 
-// Existing LoadingSkeleton component
 const LoadingSkeleton = () => (
   <div className="space-y-4" aria-label="Loading content">
     {[1, 2, 3].map((i) => (
@@ -43,30 +26,16 @@ const LoadingSkeleton = () => (
   </div>
 );
 
-// Existing MusicVerificationCard component
+
 const MusicVerificationCard = ({ music, onApprove, onReject, isPlaying, onPlayToggle, disabled }) => {
-  const [secureAudioUrl, setSecureAudioUrl] = useState(null);
-  const [loadingAudio, setLoadingAudio] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [showPlayer, setShowPlayer] = useState(false);
 
-
+  // Show player automatically when playing
   useEffect(() => {
-    if (music.audio_url && !secureAudioUrl) {
-      setLoadingAudio(true);
-      createSecureMediaUrl(music.audio_url)
-        .then(url => {
-          setSecureAudioUrl(url);
-          setLoadingAudio(false);
-        })
-        .catch(() => setLoadingAudio(false));
+    if (isPlaying) {
+      setShowPlayer(true);
     }
-    
-    return () => {
-      if (secureAudioUrl) {
-        URL.revokeObjectURL(secureAudioUrl);
-      }
-    };
-  }, [music.audio_url]);
+  }, [isPlaying]);
 
   const statusColors = {
     pending: "bg-yellow-500/20 text-yellow-500",
@@ -77,14 +46,14 @@ const MusicVerificationCard = ({ music, onApprove, onReject, isPlaying, onPlayTo
   const handlePlayClick = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (secureAudioUrl) {
-      onPlayToggle(music.id, secureAudioUrl);
+    if (music.audio_url) {
+      onPlayToggle(music.id, music.audio_url);
+      setShowPlayer(true);
     }
   };
 
-
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md">
       <div className="p-4 sm:p-6">
         <div className="flex flex-col sm:flex-row gap-4">
           {/* Cover Image */}
@@ -106,6 +75,7 @@ const MusicVerificationCard = ({ music, onApprove, onReject, isPlaying, onPlayTo
               </div>
             )}
           </div>
+          
           {/* Content */}
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -126,61 +96,16 @@ const MusicVerificationCard = ({ music, onApprove, onReject, isPlaying, onPlayTo
                 {music.genres?.length > 0 ? music.genres.map(g => g.name).join(', ') : 'No Genre'}
               </p>
             </div>
-
-            {/* Mobile Controls */}
-            <div className="flex items-center justify-between sm:hidden pt-2">
-              <div className="flex items-center gap-2">
-                {secureAudioUrl && (
-                  <button
-                    type="button"
-                    onClick={handlePlayClick}
-                    className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                    disabled={disabled || loadingAudio}
-                    aria-label={isPlaying ? 'Pause' : 'Play'}
-                  >
-                    {isPlaying ? (
-                      <Pause className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-                    ) : (
-                      <Play className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-                    )}
-                  </button>
-                )}
-              </div>
-              <div className="flex gap-2">
-                {music.status !== 'approved' && (
-                  <button
-                    type="button"
-                    onClick={() => onApprove(music.id)}
-                    className="p-2 rounded-full hover:bg-green-50 dark:hover:bg-green-500/20 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
-                    disabled={disabled}
-                    aria-label="Approve"
-                  >
-                    <CheckCircle className="h-5 w-5 text-green-500" />
-                  </button>
-                )}
-                {music.status !== 'rejected' && (
-                  <button
-                    type="button"
-                    onClick={() => onReject(music.id)}
-                    className="p-2 rounded-full hover:bg-red-50 dark:hover:bg-red-500/20 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
-                    disabled={disabled}
-                    aria-label="Reject"
-                  >
-                    <XCircle className="h-5 w-5 text-red-500" />
-                  </button>
-                )}
-              </div>
-            </div>
           </div>
 
-          {/* Desktop Controls */}
-          <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
-            {secureAudioUrl && (
+          {/* Controls */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {music.audio_url && (
               <button
                 type="button"
                 onClick={handlePlayClick}
                 className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
-                disabled={disabled || loadingAudio}
+                disabled={disabled}
                 aria-label={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
@@ -217,6 +142,18 @@ const MusicVerificationCard = ({ music, onApprove, onReject, isPlaying, onPlayTo
             </div>
           </div>
         </div>
+        
+        {/* Simple Audio Player */}
+        {music.audio_url && showPlayer && (
+          <div className="mt-4">
+            <SimpleVerificationPlayer 
+              audioUrl={music.audio_url}
+              isPlaying={isPlaying}
+              onPlayToggle={onPlayToggle}
+              musicId={music.id}
+            />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -261,6 +198,7 @@ const MusicVerification = () => {
       setError(null);
       const data = await musicVerificationService.getPendingVerifications();
       setVerifications(data);
+      console.log('Fetched verifications:', data);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -268,45 +206,15 @@ const MusicVerification = () => {
     }
   };
 
-  const handlePlayToggle = async (musicId, secureAudioUrl) => {
-    try {
-      if (!secureAudioUrl) {
-        setError('No audio URL available');
-        return;
-      }
-
-      if (playingId === musicId && audioRef.current) {
-        if (audioRef.current.paused) {
-          await audioRef.current.play();
-        } else {
-          audioRef.current.pause();
-          setPlayingId(null);
-        }
-        return;
-      }
-
-      if (audioRef.current) {
-        audioRef.current.pause();
-      }
-
-      if (!audioRef.current) {
-        audioRef.current = new Audio();
-        audioRef.current.addEventListener('ended', () => {
-          setPlayingId(null);
-        });
-        audioRef.current.addEventListener('error', (e) => {
-          setError('Failed to load audio file');
-          setPlayingId(null);
-        });
-      }
-
-      audioRef.current.src = secureAudioUrl;
-      await audioRef.current.play();
-      setPlayingId(musicId);
-    } catch (err) {
-      setError('Failed to play audio: ' + err.message);
-      setPlayingId(null);
+  const handlePlayToggle = (musicId, audioUrl) => {
+    if (!audioUrl) {
+      setError('No audio URL available');
+      return;
     }
+  
+    // Simply toggle the playingId - turn it off if it's currently playing, 
+    // or switch to the new track if a different one was playing or none was playing
+    setPlayingId(prevPlayingId => prevPlayingId === musicId ? null : musicId);
   };
 
   const handleApprove = async (musicId) => {
