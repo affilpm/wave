@@ -1,50 +1,122 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { Play, Pause, AlertCircle } from 'lucide-react';
 
-const SimpleSongVerificationPlayer = ({ 
-  audioUrl, 
-  songName = "Untitled", 
-  artistName = "Unknown Artist", 
-  onApprove, 
-  onReject 
-}) => {
-  const [isPlaying, setIsPlaying] = useState(false);
+const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }) => {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const audioRef = useRef(null);
+  const secureUrlRef = useRef(null);
 
+  const createSecureMediaUrl = (url) => {
+    return new Promise((resolve, reject) => {
+      // Check if URL is already a blob URL
+      if (url.startsWith('blob:')) {
+        resolve(url);
+        return;
+      }
+      
+      // Determine the appropriate way to fetch the audio
+      let fetchUrl = url;
+      
+      // If it's an S3 URL, construct the proper proxy URL
+      if (url.includes('s3.amazonaws.com')) {
+        // Extract the bucket name and object key from the S3 URL
+        const s3UrlParts = url.split('s3.amazonaws.com/')[1];
+        
+        if (s3UrlParts) {
+          // Use the API endpoint directly instead of relying on relative paths
+          fetchUrl = `https://api.affils.site/s3-media/${s3UrlParts}`;
+          console.log('Using API proxy for S3 content:', fetchUrl);
+        }
+      }
+      
+      console.log('Fetching audio from:', fetchUrl);
+      
+      fetch(fetchUrl, {
+        credentials: 'same-origin',
+        mode: 'cors',
+        headers: {
+          'Accept': 'audio/*'
+        }
+      })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
+          }
+          return response.blob();
+        })
+        .then(blob => {
+          const secureUrl = URL.createObjectURL(blob);
+          resolve(secureUrl);
+        })
+        .catch(error => {
+          console.error('Error creating secure URL:', error);
+          reject(error);
+        });
+    });
+  };
+
+  // Load and secure the audio URL
   useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = '';
+    let isMounted = true;
+    setLoading(true);
+    setError(null);
+    
+    const loadSecureAudio = async () => {
+      try {
+        // Use the modified createSecureMediaUrl function
+        const secureUrl = await createSecureMediaUrl(audioUrl);
+        
+        if (isMounted) {
+          secureUrlRef.current = secureUrl;
+          if (audioRef.current) {
+            audioRef.current.src = secureUrl;
+            audioRef.current.load();
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load audio:', err);
+        if (isMounted) {
+          setError(`Failed to load audio: ${err.message || 'Unknown error'}`);
+          setLoading(false);
+        }
       }
     };
-  }, []);
 
-  useEffect(() => {
-    if (audioRef.current) {
-      if (isPlaying) {
-        const playPromise = audioRef.current.play();
-        
-        if (playPromise !== undefined) {
-          playPromise.catch(error => {
-            console.error('Error playing audio:', error);
-            setError(`Playback failed: ${error.message || 'Please try again'}`);
-            setIsPlaying(false);
-          });
-        }
-      } else {
-        audioRef.current.pause();
-      }
+    if (audioUrl) {
+      loadSecureAudio();
     }
-  }, [isPlaying]);
 
-  const handlePlayPause = () => {
-    setIsPlaying(!isPlaying);
-  };
+    return () => {
+      isMounted = false;
+      // Clean up blob URL when component unmounts
+      if (secureUrlRef.current) {
+        URL.revokeObjectURL(secureUrlRef.current);
+      }
+    };
+  }, [audioUrl]);
+
+  // Handle play/pause state changes
+  useEffect(() => {
+    if (!audioRef.current || loading || error) return;
+
+    if (isPlaying) {
+      const playPromise = audioRef.current.play();
+      
+      if (playPromise !== undefined) {
+        playPromise.catch(error => {
+          console.error('Error playing audio:', error);
+          setError(`Playback failed: ${error.message || 'Please try again'}`);
+          // Update the UI state to reflect playback failure
+          onPlayToggle(musicId, audioUrl);
+        });
+      }
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying, loading, error, audioUrl, musicId, onPlayToggle]);
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
@@ -68,13 +140,15 @@ const SimpleSongVerificationPlayer = ({
   };
 
   const handleEnded = () => {
-    setIsPlaying(false);
+    // When the audio ends, notify the parent to update playing state
+    onPlayToggle(musicId, audioUrl);
     setCurrentTime(0);
   };
 
   const handleError = (e) => {
     console.error("Audio error:", e);
     
+    // Extract more detailed error information if available
     let errorMessage = 'Failed to play audio file';
     
     if (audioRef.current && audioRef.current.error) {
@@ -112,16 +186,56 @@ const SimpleSongVerificationPlayer = ({
     setError(null);
     setLoading(true);
     
+    // Force reload of audio
+    if (secureUrlRef.current) {
+      URL.revokeObjectURL(secureUrlRef.current);
+      secureUrlRef.current = null;
+    }
+    
     if (audioRef.current) {
+      audioRef.current.src = "";
       audioRef.current.load();
+      
+      // Reload the audio with a slight delay
+      setTimeout(() => {
+        const loadSecureAudio = async () => {
+          try {
+            const secureUrl = await createSecureMediaUrl(audioUrl);
+            secureUrlRef.current = secureUrl;
+            audioRef.current.src = secureUrl;
+            audioRef.current.load();
+          } catch (err) {
+            console.error('Failed to reload audio:', err);
+            setError(`Failed to reload audio: ${err.message || 'Unknown error'}`);
+            setLoading(false);
+          }
+        };
+        loadSecureAudio();
+      }, 500);
     }
   };
 
+  if (error) {
+    return (
+      <div className="bg-red-50 dark:bg-red-900/20 rounded p-3 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+          <AlertCircle className="h-4 w-4" />
+          <span className="text-sm">{error}</span>
+        </div>
+        <button 
+          onClick={handleRetry}
+          className="text-xs text-red-600 dark:text-red-400 hover:text-red-500 font-medium"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
+    <div className="bg-gray-50 dark:bg-gray-800/50 rounded p-3 flex items-center gap-3">
       <audio
         ref={audioRef}
-        src={audioUrl}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
@@ -130,97 +244,48 @@ const SimpleSongVerificationPlayer = ({
         crossOrigin="anonymous"
       />
 
-      {/* Song Information */}
-      <div className="mb-4">
-        <h3 className="font-medium text-gray-900 dark:text-white">{songName}</h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400">{artistName}</p>
-      </div>
+      <button
+        type="button"
+        onClick={() => onPlayToggle(musicId, audioUrl)}
+        className={`p-2 rounded-full ${
+          isPlaying ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-gray-100 dark:bg-gray-700'
+        } hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none transition-colors`}
+        aria-label={isPlaying ? 'Pause' : 'Play'}
+        disabled={loading}
+      >
+        {loading ? (
+          <div className="h-4 w-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+        ) : isPlaying ? (
+          <Pause className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+        ) : (
+          <Play className="h-4 w-4 text-gray-600 dark:text-gray-300" />
+        )}
+      </button>
 
-      {error ? (
-        <div className="bg-red-50 dark:bg-red-900/20 rounded p-3 flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-            <AlertCircle className="h-4 w-4" />
-            <span className="text-sm">{error}</span>
-          </div>
-          <button 
-            onClick={handleRetry}
-            className="text-xs text-red-600 dark:text-red-400 hover:text-red-500 font-medium"
-          >
-            Retry
-          </button>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {/* Playback Controls */}
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handlePlayPause}
-              className={`p-2 rounded-full ${
-                isPlaying ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-gray-100 dark:bg-gray-700'
-              } hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none transition-colors`}
-              aria-label={isPlaying ? 'Pause' : 'Play'}
-              disabled={loading}
-            >
-              {loading ? (
-                <div className="h-5 w-5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
-              ) : isPlaying ? (
-                <Pause className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              ) : (
-                <Play className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-              )}
-            </button>
-
-            {/* Time and Progress Bar */}
-            <div className="flex-1 flex items-center gap-2">
-              <span className="text-xs text-gray-500 dark:text-gray-400 min-w-8">
-                {formatTime(currentTime)}
-              </span>
-              <input
-                type="range"
-                min="0"
-                max={duration || 100}
-                value={currentTime}
-                onChange={handleSeek}
-                className="flex-1 h-1.5 appearance-none rounded-full bg-gray-200 dark:bg-gray-700 focus:outline-none cursor-pointer"
-                disabled={loading || !duration}
-                style={{
-                  background: duration > 0 
-                    ? `linear-gradient(to right, #3b82f6 ${(currentTime / duration) * 100}%, #e5e7eb ${(currentTime / duration) * 100}%)`
-                    : undefined
-                }}
-              />
-              <span className="text-xs text-gray-500 dark:text-gray-400 min-w-8">
-                {formatTime(duration)}
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Verification Actions */}
-      <div className="mt-4 flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onApprove}
-          className="px-3 py-1.5 rounded-md flex items-center gap-1.5 bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
-          disabled={loading || error}
-        >
-          <CheckCircle className="h-4 w-4" />
-          <span>Approve</span>
-        </button>
-        <button
-          type="button"
-          onClick={onReject}
-          className="px-3 py-1.5 rounded-md flex items-center gap-1.5 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-          disabled={loading || error}
-        >
-          <XCircle className="h-4 w-4" />
-          <span>Reject</span>
-        </button>
+      <div className="flex-1 flex items-center gap-2">
+        <span className="text-xs text-gray-500 dark:text-gray-400 min-w-8">
+          {formatTime(currentTime)}
+        </span>
+        <input
+          type="range"
+          min="0"
+          max={duration || 100}
+          value={currentTime}
+          onChange={handleSeek}
+          className="flex-1 h-1.5 appearance-none rounded-full bg-gray-200 dark:bg-gray-700 focus:outline-none cursor-pointer"
+          disabled={loading || !duration}
+          style={{
+            background: duration > 0 
+              ? `linear-gradient(to right, #3b82f6 ${(currentTime / duration) * 100}%, #e5e7eb ${(currentTime / duration) * 100}%)`
+              : undefined
+          }}
+        />
+        <span className="text-xs text-gray-500 dark:text-gray-400 min-w-8">
+          {formatTime(duration)}
+        </span>
       </div>
     </div>
   );
 };
 
-export default SimpleSongVerificationPlayer;
+export default SimpleVerificationPlayer;
