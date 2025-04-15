@@ -31,10 +31,25 @@ const ArtistDetailPage = () => {
   const [totalDuration, setTotalDuration] = useState("");
   const [isFollowing, setIsFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   const [followersCount, setFollowersCount] = useState(0);
 
   const { musicId, isPlaying, currentPlaylistId, currentArtistId, queue } = useSelector((state) => state.musicPlayer);
+  
+  // Check if viewing on mobile device
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    // Initial check
+    checkMobile();
+    
+    // Add resize listener
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
   
   useEffect(() => {
     const fetchData = async () => {
@@ -228,21 +243,20 @@ const ArtistDetailPage = () => {
     return colors[index];
   };
   
-  const goBack = () => {
-    navigate(-1);
-  };
   
-  if (loading) return <div className="p-8 text-white">Loading artist details...</div>;
-  if (error) return <div className="p-8 text-red-500">{error}</div>;
-  if (!artist) return <div className="p-8 text-white">Artist not found</div>;
+  if (loading) return <div className="p-4 text-white">Loading artist details...</div>;
+  if (error) return <div className="p-4 text-red-500">{error}</div>;
+  if (!artist) return <div className="p-4 text-white">Artist not found</div>;
+  
+  // Increased bottom padding for mobile to ensure playlists are fully visible
+  const bottomPadding = isMobile ? "pb-40" : "pb-24";
   
   return (
-    <div className="flex-1 bg-gradient-to-b from-gray-900 via-black to-black text-white">
-
+    <div className={`w-full overflow-y-auto bg-gradient-to-b from-gray-900 via-black to-black text-white ${bottomPadding}`}>
       
       {/* Artist header section */}
-      <div className="flex flex-col md:flex-row items-end gap-6 p-6">
-        <div className="w-48 h-48 flex-shrink-0 rounded-full overflow-hidden">
+      <div className="flex flex-col items-center md:items-end md:flex-row gap-4 md:gap-6 p-4 md:p-6">
+        <div className="w-32 h-32 md:w-48 md:h-48 flex-shrink-0 rounded-full overflow-hidden">
           {artist.profile_photo ? (
             <img
               src={artist.profile_photo}
@@ -251,44 +265,47 @@ const ArtistDetailPage = () => {
             />
           ) : (
             <div
-              className={`w-full h-full flex items-center justify-center ${getColor(artist.username)} rounded-lg shadow-2xl text-4xl font-bold text-white`}
+              className={`w-full h-full flex items-center justify-center ${getColor(artist.username)} rounded-lg shadow-2xl text-2xl md:text-4xl font-bold text-white`}
             >
               {artist.username && artist.username.charAt(0).toUpperCase()}{artist.username && artist.username.charAt(artist.username.length - 1).toUpperCase()}
             </div>
           )}
         </div>
         
-        <div className="flex flex-col gap-4">
-          <span className="text-sm text-green-400 font-medium tracking-wider">Verified Artist</span>
+        <div className="flex flex-col gap-2 md:gap-4 text-center md:text-left">
+          <span className="text-xs md:text-sm text-green-400 font-medium tracking-wider">Verified Artist</span>
 
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
+          <h1 className="text-3xl md:text-5xl lg:text-7xl font-bold tracking-tight">
             {artist.username}
           </h1>
-          {artist.bio && <p className="text-gray-300 max-w-2xl">{artist.bio}</p>}
-          <div className="flex items-center gap-4 text-gray-300">
-            <span className="text-sm">
-              {publicSongs.length} songs • {playlists.length} public playlists • {followersCount} followers • {totalDuration}
+          {artist.bio && <p className="text-gray-300 max-w-2xl text-sm md:text-base">{artist.bio}</p>}
+          <div className="flex flex-wrap justify-center md:justify-start items-center gap-2 md:gap-4 text-gray-300">
+            <span className="text-xs md:text-sm">
+              {publicSongs.length} songs • {playlists.length} public playlists
+            </span>
+            <span className="text-xs md:text-sm hidden sm:inline">
+              • {followersCount} followers • {totalDuration}
             </span>
           </div>
         </div>
       </div>
       
       {/* Action Buttons */}
-      <div className="flex items-center gap-4 p-6">
+      <div className="flex items-center justify-center md:justify-start gap-3 md:gap-4 p-4 md:p-6">
         <button
-          className="w-14 h-14 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors"
+          className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors"
           onClick={handlePlayAll}
           disabled={publicSongs.length === 0}
         >
           {isPlaying && isCurrentTrackFromArtist() ? (
-            <Pause className="h-6 w-6 text-black" />
+            <Pause className="h-5 w-5 md:h-6 md:w-6 text-black" />
           ) : (
-            <Play className="h-6 w-6 text-black ml-1" />
+            <Play className="h-5 w-5 md:h-6 md:w-6 text-black ml-1" />
           )}
         </button>
         
         <button
-          className={`px-6 py-2 font-semibold rounded-full border ${
+          className={`px-4 py-2 text-sm md:text-base md:px-6 md:py-2 font-semibold rounded-full border ${
             isFollowing 
               ? "bg-white text-black border-white hover:bg-transparent hover:text-white" 
               : "text-white border-gray-400 hover:border-white"
@@ -300,96 +317,98 @@ const ArtistDetailPage = () => {
         </button>
         
         <button className="p-2 text-gray-400 hover:text-white transition-colors">
-          <Share2 className="h-6 w-6" />
+          <Share2 className="h-5 w-5 md:h-6 md:w-6" />
         </button>
       </div>
       
       {/* Songs section */}
-      <div className="flex-1 p-6">
-        <h2 className="text-2xl font-bold mb-4">Songs</h2>
+      <div className="p-4 md:p-6">
+        <h2 className="text-xl md:text-2xl font-bold mb-3 md:mb-4">Songs</h2>
         
         {publicSongs.length === 0 ? (
           <p className="text-gray-400">This artist has no public songs yet.</p>
         ) : (
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="text-gray-400 border-b border-gray-800">
-                <th className="font-normal py-3 w-12 pl-4">#</th>
-                <th className="font-normal text-left py-3 pl-3">Title</th>
-                <th className="font-normal text-left py-3 hidden md:table-cell pl-3">
-                  Added
-                </th>
-                <th className="font-normal text-center py-3 w-20">
-                  <Clock className="h-4 w-4 inline" />
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {publicSongs.map((song, index) => {
-                const isThisTrackPlaying = Number(musicId) === Number(song.id) && 
-                                          isCurrentTrackFromArtist() && isPlaying;
-                
-                return (
-                  <tr
-                    key={song.id}
-                    className={`group hover:bg-white/10 transition-colors ${
-                      isThisTrackPlaying ? "bg-white/20" : ""
-                    }`}
-                    onClick={() => handlePlaySong(song)}
-                  >
-                    <td className="py-3 pl-4">
-                      <div className="flex items-center justify-center w-8 group">
-                        <span className="group-hover:hidden">{index + 1}</span>
-                        <button
-                          className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handlePlaySong(song, e);
-                          }}
-                        >
-                          {isThisTrackPlaying ? (
-                            <Pause className="h-4 w-4" />
-                          ) : (
-                            <Play className="h-4 w-4" />
-                          )}
-                        </button>
-                      </div>
-                    </td>
-                    <td className="py-3 pl-3">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={song.cover_photo || "/api/placeholder/40/40"}
-                          alt={song.title}
-                          className="w-10 h-10 rounded-md"
-                        />
-                        <div>
-                          <div className={isThisTrackPlaying ? "text-green-500" : "text-white"}>
-                            {song.title}
-                          </div>
-                          <div className="text-sm text-gray-400">{artist.username}</div>
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse min-w-full">
+              <thead>
+                <tr className="text-gray-400 border-b border-gray-800">
+                  <th className="font-normal py-2 md:py-3 w-10 md:w-12 pl-2 md:pl-4">#</th>
+                  <th className="font-normal text-left py-2 md:py-3 pl-2 md:pl-3">Title</th>
+                  <th className="font-normal text-left py-2 md:py-3 hidden md:table-cell pl-3">
+                    Added
+                  </th>
+                  <th className="font-normal text-center py-2 md:py-3 w-16 md:w-20">
+                    <Clock className="h-4 w-4 inline" />
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {publicSongs.map((song, index) => {
+                  const isThisTrackPlaying = Number(musicId) === Number(song.id) && 
+                                            isCurrentTrackFromArtist() && isPlaying;
+                  
+                  return (
+                    <tr
+                      key={song.id}
+                      className={`group hover:bg-white/10 transition-colors ${
+                        isThisTrackPlaying ? "bg-white/20" : ""
+                      }`}
+                      onClick={() => handlePlaySong(song)}
+                    >
+                      <td className="py-2 md:py-3 pl-2 md:pl-4">
+                        <div className="flex items-center justify-center w-6 md:w-8 group">
+                          <span className="group-hover:hidden text-xs md:text-sm">{index + 1}</span>
+                          <button
+                            className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handlePlaySong(song, e);
+                            }}
+                          >
+                            {isThisTrackPlaying ? (
+                              <Pause className="h-3 w-3 md:h-4 md:w-4" />
+                            ) : (
+                              <Play className="h-3 w-3 md:h-4 md:w-4" />
+                            )}
+                          </button>
                         </div>
-                      </div>
-                    </td>
-                    <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
-                      {song.release_date}
-                    </td>
-                    <td className="py-3 text-center text-gray-400 w-20">
-                      {formatDuration(song.duration)}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td className="py-2 md:py-3 pl-2 md:pl-3">
+                        <div className="flex items-center gap-2 md:gap-3">
+                          <img
+                            src={song.cover_photo || "/api/placeholder/40/40"}
+                            alt={song.title}
+                            className="w-8 h-8 md:w-10 md:h-10 rounded-md"
+                          />
+                          <div>
+                            <div className={`text-sm md:text-base ${isThisTrackPlaying ? "text-green-500" : "text-white"}`}>
+                              {song.title}
+                            </div>
+                            <div className="text-xs md:text-sm text-gray-400">{artist.username}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="py-2 md:py-3 pl-3 hidden md:table-cell text-gray-400">
+                        {song.release_date}
+                      </td>
+                      <td className="py-2 md:py-3 text-center text-gray-400 text-xs md:text-sm w-16 md:w-20">
+                        {formatDuration(song.duration)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
-      {/* Playlists section */}
+      {/* Playlists section - Added mb-20 to ensure bottom content is visible on mobile */}
       {playlists.length > 0 && (
-        <div className="flex-1 p-6">
-          <h2 className="text-2xl font-bold mb-4">Playlists</h2>
+        <div className="p-4 md:p-6 mb-10 md:mb-0">
+          <h2 className="text-xl md:text-2xl font-bold mb-3 md:mb-4">Playlists</h2>
           
-          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 md:gap-3">
             {playlists.map((playlist) => (
               <div
                 key={playlist.id}
@@ -405,12 +424,12 @@ const ArtistDetailPage = () => {
                   {/* Play button overlay */}
                   <button
                     onClick={(e) => handlePlayClick(e, playlist)}
-                    className="absolute bottom-2 right-2 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 hover:bg-green-400 transition-all duration-200 shadow-xl"
+                    className="absolute bottom-2 right-2 w-8 h-8 md:w-10 md:h-10 bg-green-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 hover:bg-green-400 transition-all duration-200 shadow-xl"
                   >
                     {Number(currentPlaylistId) === Number(playlist.id) && isPlaying ? (
-                      <Pause className="w-5 h-5 text-black" />
+                      <Pause className="w-4 h-4 md:w-5 md:h-5 text-black" />
                     ) : (
-                      <PlayCircle className="w-5 h-5 text-black" />
+                      <PlayCircle className="w-4 h-4 md:w-5 md:h-5 text-black" />
                     )}
                   </button>
                 </div>
@@ -425,8 +444,6 @@ const ArtistDetailPage = () => {
           </div>
         </div>
       )}
-      
-
     </div>
   );
 };
