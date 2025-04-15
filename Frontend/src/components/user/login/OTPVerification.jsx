@@ -88,7 +88,6 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
         
         try {
             // Include the current timestamp when the user submitted the OTP
-            // This helps the server determine if the submission was made before expiration
             const submitted_at = Date.now() / 1000; // Convert to seconds to match server time
             
             const response = await api.post('/api/users/verify-otp/', { 
@@ -123,7 +122,7 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
                 isAuthenticated: true,
             }));
     
-            // Navigate to home **AFTER** updating state
+            // Navigate to home after updating state
             navigate('/home');
         } catch (err) {
             const errorMessage = err.response?.data?.error || 'Failed to verify OTP';
@@ -149,32 +148,33 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
     };
 
     return (
-        <div className="text-center">
-            <div className="text-center mb-10">
-                <h2 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-4">
+        <div className="text-center px-4 sm:px-0">
+            <div className="text-center mb-6 sm:mb-10">
+                <h2 className="text-3xl sm:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-2 sm:mb-4">
                     Verify Email
                 </h2>
-                <p className="text-gray-400 max-w-md mx-auto">
-                    We've sent a verification code to {email}
+                <p className="text-gray-400 max-w-md mx-auto text-sm sm:text-base">
+                    We've sent a verification code to <span className="break-all">{email}</span>
                 </p>
             </div>
 
             {otpExpired && (
-                <div className="mb-6 p-3 bg-red-900/30 border border-red-800 rounded-lg flex items-center justify-center text-red-300">
-                    <AlertTriangle className="h-5 w-5 mr-2" />
+                <div className="mb-4 sm:mb-6 p-2 sm:p-3 bg-red-900/30 border border-red-800 rounded-lg flex flex-wrap items-center justify-center text-red-300 text-xs sm:text-sm">
+                    <AlertTriangle className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                     <span>OTP has expired. Please request a new one.</span>
                 </div>
             )}
 
-            <form onSubmit={handleVerifyOTP} className="max-w-md mx-auto space-y-6">
+            <form onSubmit={handleVerifyOTP} className="max-w-md mx-auto space-y-4 sm:space-y-6">
                 <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Shield className="h-5 w-5 text-gray-400" />
+                        <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-gray-400" />
                     </div>
                     <input
                         id="otp"
                         name="otp"
-                        type="text"
+                        type="number"
+                        inputMode="numeric"
                         required
                         maxLength={6}
                         pattern="\d{6}"
@@ -189,34 +189,34 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
                 </div>
                 
                 {!otpExpired && timeLeft > 0 && (
-                    <div className={`text-sm ${timeLeft <= 5 ? 'text-red-400' : 'text-yellow-400'}`}>
+                    <div className={`text-xs sm:text-sm ${timeLeft <= 5 ? 'text-red-400' : 'text-yellow-400'}`}>
                         OTP expires in {timeLeft} seconds
                     </div>
                 )}
                 
                 {error && (
-                    <div className="mt-2 text-sm text-red-400">{error}</div>
+                    <div className="mt-1 sm:mt-2 text-xs sm:text-sm text-red-400">{error}</div>
                 )}
 
                 <button
                     type="submit"
                     disabled={loading || otp.length !== 6 || otpExpired}
-                    className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl 
+                    className="w-full py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl 
                     hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 
                     transition duration-300 ease-in-out transform hover:scale-[1.02] 
-                    disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm sm:text-base"
                 >
                     {loading ? (
                         <>
-                            <Loader className="animate-spin mr-3 h-5 w-5" />
-                            Verifying...
+                            <Loader className="animate-spin mr-2 h-4 w-4 sm:h-5 sm:w-5" />
+                            <span>Verifying...</span>
                         </>
                     ) : (
                         'Verify OTP'
                     )}
                 </button>
 
-                <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center justify-between text-xs sm:text-sm">
                     <button
                         type="button"
                         onClick={() => setIsOtpSent(false)}
