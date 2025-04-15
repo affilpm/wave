@@ -8,6 +8,7 @@ router.register(r'public_genres', PublicGenresViewSet, basename='public_genres')
 
 
 urlpatterns = [
+    path('search/', views.search_music, name='search_music'),
     path('musiclist/', MusicListView.as_view(), name='music-list'),
     path('playlist/', PlaylistView.as_view(), name='playlist-list'),
     path('albumlist/', AlbumListView.as_view(), name='album-list'),

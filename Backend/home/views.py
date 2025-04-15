@@ -233,3 +233,47 @@ def home_playlist(request):
     
     serializer = PlaylistSerializer(playlists, many=True)
     return Response(serializer.data)
+
+
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def search_music(request):
+    """
+    Search for music by name, artist name, or genre
+    """
+    query = request.GET.get('query', '')
+    
+    if not query:
+        return Response(
+            {'error': 'Query parameter is required'},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    # Search music by name, artist name, or genre
+    music = Music.objects.filter(
+        Q(approval_status='approved') & 
+        Q(is_public=True) &
+        (
+            Q(name__icontains=query) | 
+            Q(artist__user__username__icontains=query) |
+            Q(genres__name__icontains=query)
+        )
+    ).distinct()
+    
+    # Format the response
+    results = Music_ListSerializer(music, many=True).data
+    
+    # Add additional fields needed for the player
+    for item in results:
+        music_obj = Music.objects.get(id=item['id'])
+        item['audio_file'] = music_obj.audio_file.url if music_obj.audio_file else None
+        item['video_file'] = music_obj.video_file.url if music_obj.video_file else None
+        item['artist_id'] = music_obj.artist.id
+        item['duration'] = str(music_obj.duration) if music_obj.duration else None
+    
+    return Response({
+        'results': results,
+        'count': len(results)
+    })
