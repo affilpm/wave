@@ -20,14 +20,14 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
       // Determine the appropriate way to fetch the audio
       let fetchUrl = url;
       
-      // If it's an S3 URL, construct the proper proxy URL
+      // If it's an S3 URL, route through our backend API proxy
       if (url.includes('s3.amazonaws.com')) {
-        // Extract the bucket name and object key from the S3 URL
-        const s3UrlParts = url.split('s3.amazonaws.com/')[1];
-        
-        if (s3UrlParts) {
-          // Use the API endpoint directly instead of relying on relative paths
-          fetchUrl = `https://api.affils.site/s3-media/${s3UrlParts}`;
+        // Extract the full path after the bucket name
+        const fullPath = url.match(/s3\.amazonaws\.com\/([^/]+)\/(.+)/);
+        if (fullPath && fullPath.length >= 3) {
+          // The actual path is in capturing group 2
+          const mediaPath = fullPath[2];
+          fetchUrl = `https://api.affils.site/s3-media/${mediaPath}`;
           console.log('Using API proxy for S3 content:', fetchUrl);
         }
       }
@@ -35,7 +35,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
       console.log('Fetching audio from:', fetchUrl);
       
       fetch(fetchUrl, {
-        credentials: 'same-origin',
+        credentials: 'include',  // Include cookies for auth if needed
         mode: 'cors',
         headers: {
           'Accept': 'audio/*'
