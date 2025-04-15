@@ -1,138 +1,50 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, AlertCircle } from 'lucide-react';
+import { Play, Pause, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
 
-const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }) => {
+const SimpleSongVerificationPlayer = ({ 
+  audioUrl, 
+  songName = "Untitled", 
+  artistName = "Unknown Artist", 
+  onApprove, 
+  onReject 
+}) => {
+  const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [retryCount, setRetryCount] = useState(0);
   const audioRef = useRef(null);
-  const secureUrlRef = useRef(null);
 
-  // Create a secure URL for the audio file
-  const createSecureMediaUrl = (url) => {
-    return new Promise((resolve, reject) => {
-      // Check if URL is already a blob URL
-      if (url.startsWith('blob:')) {
-        resolve(url);
-        return;
-      }
-      
-      // Create a proxy URL that works with our backend
-      let proxyUrl;
-      
-      if (url.includes('s3.amazonaws.com')) {
-        // Extract the path after the bucket name
-        const s3UrlParts = url.split('s3.amazonaws.com/');
-        if (s3UrlParts.length > 1) {
-          // Use the path after the bucket name
-          proxyUrl = `/s3-media/${s3UrlParts[1]}`;
-        } else {
-          // Fallback - use the original URL but with the /s3-media prefix
-          const urlParts = url.split('/');
-          const fileName = urlParts[urlParts.length - 1];
-          proxyUrl = `/s3-media/media/music/${fileName}`;
-        }
-      } else if (url.startsWith('/')) {
-        // If it's already a relative URL, use it as is
-        proxyUrl = url;
-      } else {
-        // Default case - if it's not an S3 URL and not a relative URL
-        // Check if the URL contains a file name pattern (timestamp_somestring.mp3)
-        const fileNameMatch = url.match(/(\d+_[a-z0-9]+\.\w+)$/i);
-        if (fileNameMatch) {
-          proxyUrl = `/s3-media/media/music/${fileNameMatch[0]}`;
-        } else {
-          proxyUrl = `/s3-media/${url}`;
-        }
-      }
-      
-      console.log('Fetching audio from:', proxyUrl);
-      
-      // Make sure we're using relative URLs to benefit from the rewrite rules
-      fetch(proxyUrl, {
-        credentials: 'same-origin', // Include credentials if your API requires authentication
-        headers: {
-          'Accept': 'audio/*'
-        }
-      })
-        .then(response => {
-          if (!response.ok) {
-            throw new Error(`Failed to fetch audio: ${response.status}`);
-          }
-          return response.blob();
-        })
-        .then(blob => {
-          // Create a blob URL for the audio
-          const secureUrl = URL.createObjectURL(blob);
-          resolve(secureUrl);
-        })
-        .catch(error => {
-          console.error('Error creating secure URL:', error);
-          reject(error);
-        });
-    });
-  };
-
-  // Load and secure the audio URL
   useEffect(() => {
-    let isMounted = true;
-    setLoading(true);
-    setError(null);
-    
-    const loadSecureAudio = async () => {
-      try {
-        const secureUrl = await createSecureMediaUrl(audioUrl);
-        
-        if (isMounted) {
-          secureUrlRef.current = secureUrl;
-          if (audioRef.current) {
-            audioRef.current.src = secureUrl;
-            audioRef.current.load();
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load audio:', err);
-        if (isMounted) {
-          setError(`Failed to load audio: ${err.message}`);
-          setLoading(false);
-        }
-      }
-    };
-
-    if (audioUrl) {
-      loadSecureAudio();
-    }
-
     return () => {
-      isMounted = false;
-      // Clean up blob URL when component unmounts
-      if (secureUrlRef.current) {
-        URL.revokeObjectURL(secureUrlRef.current);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.src = '';
       }
     };
-  }, [audioUrl, retryCount]);
+  }, []);
 
-  // Handle play/pause state changes
   useEffect(() => {
-    if (!audioRef.current || loading || error) return;
-
-    if (isPlaying) {
-      const playPromise = audioRef.current.play();
-      
-      if (playPromise !== undefined) {
-        playPromise.catch(error => {
-          console.error('Error playing audio:', error);
-          setError(`Playback failed: ${error.message}`);
-          // Update the UI state to reflect playback failure
-          onPlayToggle(musicId, audioUrl);
-        });
+    if (audioRef.current) {
+      if (isPlaying) {
+        const playPromise = audioRef.current.play();
+        
+        if (playPromise !== undefined) {
+          playPromise.catch(error => {
+            console.error('Error playing audio:', error);
+            setError(`Playback failed: ${error.message || 'Please try again'}`);
+            setIsPlaying(false);
+          });
+        }
+      } else {
+        audioRef.current.pause();
       }
-    } else {
-      audioRef.current.pause();
     }
-  }, [isPlaying, loading, error, audioUrl, musicId, onPlayToggle]);
+  }, [isPlaying]);
+
+  const handlePlayPause = () => {
+    setIsPlaying(!isPlaying);
+  };
 
   const handleTimeUpdate = () => {
     if (audioRef.current) {
@@ -156,22 +68,20 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
   };
 
   const handleEnded = () => {
-    // When the audio ends, notify the parent to update playing state
-    onPlayToggle(musicId, audioUrl);
+    setIsPlaying(false);
     setCurrentTime(0);
   };
 
   const handleError = (e) => {
     console.error("Audio error:", e);
     
-    // Extract detailed error information if available
     let errorMessage = 'Failed to play audio file';
     
     if (audioRef.current && audioRef.current.error) {
       const mediaError = audioRef.current.error;
       switch (mediaError.code) {
         case MediaError.MEDIA_ERR_ABORTED:
-          errorMessage = 'Playback aborted';
+          errorMessage = 'Playback aborted by the user';
           break;
         case MediaError.MEDIA_ERR_NETWORK:
           errorMessage = 'Network error while loading audio';
@@ -199,79 +109,19 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
   };
 
   const handleRetry = () => {
-    // Log the current URL to help with debugging
-    console.log('Retrying to load audio from URL:', audioUrl);
-    
-    // Increment retry count to trigger the useEffect
-    setRetryCount(prevCount => prevCount + 1);
-    
-    // Reset state
     setError(null);
     setLoading(true);
     
-    // Clean up any existing blob URL
-    if (secureUrlRef.current) {
-      URL.revokeObjectURL(secureUrlRef.current);
-      secureUrlRef.current = null;
-    }
-    
-    // Clear the audio source
     if (audioRef.current) {
-      audioRef.current.src = "";
       audioRef.current.load();
     }
   };
-
-  // Add direct fallback if everything else fails
-  const handleDirectFallback = () => {
-    setLoading(true);
-    setError(null);
-    
-    // Try to create a direct URL to the API
-    const directUrl = audioUrl.includes('s3.amazonaws.com') 
-      ? audioUrl  // Use the S3 URL directly
-      : `https://api.affils.site/s3-media/media/music/${audioUrl.split('/').pop()}`;
-    
-    console.log('Trying direct fallback URL:', directUrl);
-    
-    if (audioRef.current) {
-      audioRef.current.src = directUrl;
-      audioRef.current.crossOrigin = "anonymous";
-      audioRef.current.load();
-    }
-  };
-
-  if (error) {
-    return (
-      <div className="bg-red-50 dark:bg-red-900/20 rounded p-3 flex flex-col">
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
-            <AlertCircle className="h-4 w-4" />
-            <span className="text-sm">{error}</span>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button 
-            onClick={handleRetry}
-            className="text-xs bg-red-100 dark:bg-red-800 px-2 py-1 rounded text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-700 font-medium"
-          >
-            Retry
-          </button>
-          <button 
-            onClick={handleDirectFallback}
-            className="text-xs bg-blue-100 dark:bg-blue-800 px-2 py-1 rounded text-blue-600 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-700 font-medium"
-          >
-            Try Alternative Source
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-800/50 rounded p-3 flex items-center gap-3">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-4">
       <audio
         ref={audioRef}
+        src={audioUrl}
         onTimeUpdate={handleTimeUpdate}
         onLoadedMetadata={handleLoadedMetadata}
         onEnded={handleEnded}
@@ -280,48 +130,97 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
         crossOrigin="anonymous"
       />
 
-      <button
-        type="button"
-        onClick={() => onPlayToggle(musicId, audioUrl)}
-        className={`p-2 rounded-full ${
-          isPlaying ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-gray-100 dark:bg-gray-700'
-        } hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none transition-colors`}
-        aria-label={isPlaying ? 'Pause' : 'Play'}
-        disabled={loading}
-      >
-        {loading ? (
-          <div className="h-4 w-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
-        ) : isPlaying ? (
-          <Pause className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-        ) : (
-          <Play className="h-4 w-4 text-gray-600 dark:text-gray-300" />
-        )}
-      </button>
+      {/* Song Information */}
+      <div className="mb-4">
+        <h3 className="font-medium text-gray-900 dark:text-white">{songName}</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{artistName}</p>
+      </div>
 
-      <div className="flex-1 flex items-center gap-2">
-        <span className="text-xs text-gray-500 dark:text-gray-400 min-w-8">
-          {formatTime(currentTime)}
-        </span>
-        <input
-          type="range"
-          min="0"
-          max={duration || 100}
-          value={currentTime}
-          onChange={handleSeek}
-          className="flex-1 h-1.5 appearance-none rounded-full bg-gray-200 dark:bg-gray-700 focus:outline-none cursor-pointer"
-          disabled={loading || !duration}
-          style={{
-            background: duration > 0 
-              ? `linear-gradient(to right, #3b82f6 ${(currentTime / duration) * 100}%, #e5e7eb ${(currentTime / duration) * 100}%)`
-              : undefined
-          }}
-        />
-        <span className="text-xs text-gray-500 dark:text-gray-400 min-w-8">
-          {formatTime(duration)}
-        </span>
+      {error ? (
+        <div className="bg-red-50 dark:bg-red-900/20 rounded p-3 flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2 text-red-600 dark:text-red-400">
+            <AlertCircle className="h-4 w-4" />
+            <span className="text-sm">{error}</span>
+          </div>
+          <button 
+            onClick={handleRetry}
+            className="text-xs text-red-600 dark:text-red-400 hover:text-red-500 font-medium"
+          >
+            Retry
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* Playback Controls */}
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handlePlayPause}
+              className={`p-2 rounded-full ${
+                isPlaying ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-gray-100 dark:bg-gray-700'
+              } hover:bg-blue-200 dark:hover:bg-blue-900/50 focus:outline-none transition-colors`}
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+              disabled={loading}
+            >
+              {loading ? (
+                <div className="h-5 w-5 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+              ) : isPlaying ? (
+                <Pause className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              ) : (
+                <Play className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+              )}
+            </button>
+
+            {/* Time and Progress Bar */}
+            <div className="flex-1 flex items-center gap-2">
+              <span className="text-xs text-gray-500 dark:text-gray-400 min-w-8">
+                {formatTime(currentTime)}
+              </span>
+              <input
+                type="range"
+                min="0"
+                max={duration || 100}
+                value={currentTime}
+                onChange={handleSeek}
+                className="flex-1 h-1.5 appearance-none rounded-full bg-gray-200 dark:bg-gray-700 focus:outline-none cursor-pointer"
+                disabled={loading || !duration}
+                style={{
+                  background: duration > 0 
+                    ? `linear-gradient(to right, #3b82f6 ${(currentTime / duration) * 100}%, #e5e7eb ${(currentTime / duration) * 100}%)`
+                    : undefined
+                }}
+              />
+              <span className="text-xs text-gray-500 dark:text-gray-400 min-w-8">
+                {formatTime(duration)}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Verification Actions */}
+      <div className="mt-4 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onApprove}
+          className="px-3 py-1.5 rounded-md flex items-center gap-1.5 bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30 transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+          disabled={loading || error}
+        >
+          <CheckCircle className="h-4 w-4" />
+          <span>Approve</span>
+        </button>
+        <button
+          type="button"
+          onClick={onReject}
+          className="px-3 py-1.5 rounded-md flex items-center gap-1.5 bg-red-50 text-red-600 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+          disabled={loading || error}
+        >
+          <XCircle className="h-4 w-4" />
+          <span>Reject</span>
+        </button>
       </div>
     </div>
   );
 };
 
-export default SimpleVerificationPlayer;
+export default SimpleSongVerificationPlayer;
