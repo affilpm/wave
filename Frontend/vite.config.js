@@ -35,9 +35,10 @@ export default defineConfig({
           https://web-2.statscollector.sd-rtn.com 
           https://statscollector-1.agora.io
           wss://107-155-41-35.edge.agora.io:* wss://107-155-41-35.edge.sd-rtn.com:*
-          wss://*.edge.agora.io:* wss://*.edge.sd-rtn.com:*;
-        img-src 'self' https: data: https://api.affils.site blob:;
-        media-src 'self' blob: data: https://api.affils.site;
+          wss://*.edge.agora.io:* wss://*.edge.sd-rtn.com:*
+          https://wavebuckt12.s3.amazonaws.com;
+        img-src 'self' https: data: blob: https://wavebuckt12.s3.amazonaws.com;
+        media-src 'self' blob: data: https://api.affils.site https://wavebuckt12.s3.amazonaws.com;
         font-src 'self' data:;
         worker-src 'self' blob:;
       `.replace(/\s+/g, ' ').trim(),
