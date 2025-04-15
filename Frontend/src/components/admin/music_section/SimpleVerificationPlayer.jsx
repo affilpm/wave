@@ -6,10 +6,11 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
   const [duration, setDuration] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [retryCount, setRetryCount] = useState(0);
   const audioRef = useRef(null);
   const secureUrlRef = useRef(null);
 
-  // Improved secure media URL creation with better error handling
+  // Create a secure URL for the audio file
   const createSecureMediaUrl = (url) => {
     return new Promise((resolve, reject) => {
       // Check if URL is already a blob URL
@@ -18,34 +19,40 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
         return;
       }
       
-      // Determine the appropriate way to fetch the audio
-      let fetchUrl = url;
+      // Create a proxy URL that works with our backend
+      let proxyUrl;
       
-      // If it's an S3 URL, route through our configured proxy
       if (url.includes('s3.amazonaws.com')) {
-        // Extract the path from the S3 URL (everything after the domain)
-        const s3Path = url.split('s3.amazonaws.com/')[1];
-        if (s3Path) {
-          fetchUrl = `/s3-media/${s3Path}`;
+        // Extract the path after the bucket name
+        const s3UrlParts = url.split('s3.amazonaws.com/');
+        if (s3UrlParts.length > 1) {
+          // Use the path after the bucket name
+          proxyUrl = `/s3-media/${s3UrlParts[1]}`;
+        } else {
+          // Fallback - use the original URL but with the /s3-media prefix
+          const urlParts = url.split('/');
+          const fileName = urlParts[urlParts.length - 1];
+          proxyUrl = `/s3-media/media/music/${fileName}`;
         }
+      } else if (url.startsWith('/')) {
+        // If it's already a relative URL, use it as is
+        proxyUrl = url;
+      } else {
+        // Default case - if it's not an S3 URL and not a relative URL
+        proxyUrl = `/s3-media/${url}`;
       }
       
-      console.log('Fetching audio from:', fetchUrl);
+      console.log('Fetching audio from:', proxyUrl);
       
-      fetch(fetchUrl, {
-        credentials: 'same-origin', // Use credentials for same-origin requests
-        mode: 'cors',
-        headers: {
-          'Accept': 'audio/*'
-        }
-      })
+      fetch(proxyUrl)
         .then(response => {
           if (!response.ok) {
-            throw new Error(`Failed to fetch audio: ${response.status} ${response.statusText}`);
+            throw new Error(`Failed to fetch audio: ${response.status}`);
           }
           return response.blob();
         })
         .then(blob => {
+          // Create a blob URL for the audio
           const secureUrl = URL.createObjectURL(blob);
           resolve(secureUrl);
         })
@@ -64,7 +71,6 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
     
     const loadSecureAudio = async () => {
       try {
-        // Use the modified createSecureMediaUrl function
         const secureUrl = await createSecureMediaUrl(audioUrl);
         
         if (isMounted) {
@@ -77,7 +83,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
       } catch (err) {
         console.error('Failed to load audio:', err);
         if (isMounted) {
-          setError(`Failed to load audio: ${err.message || 'Unknown error'}`);
+          setError(`Failed to load audio: ${err.message}`);
           setLoading(false);
         }
       }
@@ -94,7 +100,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
         URL.revokeObjectURL(secureUrlRef.current);
       }
     };
-  }, [audioUrl]);
+  }, [audioUrl, retryCount]);
 
   // Handle play/pause state changes
   useEffect(() => {
@@ -106,7 +112,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
       if (playPromise !== undefined) {
         playPromise.catch(error => {
           console.error('Error playing audio:', error);
-          setError(`Playback failed: ${error.message || 'Please try again'}`);
+          setError(`Playback failed: ${error.message}`);
           // Update the UI state to reflect playback failure
           onPlayToggle(musicId, audioUrl);
         });
@@ -146,14 +152,14 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
   const handleError = (e) => {
     console.error("Audio error:", e);
     
-    // Extract more detailed error information if available
+    // Extract detailed error information if available
     let errorMessage = 'Failed to play audio file';
     
     if (audioRef.current && audioRef.current.error) {
       const mediaError = audioRef.current.error;
       switch (mediaError.code) {
         case MediaError.MEDIA_ERR_ABORTED:
-          errorMessage = 'Playback aborted by the user';
+          errorMessage = 'Playback aborted';
           break;
         case MediaError.MEDIA_ERR_NETWORK:
           errorMessage = 'Network error while loading audio';
@@ -181,35 +187,23 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
   };
 
   const handleRetry = () => {
+    // Increment retry count to trigger the useEffect
+    setRetryCount(prevCount => prevCount + 1);
+    
+    // Reset state
     setError(null);
     setLoading(true);
     
-    // Force reload of audio
+    // Clean up any existing blob URL
     if (secureUrlRef.current) {
       URL.revokeObjectURL(secureUrlRef.current);
       secureUrlRef.current = null;
     }
     
+    // Clear the audio source
     if (audioRef.current) {
       audioRef.current.src = "";
       audioRef.current.load();
-      
-      // Reload the audio with a slight delay
-      setTimeout(() => {
-        const loadSecureAudio = async () => {
-          try {
-            const secureUrl = await createSecureMediaUrl(audioUrl);
-            secureUrlRef.current = secureUrl;
-            audioRef.current.src = secureUrl;
-            audioRef.current.load();
-          } catch (err) {
-            console.error('Failed to reload audio:', err);
-            setError(`Failed to reload audio: ${err.message || 'Unknown error'}`);
-            setLoading(false);
-          }
-        };
-        loadSecureAudio();
-      }, 500);
     }
   };
 
@@ -222,7 +216,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
         </div>
         <button 
           onClick={handleRetry}
-          className="text-xs text-red-600 dark:text-red-400 hover:text-red-500 font-medium"
+          className="text-xs bg-red-100 dark:bg-red-800 px-2 py-1 rounded text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-700 font-medium"
         >
           Retry
         </button>
