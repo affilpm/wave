@@ -11,11 +11,24 @@ export default defineConfig({
   },
   server: {
     proxy: {
+      // WebSocket proxy for real-time communications
       '/ws/webrtc': {
         target: 'wss://api.affils.site',
         ws: true,
         changeOrigin: true,
       },
+      // API proxy - add this to route API requests through your server
+      '/api': {
+        target: 'https://api.affils.site',
+        changeOrigin: true,
+        secure: true,
+      },
+      // Media proxy - add this to handle S3 media through your API
+      '/media': {
+        target: 'https://api.affils.site',
+        changeOrigin: true,
+        secure: true,
+      }
     },
     headers: {
       'Content-Security-Policy': `
@@ -26,8 +39,9 @@ export default defineConfig({
         frame-src 'self' https://accounts.google.com https://*.gstatic.com https://*.razorpay.com;
         frame-ancestors 'self' https://accounts.google.com https://*.gstatic.com;
         connect-src 'self'
-          ws://localhost:8000 ws://localhost:* wss://localhost:* http://localhost:* https://localhost:*
+          ws://localhost:* wss://localhost:* http://localhost:* https://localhost:*
           https://api.affils.site wss://api.affils.site
+          https://wavebuckt12.s3.amazonaws.com https://*.amazonaws.com
           wss://*.razorpay.com
           wss://*.agora.io wss://*.sd-rtn.com
           wss://*.edge.agora.io wss://*.edge.sd-rtn.com
@@ -36,8 +50,8 @@ export default defineConfig({
           https://statscollector-1.agora.io
           wss://107-155-41-35.edge.agora.io:* wss://107-155-41-35.edge.sd-rtn.com:*
           wss://*.edge.agora.io:* wss://*.edge.sd-rtn.com:*;
-        img-src 'self' https: data: blob:;
-        media-src 'self' blob: data: https://api.affils.site;
+        img-src 'self' https: data: blob: https://wavebuckt12.s3.amazonaws.com https://*.amazonaws.com;
+        media-src 'self' blob: data: https://api.affils.site https://wavebuckt12.s3.amazonaws.com https://*.amazonaws.com;
         font-src 'self' data:;
         worker-src 'self' blob:;
       `.replace(/\s+/g, ' ').trim(),
@@ -46,4 +60,15 @@ export default defineConfig({
   optimizeDeps: {
     include: ['jwt-decode'],
   },
+  build: {
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          ui: ['lucide-react']
+        }
+      }
+    }
+  }
 });
