@@ -41,6 +41,7 @@ import { handlePageReload } from './slices/user/musicPlayerSlice';
 import StreamListingPage from './components/livestream/LiveStreamViewerApp';
 import TransactionHistory from './components/user/home/header/settings/TransactionHistory';
 import ArtistsShowMorePage from './components/user/home/main-content/Artist-section/ArtistsShowMorePage';
+import NotFound from './components/NotFound';
 // import VideoStreamingPage from './components/livestream/testing/VideoStreamingPage';
 // import StreamsList from './components/livestream/testing/list';
 // import LiveStreamPage from './components/livestream/testing/fdf';
@@ -63,6 +64,8 @@ function App() {
   return (
     <Router>
       <Routes>
+
+        <Route path="*" element={<NotFound />} />
 
         <Route path="/landingpage" element={
             <RedirectIfLoggedIn isAuthenticated={isAuthenticated}>
