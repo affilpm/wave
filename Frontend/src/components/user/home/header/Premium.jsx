@@ -204,8 +204,8 @@ const Premium = () => {
             </div>
             <div className="flex flex-col items-center">
               <Download size={64} className="text-purple-500 mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Download & Go</h3>
-              <p className="text-gray-300">Save music for offline listening</p>
+              <h3 className="text-xl font-semibold mb-2">Add Free</h3>
+              <p className="text-gray-300">Offline music listening</p>
             </div>
             <div className="flex flex-col items-center">
               <Calendar size={64} className="text-blue-500 mb-4" />
