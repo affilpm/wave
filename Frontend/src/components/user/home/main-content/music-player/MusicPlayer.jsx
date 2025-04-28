@@ -76,7 +76,8 @@ const MusicPlayer = () => {
   const seekPositionRef = useRef(null);
   const [isRequestingToken, setIsRequestingToken] = useState(false);
   const [isHandlingTrackChange, setIsHandlingTrackChange] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(false); // New state for audio initialization
+  const [isInitializing, setIsInitializing] = useState(false); 
+  const pageLoadRef = useRef(true);
 
 
   // Current track for MediaSessionControl
@@ -952,14 +953,22 @@ useEffect(() => {
     }
   };
 
-  // Enhanced isPlaying effect with proper initialization checking
+  
   useEffect(() => {
     if (!howlRef.current || !playerState.initializationComplete) return;
     
     let playTimeout;
     
     if (isPlaying) {
-      // Only play when initialization is complete
+      // Don't auto-play on initial page load
+      if (pageLoadRef.current) {
+        pageLoadRef.current = false;
+        // Only dispatch this if you want to sync the Redux state with our desired behavior
+        dispatch(setIsPlaying(false));
+        return;
+      }
+      
+      // Only play when initialization is complete and not initial page load
       playTimeout = setTimeout(() => {
         if (howlRef.current) {
           howlRef.current.play();
@@ -976,7 +985,8 @@ useEffect(() => {
         clearTimeout(playTimeout);
       }
     };
-  }, [isPlaying, playerState.initializationComplete]);
+  }, [isPlaying, playerState.initializationComplete, dispatch]);
+  
   
   const togglePlayPause = () => {
     // Prevent toggling if initialization not complete or loading
