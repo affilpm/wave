@@ -874,7 +874,7 @@ class MusicStreamView(APIView):
                     stream = s3_response['Body']
                     
                     # Stream in predefined chunk sizes
-                    chunk_size = 32768  # 32 KB chunks
+                    chunk_size = 65536  # 65 KB chunks
                     while True:
                         chunk = stream.read(chunk_size)
                         if not chunk:

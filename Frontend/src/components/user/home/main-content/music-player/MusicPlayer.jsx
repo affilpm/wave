@@ -26,6 +26,7 @@ import {
   setRepeat,
   markAsPlayed,
   setMusicId,
+  setActionLock
 } from '../../../../../slices/user/musicPlayerSlice';
 
 
@@ -35,12 +36,15 @@ const MusicPlayer = () => {
     musicId,
     isPlaying,
     isChanging,
+    isLoadingTrack,
+    actionLock,
     queue,
     currentIndex,
     repeat,
     shuffle,
     playedTracks,
   } = useSelector(state => state.musicPlayer);
+  
 
   const [playerState, setPlayerState] = useState({
     progress: 0,
@@ -49,7 +53,8 @@ const MusicPlayer = () => {
     error: null,
     volume: 1,
     isMuted: false,
-    retryCount: 0
+    retryCount: 0,
+    initializationComplete: false // Add a flag to track complete initialization
   });
   
   const [metadata, setMetadata] = useState(null);
@@ -59,7 +64,7 @@ const MusicPlayer = () => {
   const howlRef = useRef(null);
   const audioRef = useRef(null);
   const animationFrameRef = useRef(null);
-  const lastUpdateTimeRef = useRef(0); // Track last UI update time
+  const lastUpdateTimeRef = useRef(0);
   const [isLiked, setIsLiked] = useState(false);
   const playStartTimeRef = useRef(null);
   const reportedPlayRef = useRef(false);
@@ -68,9 +73,13 @@ const MusicPlayer = () => {
   const retryTimeoutRef = useRef(null);
   const MAX_RETRIES = 3;
   const mediaSessionInitializedRef = useRef(false);
-  const seekPositionRef = useRef(null); // Track pending seek position
+  const seekPositionRef = useRef(null);
+  const [isRequestingToken, setIsRequestingToken] = useState(false);
+  const [isHandlingTrackChange, setIsHandlingTrackChange] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false); // New state for audio initialization
 
-  // Format current track for MediaSessionControl
+
+  // Current track for MediaSessionControl
   const currentTrack = metadata ? {
     name: metadata.title,
     artist: metadata.artist,
@@ -79,14 +88,88 @@ const MusicPlayer = () => {
     duration: metadata.duration || 0
   } : null;
 
+  // When component unmounts or changes track
+  useEffect(() => {
+    return () => {
+      dispatch(setActionLock(false));
+    };
+  }, [dispatch]);
+
+
+
+// Improve refreshTokenIfNeeded function
+const refreshTokenIfNeeded = async (retryOnCancel = true) => {
+  if (!musicId || isRequestingToken) return null;
+  
+  try {
+    setIsRequestingToken(true);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    
+    const response = await api.get(`/api/music/token/${musicId}/`, {
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    setSignedToken(response.data.token);
+    setPlayId(response.data.play_id);
+    tokenMusicIdRef.current = musicId;
+    return response.data.token;
+  } catch (error) {
+    // More specific error handling
+    const isCancelled = error.name === 'AbortError' || 
+                       error.name === 'CanceledError' || 
+                       error.message?.includes('cancel');
+    
+    if (isCancelled && retryOnCancel) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      setIsRequestingToken(false);
+      return refreshTokenIfNeeded(false);
+    }
+    
+    return null;
+  } finally {
+    setIsRequestingToken(false);
+  }
+};
+
+
+// Add this useEffect to refresh the token periodically during playback
+useEffect(() => {
+  if (!isPlaying || !musicId) return;
+  
+  // Refresh token every 45 minutes (3/4 of the 1hr expiry)
+  const tokenRefreshInterval = setInterval(() => {
+    refreshTokenIfNeeded();
+  }, 45 * 60 * 1000);
+  
+  return () => {
+    clearInterval(tokenRefreshInterval);
+  };
+}, [isPlaying, musicId]);
+
+
+// Add this useEffect to release action lock if stuck in error state
+useEffect(() => {
+  if (playerState.error && actionLock) {
+    // Release action lock after 5 seconds if we're in an error state
+    const lockReleaseTimeout = setTimeout(() => {
+      dispatch(setActionLock(false));
+    }, 5000);
+    
+    return () => clearTimeout(lockReleaseTimeout);
+  }
+}, [playerState.error, actionLock, dispatch]);
+
   // Initialize Media Session with debouncing for position updates
   useEffect(() => {
     if (!('mediaSession' in navigator)) {
-      return; // Media Session API not supported
+      return;
     }
 
     if (!currentTrack || !howlRef.current) {
-      return; // No track information or player yet
+      return;
     }
 
     // Configure Media Session metadata
@@ -122,8 +205,6 @@ const MusicPlayer = () => {
     // Add seekto handler if supported
     try {
       navigator.mediaSession.setActionHandler('seekto', (details) => {
-        console.log('Media Session Seek:', details);
-        
         if (details.seekTime && howlRef.current) {
           seekPositionRef.current = details.seekTime;
           handleSeek(details.seekTime);
@@ -159,29 +240,28 @@ const MusicPlayer = () => {
     mediaSessionInitializedRef.current = true;
   }, [currentTrack, howlRef.current, dispatch]);
 
+  // Track when Redux isChanging state changes
+  useEffect(() => {
+    if (isChanging) {
+      setIsHandlingTrackChange(true);
+    } else {
+      const timeout = setTimeout(() => setIsHandlingTrackChange(false), 300);
+      return () => clearTimeout(timeout);
+    }
+  }, [isChanging]);
 
   const handleSeek = (position) => {
-    console.log('Handle Seek Called:', {
-      position, 
-      currentHowl: !!howlRef.current,
-      duration: howlRef.current?.duration()
-    });
-  
     if (!howlRef.current) return;
     
     const safePosition = Math.max(0, Math.min(position, howlRef.current.duration() || 0));
     
     try {
       howlRef.current.seek(safePosition);
-      
       setPlayerState(prev => ({ ...prev, progress: safePosition }));
-      
-      console.log('Seek successful:', safePosition);
     } catch (error) {
       console.error('Seek failed:', error);
     }
   };
-
 
   // Update Media Session playback state when isPlaying changes
   useEffect(() => {
@@ -196,7 +276,7 @@ const MusicPlayer = () => {
         mediaSessionInitializedRef.current && 
         howlRef.current && 
         playerState.duration > 0 &&
-        !isSeeking) { // Don't update during seeking
+        !isSeeking) {
       
       const now = Date.now();
       // Only update if it's been at least 250ms since last update
@@ -218,7 +298,6 @@ const MusicPlayer = () => {
   // Sync howlRef with audioRef for Media controls
   useEffect(() => {
     if (howlRef.current) {
-      // Create a proxy object that adapts Howl methods to standard HTMLAudioElement methods
       audioRef.current = {
         play: () => howlRef.current.play(),
         pause: () => howlRef.current.pause(),
@@ -269,22 +348,25 @@ const MusicPlayer = () => {
       if (!musicId) return;
       
       try {
-        setPlayerState(prev => ({ ...prev, loading: true, error: null }));
+        // Set loading state both in component and Redux
+        setPlayerState(prev => ({ ...prev, loading: true, error: null, initializationComplete: false }));
+        dispatch(setActionLock(true)); // Lock actions during metadata fetch
+        
         const response = await api.get(`/api/music/metadata/${musicId}/`);
         setMetadata(response.data);
 
         const liked_response = await api.get(`/api/playlist/playlists/is_liked/?music_id=${musicId}`)
         setIsLiked(liked_response.data.liked);
+        
         setPlayerState(prev => ({ 
           ...prev, 
-          loading: false,
+          loading: true, // Keep loading true until full initialization
           duration: response.data.duration,
-          progress: 0, // Reset progress when changing tracks
+          progress: 0,
           error: null,
           retryCount: 0
         }));
 
-        // Reset Media Session initialized flag when metadata changes
         mediaSessionInitializedRef.current = false;
       } catch (error) {
         console.error("Failed to fetch metadata:", error);
@@ -292,13 +374,15 @@ const MusicPlayer = () => {
           ...prev, 
           loading: false,  
           error: "Failed to load track information",
-          retryCount: 0
+          retryCount: 0,
+          initializationComplete: false
         }));
+        dispatch(setActionLock(false));
       }
     };
 
     fetchMetadata();
-  }, [musicId]);
+  }, [musicId, dispatch]);
 
   const handlelike = async () => {
     try {
@@ -316,33 +400,58 @@ const MusicPlayer = () => {
     if (currentTrack && currentTrack.id !== musicId) {
       dispatch(setMusicId(currentTrack.id));
     }
-  }, [queue, currentIndex]);
+  }, [queue, currentIndex, dispatch, musicId]);
 
   // Fetch signed token with retry logic
   useEffect(() => {
+    if (!musicId || isRequestingToken || !metadata) return;
+  
     const fetchSignedToken = async () => {
-      if (!musicId) return;
-      
       try {
+        setIsRequestingToken(true);
         reportedPlayRef.current = false;
         
-        const response = await api.get(`/api/music/token/${musicId}/`);
-      console.log(response.data, "Play reported successfully");
-
+        // Add AbortController to manage the request
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000);
+        
+        const response = await api.get(`/api/music/token/${musicId}/`, {
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
         setSignedToken(response.data.token);
         setPlayId(response.data.play_id);
         tokenMusicIdRef.current = musicId;
         setPlayerState(prev => ({ ...prev, retryCount: 0 }));
       } catch (error) {
-        console.error("Failed to fetch signed token:", error);
-        setPlayerState(prev => ({
-          ...prev,
-          error: "Authentication error. Please try again.",
-          loading: false
-        }));
+        // Check if the request was cancelled
+        const isCancelled = error.name === 'AbortError' || 
+                           error.name === 'CanceledError' || 
+                           error.message?.includes('cancel') ||
+                           error.message?.includes('abort');
+        
+        console.error(`Token fetch ${isCancelled ? 'cancelled' : 'failed'}:`, error);
+        
+        if (isCancelled) {
+          // If cancelled, retry after a short delay
+          retryTimeoutRef.current = setTimeout(() => {
+            setIsRequestingToken(false); // Reset flag to allow retry
+          }, 1000);
+        } else {
+          setPlayerState(prev => ({
+            ...prev,
+            error: "Authentication error. Please try again.",
+            loading: false,
+            initializationComplete: false
+          }));
+          dispatch(setActionLock(false));
+        }
+      } finally {
+        setIsRequestingToken(false);
       }
     };
-
+  
     fetchSignedToken();
     
     return () => {
@@ -350,12 +459,15 @@ const MusicPlayer = () => {
         clearTimeout(retryTimeoutRef.current);
       }
     };
-  }, [musicId]);
+  }, [musicId, metadata, dispatch]);
 
   // Initialize audio stream with enhanced error handling and retries
   useEffect(() => {
-    if (!musicId || !signedToken || !metadata || tokenMusicIdRef.current !== musicId) return;
+    if (!musicId || !signedToken || !metadata || tokenMusicIdRef.current !== musicId || isInitializing) return;
   
+    // Set initializing flag to prevent multiple initializations
+    setIsInitializing(true);
+    
     // Clear any previous timeout
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current);
@@ -373,7 +485,16 @@ const MusicPlayer = () => {
   
     const initializeAudio = () => {
       try {
-        setPlayerState(prev => ({ ...prev, loading: true, error: null, progress: 0 }));
+        setPlayerState(prev => ({ ...prev, loading: true, error: null, progress: 0, initializationComplete: false }));
+        
+        // Create a cancel token that will expire after 15 seconds (same as Howl's XHR timeout)
+        const cancelTimeout = setTimeout(() => {
+          console.log("Audio loading taking too long, preemptively refreshing token...");
+          refreshTokenIfNeeded().then(() => {
+            // Continue with initialization process on next cycle
+            setIsInitializing(false);
+          });
+        }, 14000); // Slightly shorter than Howl's timeout to ensure we can refresh before it fails
         
         const audioUrl = `${api.defaults.baseURL}/api/music/stream/${musicId}/?token=${signedToken}`;
         const sound = new Howl({
@@ -382,11 +503,17 @@ const MusicPlayer = () => {
           html5: true,
           preload: true,
           xhr: {
-            // Add timeout for Howler XHR requests
-            timeout: 15000
+            timeout: 15000,
+            headers: {
+              // Add a custom header to help identify our requests in case of debugging
+              'X-Client-ID': 'music-player-v1'
+            }
           },
           onload: () => {
-            // Set accurate duration from loaded audio
+
+            clearTimeout(cancelTimeout);
+
+            // Audio has loaded successfully
             const actualDuration = sound.duration();
             
             setPlayerState(prev => ({
@@ -395,17 +522,50 @@ const MusicPlayer = () => {
               loading: false,
               error: null,
               retryCount: 0,
-              progress: 0 // Reset progress on load
+              progress: 0,
+              initializationComplete: true // Mark initialization as complete
             }));
             
             dispatch(setChangeComplete());
+            dispatch(setActionLock(false));
+            setIsInitializing(false);
             
-            if (isPlaying) {
-              sound.play();
-            }
+            // Don't auto-play here, let the isPlaying effect handle it
           },
           onloaderror: (id, error) => {
             console.error('Audio loading error:', error);
+            
+            // Check if the error might be token-related or a cancellation
+            const isTokenError = error && (
+              error.includes('401') || 
+              error.includes('403') || 
+              error.includes('Unauthorized')
+            );
+            
+            const isCancellation = error && (
+              error.includes('cancel') || 
+              error.includes('abort') ||
+              error.includes('timeout')
+            );
+            
+            if (isTokenError || isCancellation) {
+              console.log(`${isTokenError ? "Token likely expired" : "Request cancelled"}, attempting refresh...`);
+              
+              // If it's a cancellation, we'll force a retry with backoff
+              const retryDelay = isCancellation ? 2000 : 500;
+              
+              setTimeout(() => {
+                refreshTokenIfNeeded().then(newToken => {
+                  if (newToken) {
+                    // Token refreshed successfully, will retry on next cycle
+                    setIsInitializing(false); // Allow reinitializing
+                  }
+                });
+              }, retryDelay);
+              
+              return;
+            }
+          
             
             // Implement retry logic
             setPlayerState(prev => {
@@ -423,15 +583,18 @@ const MusicPlayer = () => {
                     .then(response => {
                       setSignedToken(response.data.token);
                       setPlayId(response.data.play_id);
-                      initializeAudio(); // Retry initialization
+                      setIsInitializing(false); // Reset initializing flag to allow retry
                     })
                     .catch(tokenError => {
                       console.error("Failed to refresh token for retry:", tokenError);
                       setPlayerState(prevState => ({
                         ...prevState,
                         loading: false,
-                        error: "Stream unavailable after multiple attempts. Please try again later."
+                        error: "Stream unavailable after multiple attempts. Please try again later.",
+                        initializationComplete: false
                       }));
+                      dispatch(setActionLock(false));
+                      setIsInitializing(false);
                     });
                 }, retryDelay);
                 
@@ -439,13 +602,18 @@ const MusicPlayer = () => {
                   ...prev,
                   retryCount: newRetryCount,
                   loading: true,
+                  initializationComplete: false,
                   error: `Loading audio... (Attempt ${newRetryCount}/${MAX_RETRIES})`
                 };
               }
               
+              dispatch(setActionLock(false));
+              setIsInitializing(false);
+              
               return {
                 ...prev,
                 loading: false,
+                initializationComplete: false,
                 error: "Failed to load audio after multiple attempts. Please try a different track or check your connection.",
                 retryCount: 0
               };
@@ -573,9 +741,12 @@ const MusicPlayer = () => {
         setPlayerState(prev => ({
           ...prev,
           loading: false,
+          initializationComplete: false,
           error: 'Failed to initialize audio player',
           retryCount: 0
         }));
+        dispatch(setActionLock(false));
+        setIsInitializing(false);
       }
     };
   
@@ -618,6 +789,8 @@ const MusicPlayer = () => {
           console.warn('Error clearing media session handlers:', error);
         }
       }
+      
+      setIsInitializing(false);
     };
   }, [musicId, signedToken, metadata, dispatch]);
   
@@ -649,53 +822,40 @@ const MusicPlayer = () => {
     animationFrameRef.current = requestAnimationFrame(updateSeeker);
   };
 
-const handleSeekChange = (e) => {
-  const value = parseFloat(e.target.value);
-  console.log('Seek Change:', {
-    value, 
-    isSeeking, 
-    isPlaying, 
-    currentProgress: playerState.progress
-  });
-  
-  setPlayerState(prev => ({
-    ...prev,
-    progress: value
-  }));
-};
-
-  
-const handleSeekMouseUp = (e) => {
-  const value = parseFloat(e.target.value);
-  
-  console.log('Seek Mouse Up:', {
-    value, 
-    isPlaying, 
-    currentHowl: !!howlRef.current
-  });
-
-  setIsSeeking(false);
-  
-  // Force seek even if not playing
-  if (howlRef.current) {
-    howlRef.current.seek(value);
+  const handleSeekChange = (e) => {
+    const value = parseFloat(e.target.value);
     
-    setPlayerState(prev => ({ 
-      ...prev, 
-      progress: value 
+    setPlayerState(prev => ({
+      ...prev,
+      progress: value
     }));
-  }
-  
-  // Optionally restart playing if it was playing before
-  if (isPlaying) {
-    howlRef.current?.play();
-  }
-  
-  // Resume progress tracking
-  if (!animationFrameRef.current) {
-    updateSeeker();
-  }
-};
+  };
+
+  const handleSeekMouseUp = (e) => {
+    const value = parseFloat(e.target.value);
+    
+    setIsSeeking(false);
+    
+    // Force seek even if not playing
+    if (howlRef.current) {
+      howlRef.current.seek(value);
+      
+      setPlayerState(prev => ({ 
+        ...prev, 
+        progress: value 
+      }));
+    }
+    
+    // Optionally restart playing if it was playing before
+    if (isPlaying && howlRef.current) {
+      howlRef.current.play();
+    }
+    
+    // Resume progress tracking
+    if (!animationFrameRef.current) {
+      updateSeeker();
+    }
+  };
 
   const handleSeekMouseDown = () => {
     setIsSeeking(true);
@@ -707,12 +867,16 @@ const handleSeekMouseUp = (e) => {
     }
   };
 
-
   const handleRetry = () => {
     // Manual retry function
-    setPlayerState(prev => ({ ...prev, retryCount: 0, loading: true, error: null }));
+    setPlayerState(prev => ({ ...prev, retryCount: 0, loading: true, error: null, initializationComplete: false }));
+    dispatch(setActionLock(true));
     
-    // Refresh token and reinitialize
+    refreshTokenIfNeeded().then(() => {
+      // Reset initializing flag to allow retry regardless of token result
+      setIsInitializing(false);
+    });
+
     api.get(`/api/music/token/${musicId}/`)
       .then(response => {
         setSignedToken(response.data.token);
@@ -723,12 +887,18 @@ const handleSeekMouseUp = (e) => {
         setPlayerState(prev => ({
           ...prev,
           loading: false,
+          initializationComplete: false,
           error: "Could not refresh audio session. Please try again later."
         }));
+        dispatch(setActionLock(false));
       });
   };
 
   const handleNext = () => {
+    if (isHandlingTrackChange) return;
+    
+    setIsHandlingTrackChange(true);
+    
     // Stop current playback tracking
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
@@ -737,9 +907,16 @@ const handleSeekMouseUp = (e) => {
     
     // Move to next track
     dispatch(playNext());
+    
+    // Reset handling flag after a short delay to prevent multiple clicks
+    setTimeout(() => setIsHandlingTrackChange(false), 500);
   };
-
+  
   const handlePrevious = () => {
+    if (isHandlingTrackChange) return;
+    
+    setIsHandlingTrackChange(true);
+    
     // Stop current playback tracking
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
@@ -748,6 +925,9 @@ const handleSeekMouseUp = (e) => {
     
     // Move to previous track
     dispatch(playPrevious());
+    
+    // Reset handling flag after a short delay to prevent multiple clicks
+    setTimeout(() => setIsHandlingTrackChange(false), 500);
   };
 
   const handleToggleShuffle = () => {
@@ -772,14 +952,14 @@ const handleSeekMouseUp = (e) => {
     }
   };
 
-  // Enhanced isPlaying effect with proper cleanup
+  // Enhanced isPlaying effect with proper initialization checking
   useEffect(() => {
-    if (!howlRef.current) return;
+    if (!howlRef.current || !playerState.initializationComplete) return;
     
     let playTimeout;
     
     if (isPlaying) {
-      // Small timeout to avoid rapid play/pause toggling issues
+      // Only play when initialization is complete
       playTimeout = setTimeout(() => {
         if (howlRef.current) {
           howlRef.current.play();
@@ -796,10 +976,11 @@ const handleSeekMouseUp = (e) => {
         clearTimeout(playTimeout);
       }
     };
-  }, [isPlaying]);
+  }, [isPlaying, playerState.initializationComplete]);
   
   const togglePlayPause = () => {
-    if (!howlRef.current || playerState.loading) return;
+    // Prevent toggling if initialization not complete or loading
+    if (!playerState.initializationComplete || playerState.loading || isChanging) return;
     dispatch(setIsPlaying(!isPlaying));
   };
 
@@ -825,6 +1006,9 @@ const handleSeekMouseUp = (e) => {
   const toggleQueue = () => {
     setIsQueueOpen(!isQueueOpen);
   };
+
+  // Calculate loading state for UI (combines local and Redux states)
+  const isLoading = playerState.loading || isLoadingTrack || isChanging || isInitializing || !playerState.initializationComplete;
 
   // Calculate progress percentage for custom progress bar
   const progressPercentage = playerState.duration 
@@ -940,33 +1124,37 @@ const handleSeekMouseUp = (e) => {
             </button>
             
             <div className="flex items-center space-x-4">
-              <button 
-                onClick={handlePrevious}
-                className="text-gray-300"
-              >
-                <SkipBack className="w-5 h-5" />
-              </button>
+            <button 
+              onClick={handlePrevious}
+              className="text-gray-300 disabled:opacity-50"
+              disabled={playerState.loading || isChanging || isHandlingTrackChange}
+            >
+              <SkipBack className="w-5 h-5" />
+            </button>
               
-              <button 
-                onClick={playerState.loading ? handleRetry : togglePlayPause}
-                className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center shadow-md disabled:opacity-50"
-                disabled={playerState.loading && playerState.retryCount === 0}
-              >
-                {playerState.loading ? (
-                  <RefreshCw className="w-5 h-5 text-white animate-spin" />
-                ) : isPlaying ? (
-                  <Pause className="w-5 h-5 text-white" />
-                ) : (
-                  <Play className="w-5 h-5 text-white ml-0.5" />
-                )}
-              </button>
-              
-              <button 
-                onClick={handleNext}
-                className="text-gray-300"
-              >
-                <SkipForward className="w-5 h-5" />
-              </button>
+            <button 
+              onClick={togglePlayPause}
+              disabled={isLoadingTrack || isChanging || actionLock || !musicId}
+              className="play-button disabled:opacity-50"
+            >
+              {isLoadingTrack || isChanging ? (
+                <RefreshCw className="w-5 h-5 text-white animate-spin" />
+              ) : isPlaying ? (
+                <Pause />
+              ) : (
+                <Play />
+              )}
+            </button>
+
+                          
+            <button 
+              onClick={handleNext}
+              className="text-gray-300 disabled:opacity-50"
+              disabled={playerState.loading || isChanging || isHandlingTrackChange}
+            >
+              <SkipForward className="w-5 h-5" />
+            </button>
+
             </div>
             
             <button 
