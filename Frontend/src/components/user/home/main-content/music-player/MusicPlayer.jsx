@@ -78,7 +78,8 @@ const MusicPlayer = () => {
   const [isHandlingTrackChange, setIsHandlingTrackChange] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false); 
   const pageLoadRef = useRef(true);
-
+  const initialPlayRequestRef = useRef(false);
+  const previousMusicIdRef = useRef(null);
 
   // Current track for MediaSessionControl
   const currentTrack = metadata ? {
@@ -97,7 +98,15 @@ const MusicPlayer = () => {
   }, [dispatch]);
 
 
-
+  useEffect(() => {
+    // If we previously had no musicId and now we have one (first login)
+    if (!previousMusicIdRef.current && musicId) {
+      // This is the first time we're getting a musicId
+      initialPlayRequestRef.current = true;
+    }
+    // Always update our reference
+    previousMusicIdRef.current = musicId;
+  }, [musicId]);
 // Improve refreshTokenIfNeeded function
 const refreshTokenIfNeeded = async (retryOnCancel = true) => {
   if (!musicId || isRequestingToken) return null;
@@ -134,6 +143,31 @@ const refreshTokenIfNeeded = async (retryOnCancel = true) => {
     setIsRequestingToken(false);
   }
 };
+
+
+useEffect(() => {
+  // This handles the case when we change to a queue where the first track is the same as currently playing track
+  if (queue.length > 0 && currentIndex === 0 && queue[currentIndex]?.id === musicId) {
+    // If we have a track loaded, but it's technically "changing" because of a playlist selection
+    if (howlRef.current && playerState.initializationComplete) {
+      // Force complete any change operations if the track is the same
+      if (isChanging || isHandlingTrackChange) {
+        dispatch(setChangeComplete());
+        setIsHandlingTrackChange(false);
+        
+        // If it was playing before, ensure it continues playing
+        if (isPlaying && howlRef.current) {
+          // Small timeout to ensure state is updated
+          setTimeout(() => {
+            if (howlRef.current && !howlRef.current.playing()) {
+              howlRef.current.play();
+            }
+          }, 100);
+        }
+      }
+    }
+  }
+}, [queue, currentIndex, musicId, isChanging, isHandlingTrackChange, playerState.initializationComplete, dispatch, isPlaying]);
 
 
 // Add this useEffect to refresh the token periodically during playback
@@ -483,7 +517,20 @@ useEffect(() => {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
-  
+    
+    if (howlRef.current && 
+      playerState.initializationComplete && 
+      tokenMusicIdRef.current === musicId && 
+      !playerState.error) {
+    // Just update the reference to ensure consistency
+    tokenMusicIdRef.current = musicId;
+    // Mark any playlist-triggered track "change" as complete
+    if (isChanging) {
+      dispatch(setChangeComplete());
+    }
+    return;
+  }
+
     const initializeAudio = () => {
       try {
         setPlayerState(prev => ({ ...prev, loading: true, error: null, progress: 0, initializationComplete: false }));
@@ -747,7 +794,7 @@ useEffect(() => {
           retryCount: 0
         }));
         dispatch(setActionLock(false));
-        setIsInitializing(false);
+        setIsInitializing(true);
       }
     };
   
@@ -953,44 +1000,67 @@ useEffect(() => {
     }
   };
 
-  
+
   useEffect(() => {
     if (!howlRef.current || !playerState.initializationComplete) return;
     
-    let playTimeout;
+    // Don't auto-play on initial page load unless explicitly requested
+    if (pageLoadRef.current && !initialPlayRequestRef.current) {
+      pageLoadRef.current = false;
+      return;
+    }
     
     if (isPlaying) {
-      // Don't auto-play on initial page load
-      if (pageLoadRef.current) {
-        pageLoadRef.current = false;
-        // Only dispatch this if you want to sync the Redux state with our desired behavior
-        dispatch(setIsPlaying(false));
-        return;
-      }
-      
-      // Only play when initialization is complete and not initial page load
-      playTimeout = setTimeout(() => {
+      // Add a small delay to ensure Howler is ready
+      const playTimeout = setTimeout(() => {
         if (howlRef.current) {
+          console.log('Playing audio from isPlaying effect');
           howlRef.current.play();
         }
-      }, 10);
+      }, 50);
+      
+      return () => clearTimeout(playTimeout);
     } else {
       if (howlRef.current) {
         howlRef.current.pause();
       }
     }
-    
-    return () => {
-      if (playTimeout) {
-        clearTimeout(playTimeout);
-      }
-    };
   }, [isPlaying, playerState.initializationComplete, dispatch]);
+
   
+
+  useEffect(() => {
+    if (playerState.initializationComplete && initialPlayRequestRef.current) {
+      console.log('Initialization complete with pending play request');
+      initialPlayRequestRef.current = false;
+      
+      // Add a small delay to ensure Howler is fully ready
+      setTimeout(() => {
+        if (howlRef.current) {
+          console.log('Starting initial playback');
+          howlRef.current.play();
+          dispatch(setIsPlaying(true));
+        }
+      }, 150);
+    }
+  }, [playerState.initializationComplete, dispatch]);
   
+    
+  
+
   const togglePlayPause = () => {
-    // Prevent toggling if initialization not complete or loading
-    if (!playerState.initializationComplete || playerState.loading || isChanging) return;
+    // If we're still initializing, mark that we want to play when ready
+    if (!playerState.initializationComplete || playerState.loading || isChanging) {
+      if ((pageLoadRef.current || !previousMusicIdRef.current) && musicId) {
+        console.log('Setting initial play request flag');
+        initialPlayRequestRef.current = true;
+        // Also set isPlaying to true to update the UI immediately
+        dispatch(setIsPlaying(true));
+      }
+      return;
+    }
+    
+    // Normal toggle behavior
     dispatch(setIsPlaying(!isPlaying));
   };
 
