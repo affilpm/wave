@@ -81,10 +81,12 @@ const MusicPlayer = () => {
   const previousMusicIdRef = useRef(null);
   const savedProgressRef = useRef(0);
   const tokenExpiryTimeRef = useRef(null);
+  const lastToggleRef = useRef(0); // New ref to debounce toggles
 
-  const MAX_RETRIES = 2; // Reduced from 3
+  const MAX_RETRIES = 2;
   const TOKEN_REFRESH_INTERVAL = 45 * 60 * 1000;
-  const TOKEN_EXPIRY_BUFFER = 5 * 60 * 1000; // 5 minutes before expiry
+  const TOKEN_EXPIRY_BUFFER = 5 * 60 * 1000;
+  const TOGGLE_DEBOUNCE_MS = 300;
 
   const currentTrack = metadata ? {
     name: metadata.title,
@@ -94,11 +96,9 @@ const MusicPlayer = () => {
     duration: metadata.duration || 0
   } : null;
 
-  // OPTIMIZATION 1: Streamlined token refresh function
   const refreshTokenIfNeeded = async (force = false) => {
     if (!musicId || isRequestingToken) return null;
     
-    // Check if we have a valid token that isn't about to expire
     if (!force && signedToken && tokenMusicIdRef.current === musicId && 
         tokenExpiryTimeRef.current && Date.now() < tokenExpiryTimeRef.current - TOKEN_EXPIRY_BUFFER) {
       return signedToken;
@@ -113,14 +113,12 @@ const MusicPlayer = () => {
     try {
       const response = await api.get(`/api/music/token/${musicId}/`, {
         signal: abortControllerRef.current.signal,
-        timeout: 5000 // Reduced timeout
+        timeout: 5000
       });
 
       setSignedToken(response.data.token);
       setPlayId(response.data.play_id);
       tokenMusicIdRef.current = musicId;
-      
-      // Set token expiry time (assume 1 hour validity if not specified)
       tokenExpiryTimeRef.current = Date.now() + TOKEN_REFRESH_INTERVAL;
       
       return response.data.token;
@@ -139,7 +137,6 @@ const MusicPlayer = () => {
     };
   }, [dispatch]);
 
-  // OPTIMIZATION 2: Simplified periodic token refresh
   useEffect(() => {
     if (!isPlaying || !musicId) return;
 
@@ -147,7 +144,7 @@ const MusicPlayer = () => {
       if (tokenExpiryTimeRef.current && Date.now() > tokenExpiryTimeRef.current - TOKEN_EXPIRY_BUFFER) {
         refreshTokenIfNeeded(true);
       }
-    }, 60000); // Check once per minute instead of refreshing on fixed schedule
+    }, 60000);
 
     return () => clearInterval(tokenRefreshInterval);
   }, [isPlaying, musicId]);
@@ -159,27 +156,23 @@ const MusicPlayer = () => {
           dispatch(setChangeComplete());
           setIsHandlingTrackChange(false);
           if (isPlaying && !howlRef.current.playing()) {
-            setTimeout(() => {
-              howlRef.current.seek(savedProgressRef.current);
-              howlRef.current.play();
-            }, 100);
+            howlRef.current.seek(savedProgressRef.current);
+            howlRef.current.play();
           }
         }
       }
     }
   }, [queue, currentIndex, musicId, isChanging, isHandlingTrackChange, playerState.initializationComplete, dispatch, isPlaying]);
 
-  // OPTIMIZATION 3: Faster lock release on error
   useEffect(() => {
     if (playerState.error && actionLock) {
       const lockReleaseTimeout = setTimeout(() => {
         dispatch(setActionLock(false));
-      }, 2000); // Reduced from 5000
+      }, 2000);
       return () => clearTimeout(lockReleaseTimeout);
     }
   }, [playerState.error, actionLock, dispatch]);
 
-  // Media session handling
   useEffect(() => {
     if (!('mediaSession' in navigator) || !currentTrack || !howlRef.current) return;
 
@@ -333,7 +326,6 @@ const MusicPlayer = () => {
     }
   };
 
-  // OPTIMIZATION 4: Parallel metadata and token fetching
   useEffect(() => {
     if (!musicId) return;
 
@@ -342,7 +334,6 @@ const MusicPlayer = () => {
       dispatch(setActionLock(true));
 
       try {
-        // Fetch metadata and token in parallel
         const [metadataResponse, tokenResponse, likedResponse] = await Promise.all([
           api.get(`/api/music/metadata/${musicId}/`),
           api.get(`/api/music/token/${musicId}/`),
@@ -367,7 +358,6 @@ const MusicPlayer = () => {
 
         mediaSessionInitializedRef.current = false;
         
-        // Initialize audio immediately after getting both token and metadata
         initializeAudio(tokenResponse.data.token, metadataResponse.data);
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -430,7 +420,6 @@ const MusicPlayer = () => {
     }
   };
 
-  // OPTIMIZATION 5: Streamlined audio initialization
   const initializeAudio = (token, meta) => {
     try {
       cleanupAudio();
@@ -444,7 +433,7 @@ const MusicPlayer = () => {
         preload: true,
         volume: playerState.isMuted ? 0 : playerState.volume,
         xhr: {
-          timeout: 10000, // Reduced from 15000
+          timeout: 10000,
           headers: { 'X-Client-ID': 'music-player-v1' }
         },
         onload: () => {
@@ -455,7 +444,7 @@ const MusicPlayer = () => {
             loading: false,
             error: null,
             retryCount: 0,
-            progress: 0,
+            progress: savedProgressRef.current || 0,
             initializationComplete: true
           }));
           dispatch(setChangeComplete());
@@ -464,10 +453,8 @@ const MusicPlayer = () => {
 
           if (savedProgressRef.current > 0) {
             sound.seek(savedProgressRef.current);
-            setPlayerState(prev => ({ ...prev, progress: savedProgressRef.current }));
           }
           
-          // Auto-play if needed
           if (isPlaying && !sound.playing()) {
             sound.play();
           }
@@ -479,7 +466,6 @@ const MusicPlayer = () => {
           setPlayerState(prev => {
             const newRetryCount = prev.retryCount + 1;
             if (newRetryCount <= MAX_RETRIES) {
-              // Retry with a fresh token if it's a token error
               if (isTokenError) {
                 refreshTokenIfNeeded(true).then(newToken => {
                   if (newToken && meta) {
@@ -487,7 +473,6 @@ const MusicPlayer = () => {
                   }
                 });
               } else {
-                // Regular retry
                 const retryDelay = Math.min(1000 * Math.pow(2, newRetryCount - 1), 5000);
                 retryTimeoutRef.current = setTimeout(() => {
                   refreshTokenIfNeeded(true).then(newToken => {
@@ -544,13 +529,14 @@ const MusicPlayer = () => {
           if ('mediaSession' in navigator) {
             navigator.mediaSession.playbackState = 'paused';
           }
+          savedProgressRef.current = sound.seek() || 0;
+          setPlayerState(prev => ({ ...prev, progress: savedProgressRef.current }));
           if (playStartTimeRef.current) {
             const playDuration = (Date.now() - playStartTimeRef.current) / 1000;
             const percentage = sound ? sound.seek() / sound.duration() : null;
             reportPlayCompletion(playDuration, percentage);
             playStartTimeRef.current = null;
           }
-          savedProgressRef.current = sound.seek();
           if (animationFrameRef.current) {
             cancelAnimationFrame(animationFrameRef.current);
             animationFrameRef.current = null;
@@ -561,13 +547,13 @@ const MusicPlayer = () => {
           if ('mediaSession' in navigator) {
             navigator.mediaSession.playbackState = 'paused';
           }
+          savedProgressRef.current = 0;
+          setPlayerState(prev => ({ ...prev, progress: 0 }));
           if (playStartTimeRef.current) {
             const playedDuration = (Date.now() - playStartTimeRef.current) / 1000;
             reportPlayCompletion(playedDuration);
             playStartTimeRef.current = null;
           }
-          setPlayerState(prev => ({ ...prev, progress: 0 }));
-          savedProgressRef.current = 0;
           if (animationFrameRef.current) {
             cancelAnimationFrame(animationFrameRef.current);
             animationFrameRef.current = null;
@@ -665,7 +651,7 @@ const MusicPlayer = () => {
       setPlayerState(prev => ({ ...prev, progress: value }));
     }
 
-    if (isPlaying && howlRef.current) {
+    if (isPlaying && howlRef.current && !howlRef.current.playing()) {
       howlRef.current.play();
     }
 
@@ -749,45 +735,48 @@ const MusicPlayer = () => {
     }));
   };
 
-  // OPTIMIZATION 6: Simplified play/pause toggle
   const togglePlayPause = () => {
-    if (!playerState.initializationComplete || playerState.loading || isChanging || actionLock) return;
+    if (!playerState.initializationComplete || playerState.loading || isChanging || actionLock || !howlRef.current) return;
+
+    const now = Date.now();
+    if (now - lastToggleRef.current < TOGGLE_DEBOUNCE_MS) return;
+    lastToggleRef.current = now;
 
     const newPlayingState = !isPlaying;
     dispatch(setIsPlaying(newPlayingState));
 
-    if (howlRef.current) {
-      if (newPlayingState) {
-        howlRef.current.seek(savedProgressRef.current);
-        howlRef.current.play();
-      } else {
-        howlRef.current.pause();
-        savedProgressRef.current = howlRef.current.seek();
-      }
+    if (newPlayingState) {
+      const currentProgress = savedProgressRef.current || 0;
+      howlRef.current.seek(currentProgress);
+      howlRef.current.play();
+    } else {
+      howlRef.current.pause();
+      savedProgressRef.current = howlRef.current.seek() || 0;
+      setPlayerState(prev => ({ ...prev, progress: savedProgressRef.current }));
     }
   };
 
   useEffect(() => {
-    if (!howlRef.current || !playerState.initializationComplete) return;
+    if (!howlRef.current || !playerState.initializationComplete || playerState.loading || isChanging) return;
 
     if (playerState.firstLoad) {
       setPlayerState(prev => ({ ...prev, firstLoad: false }));
       return;
     }
 
-    if (isPlaying) {
-      // Play immediately without delay
-      if (howlRef.current && !howlRef.current.playing()) {
-        howlRef.current.seek(savedProgressRef.current);
-        howlRef.current.play();
-      }
-    } else {
-      if (howlRef.current) {
-        howlRef.current.pause();
-        savedProgressRef.current = howlRef.current.seek();
-      }
+    // Skip if togglePlayPause was recently called
+    const now = Date.now();
+    if (now - lastToggleRef.current < TOGGLE_DEBOUNCE_MS) return;
+
+    if (isPlaying && !howlRef.current.playing()) {
+      howlRef.current.seek(savedProgressRef.current || 0);
+      howlRef.current.play();
+    } else if (!isPlaying && howlRef.current.playing()) {
+      howlRef.current.pause();
+      savedProgressRef.current = howlRef.current.seek() || 0;
+      setPlayerState(prev => ({ ...prev, progress: savedProgressRef.current }));
     }
-  }, [isPlaying, playerState.initializationComplete, playerState.firstLoad]);
+  }, [isPlaying, playerState.initializationComplete, playerState.loading, isChanging]);
 
   useEffect(() => {
     if (playerState.initializationComplete && initialPlayRequestRef.current) {
@@ -815,7 +804,6 @@ const MusicPlayer = () => {
   const isLoading = playerState.loading || isLoadingTrack || isChanging || isInitializing || !playerState.initializationComplete;
 
   const progressPercentage = playerState.duration ? (playerState.progress / playerState.duration) * 100 : 0;
-  
 
   return (
     <div className="relative">
