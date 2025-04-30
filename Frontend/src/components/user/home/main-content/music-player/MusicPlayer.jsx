@@ -29,7 +29,6 @@ import {
   setActionLock
 } from '../../../../../slices/user/musicPlayerSlice';
 
-
 const MusicPlayer = () => {
   const dispatch = useDispatch();
   const {
@@ -44,7 +43,6 @@ const MusicPlayer = () => {
     shuffle,
     playedTracks,
   } = useSelector(state => state.musicPlayer);
-  
 
   const [playerState, setPlayerState] = useState({
     progress: 0,
@@ -54,34 +52,38 @@ const MusicPlayer = () => {
     volume: 1,
     isMuted: false,
     retryCount: 0,
-    initializationComplete: false // Add a flag to track complete initialization
+    initializationComplete: false,
+    firstLoad: true
   });
-  
+
   const [metadata, setMetadata] = useState(null);
   const [signedToken, setSignedToken] = useState(null);
   const [isSeeking, setIsSeeking] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
+  const [playId, setPlayId] = useState(null);
+  const [isRequestingToken, setIsRequestingToken] = useState(false);
+  const [isHandlingTrackChange, setIsHandlingTrackChange] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(false);
+
   const howlRef = useRef(null);
   const audioRef = useRef(null);
   const animationFrameRef = useRef(null);
   const lastUpdateTimeRef = useRef(0);
-  const [isLiked, setIsLiked] = useState(false);
   const playStartTimeRef = useRef(null);
   const reportedPlayRef = useRef(false);
-  const [playId, setPlayId] = useState(null);
   const tokenMusicIdRef = useRef(null);
   const retryTimeoutRef = useRef(null);
-  const MAX_RETRIES = 3;
+  const abortControllerRef = useRef(null);
   const mediaSessionInitializedRef = useRef(false);
   const seekPositionRef = useRef(null);
-  const [isRequestingToken, setIsRequestingToken] = useState(false);
-  const [isHandlingTrackChange, setIsHandlingTrackChange] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(false); 
-  const pageLoadRef = useRef(true);
   const initialPlayRequestRef = useRef(false);
   const previousMusicIdRef = useRef(null);
+  const savedProgressRef = useRef(0);
 
-  // Current track for MediaSessionControl
+  const MAX_RETRIES = 3;
+  const TOKEN_REFRESH_INTERVAL = 45 * 60 * 1000;
+
   const currentTrack = metadata ? {
     name: metadata.title,
     artist: metadata.artist,
@@ -90,124 +92,91 @@ const MusicPlayer = () => {
     duration: metadata.duration || 0
   } : null;
 
-  // When component unmounts or changes track
   useEffect(() => {
     return () => {
+      cleanupAudio();
       dispatch(setActionLock(false));
     };
   }, [dispatch]);
 
-
   useEffect(() => {
-    // If we previously had no musicId and now we have one (first login)
     if (!previousMusicIdRef.current && musicId) {
-      // This is the first time we're getting a musicId
       initialPlayRequestRef.current = true;
     }
-    // Always update our reference
     previousMusicIdRef.current = musicId;
   }, [musicId]);
-// Improve refreshTokenIfNeeded function
-const refreshTokenIfNeeded = async (retryOnCancel = true) => {
-  if (!musicId || isRequestingToken) return null;
-  
-  try {
+
+  const refreshTokenIfNeeded = async (retryOnCancel = true) => {
+    if (!musicId || isRequestingToken) return null;
+
     setIsRequestingToken(true);
-    
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000);
-    
-    const response = await api.get(`/api/music/token/${musicId}/`, {
-      signal: controller.signal
-    });
-    
-    clearTimeout(timeoutId);
-    setSignedToken(response.data.token);
-    setPlayId(response.data.play_id);
-    tokenMusicIdRef.current = musicId;
-    return response.data.token;
-  } catch (error) {
-    // More specific error handling
-    const isCancelled = error.name === 'AbortError' || 
-                       error.name === 'CanceledError' || 
-                       error.message?.includes('cancel');
-    
-    if (isCancelled && retryOnCancel) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      setIsRequestingToken(false);
-      return refreshTokenIfNeeded(false);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
-    
-    return null;
-  } finally {
-    setIsRequestingToken(false);
-  }
-};
+    abortControllerRef.current = new AbortController();
 
+    try {
+      const timeoutId = setTimeout(() => abortControllerRef.current.abort(), 10000);
+      const response = await api.get(`/api/music/token/${musicId}/`, {
+        signal: abortControllerRef.current.signal
+      });
 
-useEffect(() => {
-  // This handles the case when we change to a queue where the first track is the same as currently playing track
-  if (queue.length > 0 && currentIndex === 0 && queue[currentIndex]?.id === musicId) {
-    // If we have a track loaded, but it's technically "changing" because of a playlist selection
-    if (howlRef.current && playerState.initializationComplete) {
-      // Force complete any change operations if the track is the same
-      if (isChanging || isHandlingTrackChange) {
-        dispatch(setChangeComplete());
-        setIsHandlingTrackChange(false);
-        
-        // If it was playing before, ensure it continues playing
-        if (isPlaying && howlRef.current) {
-          // Small timeout to ensure state is updated
-          setTimeout(() => {
-            if (howlRef.current && !howlRef.current.playing()) {
+      clearTimeout(timeoutId);
+      setSignedToken(response.data.token);
+      setPlayId(response.data.play_id);
+      tokenMusicIdRef.current = musicId;
+      return response.data.token;
+    } catch (error) {
+      const isCancelled = error.name === 'AbortError' || error.message?.includes('cancel');
+      if (isCancelled && retryOnCancel) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return refreshTokenIfNeeded(false);
+      }
+      return null;
+    } finally {
+      setIsRequestingToken(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isPlaying || !musicId) return;
+
+    const tokenRefreshInterval = setInterval(() => {
+      refreshTokenIfNeeded();
+    }, TOKEN_REFRESH_INTERVAL);
+
+    return () => clearInterval(tokenRefreshInterval);
+  }, [isPlaying, musicId]);
+
+  useEffect(() => {
+    if (queue.length > 0 && currentIndex === 0 && queue[currentIndex]?.id === musicId) {
+      if (howlRef.current && playerState.initializationComplete) {
+        if (isChanging || isHandlingTrackChange) {
+          dispatch(setChangeComplete());
+          setIsHandlingTrackChange(false);
+          if (isPlaying && !howlRef.current.playing()) {
+            setTimeout(() => {
+              howlRef.current.seek(savedProgressRef.current);
               howlRef.current.play();
-            }
-          }, 100);
+            }, 100);
+          }
         }
       }
     }
-  }
-}, [queue, currentIndex, musicId, isChanging, isHandlingTrackChange, playerState.initializationComplete, dispatch, isPlaying]);
+  }, [queue, currentIndex, musicId, isChanging, isHandlingTrackChange, playerState.initializationComplete, dispatch, isPlaying]);
 
-
-// Add this useEffect to refresh the token periodically during playback
-useEffect(() => {
-  if (!isPlaying || !musicId) return;
-  
-  // Refresh token every 45 minutes (3/4 of the 1hr expiry)
-  const tokenRefreshInterval = setInterval(() => {
-    refreshTokenIfNeeded();
-  }, 45 * 60 * 1000);
-  
-  return () => {
-    clearInterval(tokenRefreshInterval);
-  };
-}, [isPlaying, musicId]);
-
-
-// Add this useEffect to release action lock if stuck in error state
-useEffect(() => {
-  if (playerState.error && actionLock) {
-    // Release action lock after 5 seconds if we're in an error state
-    const lockReleaseTimeout = setTimeout(() => {
-      dispatch(setActionLock(false));
-    }, 5000);
-    
-    return () => clearTimeout(lockReleaseTimeout);
-  }
-}, [playerState.error, actionLock, dispatch]);
-
-  // Initialize Media Session with debouncing for position updates
   useEffect(() => {
-    if (!('mediaSession' in navigator)) {
-      return;
+    if (playerState.error && actionLock) {
+      const lockReleaseTimeout = setTimeout(() => {
+        dispatch(setActionLock(false));
+      }, 5000);
+      return () => clearTimeout(lockReleaseTimeout);
     }
+  }, [playerState.error, actionLock, dispatch]);
 
-    if (!currentTrack || !howlRef.current) {
-      return;
-    }
+  useEffect(() => {
+    if (!('mediaSession' in navigator) || !currentTrack || !howlRef.current) return;
 
-    // Configure Media Session metadata
     navigator.mediaSession.metadata = new MediaMetadata({
       title: currentTrack.name,
       artist: currentTrack.artist,
@@ -217,65 +186,56 @@ useEffect(() => {
       ] : []
     });
 
-    // Set playback state
     navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
 
-    // Set up Media Session actions
-    navigator.mediaSession.setActionHandler('play', () => {
-      dispatch(setIsPlaying(true));
-    });
-
-    navigator.mediaSession.setActionHandler('pause', () => {
-      dispatch(setIsPlaying(false));
-    });
-
-    navigator.mediaSession.setActionHandler('previoustrack', () => {
-      handlePrevious();
-    });
-
-    navigator.mediaSession.setActionHandler('nexttrack', () => {
-      handleNext();
-    });
-
-    // Add seekto handler if supported
-    try {
-      navigator.mediaSession.setActionHandler('seekto', (details) => {
+    const actionHandlers = {
+      play: () => dispatch(setIsPlaying(true)),
+      pause: () => dispatch(setIsPlaying(false)),
+      previoustrack: handlePrevious,
+      nexttrack: handleNext,
+      seekto: (details) => {
         if (details.seekTime && howlRef.current) {
           seekPositionRef.current = details.seekTime;
           handleSeek(details.seekTime);
         }
-      });
-    } catch (error) {
-      console.warn('Media Session "seekto" action is not supported');
-    }
-
-    // Add seekbackward/seekforward handlers if supported
-    try {
-      navigator.mediaSession.setActionHandler('seekbackward', (details) => {
+      },
+      seekbackward: (details) => {
         const skipTime = details.seekOffset || 10;
         const newTime = Math.max(0, playerState.progress - skipTime);
         seekPositionRef.current = newTime;
         handleSeek(newTime);
-      });
-    } catch (error) {
-      console.warn('Media Session "seekbackward" action is not supported');
-    }
-
-    try {
-      navigator.mediaSession.setActionHandler('seekforward', (details) => {
+      },
+      seekforward: (details) => {
         const skipTime = details.seekOffset || 10;
         const newTime = Math.min(playerState.duration, playerState.progress + skipTime);
         seekPositionRef.current = newTime;
         handleSeek(newTime);
-      });
-    } catch (error) {
-      console.warn('Media Session "seekforward" action is not supported');
-    }
+      }
+    };
+
+    Object.entries(actionHandlers).forEach(([action, handler]) => {
+      try {
+        navigator.mediaSession.setActionHandler(action, handler);
+      } catch (error) {
+        console.warn(`Media Session "${action}" action not supported`);
+      }
+    });
 
     mediaSessionInitializedRef.current = true;
-  }, [currentTrack, howlRef.current, dispatch]);
 
-  // Track when Redux isChanging state changes
+    return () => {
+      if ('mediaSession' in navigator) {
+        Object.keys(actionHandlers).forEach(action => {
+          try {
+            navigator.mediaSession.setActionHandler(action, null);
+          } catch (error) {
+            console.warn(`Error clearing media session handler for ${action}`);
+          }
+        });
+      }
+    };
+  }, [currentTrack, isPlaying, dispatch]);
+
   useEffect(() => {
     if (isChanging) {
       setIsHandlingTrackChange(true);
@@ -287,63 +247,56 @@ useEffect(() => {
 
   const handleSeek = (position) => {
     if (!howlRef.current) return;
-    
+
     const safePosition = Math.max(0, Math.min(position, howlRef.current.duration() || 0));
-    
     try {
       howlRef.current.seek(safePosition);
+      savedProgressRef.current = safePosition;
       setPlayerState(prev => ({ ...prev, progress: safePosition }));
     } catch (error) {
       console.error('Seek failed:', error);
     }
   };
 
-  // Update Media Session playback state when isPlaying changes
   useEffect(() => {
     if ('mediaSession' in navigator && mediaSessionInitializedRef.current) {
       navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
     }
   }, [isPlaying]);
 
-  // Debounced Media Session position state updates
   useEffect(() => {
-    if ('mediaSession' in navigator && 
-        mediaSessionInitializedRef.current && 
-        howlRef.current && 
-        playerState.duration > 0 &&
-        !isSeeking) {
-      
-      const now = Date.now();
-      // Only update if it's been at least 250ms since last update
-      if (now - lastUpdateTimeRef.current >= 250) {
-        try {
-          navigator.mediaSession.setPositionState({
-            duration: playerState.duration,
-            playbackRate: 1.0,
-            position: playerState.progress
-          });
-          lastUpdateTimeRef.current = now;
-        } catch (error) {
-          console.warn('Error updating position state:', error);
-        }
+    if (!('mediaSession' in navigator) || !mediaSessionInitializedRef.current || !howlRef.current || !playerState.duration || isSeeking) return;
+
+    const now = Date.now();
+    if (now - lastUpdateTimeRef.current >= 250) {
+      try {
+        navigator.mediaSession.setPositionState({
+          duration: playerState.duration,
+          playbackRate: 1.0,
+          position: playerState.progress
+        });
+        lastUpdateTimeRef.current = now;
+      } catch (error) {
+        console.warn('Error updating position state:', error);
       }
     }
   }, [playerState.progress, playerState.duration, isSeeking]);
 
-  // Sync howlRef with audioRef for Media controls
   useEffect(() => {
     if (howlRef.current) {
       audioRef.current = {
-        play: () => howlRef.current.play(),
+        play: () => {
+          howlRef.current.seek(savedProgressRef.current);
+          howlRef.current.play();
+        },
         pause: () => howlRef.current.pause(),
-        duration: howlRef.current ? howlRef.current.duration() : 0,
-        currentTime: howlRef.current ? howlRef.current.seek() : 0,
+        duration: howlRef.current.duration(),
+        currentTime: howlRef.current.seek(),
         playbackRate: 1
       };
     }
   }, [howlRef.current]);
 
-  // Update audioRef when progress changes
   useEffect(() => {
     if (audioRef.current && howlRef.current) {
       audioRef.current.currentTime = playerState.progress;
@@ -353,7 +306,7 @@ useEffect(() => {
 
   const reportPlayCompletion = async (duration, percentage = null) => {
     if (!musicId || !playId) return;
-    
+
     try {
       const response = await api.post('api/music/record_play_completion/', {
         music_id: musicId,
@@ -364,38 +317,33 @@ useEffect(() => {
 
       if (response.data.counted_as_play) {
         reportedPlayRef.current = true;
-        console.log("Play counted successfully");
       } else {
         reportedPlayRef.current = false;
-        console.log(`Play progress: ${response.data.accumulated_duration}s accumulated`);
       }
-      
       return response.data;
     } catch (error) {
-      console.error("Failed to report play completion", error);
+      console.error('Failed to report play completion:', error);
       return null;
     }
   };
-  
-  // Fetch music metadata
+
   useEffect(() => {
     const fetchMetadata = async () => {
       if (!musicId) return;
-      
+
+      setPlayerState(prev => ({ ...prev, loading: true, error: null, initializationComplete: false }));
+      dispatch(setActionLock(true));
+
       try {
-        // Set loading state both in component and Redux
-        setPlayerState(prev => ({ ...prev, loading: true, error: null, initializationComplete: false }));
-        dispatch(setActionLock(true)); // Lock actions during metadata fetch
-        
         const response = await api.get(`/api/music/metadata/${musicId}/`);
         setMetadata(response.data);
 
-        const liked_response = await api.get(`/api/playlist/playlists/is_liked/?music_id=${musicId}`)
+        const liked_response = await api.get(`/api/playlist/playlists/is_liked/?music_id=${musicId}`);
         setIsLiked(liked_response.data.liked);
-        
-        setPlayerState(prev => ({ 
-          ...prev, 
-          loading: true, // Keep loading true until full initialization
+
+        setPlayerState(prev => ({
+          ...prev,
+          loading: true,
           duration: response.data.duration,
           progress: 0,
           error: null,
@@ -404,11 +352,11 @@ useEffect(() => {
 
         mediaSessionInitializedRef.current = false;
       } catch (error) {
-        console.error("Failed to fetch metadata:", error);
+        console.error('Failed to fetch metadata:', error);
         setPlayerState(prev => ({
-          ...prev, 
-          loading: false,  
-          error: "Failed to load track information",
+          ...prev,
+          loading: false,
+          error: 'Failed to load track information',
           retryCount: 0,
           initializationComplete: false
         }));
@@ -419,64 +367,57 @@ useEffect(() => {
     fetchMetadata();
   }, [musicId, dispatch]);
 
-  const handlelike = async () => {
+  const handleLike = async () => {
     try {
       const response = await api.post(`/api/playlist/playlists/like_songs/`, { music_id: musicId });
       setIsLiked(response.data.liked);
     } catch (error) {
-      console.error("Failed to toggle like status:", error);
+      console.error('Failed to toggle like status:', error);
     }
   };
-  
+
   useEffect(() => {
     if (!queue.length) return;
-    
+
     const currentTrack = queue[currentIndex];
     if (currentTrack && currentTrack.id !== musicId) {
       dispatch(setMusicId(currentTrack.id));
     }
   }, [queue, currentIndex, dispatch, musicId]);
 
-  // Fetch signed token with retry logic
   useEffect(() => {
     if (!musicId || isRequestingToken || !metadata) return;
-  
+
     const fetchSignedToken = async () => {
+      setIsRequestingToken(true);
+      reportedPlayRef.current = false;
+
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      abortControllerRef.current = new AbortController();
+
       try {
-        setIsRequestingToken(true);
-        reportedPlayRef.current = false;
-        
-        // Add AbortController to manage the request
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-        
+        const timeoutId = setTimeout(() => abortControllerRef.current.abort(), 10000);
         const response = await api.get(`/api/music/token/${musicId}/`, {
-          signal: controller.signal
+          signal: abortControllerRef.current.signal
         });
-        
+
         clearTimeout(timeoutId);
         setSignedToken(response.data.token);
         setPlayId(response.data.play_id);
         tokenMusicIdRef.current = musicId;
         setPlayerState(prev => ({ ...prev, retryCount: 0 }));
       } catch (error) {
-        // Check if the request was cancelled
-        const isCancelled = error.name === 'AbortError' || 
-                           error.name === 'CanceledError' || 
-                           error.message?.includes('cancel') ||
-                           error.message?.includes('abort');
-        
-        console.error(`Token fetch ${isCancelled ? 'cancelled' : 'failed'}:`, error);
-        
+        const isCancelled = error.name === 'AbortError' || error.message?.includes('cancel');
         if (isCancelled) {
-          // If cancelled, retry after a short delay
           retryTimeoutRef.current = setTimeout(() => {
-            setIsRequestingToken(false); // Reset flag to allow retry
+            setIsRequestingToken(false);
           }, 1000);
         } else {
           setPlayerState(prev => ({
             ...prev,
-            error: "Authentication error. Please try again.",
+            error: 'Authentication error. Please try again.',
             loading: false,
             initializationComplete: false
           }));
@@ -486,9 +427,9 @@ useEffect(() => {
         setIsRequestingToken(false);
       }
     };
-  
+
     fetchSignedToken();
-    
+
     return () => {
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
@@ -496,74 +437,61 @@ useEffect(() => {
     };
   }, [musicId, metadata, dispatch]);
 
-  // Initialize audio stream with enhanced error handling and retries
-  useEffect(() => {
-    if (!musicId || !signedToken || !metadata || tokenMusicIdRef.current !== musicId || isInitializing) return;
-  
-    // Set initializing flag to prevent multiple initializations
-    setIsInitializing(true);
-    
-    // Clear any previous timeout
-    if (retryTimeoutRef.current) {
-      clearTimeout(retryTimeoutRef.current);
-    }
-    
+  const cleanupAudio = () => {
     if (howlRef.current) {
+      if (playStartTimeRef.current && !reportedPlayRef.current) {
+        const playedDuration = (Date.now() - playStartTimeRef.current) / 1000;
+        const percentage = howlRef.current ? howlRef.current.seek() / howlRef.current.duration() : null;
+        reportPlayCompletion(playedDuration, percentage);
+      }
       howlRef.current.unload();
+      howlRef.current = null;
     }
 
-    // Cancel any ongoing animation frame
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
     }
-    
-    if (howlRef.current && 
-      playerState.initializationComplete && 
-      tokenMusicIdRef.current === musicId && 
-      !playerState.error) {
-    // Just update the reference to ensure consistency
-    tokenMusicIdRef.current = musicId;
-    // Mark any playlist-triggered track "change" as complete
-    if (isChanging) {
-      dispatch(setChangeComplete());
+
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current);
+      retryTimeoutRef.current = null;
     }
-    return;
-  }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  };
+
+  useEffect(() => {
+    if (!musicId || !signedToken || !metadata || tokenMusicIdRef.current !== musicId || isInitializing) return;
+
+    setIsInitializing(true);
+    cleanupAudio();
 
     const initializeAudio = () => {
       try {
         setPlayerState(prev => ({ ...prev, loading: true, error: null, progress: 0, initializationComplete: false }));
-        
-        // Create a cancel token that will expire after 15 seconds (same as Howl's XHR timeout)
+
         const cancelTimeout = setTimeout(() => {
-          console.log("Audio loading taking too long, preemptively refreshing token...");
-          refreshTokenIfNeeded().then(() => {
-            // Continue with initialization process on next cycle
-            setIsInitializing(false);
-          });
-        }, 14000); // Slightly shorter than Howl's timeout to ensure we can refresh before it fails
-        
+          refreshTokenIfNeeded().then(() => setIsInitializing(false));
+        }, 14000);
+
         const audioUrl = `${api.defaults.baseURL}/api/music/stream/${musicId}/?token=${signedToken}`;
         const sound = new Howl({
           src: [audioUrl],
           format: [metadata.format],
           html5: true,
           preload: true,
+          volume: playerState.isMuted ? 0 : playerState.volume,
           xhr: {
             timeout: 15000,
-            headers: {
-              // Add a custom header to help identify our requests in case of debugging
-              'X-Client-ID': 'music-player-v1'
-            }
+            headers: { 'X-Client-ID': 'music-player-v1' }
           },
           onload: () => {
-
             clearTimeout(cancelTimeout);
-
-            // Audio has loaded successfully
             const actualDuration = sound.duration();
-            
             setPlayerState(prev => ({
               ...prev,
               duration: actualDuration,
@@ -571,81 +499,41 @@ useEffect(() => {
               error: null,
               retryCount: 0,
               progress: 0,
-              initializationComplete: true // Mark initialization as complete
+              initializationComplete: true
             }));
-            
             dispatch(setChangeComplete());
             dispatch(setActionLock(false));
             setIsInitializing(false);
-            
-            // Don't auto-play here, let the isPlaying effect handle it
+
+            if (savedProgressRef.current > 0) {
+              sound.seek(savedProgressRef.current);
+              setPlayerState(prev => ({ ...prev, progress: savedProgressRef.current }));
+            }
           },
           onloaderror: (id, error) => {
-            console.error('Audio loading error:', error);
-            
-            // Check if the error might be token-related or a cancellation
-            const isTokenError = error && (
-              error.includes('401') || 
-              error.includes('403') || 
-              error.includes('Unauthorized')
-            );
-            
-            const isCancellation = error && (
-              error.includes('cancel') || 
-              error.includes('abort') ||
-              error.includes('timeout')
-            );
-            
+            clearTimeout(cancelTimeout);
+            const isTokenError = error && (error.includes('401') || error.includes('403') || error.includes('Unauthorized'));
+            const isCancellation = error && (error.includes('cancel') || error.includes('abort') || error.includes('timeout'));
+
             if (isTokenError || isCancellation) {
-              console.log(`${isTokenError ? "Token likely expired" : "Request cancelled"}, attempting refresh...`);
-              
-              // If it's a cancellation, we'll force a retry with backoff
               const retryDelay = isCancellation ? 2000 : 500;
-              
               setTimeout(() => {
                 refreshTokenIfNeeded().then(newToken => {
-                  if (newToken) {
-                    // Token refreshed successfully, will retry on next cycle
-                    setIsInitializing(false); // Allow reinitializing
-                  }
+                  if (newToken) setIsInitializing(false);
                 });
               }, retryDelay);
-              
               return;
             }
-          
-            
-            // Implement retry logic
+
             setPlayerState(prev => {
               const newRetryCount = prev.retryCount + 1;
-              
               if (newRetryCount <= MAX_RETRIES) {
-                console.log(`Retry attempt ${newRetryCount}/${MAX_RETRIES}...`);
-                
-                // Exponential backoff for retries
                 const retryDelay = Math.min(1000 * Math.pow(2, newRetryCount - 1), 10000);
-                
                 retryTimeoutRef.current = setTimeout(() => {
-                  // Get fresh token and retry
-                  api.get(`/api/music/token/${musicId}/`)
-                    .then(response => {
-                      setSignedToken(response.data.token);
-                      setPlayId(response.data.play_id);
-                      setIsInitializing(false); // Reset initializing flag to allow retry
-                    })
-                    .catch(tokenError => {
-                      console.error("Failed to refresh token for retry:", tokenError);
-                      setPlayerState(prevState => ({
-                        ...prevState,
-                        loading: false,
-                        error: "Stream unavailable after multiple attempts. Please try again later.",
-                        initializationComplete: false
-                      }));
-                      dispatch(setActionLock(false));
-                      setIsInitializing(false);
-                    });
+                  refreshTokenIfNeeded().then(newToken => {
+                    if (newToken) setIsInitializing(false);
+                  });
                 }, retryDelay);
-                
                 return {
                   ...prev,
                   retryCount: newRetryCount,
@@ -654,112 +542,88 @@ useEffect(() => {
                   error: `Loading audio... (Attempt ${newRetryCount}/${MAX_RETRIES})`
                 };
               }
-              
               dispatch(setActionLock(false));
               setIsInitializing(false);
-              
               return {
                 ...prev,
                 loading: false,
                 initializationComplete: false,
-                error: "Failed to load audio after multiple attempts. Please try a different track or check your connection.",
+                error: 'Failed to load audio after multiple attempts.',
                 retryCount: 0
               };
             });
           },
           onplayerror: (id, error) => {
             console.error('Audio playback error:', error);
-            
-            // Try to recover from playback errors
-            sound.once('unlock', function() {
+            sound.once('unlock', () => {
+              sound.seek(savedProgressRef.current);
               sound.play();
             });
           },
           onplay: () => {
-            // Update Media Session playback state
+            dispatch(setIsPlaying(true));
             if ('mediaSession' in navigator) {
               navigator.mediaSession.playbackState = 'playing';
             }
-            
             playStartTimeRef.current = Date.now();
-  
             if (tokenMusicIdRef.current !== musicId) {
               reportedPlayRef.current = false;
             }
-          
-            // Start progress tracking with throttling
             if (animationFrameRef.current) {
               cancelAnimationFrame(animationFrameRef.current);
             }
             updateSeeker();
           },
           onpause: () => {
-            // Update Media Session playback state
+            dispatch(setIsPlaying(false));
             if ('mediaSession' in navigator) {
               navigator.mediaSession.playbackState = 'paused';
             }
-            
             if (playStartTimeRef.current) {
               const playDuration = (Date.now() - playStartTimeRef.current) / 1000;
               const percentage = sound ? sound.seek() / sound.duration() : null;
-              
-              reportPlayCompletion(playDuration, percentage)
-              .then(() => {
-                playStartTimeRef.current = null;
-              });
+              reportPlayCompletion(playDuration, percentage);
+              playStartTimeRef.current = null;
             }
-
-            // Stop progress tracking
+            savedProgressRef.current = sound.seek();
             if (animationFrameRef.current) {
               cancelAnimationFrame(animationFrameRef.current);
               animationFrameRef.current = null;
             }
           },
           onstop: () => {
-            // Update Media Session playback state
+            dispatch(setIsPlaying(false));
             if ('mediaSession' in navigator) {
               navigator.mediaSession.playbackState = 'paused';
             }
-            
             if (playStartTimeRef.current) {
               const playedDuration = (Date.now() - playStartTimeRef.current) / 1000;
               reportPlayCompletion(playedDuration);
               playStartTimeRef.current = null;
             }
-            
             setPlayerState(prev => ({ ...prev, progress: 0 }));
-            
-            // Stop progress tracking
+            savedProgressRef.current = 0;
             if (animationFrameRef.current) {
               cancelAnimationFrame(animationFrameRef.current);
               animationFrameRef.current = null;
             }
           },
           onend: () => {
-            // Report full play completion
-            if (metadata && metadata.duration){
+            if (metadata && metadata.duration) {
               reportPlayCompletion(metadata.duration, 1.0);
             }
-
             dispatch(markAsPlayed(musicId));
-            
-            // Stop progress tracking
             if (animationFrameRef.current) {
               cancelAnimationFrame(animationFrameRef.current);
               animationFrameRef.current = null;
             }
-            
-            // Move to next track
             dispatch(playNext());
+            savedProgressRef.current = 0;
           },
           onseek: () => {
-            // Get actual position after seek completed
             const actualPosition = sound.seek();
-            
-            // Update UI state with actual position
+            savedProgressRef.current = actualPosition;
             setPlayerState(prev => ({ ...prev, progress: actualPosition }));
-            
-            // Update Media Session position state with debouncing
             if ('mediaSession' in navigator && sound && sound.duration()) {
               const now = Date.now();
               if (now - lastUpdateTimeRef.current >= 250) {
@@ -775,14 +639,12 @@ useEffect(() => {
                 }
               }
             }
-            
-            // Resume progress tracking if playing
             if (isPlaying && !animationFrameRef.current) {
               updateSeeker();
             }
           }
         });
-        
+
         howlRef.current = sound;
       } catch (error) {
         console.error('Error initializing audio:', error);
@@ -794,112 +656,59 @@ useEffect(() => {
           retryCount: 0
         }));
         dispatch(setActionLock(false));
-        setIsInitializing(true);
+        setIsInitializing(false);
       }
     };
-  
-    initializeAudio();
-    
-    return () => {
-      if (howlRef.current && playStartTimeRef.current && !reportedPlayRef.current) {
-        const playedDuration = (Date.now() - playStartTimeRef.current) / 1000;
-        const percentage = howlRef.current ? howlRef.current.seek() / howlRef.current.duration() : null;
-        reportPlayCompletion(playedDuration, percentage);
-      }
 
-      if (howlRef.current) {
-        howlRef.current.unload();
-        howlRef.current = null;
-      }
-      
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-        animationFrameRef.current = null;
-      }
-      
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
-        retryTimeoutRef.current = null;
-      }
-      
-      // Clear media session handlers when component unmounts
-      if ('mediaSession' in navigator) {
-        navigator.mediaSession.metadata = null;
-        try {
-          navigator.mediaSession.setActionHandler('play', null);
-          navigator.mediaSession.setActionHandler('pause', null);
-          navigator.mediaSession.setActionHandler('previoustrack', null);
-          navigator.mediaSession.setActionHandler('nexttrack', null);
-          navigator.mediaSession.setActionHandler('seekto', null);
-          navigator.mediaSession.setActionHandler('seekbackward', null);
-          navigator.mediaSession.setActionHandler('seekforward', null);
-        } catch (error) {
-          console.warn('Error clearing media session handlers:', error);
-        }
-      }
-      
-      setIsInitializing(false);
-    };
+    initializeAudio();
+
+    return cleanupAudio;
   }, [musicId, signedToken, metadata, dispatch]);
-  
-  // Improved updateSeeker with throttling to prevent excessive updates
+
   const updateSeeker = () => {
     if (!howlRef.current || isSeeking) {
       animationFrameRef.current = null;
       return;
     }
-  
-    // Get current time directly from Howl
+
     let currentTime;
     try {
       currentTime = howlRef.current.seek() || 0;
     } catch (error) {
-      console.warn('Error getting current time from Howl:', error);
+      console.warn('Error getting current time:', error);
       currentTime = playerState.progress;
     }
-    
-    // Avoid unnecessary updates if value hasn't changed significantly (> 0.1s)
+
     if (Math.abs(currentTime - playerState.progress) > 0.1) {
       setPlayerState(prev => ({
         ...prev,
         progress: currentTime
       }));
+      savedProgressRef.current = currentTime;
     }
-    
-    // Schedule next update (aim for ~30fps for UI updates = ~33ms)
+
     animationFrameRef.current = requestAnimationFrame(updateSeeker);
   };
 
   const handleSeekChange = (e) => {
     const value = parseFloat(e.target.value);
-    
-    setPlayerState(prev => ({
-      ...prev,
-      progress: value
-    }));
+    setPlayerState(prev => ({ ...prev, progress: value }));
   };
 
   const handleSeekMouseUp = (e) => {
     const value = parseFloat(e.target.value);
-    
     setIsSeeking(false);
-    
-    // Force seek even if not playing
+
     if (howlRef.current) {
       howlRef.current.seek(value);
-      
-      setPlayerState(prev => ({ 
-        ...prev, 
-        progress: value 
-      }));
+      savedProgressRef.current = value;
+      setPlayerState(prev => ({ ...prev, progress: value }));
     }
-    
-    // Optionally restart playing if it was playing before
+
     if (isPlaying && howlRef.current) {
       howlRef.current.play();
     }
-    
-    // Resume progress tracking
+
     if (!animationFrameRef.current) {
       updateSeeker();
     }
@@ -907,8 +716,6 @@ useEffect(() => {
 
   const handleSeekMouseDown = () => {
     setIsSeeking(true);
-    
-    // Pause updates during seeking
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = null;
@@ -916,73 +723,43 @@ useEffect(() => {
   };
 
   const handleRetry = () => {
-    // Manual retry function
     setPlayerState(prev => ({ ...prev, retryCount: 0, loading: true, error: null, initializationComplete: false }));
     dispatch(setActionLock(true));
-    
+
     refreshTokenIfNeeded().then(() => {
-      // Reset initializing flag to allow retry regardless of token result
       setIsInitializing(false);
     });
-
-    api.get(`/api/music/token/${musicId}/`)
-      .then(response => {
-        setSignedToken(response.data.token);
-        setPlayId(response.data.play_id);
-      })
-      .catch(error => {
-        console.error("Failed to refresh token for manual retry:", error);
-        setPlayerState(prev => ({
-          ...prev,
-          loading: false,
-          initializationComplete: false,
-          error: "Could not refresh audio session. Please try again later."
-        }));
-        dispatch(setActionLock(false));
-      });
   };
 
   const handleNext = () => {
-    if (isHandlingTrackChange) return;
-    
+    if (isHandlingTrackChange || actionLock) return;
+
     setIsHandlingTrackChange(true);
-    
-    // Stop current playback tracking
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    
-    // Move to next track
+    savedProgressRef.current = 0;
+    cleanupAudio();
     dispatch(playNext());
-    
-    // Reset handling flag after a short delay to prevent multiple clicks
+
     setTimeout(() => setIsHandlingTrackChange(false), 500);
   };
-  
+
   const handlePrevious = () => {
-    if (isHandlingTrackChange) return;
-    
+    if (isHandlingTrackChange || actionLock) return;
+
     setIsHandlingTrackChange(true);
-    
-    // Stop current playback tracking
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    
-    // Move to previous track
+    savedProgressRef.current = 0;
+    cleanupAudio();
     dispatch(playPrevious());
-    
-    // Reset handling flag after a short delay to prevent multiple clicks
+
     setTimeout(() => setIsHandlingTrackChange(false), 500);
   };
 
   const handleToggleShuffle = () => {
+    if (actionLock) return;
     dispatch(toggleShuffle());
   };
 
   const handleRepeatMode = () => {
+    if (actionLock) return;
     const modes = ['none', 'all', 'one'];
     const currentIndex = modes.indexOf(repeat);
     const nextMode = modes[(currentIndex + 1) % modes.length];
@@ -990,91 +767,83 @@ useEffect(() => {
   };
 
   const toggleVolume = () => {
-    if (howlRef.current) {
-      if (playerState.isMuted) {
-        howlRef.current.volume(playerState.volume);
-      } else {
-        howlRef.current.volume(0);
-      }
-      setPlayerState(prev => ({ ...prev, isMuted: !prev.isMuted }));
-    }
-  };
-
-
-  useEffect(() => {
-    if (!howlRef.current || !playerState.initializationComplete) return;
-    
-    // Don't auto-play on initial page load unless explicitly requested
-    if (pageLoadRef.current && !initialPlayRequestRef.current) {
-      pageLoadRef.current = false;
-      return;
-    }
-    
-    if (isPlaying) {
-      // Add a small delay to ensure Howler is ready
-      const playTimeout = setTimeout(() => {
-        if (howlRef.current) {
-          console.log('Playing audio from isPlaying effect');
-          howlRef.current.play();
-        }
-      }, 50);
-      
-      return () => clearTimeout(playTimeout);
-    } else {
-      if (howlRef.current) {
-        howlRef.current.pause();
-      }
-    }
-  }, [isPlaying, playerState.initializationComplete, dispatch]);
-
-  
-
-  useEffect(() => {
-    if (playerState.initializationComplete && initialPlayRequestRef.current) {
-      console.log('Initialization complete with pending play request');
-      initialPlayRequestRef.current = false;
-      
-      // Add a small delay to ensure Howler is fully ready
-      setTimeout(() => {
-        if (howlRef.current) {
-          console.log('Starting initial playback');
-          howlRef.current.play();
-          dispatch(setIsPlaying(true));
-        }
-      }, 150);
-    }
-  }, [playerState.initializationComplete, dispatch]);
-  
-    
-  
-
-  const togglePlayPause = () => {
-    // If we're still initializing, mark that we want to play when ready
-    if (!playerState.initializationComplete || playerState.loading || isChanging) {
-      if ((pageLoadRef.current || !previousMusicIdRef.current) && musicId) {
-        console.log('Setting initial play request flag');
-        initialPlayRequestRef.current = true;
-        // Also set isPlaying to true to update the UI immediately
-        dispatch(setIsPlaying(true));
-      }
-      return;
-    }
-    
-    // Normal toggle behavior
-    dispatch(setIsPlaying(!isPlaying));
+    if (!howlRef.current) return;
+    const newMutedState = !playerState.isMuted;
+    howlRef.current.volume(newMutedState ? 0 : playerState.volume);
+    setPlayerState(prev => ({ ...prev, isMuted: newMutedState }));
   };
 
   const handleVolumeChange = (e) => {
+    if (!howlRef.current) return;
     const value = parseFloat(e.target.value);
-    if (howlRef.current) {
-      howlRef.current.volume(value);
-    }
+    howlRef.current.volume(value);
     setPlayerState(prev => ({
       ...prev,
       volume: value,
       isMuted: value === 0
     }));
   };
+
+  const togglePlayPause = () => {
+    if (!playerState.initializationComplete || playerState.loading || isChanging || actionLock) return;
+
+    const newPlayingState = !isPlaying;
+    dispatch(setIsPlaying(newPlayingState));
+
+    if (howlRef.current) {
+      if (newPlayingState) {
+        howlRef.current.seek(savedProgressRef.current);
+        howlRef.current.play();
+      } else {
+        howlRef.current.pause();
+        savedProgressRef.current = howlRef.current.seek();
+      }
+    }
+  };
+
+  useEffect(() => {
+    if (!howlRef.current || !playerState.initializationComplete) return;
+
+    if (playerState.firstLoad) {
+      setPlayerState(prev => ({ ...prev, firstLoad: false }));
+      if (!musicId) {
+        dispatch(setIsPlaying(false));
+        howlRef.current.pause();
+      }
+      return;
+    }
+
+    if (isPlaying) {
+      const playTimeout = setTimeout(() => {
+        if (howlRef.current && !howlRef.current.playing()) {
+          howlRef.current.seek(savedProgressRef.current);
+          howlRef.current.play();
+        }
+      }, 50);
+      return () => clearTimeout(playTimeout);
+    } else {
+      if (howlRef.current) {
+        howlRef.current.pause();
+        savedProgressRef.current = howlRef.current.seek();
+      }
+    }
+  }, [isPlaying, playerState.initializationComplete, dispatch, playerState.firstLoad, musicId]);
+
+  useEffect(() => {
+    if (playerState.initializationComplete && initialPlayRequestRef.current) {
+      initialPlayRequestRef.current = false;
+      if (!isPlaying && howlRef.current) {
+        howlRef.current.pause();
+        dispatch(setIsPlaying(false));
+      }
+    }
+  }, [playerState.initializationComplete, isPlaying, dispatch]);
+
+  useEffect(() => {
+    if (!musicId) {
+      dispatch(setIsPlaying(false));
+    }
+  }, [musicId, dispatch]);
 
   const formatTime = (seconds) => {
     if (!seconds) return '0:00';
@@ -1087,17 +856,12 @@ useEffect(() => {
     setIsQueueOpen(!isQueueOpen);
   };
 
-  // Calculate loading state for UI (combines local and Redux states)
   const isLoading = playerState.loading || isLoadingTrack || isChanging || isInitializing || !playerState.initializationComplete;
 
-  // Calculate progress percentage for custom progress bar
-  const progressPercentage = playerState.duration 
-    ? (playerState.progress / playerState.duration) * 100 
-    : 0;
+  const progressPercentage = playerState.duration ? (playerState.progress / playerState.duration) * 100 : 0;
 
   return (
     <div className="relative">
-      {/* Error Message Banner */}
       {playerState.error && !playerState.loading && (
         <div className="bg-red-900 text-white p-2 flex items-center justify-between">
           <span className="text-sm">{playerState.error}</span>
@@ -1110,11 +874,8 @@ useEffect(() => {
         </div>
       )}
       
-      {/* Main Player - Slimmer design */}
       <div className="bg-black bg-opacity-90 text-white border-t border-gray-900 backdrop-blur-lg p-1 sm:p-2 shadow-lg">
-        {/* Mobile view - Vertical compact layout */}
         <div className="flex flex-col md:hidden space-y-3 pt-2 pb-2 pl-2 pr-2">
-          {/* Song info and mini controls */}
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               {metadata?.cover_photo ? (
@@ -1131,14 +892,14 @@ useEffect(() => {
                 </div>
               )}
               <div className="overflow-hidden">
-              <h3 className="text-sm font-medium truncate">{metadata?.title}</h3>
+                <h3 className="text-sm font-medium truncate">{metadata?.title}</h3>
                 <p className="text-xs text-gray-400 truncate">{metadata?.artist}</p>
               </div>
             </div>
             
             <div className="flex items-center space-x-1">
               <button 
-                onClick={handlelike}
+                onClick={handleLike}
                 disabled={!musicId || playerState.loading}
                 className={`p-1 rounded-full ${
                   isLiked ? 'text-pink-500' : 'text-gray-400'
@@ -1152,7 +913,6 @@ useEffect(() => {
             </div>
           </div>
           
-          {/* Loading Indicator */}
           {playerState.loading && (
             <div className="flex items-center justify-center py-1">
               <div className="w-full bg-gray-800 rounded-full h-1 overflow-hidden">
@@ -1161,8 +921,6 @@ useEffect(() => {
             </div>
           )}
 
-          
-          {/* Slim progress bar */}
           {!playerState.loading && (
             <div className="px-1">
               <div className="relative h-1 bg-gray-800 rounded-full overflow-hidden">
@@ -1194,61 +952,58 @@ useEffect(() => {
             </div>
           )}
           
-          {/* Compact playback controls */}
           <div className="flex items-center justify-between px-2">
             <button 
               onClick={handleToggleShuffle}
               className={`${shuffle ? 'text-indigo-400' : 'text-gray-500'}`}
+              disabled={actionLock}
             >
               <Shuffle className="w-4 h-4" />
             </button>
             
             <div className="flex items-center space-x-4">
-            <button 
-              onClick={handlePrevious}
-              className="text-gray-300 disabled:opacity-50"
-              disabled={playerState.loading || isChanging || isHandlingTrackChange}
-            >
-              <SkipBack className="w-5 h-5" />
-            </button>
+              <button 
+                onClick={handlePrevious}
+                className="text-gray-300 disabled:opacity-50"
+                disabled={playerState.loading || isChanging || isHandlingTrackChange || actionLock}
+              >
+                <SkipBack className="w-5 h-5" />
+              </button>
               
-            <button 
-              onClick={togglePlayPause}
-              disabled={isLoadingTrack || isChanging || actionLock || !musicId}
-              className="play-button disabled:opacity-50"
-            >
-              {isLoadingTrack || isChanging ? (
-                <RefreshCw className="w-5 h-5 text-white animate-spin" />
-              ) : isPlaying ? (
-                <Pause />
-              ) : (
-                <Play />
-              )}
-            </button>
+              <button 
+                onClick={togglePlayPause}
+                disabled={isLoading || actionLock || !musicId}
+                className="play-button disabled:opacity-50"
+              >
+                {isLoading ? (
+                  <RefreshCw className="w-5 h-5 text-white animate-spin" />
+                ) : isPlaying ? (
+                  <Pause />
+                ) : (
+                  <Play />
+                )}
+              </button>
 
-                          
-            <button 
-              onClick={handleNext}
-              className="text-gray-300 disabled:opacity-50"
-              disabled={playerState.loading || isChanging || isHandlingTrackChange}
-            >
-              <SkipForward className="w-5 h-5" />
-            </button>
-
+              <button 
+                onClick={handleNext}
+                className="text-gray-300 disabled:opacity-50"
+                disabled={playerState.loading || isChanging || isHandlingTrackChange || actionLock}
+              >
+                <SkipForward className="w-5 h-5" />
+              </button>
             </div>
             
             <button 
               onClick={handleRepeatMode}
               className={`${repeat !== 'none' ? 'text-indigo-400' : 'text-gray-500'}`}
+              disabled={actionLock}
             >
               <Repeat className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        {/* Desktop view - Sleek horizontal layout */}
         <div className="hidden md:grid md:grid-cols-3 md:items-center md:gap-4 pr-2 pl-2 pt-1 pb-1">
-          {/* Track info - Left */}
           <div className="flex items-center space-x-3">
             {metadata?.cover_photo ? (
               <div className="w-12 h-12 rounded-md overflow-hidden">
@@ -1268,20 +1023,20 @@ useEffect(() => {
               <p className="text-xs text-gray-400 truncate">{metadata?.artist}</p>
             </div>
             <button 
-              onClick={handlelike}
+              onClick={handleLike}
               disabled={!musicId || playerState.loading}
               className={`p-1 ${isLiked ? 'text-pink-500' : 'text-gray-400'}`}
             >
               <Heart className="w-4 h-4" fill={isLiked ? "currentColor" : "none"} />
             </button>
           </div>
-            
-          {/* Playback Controls - Center */}
+          
           <div className="flex flex-col items-center">
             <div className="flex items-center justify-center space-x-4 mb-1">
               <button 
                 onClick={handleToggleShuffle}
                 className={`${shuffle ? 'text-indigo-400' : 'text-gray-500'}`}
+                disabled={actionLock}
               >
                 <Shuffle className="w-4 h-4" />
               </button>
@@ -1289,6 +1044,7 @@ useEffect(() => {
               <button 
                 onClick={handlePrevious}
                 className="text-gray-300"
+                disabled={playerState.loading || isChanging || isHandlingTrackChange || actionLock}
               >
                 <SkipBack className="w-5 h-5" />
               </button>
@@ -1296,9 +1052,9 @@ useEffect(() => {
               <button 
                 onClick={playerState.loading && playerState.retryCount > 0 ? handleRetry : togglePlayPause}
                 className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center shadow-md disabled:opacity-50"
-                disabled={playerState.loading && playerState.retryCount === 0}
+                disabled={isLoading || actionLock}
               >
-                {playerState.loading ? (
+                {isLoading ? (
                   <RefreshCw className="w-5 h-5 text-white animate-spin" />
                 ) : isPlaying ? (
                   <Pause className="w-5 h-5 text-white" />
@@ -1310,6 +1066,7 @@ useEffect(() => {
               <button 
                 onClick={handleNext}
                 className="text-gray-300"
+                disabled={playerState.loading || isChanging || isHandlingTrackChange || actionLock}
               >
                 <SkipForward className="w-5 h-5" />
               </button>
@@ -1317,12 +1074,12 @@ useEffect(() => {
               <button 
                 onClick={handleRepeatMode}
                 className={`${repeat !== 'none' ? 'text-indigo-400' : 'text-gray-500'}`}
+                disabled={actionLock}
               >
                 <Repeat className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Loading Indicator */}
             {playerState.loading && (
               <div className="w-full px-4 mb-1">
                 <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
@@ -1331,7 +1088,6 @@ useEffect(() => {
               </div>
             )}
 
-            {/* Slim Progress Bar */}
             {!playerState.loading && (
               <div className="w-full px-4 space-y-1">
                 <div className="relative h-1 bg-gray-800 rounded-full overflow-hidden group">
@@ -1359,7 +1115,6 @@ useEffect(() => {
             )}
           </div>
 
-          {/* Volume and Queue - Right */}
           <div className="flex items-center justify-end space-x-4">
             <div className="hidden lg:flex items-center space-x-2">
               <button onClick={toggleVolume} className="text-gray-400">
@@ -1393,8 +1148,6 @@ useEffect(() => {
         </div>
       </div>
 
-
-      {/* Queue Panel - Minimal Design */}
       {isQueueOpen && (
         <div className="fixed z-50 inset-x-0 bottom-0 md:absolute md:bottom-full md:right-0 w-full md:w-80 max-h-72 md:max-h-80 bg-black bg-opacity-95 border border-gray-900 rounded-t-lg md:rounded-lg shadow-xl">
           <div className="p-3 border-b border-gray-800 flex justify-between items-center sticky top-0 z-10">
@@ -1405,7 +1158,6 @@ useEffect(() => {
           </div>
           
           <div className="overflow-y-auto max-h-64">
-            {/* Now Playing */}
             {queue[currentIndex] && (
               <div className="p-3 border-b border-gray-800/30 bg-indigo-900/20">
                 <h4 className="text-xs text-gray-400 mb-2">Now Playing</h4>
@@ -1428,7 +1180,6 @@ useEffect(() => {
               </div>
             )}
             
-            {/* Up Next - Minimal list */}
             <div className="p-3">
               <h4 className="text-xs text-gray-400 mb-2">Up Next</h4>
               {queue.slice(currentIndex + 1).length > 0 ? (
