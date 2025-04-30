@@ -780,29 +780,26 @@ class MusicStreamView(APIView):
         
         # If no key works, raise an exception
         raise FileNotFoundError(f"Could not find audio file for music_id {music_id}")
+    
 
     def get(self, request, music_id):
-        import logging
         logger = logging.getLogger(__name__)
-
         try:
-            # Token verification
             signed_token = request.GET.get('token')
             if not signed_token:
+                logger.warning(f"No token provided for music_id {music_id}")
                 return Response({'error': 'Token required'}, status=401)
 
             token_user_id = verify_signed_token(signed_token, music_id, settings.SECRET_KEY)
             if not token_user_id:
+                logger.warning(f"Invalid token for music_id {music_id}")
                 return Response({'error': 'Unauthorized'}, status=401)
 
-            # Rate limit check
             if not self.check_rate_limit(request, token_user_id):
+                logger.warning(f"Rate limit exceeded for user {token_user_id}")
                 return Response({'error': 'Rate limit exceeded'}, status=429)
 
-            # Fetch music object
             music = get_object_or_404(Music, pk=music_id)
-            
-            # S3 client setup
             s3_client = boto3.client(
                 's3',
                 aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
@@ -810,98 +807,71 @@ class MusicStreamView(APIView):
                 region_name=settings.AWS_S3_REGION_NAME
             )
 
-            # Get S3 key for the file
             s3_key = self.get_s3_key(music_id, s3_client)
             bucket = settings.AWS_STORAGE_BUCKET_NAME
 
-            # Apply equalizer processing
-            try:
-                processed_s3_key, restore_original = self.apply_s3_equalizer(
-                    s3_client, 
-                    bucket, 
-                    s3_key, 
-                    token_user_id
-                )
-            except Exception as eq_error:
-                logger.error(f"Equalizer processing error: {eq_error}")
-                processed_s3_key = s3_key
-                restore_original = True
+            processed_s3_key, restore_original = self.apply_s3_equalizer(
+                s3_client, bucket, s3_key, token_user_id
+            )
 
-            # Fallback to original file if processing fails
             if restore_original:
                 processed_s3_key = s3_key
 
-            # Get file metadata
-            file_metadata = s3_client.head_object(
-                Bucket=bucket, 
-                Key=processed_s3_key
-            )
+            file_metadata = s3_client.head_object(Bucket=bucket, Key=processed_s3_key)
             file_size = file_metadata['ContentLength']
             content_type = self.get_content_type(processed_s3_key)
 
-            # Handle range request
             range_header = request.headers.get('Range', '')
             start = 0
             end = file_size - 1
 
             if range_header:
+                logger.info(f"Range request for music_id {music_id}: {range_header}")
                 try:
                     range_match = re.match(r'bytes=(\d+)?-(\d+)?', range_header)
                     if range_match:
                         start_group, end_group = range_match.groups()
                         start = int(start_group) if start_group else 0
                         end = int(end_group) if end_group else (file_size - 1)
-                        
-                        # Validate range
                         start = max(0, start)
                         end = min(end, file_size - 1)
                 except (TypeError, ValueError):
+                    logger.error(f"Invalid range header for music_id {music_id}: {range_header}")
                     return Response({'error': 'Invalid range'}, status=400)
 
             def s3_chunked_stream():
-                """
-                Generator to stream S3 object in efficient chunks
-                """
                 try:
-                    # Stream the object using S3 Range parameter
                     s3_response = s3_client.get_object(
                         Bucket=bucket,
                         Key=processed_s3_key,
                         Range=f'bytes={start}-{end}'
                     )
-                    
-                    # Get the stream
                     stream = s3_response['Body']
-                    
-                    # Stream in predefined chunk sizes
-                    chunk_size = 65536  # 65 KB chunks
+                    chunk_size = 65536
                     while True:
                         chunk = stream.read(chunk_size)
                         if not chunk:
                             break
                         yield chunk
-                    
                 except Exception as e:
-                    logger.error(f"S3 streaming error: {e}")
+                    logger.error(f"S3 streaming error for music_id {music_id}: {e}")
 
-            # Create streaming response
             response = StreamingHttpResponse(
                 s3_chunked_stream(),
                 content_type=content_type,
                 status=206 if range_header else 200
             )
 
-            # Set necessary headers
             response['Accept-Ranges'] = 'bytes'
             response['Content-Length'] = str(end - start + 1)
-            
             if range_header:
                 response['Content-Range'] = f'bytes {start}-{end}/{file_size}'
 
+            logger.info(f"Streaming music_id {music_id} from bytes {start} to {end}")
             return response
 
         except Exception as e:
-            logger.error(f"Unexpected streaming error: {traceback.format_exc()}") 
+            logger.error(f"Streaming failed for music_id {music_id}: {traceback.format_exc()}")
             return Response({'error': 'Streaming failed', 'details': str(e)}, status=500)
 
 
