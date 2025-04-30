@@ -80,9 +80,11 @@ const MusicPlayer = () => {
   const initialPlayRequestRef = useRef(false);
   const previousMusicIdRef = useRef(null);
   const savedProgressRef = useRef(0);
+  const tokenExpiryTimeRef = useRef(null);
 
-  const MAX_RETRIES = 3;
+  const MAX_RETRIES = 2; // Reduced from 3
   const TOKEN_REFRESH_INTERVAL = 45 * 60 * 1000;
+  const TOKEN_EXPIRY_BUFFER = 5 * 60 * 1000; // 5 minutes before expiry
 
   const currentTrack = metadata ? {
     name: metadata.title,
@@ -92,22 +94,15 @@ const MusicPlayer = () => {
     duration: metadata.duration || 0
   } : null;
 
-  useEffect(() => {
-    return () => {
-      cleanupAudio();
-      dispatch(setActionLock(false));
-    };
-  }, [dispatch]);
-
-  useEffect(() => {
-    if (!previousMusicIdRef.current && musicId) {
-      initialPlayRequestRef.current = true;
-    }
-    previousMusicIdRef.current = musicId;
-  }, [musicId]);
-
-  const refreshTokenIfNeeded = async (retryOnCancel = true) => {
+  // OPTIMIZATION 1: Streamlined token refresh function
+  const refreshTokenIfNeeded = async (force = false) => {
     if (!musicId || isRequestingToken) return null;
+    
+    // Check if we have a valid token that isn't about to expire
+    if (!force && signedToken && tokenMusicIdRef.current === musicId && 
+        tokenExpiryTimeRef.current && Date.now() < tokenExpiryTimeRef.current - TOKEN_EXPIRY_BUFFER) {
+      return signedToken;
+    }
 
     setIsRequestingToken(true);
     if (abortControllerRef.current) {
@@ -116,22 +111,21 @@ const MusicPlayer = () => {
     abortControllerRef.current = new AbortController();
 
     try {
-      const timeoutId = setTimeout(() => abortControllerRef.current.abort(), 10000);
       const response = await api.get(`/api/music/token/${musicId}/`, {
-        signal: abortControllerRef.current.signal
+        signal: abortControllerRef.current.signal,
+        timeout: 5000 // Reduced timeout
       });
 
-      clearTimeout(timeoutId);
       setSignedToken(response.data.token);
       setPlayId(response.data.play_id);
       tokenMusicIdRef.current = musicId;
+      
+      // Set token expiry time (assume 1 hour validity if not specified)
+      tokenExpiryTimeRef.current = Date.now() + TOKEN_REFRESH_INTERVAL;
+      
       return response.data.token;
     } catch (error) {
-      const isCancelled = error.name === 'AbortError' || error.message?.includes('cancel');
-      if (isCancelled && retryOnCancel) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        return refreshTokenIfNeeded(false);
-      }
+      console.error('Token refresh failed:', error);
       return null;
     } finally {
       setIsRequestingToken(false);
@@ -139,11 +133,21 @@ const MusicPlayer = () => {
   };
 
   useEffect(() => {
+    return () => {
+      cleanupAudio();
+      dispatch(setActionLock(false));
+    };
+  }, [dispatch]);
+
+  // OPTIMIZATION 2: Simplified periodic token refresh
+  useEffect(() => {
     if (!isPlaying || !musicId) return;
 
     const tokenRefreshInterval = setInterval(() => {
-      refreshTokenIfNeeded();
-    }, TOKEN_REFRESH_INTERVAL);
+      if (tokenExpiryTimeRef.current && Date.now() > tokenExpiryTimeRef.current - TOKEN_EXPIRY_BUFFER) {
+        refreshTokenIfNeeded(true);
+      }
+    }, 60000); // Check once per minute instead of refreshing on fixed schedule
 
     return () => clearInterval(tokenRefreshInterval);
   }, [isPlaying, musicId]);
@@ -165,15 +169,17 @@ const MusicPlayer = () => {
     }
   }, [queue, currentIndex, musicId, isChanging, isHandlingTrackChange, playerState.initializationComplete, dispatch, isPlaying]);
 
+  // OPTIMIZATION 3: Faster lock release on error
   useEffect(() => {
     if (playerState.error && actionLock) {
       const lockReleaseTimeout = setTimeout(() => {
         dispatch(setActionLock(false));
-      }, 5000);
+      }, 2000); // Reduced from 5000
       return () => clearTimeout(lockReleaseTimeout);
     }
   }, [playerState.error, actionLock, dispatch]);
 
+  // Media session handling
   useEffect(() => {
     if (!('mediaSession' in navigator) || !currentTrack || !howlRef.current) return;
 
@@ -327,32 +333,44 @@ const MusicPlayer = () => {
     }
   };
 
+  // OPTIMIZATION 4: Parallel metadata and token fetching
   useEffect(() => {
-    const fetchMetadata = async () => {
-      if (!musicId) return;
+    if (!musicId) return;
 
+    const fetchData = async () => {
       setPlayerState(prev => ({ ...prev, loading: true, error: null, initializationComplete: false }));
       dispatch(setActionLock(true));
 
       try {
-        const response = await api.get(`/api/music/metadata/${musicId}/`);
-        setMetadata(response.data);
+        // Fetch metadata and token in parallel
+        const [metadataResponse, tokenResponse, likedResponse] = await Promise.all([
+          api.get(`/api/music/metadata/${musicId}/`),
+          api.get(`/api/music/token/${musicId}/`),
+          api.get(`/api/playlist/playlists/is_liked/?music_id=${musicId}`)
+        ]);
 
-        const liked_response = await api.get(`/api/playlist/playlists/is_liked/?music_id=${musicId}`);
-        setIsLiked(liked_response.data.liked);
+        setMetadata(metadataResponse.data);
+        setIsLiked(likedResponse.data.liked);
+        setSignedToken(tokenResponse.data.token);
+        setPlayId(tokenResponse.data.play_id);
+        tokenMusicIdRef.current = musicId;
+        tokenExpiryTimeRef.current = Date.now() + TOKEN_REFRESH_INTERVAL;
 
         setPlayerState(prev => ({
           ...prev,
           loading: true,
-          duration: response.data.duration,
+          duration: metadataResponse.data.duration,
           progress: 0,
           error: null,
           retryCount: 0
         }));
 
         mediaSessionInitializedRef.current = false;
+        
+        // Initialize audio immediately after getting both token and metadata
+        initializeAudio(tokenResponse.data.token, metadataResponse.data);
       } catch (error) {
-        console.error('Failed to fetch metadata:', error);
+        console.error('Failed to fetch data:', error);
         setPlayerState(prev => ({
           ...prev,
           loading: false,
@@ -364,7 +382,7 @@ const MusicPlayer = () => {
       }
     };
 
-    fetchMetadata();
+    fetchData();
   }, [musicId, dispatch]);
 
   const handleLike = async () => {
@@ -384,58 +402,6 @@ const MusicPlayer = () => {
       dispatch(setMusicId(currentTrack.id));
     }
   }, [queue, currentIndex, dispatch, musicId]);
-
-  useEffect(() => {
-    if (!musicId || isRequestingToken || !metadata) return;
-
-    const fetchSignedToken = async () => {
-      setIsRequestingToken(true);
-      reportedPlayRef.current = false;
-
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      abortControllerRef.current = new AbortController();
-
-      try {
-        const timeoutId = setTimeout(() => abortControllerRef.current.abort(), 10000);
-        const response = await api.get(`/api/music/token/${musicId}/`, {
-          signal: abortControllerRef.current.signal
-        });
-
-        clearTimeout(timeoutId);
-        setSignedToken(response.data.token);
-        setPlayId(response.data.play_id);
-        tokenMusicIdRef.current = musicId;
-        setPlayerState(prev => ({ ...prev, retryCount: 0 }));
-      } catch (error) {
-        const isCancelled = error.name === 'AbortError' || error.message?.includes('cancel');
-        if (isCancelled) {
-          retryTimeoutRef.current = setTimeout(() => {
-            setIsRequestingToken(false);
-          }, 1000);
-        } else {
-          setPlayerState(prev => ({
-            ...prev,
-            error: 'Authentication error. Please try again.',
-            loading: false,
-            initializationComplete: false
-          }));
-          dispatch(setActionLock(false));
-        }
-      } finally {
-        setIsRequestingToken(false);
-      }
-    };
-
-    fetchSignedToken();
-
-    return () => {
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current);
-      }
-    };
-  }, [musicId, metadata, dispatch]);
 
   const cleanupAudio = () => {
     if (howlRef.current) {
@@ -464,206 +430,200 @@ const MusicPlayer = () => {
     }
   };
 
-  useEffect(() => {
-    if (!musicId || !signedToken || !metadata || tokenMusicIdRef.current !== musicId || isInitializing) return;
+  // OPTIMIZATION 5: Streamlined audio initialization
+  const initializeAudio = (token, meta) => {
+    try {
+      cleanupAudio();
+      setPlayerState(prev => ({ ...prev, loading: true, error: null, progress: 0, initializationComplete: false }));
 
-    setIsInitializing(true);
-    cleanupAudio();
+      const audioUrl = `${api.defaults.baseURL}/api/music/stream/${musicId}/?token=${token}`;
+      const sound = new Howl({
+        src: [audioUrl],
+        format: [meta.format],
+        html5: true,
+        preload: true,
+        volume: playerState.isMuted ? 0 : playerState.volume,
+        xhr: {
+          timeout: 10000, // Reduced from 15000
+          headers: { 'X-Client-ID': 'music-player-v1' }
+        },
+        onload: () => {
+          const actualDuration = sound.duration();
+          setPlayerState(prev => ({
+            ...prev,
+            duration: actualDuration,
+            loading: false,
+            error: null,
+            retryCount: 0,
+            progress: 0,
+            initializationComplete: true
+          }));
+          dispatch(setChangeComplete());
+          dispatch(setActionLock(false));
+          setIsInitializing(false);
 
-    const initializeAudio = () => {
-      try {
-        setPlayerState(prev => ({ ...prev, loading: true, error: null, progress: 0, initializationComplete: false }));
-
-        const cancelTimeout = setTimeout(() => {
-          refreshTokenIfNeeded().then(() => setIsInitializing(false));
-        }, 14000);
-
-        const audioUrl = `${api.defaults.baseURL}/api/music/stream/${musicId}/?token=${signedToken}`;
-        const sound = new Howl({
-          src: [audioUrl],
-          format: [metadata.format],
-          html5: true,
-          preload: true,
-          volume: playerState.isMuted ? 0 : playerState.volume,
-          xhr: {
-            timeout: 15000,
-            headers: { 'X-Client-ID': 'music-player-v1' }
-          },
-          onload: () => {
-            clearTimeout(cancelTimeout);
-            const actualDuration = sound.duration();
-            setPlayerState(prev => ({
-              ...prev,
-              duration: actualDuration,
-              loading: false,
-              error: null,
-              retryCount: 0,
-              progress: 0,
-              initializationComplete: true
-            }));
-            dispatch(setChangeComplete());
-            dispatch(setActionLock(false));
-            setIsInitializing(false);
-
-            if (savedProgressRef.current > 0) {
-              sound.seek(savedProgressRef.current);
-              setPlayerState(prev => ({ ...prev, progress: savedProgressRef.current }));
-            }
-          },
-          onloaderror: (id, error) => {
-            clearTimeout(cancelTimeout);
-            const isTokenError = error && (error.includes('401') || error.includes('403') || error.includes('Unauthorized'));
-            const isCancellation = error && (error.includes('cancel') || error.includes('abort') || error.includes('timeout'));
-
-            if (isTokenError || isCancellation) {
-              const retryDelay = isCancellation ? 2000 : 500;
-              setTimeout(() => {
-                refreshTokenIfNeeded().then(newToken => {
-                  if (newToken) setIsInitializing(false);
+          if (savedProgressRef.current > 0) {
+            sound.seek(savedProgressRef.current);
+            setPlayerState(prev => ({ ...prev, progress: savedProgressRef.current }));
+          }
+          
+          // Auto-play if needed
+          if (isPlaying && !sound.playing()) {
+            sound.play();
+          }
+        },
+        onloaderror: (id, error) => {
+          console.error('Audio load error:', error);
+          const isTokenError = error && (error.includes('401') || error.includes('403') || error.includes('Unauthorized'));
+          
+          setPlayerState(prev => {
+            const newRetryCount = prev.retryCount + 1;
+            if (newRetryCount <= MAX_RETRIES) {
+              // Retry with a fresh token if it's a token error
+              if (isTokenError) {
+                refreshTokenIfNeeded(true).then(newToken => {
+                  if (newToken && meta) {
+                    setTimeout(() => initializeAudio(newToken, meta), 500);
+                  }
                 });
-              }, retryDelay);
-              return;
-            }
-
-            setPlayerState(prev => {
-              const newRetryCount = prev.retryCount + 1;
-              if (newRetryCount <= MAX_RETRIES) {
-                const retryDelay = Math.min(1000 * Math.pow(2, newRetryCount - 1), 10000);
+              } else {
+                // Regular retry
+                const retryDelay = Math.min(1000 * Math.pow(2, newRetryCount - 1), 5000);
                 retryTimeoutRef.current = setTimeout(() => {
-                  refreshTokenIfNeeded().then(newToken => {
-                    if (newToken) setIsInitializing(false);
+                  refreshTokenIfNeeded(true).then(newToken => {
+                    if (newToken && meta) {
+                      initializeAudio(newToken, meta);
+                    }
                   });
                 }, retryDelay);
-                return {
-                  ...prev,
-                  retryCount: newRetryCount,
-                  loading: true,
-                  initializationComplete: false,
-                  error: `Loading audio... (Attempt ${newRetryCount}/${MAX_RETRIES})`
-                };
               }
-              dispatch(setActionLock(false));
-              setIsInitializing(false);
+              
               return {
                 ...prev,
-                loading: false,
+                retryCount: newRetryCount,
+                loading: true,
                 initializationComplete: false,
-                error: 'Failed to load audio after multiple attempts.',
-                retryCount: 0
+                error: `Loading audio... (Attempt ${newRetryCount}/${MAX_RETRIES})`
               };
-            });
-          },
-          onplayerror: (id, error) => {
-            console.error('Audio playback error:', error);
-            sound.once('unlock', () => {
-              sound.seek(savedProgressRef.current);
-              sound.play();
-            });
-          },
-          onplay: () => {
-            dispatch(setIsPlaying(true));
-            if ('mediaSession' in navigator) {
-              navigator.mediaSession.playbackState = 'playing';
             }
-            playStartTimeRef.current = Date.now();
-            if (tokenMusicIdRef.current !== musicId) {
-              reportedPlayRef.current = false;
-            }
-            if (animationFrameRef.current) {
-              cancelAnimationFrame(animationFrameRef.current);
-            }
-            updateSeeker();
-          },
-          onpause: () => {
-            dispatch(setIsPlaying(false));
-            if ('mediaSession' in navigator) {
-              navigator.mediaSession.playbackState = 'paused';
-            }
-            if (playStartTimeRef.current) {
-              const playDuration = (Date.now() - playStartTimeRef.current) / 1000;
-              const percentage = sound ? sound.seek() / sound.duration() : null;
-              reportPlayCompletion(playDuration, percentage);
-              playStartTimeRef.current = null;
-            }
-            savedProgressRef.current = sound.seek();
-            if (animationFrameRef.current) {
-              cancelAnimationFrame(animationFrameRef.current);
-              animationFrameRef.current = null;
-            }
-          },
-          onstop: () => {
-            dispatch(setIsPlaying(false));
-            if ('mediaSession' in navigator) {
-              navigator.mediaSession.playbackState = 'paused';
-            }
-            if (playStartTimeRef.current) {
-              const playedDuration = (Date.now() - playStartTimeRef.current) / 1000;
-              reportPlayCompletion(playedDuration);
-              playStartTimeRef.current = null;
-            }
-            setPlayerState(prev => ({ ...prev, progress: 0 }));
-            savedProgressRef.current = 0;
-            if (animationFrameRef.current) {
-              cancelAnimationFrame(animationFrameRef.current);
-              animationFrameRef.current = null;
-            }
-          },
-          onend: () => {
-            if (metadata && metadata.duration) {
-              reportPlayCompletion(metadata.duration, 1.0);
-            }
-            dispatch(markAsPlayed(musicId));
-            if (animationFrameRef.current) {
-              cancelAnimationFrame(animationFrameRef.current);
-              animationFrameRef.current = null;
-            }
-            dispatch(playNext());
-            savedProgressRef.current = 0;
-          },
-          onseek: () => {
-            const actualPosition = sound.seek();
-            savedProgressRef.current = actualPosition;
-            setPlayerState(prev => ({ ...prev, progress: actualPosition }));
-            if ('mediaSession' in navigator && sound && sound.duration()) {
-              const now = Date.now();
-              if (now - lastUpdateTimeRef.current >= 250) {
-                try {
-                  navigator.mediaSession.setPositionState({
-                    duration: sound.duration(),
-                    playbackRate: 1.0,
-                    position: actualPosition
-                  });
-                  lastUpdateTimeRef.current = now;
-                } catch (error) {
-                  console.warn('Error updating position state:', error);
-                }
+            
+            dispatch(setActionLock(false));
+            setIsInitializing(false);
+            return {
+              ...prev,
+              loading: false,
+              initializationComplete: false,
+              error: 'Failed to load audio after multiple attempts.',
+              retryCount: 0
+            };
+          });
+        },
+        onplayerror: (id, error) => {
+          console.error('Audio playback error:', error);
+          sound.once('unlock', () => {
+            sound.seek(savedProgressRef.current);
+            sound.play();
+          });
+        },
+        onplay: () => {
+          dispatch(setIsPlaying(true));
+          if ('mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'playing';
+          }
+          playStartTimeRef.current = Date.now();
+          if (tokenMusicIdRef.current !== musicId) {
+            reportedPlayRef.current = false;
+          }
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+          }
+          updateSeeker();
+        },
+        onpause: () => {
+          dispatch(setIsPlaying(false));
+          if ('mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'paused';
+          }
+          if (playStartTimeRef.current) {
+            const playDuration = (Date.now() - playStartTimeRef.current) / 1000;
+            const percentage = sound ? sound.seek() / sound.duration() : null;
+            reportPlayCompletion(playDuration, percentage);
+            playStartTimeRef.current = null;
+          }
+          savedProgressRef.current = sound.seek();
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+        },
+        onstop: () => {
+          dispatch(setIsPlaying(false));
+          if ('mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'paused';
+          }
+          if (playStartTimeRef.current) {
+            const playedDuration = (Date.now() - playStartTimeRef.current) / 1000;
+            reportPlayCompletion(playedDuration);
+            playStartTimeRef.current = null;
+          }
+          setPlayerState(prev => ({ ...prev, progress: 0 }));
+          savedProgressRef.current = 0;
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+        },
+        onend: () => {
+          if (meta && meta.duration) {
+            reportPlayCompletion(meta.duration, 1.0);
+          }
+          dispatch(markAsPlayed(musicId));
+          if (animationFrameRef.current) {
+            cancelAnimationFrame(animationFrameRef.current);
+            animationFrameRef.current = null;
+          }
+          dispatch(playNext());
+          savedProgressRef.current = 0;
+        },
+        onseek: () => {
+          const actualPosition = sound.seek();
+          savedProgressRef.current = actualPosition;
+          setPlayerState(prev => ({ ...prev, progress: actualPosition }));
+          if ('mediaSession' in navigator && sound && sound.duration()) {
+            const now = Date.now();
+            if (now - lastUpdateTimeRef.current >= 250) {
+              try {
+                navigator.mediaSession.setPositionState({
+                  duration: sound.duration(),
+                  playbackRate: 1.0,
+                  position: actualPosition
+                });
+                lastUpdateTimeRef.current = now;
+              } catch (error) {
+                console.warn('Error updating position state:', error);
               }
             }
-            if (isPlaying && !animationFrameRef.current) {
-              updateSeeker();
-            }
           }
-        });
+          if (isPlaying && !animationFrameRef.current) {
+            updateSeeker();
+          }
+        }
+      });
 
-        howlRef.current = sound;
-      } catch (error) {
-        console.error('Error initializing audio:', error);
-        setPlayerState(prev => ({
-          ...prev,
-          loading: false,
-          initializationComplete: false,
-          error: 'Failed to initialize audio player',
-          retryCount: 0
-        }));
-        dispatch(setActionLock(false));
-        setIsInitializing(false);
-      }
-    };
-
-    initializeAudio();
-
-    return cleanupAudio;
-  }, [musicId, signedToken, metadata, dispatch]);
+      howlRef.current = sound;
+    } catch (error) {
+      console.error('Error initializing audio:', error);
+      setPlayerState(prev => ({
+        ...prev,
+        loading: false,
+        initializationComplete: false,
+        error: 'Failed to initialize audio player',
+        retryCount: 0
+      }));
+      dispatch(setActionLock(false));
+      setIsInitializing(false);
+    }
+  };
 
   const updateSeeker = () => {
     if (!howlRef.current || isSeeking) {
@@ -726,8 +686,13 @@ const MusicPlayer = () => {
     setPlayerState(prev => ({ ...prev, retryCount: 0, loading: true, error: null, initializationComplete: false }));
     dispatch(setActionLock(true));
 
-    refreshTokenIfNeeded().then(() => {
-      setIsInitializing(false);
+    refreshTokenIfNeeded(true).then(token => {
+      if (token && metadata) {
+        initializeAudio(token, metadata);
+      } else {
+        setIsInitializing(false);
+        dispatch(setActionLock(false));
+      }
     });
   };
 
@@ -784,6 +749,7 @@ const MusicPlayer = () => {
     }));
   };
 
+  // OPTIMIZATION 6: Simplified play/pause toggle
   const togglePlayPause = () => {
     if (!playerState.initializationComplete || playerState.loading || isChanging || actionLock) return;
 
@@ -806,38 +772,28 @@ const MusicPlayer = () => {
 
     if (playerState.firstLoad) {
       setPlayerState(prev => ({ ...prev, firstLoad: false }));
-      if (!musicId) {
-        dispatch(setIsPlaying(false));
-        howlRef.current.pause();
-      }
       return;
     }
 
     if (isPlaying) {
-      const playTimeout = setTimeout(() => {
-        if (howlRef.current && !howlRef.current.playing()) {
-          howlRef.current.seek(savedProgressRef.current);
-          howlRef.current.play();
-        }
-      }, 50);
-      return () => clearTimeout(playTimeout);
+      // Play immediately without delay
+      if (howlRef.current && !howlRef.current.playing()) {
+        howlRef.current.seek(savedProgressRef.current);
+        howlRef.current.play();
+      }
     } else {
       if (howlRef.current) {
         howlRef.current.pause();
         savedProgressRef.current = howlRef.current.seek();
       }
     }
-  }, [isPlaying, playerState.initializationComplete, dispatch, playerState.firstLoad, musicId]);
+  }, [isPlaying, playerState.initializationComplete, playerState.firstLoad]);
 
   useEffect(() => {
     if (playerState.initializationComplete && initialPlayRequestRef.current) {
       initialPlayRequestRef.current = false;
-      if (!isPlaying && howlRef.current) {
-        howlRef.current.pause();
-        dispatch(setIsPlaying(false));
-      }
     }
-  }, [playerState.initializationComplete, isPlaying, dispatch]);
+  }, [playerState.initializationComplete]);
 
   useEffect(() => {
     if (!musicId) {
@@ -859,6 +815,7 @@ const MusicPlayer = () => {
   const isLoading = playerState.loading || isLoadingTrack || isChanging || isInitializing || !playerState.initializationComplete;
 
   const progressPercentage = playerState.duration ? (playerState.progress / playerState.duration) * 100 : 0;
+  
 
   return (
     <div className="relative">
