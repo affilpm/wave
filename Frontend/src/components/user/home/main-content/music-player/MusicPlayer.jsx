@@ -910,7 +910,15 @@ const MusicPlayer = () => {
               <button 
                 onClick={handlePrevious}
                 className="text-gray-300 disabled:opacity-50"
-                disabled={playerState.loading || isChanging || isHandlingTrackChange || actionLock}
+                disabled={
+                  !musicId || 
+                  queue.length === 0 || 
+                  (currentIndex === 0 && repeat !== 'all') || 
+                  playerState.loading || 
+                  isChanging || 
+                  isHandlingTrackChange || 
+                  actionLock
+                }
               >
                 <SkipBack className="w-5 h-5" />
               </button>
@@ -932,7 +940,15 @@ const MusicPlayer = () => {
               <button 
                 onClick={handleNext}
                 className="text-gray-300 disabled:opacity-50"
-                disabled={playerState.loading || isChanging || isHandlingTrackChange || actionLock}
+                disabled={
+                  !musicId || 
+                  queue.length === 0 || 
+                  (currentIndex === queue.length - 1 && repeat !== 'all') || 
+                  playerState.loading || 
+                  isChanging || 
+                  isHandlingTrackChange || 
+                  actionLock
+                }
               >
                 <SkipForward className="w-5 h-5" />
               </button>
@@ -977,53 +993,69 @@ const MusicPlayer = () => {
           </div>
           
           <div className="flex flex-col items-center">
-            <div className="flex items-center justify-center space-x-4 mb-1">
-              <button 
-                onClick={handleToggleShuffle}
-                className={`${shuffle ? 'text-indigo-400' : 'text-gray-500'}`}
-                disabled={actionLock}
-              >
-                <Shuffle className="w-4 h-4" />
-              </button>
-              
-              <button 
-                onClick={handlePrevious}
-                className="text-gray-300"
-                disabled={playerState.loading || isChanging || isHandlingTrackChange || actionLock}
-              >
-                <SkipBack className="w-5 h-5" />
-              </button>
-              
-              <button 
-                onClick={playerState.loading && playerState.retryCount > 0 ? handleRetry : togglePlayPause}
-                className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center shadow-md disabled:opacity-50"
-                disabled={isLoading || actionLock}
-              >
-                {isLoading ? (
-                  <RefreshCw className="w-5 h-5 text-white animate-spin" />
-                ) : isPlaying ? (
-                  <Pause className="w-5 h-5 text-white" />
-                ) : (
-                  <Play className="w-5 h-5 text-white ml-0.5" />
-                )}
-              </button>
-              
-              <button 
-                onClick={handleNext}
-                className="text-gray-300"
-                disabled={playerState.loading || isChanging || isHandlingTrackChange || actionLock}
-              >
-                <SkipForward className="w-5 h-5" />
-              </button>
-              
-              <button 
-                onClick={handleRepeatMode}
-                className={`${repeat !== 'none' ? 'text-indigo-400' : 'text-gray-500'}`}
-                disabled={actionLock}
-              >
-                <Repeat className="w-4 h-4" />
-              </button>
-            </div>
+          <div className="flex items-center justify-center space-x-4 mb-1">
+            <button 
+              onClick={handleToggleShuffle}
+              className={`${shuffle ? 'text-indigo-400' : 'text-gray-500'}`}
+              disabled={actionLock}
+            >
+              <Shuffle className="w-4 h-4" />
+            </button>
+            
+            <button 
+              onClick={handlePrevious}
+              className="text-gray-300"
+              disabled={
+                !musicId || 
+                queue.length === 0 || 
+                (currentIndex === 0 && repeat !== 'all') || 
+                playerState.loading || 
+                isChanging || 
+                isHandlingTrackChange || 
+                actionLock
+              }
+            >
+              <SkipBack className="w-5 h-5" />
+            </button>
+            
+            <button 
+              onClick={playerState.loading && playerState.retryCount > 0 ? handleRetry : togglePlayPause}
+              className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center shadow-md disabled:opacity-50"
+              disabled={isLoading || actionLock}
+            >
+              {isLoading ? (
+                <RefreshCw className="w-5 h-5 text-white animate-spin" />
+              ) : isPlaying ? (
+                <Pause className="w-5 h-5 text-white" />
+              ) : (
+                <Play className="w-5 h-5 text-white ml-0.5" />
+              )}
+            </button>
+            
+            <button 
+              onClick={handleNext}
+              className="text-gray-300"
+              disabled={
+                !musicId || 
+                queue.length === 0 || 
+                (currentIndex === queue.length - 1 && repeat !== 'all') || 
+                playerState.loading || 
+                isChanging || 
+                isHandlingTrackChange || 
+                actionLock
+              }
+            >
+              <SkipForward className="w-5 h-5" />
+            </button>
+            
+            <button 
+              onClick={handleRepeatMode}
+              className={`${repeat !== 'none' ? 'text-indigo-400' : 'text-gray-500'}`}
+              disabled={actionLock}
+            >
+              <Repeat className="w-4 h-4" />
+            </button>
+          </div>
 
             {playerState.loading && (
               <div className="w-full px-4 mb-1">
