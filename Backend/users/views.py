@@ -22,6 +22,9 @@ from django.db.models import Count, F
 from .models import CustomUser
 from playlist.models import Playlist
 from .serializers import UserProfileSerializer, PlaylistSerializer
+from rest_framework.decorators import api_view, permission_classes, parser_classes
+from rest_framework.parsers import MultiPartParser, FormParser
+
 
 
 @api_view(['POST'])
@@ -748,15 +751,7 @@ def user_playlists_view(request):
     return Response(serializer.data)
 
 
-# views.py
-from django.shortcuts import get_object_or_404
-from rest_framework.decorators import api_view, permission_classes, parser_classes
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework import status
-from .models import CustomUser
-from .serializers import UserSerializer
+
 
 
 @api_view(['GET'])
