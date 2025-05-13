@@ -12,10 +12,14 @@ const HomePage = () => {
   const [currentSong, setCurrentSong] = useState(null);
   const [isMobileView, setIsMobileView] = useState(false);
 
+  // Define player height constants for consistency
+  const PLAYER_HEIGHT_MOBILE = '5rem'; // 80px
+  const PLAYER_HEIGHT_DESKTOP = '5.5rem'; // 88px
+
   useEffect(() => {
     const access_token = localStorage.getItem("access_token");
     if (!access_token) {
-      navigate("/login");
+      navigate("/logout");
     }
 
     // Set initial sidebar state based on screen size
@@ -91,7 +95,7 @@ const HomePage = () => {
           />
         </div>
 
-        {/* Desktop Sidebar - Now has a max-height to prevent overlap with player */}
+        {/* Desktop Sidebar */}
         <div 
           className={`
             hidden md:block
@@ -100,7 +104,7 @@ const HomePage = () => {
             bg-black
             overflow-y-auto
           `}
-          style={{ height: 'calc(100% - 90px)' }} // Reserve space for player
+          style={{ height: `calc(100% - ${PLAYER_HEIGHT_DESKTOP})` }} // Reserve space for player
         >
           <Sidebar
             isSidebarExpanded={isSidebarExpanded}
@@ -118,17 +122,27 @@ const HomePage = () => {
           />
         )}
 
-        {/* Main Content Area - Also adjusted to account for player height */}
+        {/* Main Content Area with proper padding at the bottom to prevent content hiding behind player */}
         <main className="flex-1 overflow-y-auto scrollbar-hidden">
-          <div className="h-full pb-24 px-2 md:px-4 pt-2">
+          <div 
+            className="h-full px-2 md:px-4 pt-2"
+            style={{ 
+              paddingBottom: isMobileView ? PLAYER_HEIGHT_MOBILE : PLAYER_HEIGHT_DESKTOP 
+            }}
+          >
             <Outlet /> 
           </div>
         </main>
       </div>
 
       {/* Music Player - Fixed at bottom with higher z-index */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black to-black/95 shadow-lg h-19">
-        <div className="mx-auto max-w-screen-2xl">
+      <div 
+        className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black to-black/95 shadow-lg"
+        style={{ 
+          height: isMobileView ? PLAYER_HEIGHT_MOBILE : PLAYER_HEIGHT_DESKTOP 
+        }}
+      >
+        <div className="mx-auto max-w-screen-2xl h-full">
           <MusicPlayer
             isPlaying={isPlaying}
             handlePlayPause={handlePlayPause}
