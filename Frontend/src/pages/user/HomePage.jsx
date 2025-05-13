@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '../../components/user/home/sidebar/Sidebar';
 import Header from '../../components/user/home/header/Header';
 import MusicPlayer from '../../components/user/home/main-content/music-player/MusicPlayer';
@@ -11,6 +11,8 @@ const HomePage = () => {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [currentSong, setCurrentSong] = useState(null);
   const [isMobileView, setIsMobileView] = useState(false);
+  const playerRef = useRef(null);
+  const [playerHeight, setPlayerHeight] = useState(0);
 
   // Define player height constants for consistency
   const PLAYER_HEIGHT_MOBILE = '5rem'; // 80px
@@ -19,7 +21,7 @@ const HomePage = () => {
   useEffect(() => {
     const access_token = localStorage.getItem("access_token");
     if (!access_token) {
-      navigate("/logout");
+      navigate("/login");
     }
 
     // Set initial sidebar state based on screen size
@@ -39,6 +41,12 @@ const HomePage = () => {
         // Always close the mobile overlay when going to desktop
         setShowMobileSidebar(false);
       }
+
+      // Get actual player height if element exists
+      if (playerRef.current) {
+        const height = playerRef.current.offsetHeight;
+        setPlayerHeight(height);
+      }
     };
     
     // Run once on mount
@@ -48,6 +56,14 @@ const HomePage = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [navigate, showMobileSidebar]);
+
+  // Update player height when it's rendered
+  useEffect(() => {
+    if (playerRef.current) {
+      const height = playerRef.current.offsetHeight;
+      setPlayerHeight(height);
+    }
+  }, [playerRef.current]);
 
   // Toggle sidebar based on device type
   const toggleSidebar = () => {
@@ -69,17 +85,22 @@ const HomePage = () => {
   const handleSkip = () => console.log("Skip to next song");
   const handlePrevious = () => console.log("Go to previous song");
 
+  // Calculate actual player height for spacing or use default values
+  const actualPlayerHeight = playerHeight > 0 
+    ? `${playerHeight}px`
+    : isMobileView ? PLAYER_HEIGHT_MOBILE : PLAYER_HEIGHT_DESKTOP;
+
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-gradient-to-b from-gray-900 to-black text-white">
+    <div className="h-screen flex flex-col bg-gradient-to-b from-gray-900 to-black text-white">
       
       {/* Header */}
       <div className="sticky top-0 z-20 bg-gradient-to-b from-gray-900 to-black/40">
         <Header toggleMobileSidebar={toggleMobileSidebar} />
       </div>
 
-      {/* Content Area */}
-      <div className="flex-1 flex relative overflow-hidden">
-        {/* Mobile Sidebar - Full height including header and player areas */}
+      {/* Content Area - Adjusted to make room for the player */}
+      <div className="flex-1 flex relative overflow-hidden" style={{ marginBottom: actualPlayerHeight }}>
+        {/* Mobile Sidebar - Adjust height to not overlap with player */}
         <div 
           className={`
             fixed inset-0 z-50 w-64 
@@ -87,6 +108,7 @@ const HomePage = () => {
             transition-transform duration-300 ease-in-out
             bg-black md:hidden
           `}
+          style={{ bottom: actualPlayerHeight }} // Prevent sidebar from overlapping player
         >
           <Sidebar
             isSidebarExpanded={true} // Always expanded when shown on mobile
@@ -95,7 +117,7 @@ const HomePage = () => {
           />
         </div>
 
-        {/* Desktop Sidebar */}
+        {/* Desktop Sidebar - Doesn't overlap with player */}
         <div 
           className={`
             hidden md:block
@@ -104,7 +126,6 @@ const HomePage = () => {
             bg-black
             overflow-y-auto
           `}
-          style={{ height: `calc(100% - ${PLAYER_HEIGHT_DESKTOP})` }} // Reserve space for player
         >
           <Sidebar
             isSidebarExpanded={isSidebarExpanded}
@@ -119,27 +140,27 @@ const HomePage = () => {
             className="fixed inset-0 bg-black bg-opacity-70 z-40 md:hidden"
             onClick={toggleMobileSidebar}
             aria-hidden="true"
+            style={{ bottom: actualPlayerHeight }} // Prevent overlay from going behind player
           />
         )}
 
-        {/* Main Content Area with proper padding at the bottom to prevent content hiding behind player */}
+        {/* Main Content Area with space for player */}
         <main className="flex-1 overflow-y-auto scrollbar-hidden">
-          <div 
-            className="h-full px-2 md:px-4 pt-2"
-            style={{ 
-              paddingBottom: isMobileView ? PLAYER_HEIGHT_MOBILE : PLAYER_HEIGHT_DESKTOP 
-            }}
-          >
+          <div className="px-2 md:px-4 pt-2 pb-8">
             <Outlet /> 
+            {/* Extra bottom padding to ensure content doesn't get hidden */}
+            <div className="h-12" />
           </div>
         </main>
       </div>
 
       {/* Music Player - Fixed at bottom with higher z-index */}
       <div 
-        className="fixed bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-black to-black/95 shadow-lg"
+        ref={playerRef}
+        className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-t from-black to-black/95 shadow-lg rounded-t-lg md:rounded-t-xl"
         style={{ 
-          height: isMobileView ? PLAYER_HEIGHT_MOBILE : PLAYER_HEIGHT_DESKTOP 
+          minHeight: isMobileView ? PLAYER_HEIGHT_MOBILE : PLAYER_HEIGHT_DESKTOP,
+          boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06)'
         }}
       >
         <div className="mx-auto max-w-screen-2xl h-full">
