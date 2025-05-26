@@ -45,6 +45,7 @@ import NotFound from './components/NotFound';
 // import VideoStreamingPage from './components/livestream/testing/VideoStreamingPage';
 // import StreamsList from './components/livestream/testing/list';
 // import LiveStreamPage from './components/livestream/testing/fdf';
+import ArtistRoute from './components/artist/ArtistRoute';
 
 
 // export const logout= () => {
@@ -111,10 +112,7 @@ function App() {
 
 
         <Route element={<PrivateRoute isAuthenticated={isAuthenticated} />}>
-          <Route path="/studio" element={<StudioPage/>} />
-          <Route path="/musicupload" element={<MusicUpload/>} />
-          <Route path="/albumcreator" element={<AlbumCreator/>} />
-          <Route path="/editalbum/:id" element={<EditAlbum/>} />
+
           <Route path="/premium" element={<Premium/>} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/transactions" element={<TransactionHistory />} />
@@ -138,6 +136,14 @@ function App() {
 
               {/* <LivestreamViewerApp/> */}
 
+          <Route element={<ArtistRoute />}>
+
+            <Route path="/studio" element={<StudioPage/>} />
+            <Route path="/musicupload" element={<MusicUpload/>} />
+            <Route path="/albumcreator" element={<AlbumCreator/>} />
+            <Route path="/editalbum/:id" element={<EditAlbum/>} />
+            
+          </Route>
 
 
 
