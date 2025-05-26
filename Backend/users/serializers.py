@@ -91,9 +91,5 @@ class PlaylistSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at']
 
-# class UserSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = CustomUser
-#         fields = ['id', 'email', 'username', 'profile_photo', 'created_at']
-#         read_only_fields = ['id', 'email', 'created_at']
+
         

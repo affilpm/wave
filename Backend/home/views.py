@@ -48,15 +48,6 @@ class MusicListView(generics.ListAPIView):
             # Default: return all public music items
             return Music.objects.filter(is_public=True).select_related('artist')
     
-    # def get_paginated_response(self, data):
-        
-    #     paginator = self.paginator
-    #     total_pages = paginator.page.paginator.num_pages
-    #     return Response({
-    #         'count': self.pagination.page.paginator.count,
-    #         'total_pages': total_pages,
-    #         'results': data
-    #     })    
 
     
     

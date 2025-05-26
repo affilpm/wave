@@ -360,32 +360,33 @@ AUTHENTICATION_BACKENDS = (
 
 
 
-# s3 bucket configuratio
-# Media Storage Configuration
-# DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 
-# S3 Media Configuration
-AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME', default='your-bucket-name')
+# S3 and CloudFront Media Storage Configuration
+AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
 AWS_S3_REGION_NAME = 'eu-north-1'
 AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
 AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
 
-# S3 Media Storage Settings
 AWS_S3_OBJECT_PARAMETERS = {
     'CacheControl': 'max-age=86400',
 }
 
-
-# AWS_DEFAULT_ACL = 'public-read'  
+# Set to False to allow public access to files without query parameters
 AWS_QUERYSTRING_AUTH = False
-AWS_LOCATION = 'media'
- 
-# Media URL configuration
-MEDIA_URL = f'https://{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com/media/'
 
+# Optional: Set default ACL behavior if needed (often not required)
+# AWS_DEFAULT_ACL = 'public-read'
+
+CLOUDFRONT_DISTRIBUTION_ID= config('CLOUDFRONT_DISTRIBUTION_ID')
+CLOUDFRONT_DOMAIN = config('CLOUDFRONT_DOMAIN')
+
+# Use CloudFront for serving media
+MEDIA_URL = f'https://{CLOUDFRONT_DOMAIN}/media/'
+
+# Static and Media storage backends
 STORAGES = {
     "default": {
-        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "BACKEND": "Backend.storage_backends.CloudFrontMediaStorage",  
         "OPTIONS": {
             "bucket_name": AWS_STORAGE_BUCKET_NAME,
             "location": "media",
@@ -397,9 +398,7 @@ STORAGES = {
     }
 }
 
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATIC_URL = '/static/'
-    
-
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 
 
