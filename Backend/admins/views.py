@@ -1,21 +1,14 @@
-from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
-from rest_framework import status
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import viewsets, filters
-from rest_framework.decorators import action
-from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from users.models import CustomUser
 from artists.models import Artist
-from rest_framework.permissions import IsAuthenticated
 from .serializers import UserTableSerializer, UserStatusUpdateSerializer
-from rest_framework.pagination import PageNumberPagination
 from django.db import models
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, status
 from rest_framework.decorators import action
-from rest_framework.response import Response
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db.models import Q
@@ -26,24 +19,21 @@ from .serializers import (
     RazorpayTransactionSerializer,
     RazorpayTransactionDetailSerializer
 )
-from django.conf import settings
-from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes
-from .serializers import RazorpayTransactionSerializer
 import razorpay
 import json
 from django.utils import timezone
-from premium.models import UserSubscription,  RazorpayTransaction
-from django.utils.timezone import now, timedelta
+from django.utils.timezone import now
 from django.db.models import Count
 from listening_history.models import PlaySession
 from artists.serializers import ArtistSerializer
 from artists.models import ArtistVerificationStatus
-from music.serializers import MusicVerificationSerializer
-from music.models import Music
 from rest_framework.permissions import IsAdminUser
+from django.db.models import Sum, Count
+import datetime
+
 
 
 #used for admin login
@@ -193,62 +183,6 @@ class ArtistViewSet(viewsets.ModelViewSet):
             return Response({'status': artist.status}, status=200)
         except Artist.DoesNotExist:
             return Response({'error': 'Artist not found'}, status=404)
-
-
-
-
-
-    
-
-# class MusicVerificationViewSet(viewsets.ModelViewSet):
-#     serializer_class = MusicVerificationSerializer
-#     permission_classes = [IsAdminUser]
-    
-#     def get_queryset(self):
-#         return Music.objects.select_related(
-#             'artist', 
-#             'artist__user'
-#         ).prefetch_related(
-#             'genres'
-#         ).order_by('-created_at')
-    
-#     def get_serializer_context(self):
-#         context = super().get_serializer_context()
-#         context['request'] = self.request
-#         return context
-
-#     @action(detail=True, methods=['post'])
-#     def approve(self, request, pk=None):
-#         try:
-#             music = self.get_object()
-#             music.approval_status = MusicApprovalStatus.APPROVED
-#             # music.is_public = True
-#             music.save()
-            
-#             # Re-serialize the updated object
-#             serializer = self.get_serializer(music)
-#             return Response(serializer.data)
-#         except Exception as e:
-#             return Response(
-#                 {'error': str(e)},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
-    
-#     @action(detail=True, methods=['post'])
-#     def reject(self, request, pk=None):
-#         try:
-#             music = self.get_object()
-#             music.approval_status = MusicApprovalStatus.REJECTED
-#             music.save()
-            
-#             # Re-serialize the updated object
-#             serializer = self.get_serializer(music)
-#             return Response(serializer.data)
-#         except Exception as e:
-#             return Response(
-#                 {'error': str(e)},
-#                 status=status.HTTP_400_BAD_REQUEST
-#             )
 
                     
                    
@@ -417,6 +351,8 @@ class TransactionStatsView(APIView):
             'recent_transactions': recent_transactions_data,
             'plan_stats': plan_stats
         })
+        
+        
 
 class TransactionMonthlyStatsView(APIView):
     """
@@ -488,12 +424,7 @@ def total_premium_users(request):
 
 
 
-from django.db.models import Sum, Count
-from django.utils.timezone import now
-import datetime
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAdminUser
-from rest_framework.response import Response
+
 
 @api_view(['GET'])
 @permission_classes([IsAdminUser]) 
