@@ -135,6 +135,7 @@ function App() {
 
 
               {/* <LivestreamViewerApp/> */}
+          </Route>
 
           <Route element={<ArtistRoute />}>
 
@@ -142,12 +143,11 @@ function App() {
             <Route path="/musicupload" element={<MusicUpload/>} />
             <Route path="/albumcreator" element={<AlbumCreator/>} />
             <Route path="/editalbum/:id" element={<EditAlbum/>} />
-            
-          </Route>
-
-
 
           </Route>
+
+
+
 
         </Route>
 
