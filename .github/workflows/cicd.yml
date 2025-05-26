@@ -58,9 +58,9 @@ jobs:
           echo "AWS_S3_REGION_NAME=${{ secrets.AWS_S3_REGION_NAME }}" >> .env
           echo "USE_S3_MEDIA_STORAGE=${{ secrets.USE_S3_MEDIA_STORAGE }}" >> .env
           echo "MEDIA_URL=${{ secrets.MEDIA_URL }}" >> .env
-          echo "CLOUDFRONT_DISTRIBUTION_ID=${{ Secrets.CLOUDFRONT_DISTRIBUTION_ID }" >> .env
+          echo "CLOUDFRONT_DISTRIBUTION_ID=${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }}" >> .env
           echo "CLOUDFRONT_DOMAIN=${{ secrets.CLOUDFRONT_DOMAIN }}" >> .env 
-          echo "CLOUDFRONT_KEY_PAIR_ID=${{ Secrets.CLOUDFRONT_KEY_PAIR_ID }}" >> .env
+          echo "CLOUDFRONT_KEY_PAIR_ID=${{ secrets.CLOUDFRONT_KEY_PAIR_ID }}" >> .env
           echo "CLOUDFRONT_PRIVATE_KEY=${{ secrets.CLOUDFRONT_PRIVATE_KEY }}" >> .env
 
       - name: Debug - check .env exists
