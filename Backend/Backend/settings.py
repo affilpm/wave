@@ -391,3 +391,64 @@ CSRF_TRUSTED_ORIGINS = [
     "https://abcd-202-164-149-48.ngrok-free.app",
     "https://api.affils.site",
 ]
+
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+
+    # --------------- FORMATTERS ---------------
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} [{name}] {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+
+    # --------------- HANDLERS ---------------
+    'handlers': {
+        'file_info': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(BASE_DIR, 'info.log'),
+            'maxBytes': 5*1024*1024,  # 5 MB
+            'backupCount': 5,         # Keep last 5 files
+            'formatter': 'verbose',
+        },
+        'file_error': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'errors.log'),
+            'formatter': 'verbose',
+        },
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+
+    # --------------- LOGGERS ---------------
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file_info', 'file_error'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'music': {
+            'handlers': ['console', 'file_info', 'file_error'],
+            'level': 'DEBUG',  # Keep DEBUG for dev, change to INFO in prod
+            'propagate': False,
+        },
+    },
+}
+
+
+
+
+
+

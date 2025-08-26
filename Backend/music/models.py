@@ -65,9 +65,40 @@ class Music(models.Model):
                 print("Saving duration:", self.duration)  # Debug print
     
         super().save(*args, **kwargs)
+
+
+class HLSQuality(models.TextChoices):
+    LOW = 'low', 'Low'
+    MEDIUM = 'medium', 'Medium'
+    HIGH = 'high', 'High'
+    LOSSLESS = 'lossless', 'Lossless'
+
+class StreamingFile(models.Model):
+    music = models.ForeignKey('Music', on_delete=models.CASCADE, related_name='streaming_files')
+    quality = models.CharField(max_length=20, choices=HLSQuality.choices)
+    hls_playlist = models.URLField(help_text="URL to the .m3u8 file")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('music', 'quality')
+
+    def __str__(self):
+        return f"{self.music.name} - {self.quality}"        
         
-        
-        
+
+class UserPreference(models.Model):
+    user = models.OneToOneField(CustomUser, on_delete=models.CASCADE, related_name='preference')
+    preferred_quality = models.CharField(
+        max_length=20,
+        choices=HLSQuality.choices,
+        default=HLSQuality.LOW,
+        help_text="User's preferred streaming quality"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.email} - {self.preferred_quality}"
+
 
 
 class AlbumStatus(models.TextChoices):
@@ -116,12 +147,7 @@ class AlbumTrack(models.Model):
         unique_together = ['album', 'track_number']        
         
 
-        
-        
 
-
-
-# Define the equalizer presets as a model
 class EqualizerPreset(models.Model):
     name = models.CharField(max_length=50, unique=True)
     description = models.CharField(max_length=255, blank=True)
