@@ -3,44 +3,44 @@ import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import { persistStore, persistReducer, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER } from 'redux-persist';
 import storage from 'redux-persist/lib/storage';
 import userReducer from './slices/user/userSlice';
-import adminReducer from './slices/admin/adminSlice'; // Import the admin slice
-import modalReducer from './slices/artist/modalSlice'
+import adminReducer from './slices/admin/adminSlice';
+import modalReducer from './slices/artist/modalSlice';
 import playlistReducer from './slices/user/playlistSlice';
-// import playerReducer from './slices/user/playerSlice';
-import albumRducer from './slices/user/albumSlice'
+import albumReducer from './slices/user/albumSlice';
 import musicPlayerReducer from './slices/user/musicPlayerSlice';
-// import musicReducer from './slices/user/musicSlice';
+import playerReducer from './slices/user/PlayerSlice';
+import playerMiddleware from './middleware/playerMiddleware';
 
-// Root reducer
 const rootReducer = combineReducers({
   user: userReducer,
-  admin: adminReducer, // Add the admin slice
+  admin: adminReducer,
   modal: modalReducer,
   playlists: playlistReducer,
-  // player: playerReducer,
-  album: albumRducer,
+  album: albumReducer,
   musicPlayer: musicPlayerReducer,
-  // music: musicReducer, 
+  player: playerReducer,   
 });
 
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['user', 'admin', 'album', 'musicPlayer'], // Persist both user and admin slices
+  whitelist: ['user', 'admin', 'album'], 
+  blacklist: ['player', 'musicPlayer'],
 
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);
 
 const store = configureStore({
-  reducer: persistedReducer, // Use the persisted root reducer
+  reducer: persistedReducer,
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: {
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
-        ignoredPaths: ['user.image', 'admin.password'], // Ignore sensitive paths
+        ignoredPaths: ['user.image', 'admin.password'],
       },
-    }),
+    }).concat(playerMiddleware),
+  devTools: process.env.NODE_ENV !== 'production',
 });
 
 export const persistor = persistStore(store);
