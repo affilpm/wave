@@ -36,7 +36,6 @@ import ArtistPage from './components/user/home/main-content/Artist-section/Artis
 // import LivestreamApp from './components/live';
 import EqualizerControl from './components/user/home/main-content/music-player/Equalizer';
 import { useDispatch } from 'react-redux';
-import { handlePageReload } from './slices/user/musicPlayerSlice';
 // import LivestreamViewerApp from './components/live';
 import StreamListingPage from './components/livestream/LiveStreamViewerApp';
 import TransactionHistory from './components/user/home/header/settings/TransactionHistory';
@@ -58,10 +57,7 @@ function App() {
   const { isAuthenticated } = useSelector((state) => state.user);
   // musicStreamService.setApiInstance(apiInstance);
   const dispatch = useDispatch();
-  useEffect(() => {
-    
-    dispatch(handlePageReload());
-  }, [dispatch]);
+
   return (
     <Router>
       <Routes>

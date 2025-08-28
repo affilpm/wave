@@ -1,150 +1,168 @@
-import React, { useState, useEffect } from "react";
-import { Play, Pause, Clock, Share2, Shuffle, Plus, Check, ChevronLeft, MoreVertical, Heart } from "lucide-react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { Play, Pause, Clock, Share2, Plus, Check, Heart } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useDispatch, useSelector } from 'react-redux';
+import { useDispatch, useSelector, shallowEqual } from "react-redux";
+import { createSelector } from "@reduxjs/toolkit";
 import api from "../../../../../api";
 import {
   formatDuration,
   convertToSeconds,
   convertToHrMinFormat,
 } from "../../../../../utils/formatters";
-import {   
-  setMusicId,
+import {
+  setCurrentMusic,
   setIsPlaying,
   setQueue,
   clearQueue,
-  toggleShuffle
-} from "../../../../../slices/user/musicPlayerSlice";
+} from "../../../../../slices/user/playerSlice";
+
+// Memoized selector for player state
+const selectPlayerState = createSelector(
+  [(state) => state.player],
+  (player) => ({
+    currentMusicId: player.currentMusicId,
+    isPlaying: player.isPlaying,
+    queue: player.queue,
+    currentIndex: player.currentIndex,
+  })
+);
 
 const SavedPlaylistPage = () => {
   const dispatch = useDispatch();
-  const { musicId, isPlaying, queue, shuffle, currentPlaylistId } = useSelector((state) => state.musicPlayer);
-  
+  const { playlistId } = useParams();
+  const navigate = useNavigate();
+
   const [playlist, setPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalDuration, setTotalDuration] = useState("");
   const [isInLibrary, setIsInLibrary] = useState(false);
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
-  const { playlistId } = useParams();
-  const navigate = useNavigate();
+  const [currentPlaylistId, setCurrentPlaylistId] = useState(null);
 
-  // Transform track data for player
-  const prepareTrackForPlayer = (track) => ({
-    id: Number(track.music_details.id), // Ensure ID is a number
-    name: track.music_details.name,
-    artist: track.music_details.artist_username,
-    artist_full: track.music_details.artist_full_name,
-    cover_photo: track.music_details.cover_photo,
-    duration: track.music_details.duration,
-    release_date: track.music_details.release_date
-  });
+  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+    selectPlayerState,
+    shallowEqual
+  );
 
-  const isCurrentTrackFromPlaylist = () => {
-    if (!playlist?.tracks || !musicId) return false;
-    
-    // Check if current playlist ID matches
-    if (Number(currentPlaylistId) !== Number(playlist.id)) return false;
-    
-    // Check if current track exists in playlist
-    return playlist.tracks.some(track => Number(track.music_details.id) === Number(musicId));
-  };
+  // Memoize tracks for stable props
+  const stableTracks = useMemo(() => playlist?.tracks || [], [playlist]);
 
-  const handlePlayPlaylist = () => {
-    if (!playlist?.tracks?.length) return;
+  // Memoize isCurrentTrackFromPlaylist with debug logging
+  const isCurrentTrackFromPlaylist = useMemo(() => {
+    if (!playlist?.tracks || !currentMusicId || currentPlaylistId !== playlist?.id) {
+      console.log("isCurrentTrackFromPlaylist: Early return", {
+        hasTracks: !!playlist?.tracks,
+        currentMusicId,
+        currentPlaylistId,
+        playlistId: playlist?.id,
+      });
+      return false;
+    }
+    const currentTrack = queue[currentIndex];
+    const isTrackInPlaylist = playlist.tracks.some(
+      (track) => Number(track.music_details.id) === Number(currentMusicId)
+    );
+    console.log("isCurrentTrackFromPlaylist: Result", {
+      currentTrack,
+      isTrackInPlaylist,
+      currentMusicId,
+    });
+    return (
+      currentTrack &&
+      Number(currentTrack.id) === Number(currentMusicId) &&
+      isTrackInPlaylist
+    );
+  }, [playlist, currentMusicId, currentPlaylistId, queue, currentIndex]);
 
-    // Check if we're already playing this playlist
-    if (isCurrentTrackFromPlaylist()) {
-      // Just toggle play state if it's the same playlist
+  // Memoize track preparation
+  const prepareTrackForPlayer = useCallback(
+    (track) => ({
+      id: Number(track.music_details.id), // Ensure ID is a number
+      name: track.music_details.name,
+      title: track.music_details.name,
+      artist: track.music_details.artist_username,
+      artist_full: track.music_details.artist_full_name,
+      album: track.music_details.album_name || playlist?.name || "Unknown Album",
+      cover_photo: track.music_details.cover_photo,
+      duration: convertToSeconds(track.music_details.duration || "00:00:00"),
+      genre: track.music_details.genre || "",
+      year: track.music_details.release_date
+        ? new Date(track.music_details.release_date).getFullYear()
+        : null,
+      release_date: track.music_details.release_date,
+      track_number: track.track_number || 0,
+      playlist_id: Number(playlist?.id) || null, // Ensure playlist_id is a number
+      playlist_name: playlist?.name || "Unknown Playlist",
+    }),
+    [playlist]
+  );
+
+  // Handle play playlist
+  const handlePlayPlaylist = useCallback(() => {
+    if (!stableTracks.length) return;
+
+    if (isCurrentTrackFromPlaylist) {
       dispatch(setIsPlaying(!isPlaying));
       return;
     }
 
-    // This is a new playlist or a reset - load it
-    const formattedTracks = playlist.tracks.map(prepareTrackForPlayer);
-    
-    // Clear existing queue and set new one
+    const formattedTracks = stableTracks.map(prepareTrackForPlayer);
     dispatch(clearQueue());
-    dispatch(setQueue({ 
-      tracks: formattedTracks,
-      playlistId: Number(playlist.id) // Ensure playlistId is a number
-    }));
-    
-    // Set the first track and start playing
+    dispatch(setQueue(formattedTracks));
+    setCurrentPlaylistId(Number(playlist.id)); // Set currentPlaylistId as number
+
     if (formattedTracks.length > 0) {
-      dispatch(setMusicId(formattedTracks[0].id));
+      dispatch(setCurrentMusic(formattedTracks[0]));
       dispatch(setIsPlaying(true));
     }
-  };
+  }, [dispatch, isCurrentTrackFromPlaylist, isPlaying, playlist, stableTracks, prepareTrackForPlayer]);
 
-  const handlePlayTrack = (track, index) => {
-    // First, prepare all tracks to ensure consistent data format
-    const formattedTracks = playlist.tracks.map(prepareTrackForPlayer);
-    const currentTrackId = Number(track.music_details.id);
-    
-    // Check if this is the currently playing track
-    const isCurrentTrack = Number(musicId) === currentTrackId && 
-                          Number(currentPlaylistId) === Number(playlist.id);
+  // Handle play track
+  const handlePlayTrack = useCallback(
+    (track, index) => {
+      const formattedTracks = stableTracks.map(prepareTrackForPlayer);
+      const formattedTrack = formattedTracks[index];
 
-    if (isCurrentTrack) {
-      // Just toggle playback if it's the same track
-      dispatch(setIsPlaying(!isPlaying));
-      return;
-    }
+      if (Number(currentMusicId) === Number(formattedTrack.id) && currentPlaylistId === Number(playlist.id)) {
+        dispatch(setIsPlaying(!isPlaying));
+        return;
+      }
 
-    // If we're playing a different playlist or no playlist is currently set
-    if (Number(currentPlaylistId) !== Number(playlist.id)) {
-      dispatch(clearQueue());
-      dispatch(setQueue({ 
-        tracks: formattedTracks,
-        playlistId: Number(playlist.id)
-      }));
-    }
+      if (currentPlaylistId !== Number(playlist.id)) {
+        dispatch(clearQueue());
+        dispatch(setQueue(formattedTracks));
+        setCurrentPlaylistId(Number(playlist.id)); // Set currentPlaylistId as number
+      }
 
-    // Find the index of the clicked track in the formatted tracks
-    const trackIndex = formattedTracks.findIndex(t => Number(t.id) === currentTrackId);
-    
-    if (trackIndex !== -1) {
-      // Set the track ID and start playing
-      dispatch(setMusicId(currentTrackId));
+      dispatch(setCurrentMusic(formattedTrack));
       dispatch(setIsPlaying(true));
-    }
-  };
-
-  // Handle shuffle
-  const handleShuffle = () => {
-    dispatch(toggleShuffle());
-    if (!isPlaying && playlist?.tracks?.length) {
-      dispatch(setIsPlaying(true));
-    }
-  };
+    },
+    [currentMusicId, currentPlaylistId, isPlaying, playlist, stableTracks, dispatch, prepareTrackForPlayer]
+  );
 
   // Check if playlist is in library
-  const checkLibraryStatus = async () => {
+  const checkLibraryStatus = useCallback(async () => {
     try {
       const response = await api.get(`/api/library/library/check-playlist/${playlistId}/`);
       setIsInLibrary(response.data.is_in_library);
     } catch (error) {
       console.error("Failed to check library status:", error);
     }
-  };
+  }, [playlistId]);
 
   // Toggle playlist in library
-  const handleToggleLibrary = async () => {
+  const handleToggleLibrary = useCallback(async () => {
     if (playlist?.created_by === "current_user") {
-      // Don't allow adding your own playlists to library
       return;
     }
 
     try {
       setIsLibraryLoading(true);
-      
       if (isInLibrary) {
-        // Remove from library
         await api.post('/api/library/remove_playlist/', { playlist_id: playlistId });
         setIsInLibrary(false);
       } else {
-        // Add to library
         await api.post('/api/library/library/add-playlist/', { playlist_id: playlistId });
         setIsInLibrary(true);
       }
@@ -153,30 +171,36 @@ const SavedPlaylistPage = () => {
     } finally {
       setIsLibraryLoading(false);
     }
-  };
+  }, [isInLibrary, playlist, playlistId]);
 
+  // Calculate total duration
   useEffect(() => {
     const calculateTotalDuration = () => {
-      if (playlist?.tracks?.length) {
-        const totalSeconds = playlist.tracks.reduce((acc, track) => {
+      if (stableTracks.length) {
+        const totalSeconds = stableTracks.reduce((acc, track) => {
           const trackDuration = track.music_details?.duration || "00:00:00";
           return acc + convertToSeconds(trackDuration);
         }, 0);
-        const combinedDuration = convertToHrMinFormat(totalSeconds);
-        setTotalDuration(combinedDuration);
+        setTotalDuration(convertToHrMinFormat(totalSeconds));
       }
     };
 
     calculateTotalDuration();
-  }, [playlist]);
+  }, [stableTracks]);
 
+  // Fetch playlist and initialize currentPlaylistId
   useEffect(() => {
     const fetchPlaylist = async () => {
       try {
         const response = await api.get(`/api/playlist/playlists/${playlistId}/`);
         setPlaylist(response.data);
-        
-        // Check if this playlist is in the user's library
+        // Initialize currentPlaylistId if queue matches this playlist
+        if (
+          queue.length > 0 &&
+          queue.some((track) => Number(track.playlist_id) === Number(response.data.id))
+        ) {
+          setCurrentPlaylistId(Number(response.data.id));
+        }
         checkLibraryStatus();
       } catch (err) {
         setError("Failed to load playlist");
@@ -186,28 +210,16 @@ const SavedPlaylistPage = () => {
     };
 
     fetchPlaylist();
-  }, [playlistId]);
+  }, [playlistId, queue, checkLibraryStatus]);
 
-  if (isLoading) {
-    return (
-      <div className="p-4 space-y-4">
-        <div className="h-36 w-36 sm:h-48 sm:w-48 bg-gray-700 animate-pulse rounded-lg mx-auto sm:mx-0"></div>
-        <div className="h-10 w-56 bg-gray-700 animate-pulse rounded mx-auto sm:mx-0"></div>
-        <div className="h-6 w-28 bg-gray-700 animate-pulse rounded mx-auto sm:mx-0"></div>
-      </div>
-    );
-  }
-
-  // Don't show library toggle for own playlists
-  const isOwnPlaylist = playlist?.created_by_username === "YOUR_USERNAME"; // Replace with actual check
 
   // Mobile-optimized track component
-  const TrackItem = ({ track, index }) => {
-    const isThisTrackPlaying = Number(musicId) === Number(track.music_details.id) && 
-                              isCurrentTrackFromPlaylist();
+  const TrackItem = React.memo(({ track, index }) => {
+    const isThisTrackPlaying = Number(currentMusicId) === Number(track.music_details.id) &&
+                              isCurrentTrackFromPlaylist;
 
     return (
-      <div 
+      <div
         className={`flex items-center p-3 border-b border-gray-800 ${
           isThisTrackPlaying ? "bg-white/20" : ""
         } hover:bg-white/10 transition-colors group`}
@@ -225,13 +237,13 @@ const SavedPlaylistPage = () => {
             )}
           </button>
         </div>
-        
+
         <img
           src={track.music_details.cover_photo || "/api/placeholder/40/40"}
           alt={track.music_details.name}
           className="w-10 h-10 rounded-md"
         />
-        
+
         <div className="flex-1 min-w-0 ml-3">
           <div className="font-medium text-sm truncate">
             {track.music_details.name}
@@ -240,18 +252,18 @@ const SavedPlaylistPage = () => {
             {track.music_details.artist_full_name}
           </div>
         </div>
-        
+
         <span className="text-xs text-gray-400 ml-2 w-12 text-right">
           {formatDuration(track.music_details.duration)}
         </span>
       </div>
     );
-  };
+  });
 
   // Desktop track row component
-  const TrackRow = ({ track, index }) => {
-    const isThisTrackPlaying = Number(musicId) === Number(track.music_details.id) && 
-                              isCurrentTrackFromPlaylist();
+  const TrackRow = React.memo(({ track, index }) => {
+    const isThisTrackPlaying = Number(currentMusicId) === Number(track.music_details.id) &&
+                              isCurrentTrackFromPlaylist;
 
     return (
       <tr
@@ -297,11 +309,37 @@ const SavedPlaylistPage = () => {
         </td>
       </tr>
     );
-  };
+  });
+
+  if (isLoading) {
+    return (
+      <div className="p-4 space-y-4">
+        <div className="h-36 w-36 sm:h-48 sm:w-48 bg-gray-700 animate-pulse rounded-lg mx-auto sm:mx-0"></div>
+        <div className="h-10 w-56 bg-gray-700 animate-pulse rounded mx-auto sm:mx-0"></div>
+        <div className="h-6 w-28 bg-gray-700 animate-pulse rounded mx-auto sm:mx-0"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 sm:p-6">
+        <div className="text-red-500 text-center">{error}</div>
+      </div>
+    );
+  }
+
+  if (!playlist) {
+    return (
+      <div className="p-4 sm:p-6">
+        <div className="text-gray-400 text-center">Playlist not found</div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 via-black to-black text-white pb-24 sm:pb-28">
-      {/* Header Section - Mobile friendly */}
+      {/* Header Section */}
       <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 p-4 sm:p-6 pt-6">
         <div className="w-36 h-36 sm:w-48 sm:h-48 flex-shrink-0 shadow-xl">
           <img
@@ -330,39 +368,28 @@ const SavedPlaylistPage = () => {
         </div>
       </div>
 
-      {/* Action Buttons - Better touch target sizing */}
+      {/* Action Buttons */}
       <div className="flex items-center justify-center sm:justify-start gap-4 p-4 sm:p-6">
         <button
           className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors shadow-lg"
           onClick={handlePlayPlaylist}
         >
-          {isPlaying && isCurrentTrackFromPlaylist() ? (
+          {isPlaying && isCurrentTrackFromPlaylist ? (
             <Pause className="h-5 w-5 sm:h-6 sm:w-6 text-black" />
           ) : (
             <Play className="h-5 w-5 sm:h-6 sm:w-6 text-black ml-0.5 sm:ml-1" />
           )}
         </button>
 
-        {/* Desktop-only buttons */}
         <div className="flex items-center gap-4">
-          <button 
-            className="p-2 text-gray-400 hover:text-white transition-colors"
-            onClick={handleShuffle}
-          >
-            <Shuffle className={`h-5 w-5 sm:h-6 sm:w-6 ${shuffle ? "text-green-500" : ""}`} />
-          </button>
-
           <button className="p-2 text-gray-400 hover:text-white transition-colors">
             <Share2 className="h-5 w-5 sm:h-6 sm:w-6" />
           </button>
-
-          {/* Library Toggle Button - Only show for other people's playlists */}
-          {!isOwnPlaylist && (
-            <button 
+            <button
               className={`group p-1 border-2 rounded-full w-8 h-8 flex items-center justify-center 
                 transition-all duration-200 transform hover:scale-105
-                ${isInLibrary 
-                  ? "border-green-500 bg-green-500/20 hover:bg-green-500/30" 
+                ${isInLibrary
+                  ? "border-green-500 bg-green-500/20 hover:bg-green-500/30"
                   : "border-gray-400 hover:border-gray-100 hover:bg-transparent"}`}
               onClick={handleToggleLibrary}
               disabled={isLibraryLoading}
@@ -375,11 +402,10 @@ const SavedPlaylistPage = () => {
                 <Plus className="h-5 w-5 text-gray-400 group-hover:text-white transition-colors" />
               )}
             </button>
-          )}
         </div>
       </div>
 
-      {/* Track List - Responsive display */}
+      {/* Track List */}
       <div className="flex-1 p-4 sm:p-6 pb-20 sm:pb-12">
         {/* Desktop view - table */}
         <div className="hidden sm:block w-full">
@@ -400,8 +426,8 @@ const SavedPlaylistPage = () => {
               </tr>
             </thead>
             <tbody>
-              {playlist.tracks?.map((track, index) => (
-                <TrackRow key={track.id} track={track} index={index} />
+              {stableTracks.map((track, index) => (
+                <TrackRow key={track.music_details.id} track={track} index={index} />
               ))}
             </tbody>
           </table>
@@ -416,8 +442,8 @@ const SavedPlaylistPage = () => {
             </div>
           </div>
           <div className="rounded-lg overflow-hidden">
-            {playlist.tracks?.map((track, index) => (
-              <TrackItem key={track.id} track={track} index={index} />
+            {stableTracks.map((track, index) => (
+              <TrackItem key={track.music_details.id} track={track} index={index} />
             ))}
           </div>
         </div>

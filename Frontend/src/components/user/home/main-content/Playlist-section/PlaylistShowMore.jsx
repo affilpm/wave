@@ -1,22 +1,35 @@
-import React, { useState, useEffect } from "react";
-import { useLocation } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
-import { Play, Pause } from "lucide-react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector, shallowEqual } from "react-redux";
+import { createSelector } from "@reduxjs/toolkit";
+import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
+import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
+import { handlePlaybackAction } from "./playlist-utils";
 import api from "../../../../../api";
-import { 
-  setMusicId,
-  setIsPlaying,
-  setQueue,
-  clearQueue,
-  setCurrentPlaylistId
-} from "../../../../../slices/user/musicPlayerSlice";
+
+const selectPlayerState = createSelector(
+  [(state) => state.player], 
+  (player) => ({
+    currentMusicId: player.currentMusicId,
+    isPlaying: player.isPlaying,
+    queue: player.queue || [],
+    currentIndex: player.currentIndex || 0,
+    currentPlaylistId: player.currentPlaylistId,
+  })
+);
 
 const PlaylistShowMorePage = () => {
   const location = useLocation();
   const { title } = location.state || {};
   const dispatch = useDispatch();
-  const { musicId, isPlaying, currentPlaylistId } = useSelector((state) => state.musicPlayer);
-
+  const navigate = useNavigate();
+  const username = useSelector((state) => state.user.username);
+  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+    selectPlayerState,
+    shallowEqual
+  );
+  const scrollContainerRef = useRef(null);
+  const [showControls, setShowControls] = useState(false);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -30,9 +43,9 @@ const PlaylistShowMorePage = () => {
         const musiclistResponse = await api.get(`/api/home/playlist/?all_songs&page=${page}`);
         setItems(musiclistResponse.data.results);
         setHasNextPage(!!musiclistResponse.data.next);
-        setTotalPages(Math.ceil(musiclistResponse.data.count / musiclistResponse.data.page_size)); // Assuming count and page_size are provided in the response
+        setTotalPages(Math.ceil(musiclistResponse.data.count / musiclistResponse.data.page_size));
       } catch (error) {
-        console.error("Error fetching music data:", error);
+        console.error("Error fetching playlist data:", error);
       } finally {
         setLoading(false);
       }
@@ -41,110 +54,155 @@ const PlaylistShowMorePage = () => {
     fetchData();
   }, [page]);
 
-  const prepareTrackForPlayer = (track) => ({
-    id: track.id,
-    name: track.name,
-    artist: track.artist,
-    artist_full: track.artist_full,
-    cover_photo: track.cover_photo,
-    audio_file: track.audio_file,
-    duration: track.duration
-  });
+  const handlePlaylistClick = useCallback(
+    (playlistId) => {
+      const playlist = items.find((item) => item.id === playlistId);
+      if (playlist && playlist.created_by === username) {
+        navigate(`/playlist/${playlistId}`);
+      } else {
+        navigate(`/saved-playlist/${playlistId}`);
+      }
+    },
+    [items, navigate, username]
+  );
 
-  const handlePlay = async (item, e) => {
-    e.stopPropagation();
-    
-    const formattedTrack = prepareTrackForPlayer(item);
-    const pageId = `show-more-${title.toLowerCase().replace(/\s+/g, '-')}`;
-    
-    if (musicId === formattedTrack.id) {
-      dispatch(setIsPlaying(!isPlaying));
-      return;
+  const handlePlayClick = useCallback(
+    async (e, item) => {
+      e.stopPropagation();
+      await handlePlaybackAction({
+        playlistId: item.id,
+        dispatch,
+        currentState: { currentMusicId, isPlaying, queue, currentIndex },
+      });
+    },
+    [dispatch, currentMusicId, isPlaying, queue, currentIndex]
+  );
+
+  const handleScroll = (direction) => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      const scrollAmount = 300;
+      container.scrollBy({
+        left: direction === "left" ? -scrollAmount : scrollAmount,
+        behavior: "smooth",
+      });
     }
-
-    dispatch(clearQueue());
-    dispatch(setQueue({
-      tracks: [formattedTrack],
-      playlistId: pageId
-    }));
-    
-    dispatch(setCurrentPlaylistId(pageId));
-    dispatch(setMusicId(formattedTrack.id));
-    dispatch(setIsPlaying(true));
   };
 
-  const isItemPlaying = (item) => musicId === item.id && isPlaying;
+  const memoizedItems = useMemo(() => items, [items]);
 
   const handleNextPage = () => setPage((prev) => prev + 1);
   const handlePrevPage = () => setPage((prev) => Math.max(prev - 1, 1));
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <div className="p-4 text-white">Loading...</div>;
   }
 
+  if (!memoizedItems.length) return null;
+
   return (
-    <div className="flex-1 p-2">
-      <section className="mb-8 relative">
-        <h2 className="text-2xl p-2 font-bold mb-4">{title}</h2>
-        <div className="overflow-x-auto scrollbar-hidden">
-          <div className="flex flex-wrap gap-6">
-            {items.map((item, index) => (
-              <div
-                key={index}
-                className="bg-gray-800/30 rounded-lg p-4 hover:bg-gray-800/60 transition-all cursor-pointer group flex-none w-40"
-              >
-                <div className="relative">
-                  <img
-                    src={item.cover_photo}
-                    alt={item.name}
-                    className="w-full aspect-square object-cover rounded-md shadow-lg mb-4"
-                  />
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
-                    <button
-                      className={`absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center ${
-                        isItemPlaying(item) ? 'flex' : 'hidden group-hover:flex'
-                      } shadow-xl hover:scale-105 transition-all`}
-                      onClick={(e) => handlePlay(item, e)}
-                      aria-label={isItemPlaying(item) ? "Pause" : "Play"}
-                    >
-                      {isItemPlaying(item) ? (
-                        <Pause className="w-6 h-6 text-black" />
-                      ) : (
-                        <Play className="w-6 h-6 text-black" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-                <h3 className="font-bold mb-1 truncate">{item.name}</h3>
-                {item.artist && (
-                  <p className="text-sm text-gray-400 truncate">{item.artist}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="flex justify-between mt-4 items-center">
-          <button 
-            className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50" 
-            onClick={handlePrevPage} 
+    <section className="mb-8 relative p-4">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-2xl font-bold">{title}</h2>
+        <div className="flex gap-2">
+          <button
+            className="text-sm text-gray-400 hover:text-white transition-colors bg-gray-700 py-1 px-3 rounded disabled:opacity-50"
+            onClick={handlePrevPage}
             disabled={page === 1}
           >
             Previous
           </button>
-          {/* <span className="text-white">
-            Page {page} of {totalPages}
-          </span> */}
-          <button 
-            className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50" 
-            onClick={handleNextPage} 
+          <button
+            className="text-sm text-gray-400 hover:text-white transition-colors bg-gray-700 py-1 px-3 rounded disabled:opacity-50"
+            onClick={handleNextPage}
             disabled={!hasNextPage}
           >
             Next
           </button>
         </div>
-      </section>
-    </div>
+      </div>
+      <div
+        className="relative"
+        onMouseEnter={() => setShowControls(true)}
+        onMouseLeave={() => setShowControls(false)}
+      >
+        {showControls && (
+          <>
+            <button
+              onClick={() => handleScroll("left")}
+              className="absolute left-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2 transition-transform hover:scale-110"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+            <button
+              onClick={() => handleScroll("right")}
+              className="absolute right-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2 transition-transform hover:scale-110"
+            >
+              <ChevronRight className="h-6 w-6" />
+            </button>
+          </>
+        )}
+        <div
+          ref={scrollContainerRef}
+          className="overflow-x-auto scrollbar-hide"
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+        >
+          <div className="flex gap-4 px-4">
+            {memoizedItems.map((item) => {
+              const isCurrentPlaylist = queue.some(
+                (track) => track.playlist_id === item.id
+              );
+              const showPauseButton = isCurrentPlaylist && isPlaying && currentMusicId;
+              return (
+                <div
+                  key={item.id}
+                  className="flex-none w-40"
+                  onClick={() => handlePlaylistClick(item.id)}
+                >
+                  <div className="relative group">
+                    <img
+                      src={item.cover_photo}
+                      alt={item.name}
+                      className="w-40 h-40 object-cover rounded-md shadow-lg"
+                    />
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
+                      <button
+                        className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
+                        onClick={(e) => handlePlayClick(e, item)}
+                      >
+                        {showPauseButton ? (
+                          <Pause className="w-6 h-6 text-black" />
+                        ) : (
+                          <Play className="w-6 h-6 text-black" />
+                        )}
+                      </button>
+                    </div>
+                    <div className="absolute top-2 right-2">
+                      <PlaylistSectionMenuModal
+                        playlist={{
+                          id: item.id,
+                          name: item.name,
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <h3 className="font-bold text-white truncate">{item.name}</h3>
+                    {item.description && (
+                      <p className="text-sm text-gray-400 truncate">{item.description}</p>
+                    )}
+                    {item.created_by && (
+                      <p className="text-sm text-gray-400 truncate">By {item.created_by}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 };
 
-export default PlaylistShowMorePage;
+export default React.memo(PlaylistShowMorePage);

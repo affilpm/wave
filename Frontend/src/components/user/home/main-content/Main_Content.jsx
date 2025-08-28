@@ -9,7 +9,7 @@ import { useSelector } from "react-redux";
 import GenreDiscovery from "./Genre-section/GenreDiscovery";
 import { Shuffle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import RecentlyPlayedSection from "./RecentlyPlayedSection";
+// import RecentlyPlayedSection from "./RecentlyPlayedSection";
 import ArtistSection from "./Artist-section/ArtistSection";
 import LiveStreamSection from "../../../livestream/LiveStreamViewerApp";
 import LivestreamViewerApp from "../../../livestream/LiveStreamViewerApp";
@@ -179,12 +179,12 @@ const Main_Content = () => {
     <ShufflingDashboard>
 
      
-      {recentlyPlayedData.length > 0 && (
+      {/* {recentlyPlayedData.length > 0 && (
         <RecentlyPlayedSection
           title="Recently Played"
           items={recentlyPlayedData}
         />
-      )}
+      )} */}
       {artistlist.length > 0 && (
         <ArtistSection
           title="Artists"

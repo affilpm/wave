@@ -150,7 +150,7 @@ class PlaylistViewSet(viewsets.ModelViewSet):
                 )
             )
         )
-        
+        print(queryset)
         return queryset
 
     
