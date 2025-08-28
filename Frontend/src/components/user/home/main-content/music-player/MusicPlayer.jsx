@@ -1,1198 +1,812 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Howl } from 'howler';
+import Hls from 'hls.js';
 import { 
-  Play, 
-  Pause, 
-  SkipBack, 
-  SkipForward, 
-  Volume2, 
-  VolumeX,
-  Shuffle, 
-  Repeat,
-  Heart,
-  ListMusic,
-  X,
-  Music,
-  RefreshCw
-} from 'lucide-react';
-import api from '../../../../../api';
-import {
-  setIsPlaying,
-  setChangeComplete,
-  playNext,
+  setIsPlaying, 
+  setVolume, 
+  setIsMuted, 
+  playNext, 
   playPrevious,
+  setCurrentTime,
+  setDuration,
+  clearError,
+  refreshStream,
   toggleShuffle,
-  setRepeat,
-  markAsPlayed,
-  setMusicId,
-  setActionLock
-} from '../../../../../slices/user/musicPlayerSlice';
+  setRepeatMode,
+  setCurrentMusic,
+  fetchStreamUrl,
+  selectCurrentTrack,
+  selectQueueLength
+} from '../../../../../slices/user/playerSlice';
+
+// Utility function for time formatting
+const formatTime = (time) => {
+  if (!time || isNaN(time)) return '0:00';
+  const minutes = Math.floor(time / 60);
+  const seconds = Math.floor(time % 60);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+};
+
+// Enhanced ProgressBar with drag support
+const ProgressBar = React.memo(({ 
+  progressPercent, 
+  onProgressClick, 
+  progressRef,
+  currentTime,
+  duration 
+}) => {
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragPercent, setDragPercent] = useState(0);
+  
+  const handleMouseDown = useCallback((e) => {
+    setIsDragging(true);
+    onProgressClick(e);
+  }, [onProgressClick]);
+  
+  const handleMouseMove = useCallback((e) => {
+    if (!isDragging || !progressRef.current || !duration) return;
+    
+    const rect = progressRef.current.getBoundingClientRect();
+    const percent = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+    setDragPercent(percent);
+  }, [isDragging, duration]);
+  
+  const handleMouseUp = useCallback((e) => {
+    if (isDragging) {
+      setIsDragging(false);
+      onProgressClick(e);
+    }
+  }, [isDragging, onProgressClick]);
+  
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }
+  }, [isDragging, handleMouseMove, handleMouseUp]);
+  
+  const displayPercent = isDragging ? dragPercent : progressPercent;
+  
+  return (
+    <div 
+      className="w-full bg-gray-800 h-1 cursor-pointer group hover:h-2 transition-all duration-200" 
+      ref={progressRef}
+      onMouseDown={handleMouseDown}
+    >
+      <div 
+        className="h-full bg-gradient-to-r from-blue-500 to-purple-500 relative transition-all duration-100"
+        style={{ width: `${displayPercent}%` }}
+      >
+        <div className="absolute right-0 top-1/2 transform -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-lg" />
+      </div>
+      {/* Time tooltip on hover */}
+      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
+        <div 
+          className="absolute top-0 transform -translate-x-1/2 -translate-y-8 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10"
+          style={{ left: `${displayPercent}%` }}
+        >
+          {formatTime((displayPercent / 100) * duration)}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+const QueueOverlay = React.memo(({ 
+  showQueue, 
+  queue, 
+  currentMusicId, 
+  isPlaying, 
+  onClose, 
+  onTrackSelect 
+}) => {
+  if (!showQueue) return null;
+
+  return (
+    <div className="absolute bottom-full left-0 right-0 bg-gray-900 border border-gray-700 rounded-t-lg shadow-2xl max-h-64 overflow-hidden z-50">
+      <div className="p-3 border-b border-gray-700 flex items-center justify-between">
+        <h3 className="text-white font-semibold">Queue ({queue.length})</h3>
+        <button 
+          onClick={onClose}
+          className="text-gray-400 hover:text-white p-1"
+        >
+          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
+      </div>
+      <div className="overflow-y-auto max-h-48">
+        {queue.map((track, index) => (
+          <QueueItem
+            key={track.id}
+            track={track}
+            index={index}
+            isCurrentTrack={track.id === currentMusicId}
+            isPlaying={isPlaying}
+            onSelect={onTrackSelect}
+          />
+        ))}
+      </div>
+    </div>
+  );
+});
+
+const QueueItem = React.memo(({ 
+  track, 
+  index, 
+  isCurrentTrack, 
+  isPlaying, 
+  onSelect 
+}) => (
+  <div 
+    onClick={() => onSelect(track)}
+    className={`p-3 hover:bg-gray-800 cursor-pointer border-b border-gray-800 last:border-b-0 flex items-center space-x-3 ${
+      isCurrentTrack ? 'bg-gray-800 border-l-4 border-blue-500' : ''
+    }`}
+  >
+    <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded flex items-center justify-center">
+      {isCurrentTrack && isPlaying ? (
+        <div className="flex items-center space-x-0.5">
+          <div className="w-1 h-3 bg-white rounded animate-pulse"></div>
+          <div className="w-1 h-4 bg-white rounded animate-pulse" style={{animationDelay: '0.1s'}}></div>
+          <div className="w-1 h-2 bg-white rounded animate-pulse" style={{animationDelay: '0.2s'}}></div>
+        </div>
+      ) : (
+        <span className="text-xs text-white font-bold">{index + 1}</span>
+      )}
+    </div>
+    <div className="flex-1 min-w-0">
+      <p className="text-white text-sm font-medium truncate">
+        {track.name}
+      </p>
+      <p className="text-gray-400 text-xs truncate">
+        {track.artist}
+        {track.album && (
+          <>
+            <span className="mx-1">•</span>
+            {track.album}
+          </>
+        )}
+      </p>
+      {track.duration > 0 && (
+        <p className="text-gray-500 text-xs">
+          {formatTime(track.duration)}
+        </p>
+      )}
+    </div>
+    {isCurrentTrack && (
+      <div className="text-blue-400">
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+      </div>
+    )}
+  </div>
+));
+
+const ControlButton = React.memo(({ 
+  onClick, 
+  disabled, 
+  className, 
+  title, 
+  children 
+}) => (
+  <button
+    onClick={onClick}
+    disabled={disabled}
+    className={className}
+    title={title}
+  >
+    {children}
+  </button>
+));
+
+const MusicInfo = React.memo(({ 
+  isLoading, 
+  musicDetails, 
+  currentTrack 
+}) => (
+  <div className="flex items-center space-x-3 min-w-0 flex-1">
+    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 relative">
+      {isLoading ? (
+        <svg className="w-5 h-5 text-white animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      ) : (
+        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+        </svg>
+      )}
+    </div>
+    <div className="min-w-0 flex-1">
+      <h3 className="text-sm font-semibold text-white truncate">
+        {musicDetails.name || currentTrack?.name || 'Unknown Track'}
+      </h3>
+      <p className="text-xs text-gray-400 truncate">
+        {musicDetails.artist || currentTrack?.artist || 'Unknown Artist'}
+        {currentTrack?.album && (
+          <>
+            <span className="mx-1">•</span>
+            {currentTrack.album}
+          </>
+        )}
+      </p>
+      {isLoading && (
+        <p className="text-xs text-blue-400">Loading stream...</p>
+      )}
+    </div>
+  </div>
+));
+
+const VolumeControls = React.memo(({ 
+  currentTime, 
+  duration, 
+  isMuted, 
+  volume, 
+  isLoading, 
+  onToggleMute, 
+  onVolumeChange, 
+  onRefreshStream 
+}) => (
+  <div className="hidden md:flex items-center space-x-3 min-w-0 flex-1 justify-end">
+    <div className="flex items-center space-x-2">
+      <span className="text-xs text-gray-400 tabular-nums min-w-[2.5rem] text-right">
+        {formatTime(currentTime)}
+      </span>
+      <span className="text-xs text-gray-500">/</span>
+      <span className="text-xs text-gray-400 tabular-nums min-w-[2.5rem]">
+        {formatTime(duration)}
+      </span>
+    </div>
+    
+    <div className="flex items-center space-x-2">
+      <button
+        onClick={onToggleMute}
+        className="p-1 text-gray-400 hover:text-white transition-colors duration-200"
+        title={isMuted ? 'Unmute' : 'Mute'}
+      >
+        {isMuted || volume === 0 ? (
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.23 2.63-.76 3.74-1.58L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+          </svg>
+        ) : (
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+          </svg>
+        )}
+      </button>
+      <input
+        type="range"
+        min="0"
+        max="1"
+        step="0.01"
+        value={isMuted ? 0 : volume}
+        onChange={onVolumeChange}
+        className="w-20 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+        title={`Volume: ${Math.round(volume * 100)}%`}
+      />
+      <button
+        onClick={onRefreshStream}
+        disabled={isLoading}
+        className="p-1 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
+        title="Refresh Stream"
+      >
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+));
+
+const ErrorDisplay = React.memo(({ error, onClearError }) => {
+  if (!error) return null;
+
+  return (
+    <div className="mt-2 flex items-center justify-center">
+      <div className="flex items-center space-x-2 px-3 py-2 bg-red-900/50 border border-red-700 rounded-lg max-w-md">
+        <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+        </svg>
+        <span className="text-sm text-red-300 truncate">{error}</span>
+        <button
+          onClick={onClearError}
+          className="ml-2 text-red-400 hover:text-red-300 flex-shrink-0"
+          title="Dismiss"
+        >
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+});
+
+const QualityInfo = React.memo(({ qualityInfo }) => {
+  if (!qualityInfo.served) return null;
+
+  return (
+    <div className="mt-2 flex items-center justify-center">
+      <div className="flex items-center space-x-2 text-xs text-gray-500">
+        <span>Quality:</span>
+        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+          qualityInfo.matched 
+            ? 'bg-green-900/50 text-green-300 border border-green-700' 
+            : 'bg-yellow-900/50 text-yellow-300 border border-yellow-700'
+        }`}>
+          {qualityInfo.served}
+        </span>
+        {qualityInfo.preferred && qualityInfo.served !== qualityInfo.preferred && (
+          <>
+            <span className="text-gray-600">•</span>
+            <span>Preferred: {qualityInfo.preferred}</span>
+          </>
+        )}
+      </div>
+    </div>
+  );
+});
 
 const MusicPlayer = () => {
   const dispatch = useDispatch();
-  const {
-    musicId,
-    isPlaying,
-    isChanging,
-    isLoadingTrack,
-    actionLock,
-    queue,
-    currentIndex,
-    repeat,
-    shuffle,
-    playedTracks,
-  } = useSelector(state => state.musicPlayer);
-
-  const [playerState, setPlayerState] = useState({
-    progress: 0,
-    duration: 0,
-    loading: false,
-    error: null,
-    volume: 1,
-    isMuted: false,
-    retryCount: 0,
-    initializationComplete: false,
-    firstLoad: true
+  
+  // Memoized selector to prevent unnecessary re-renders
+  const playerState = useSelector(state => state.player, (prev, next) => {
+    // Custom equality check for performance
+    return (
+      prev.currentMusicId === next.currentMusicId &&
+      prev.isPlaying === next.isPlaying &&
+      prev.volume === next.volume &&
+      prev.isMuted === next.isMuted &&
+      prev.isShuffled === next.isShuffled &&
+      prev.repeatMode === next.repeatMode &&
+      prev.streamUrl === next.streamUrl &&
+      prev.isLoading === next.isLoading &&
+      prev.error === next.error &&
+      prev.currentTime === next.currentTime &&
+      prev.duration === next.duration &&
+      JSON.stringify(prev.queue) === JSON.stringify(next.queue) &&
+      JSON.stringify(prev.musicDetails) === JSON.stringify(next.musicDetails) &&
+      JSON.stringify(prev.qualityInfo) === JSON.stringify(next.qualityInfo)
+    );
   });
+  
+  const {
+    currentMusicId,
+    queue,
+    isPlaying,
+    volume,
+    isMuted,
+    isShuffled,
+    repeatMode,
+    streamUrl,
+    musicDetails,
+    qualityInfo,
+    isLoading,
+    error,
+    currentTime,
+    duration
+  } = playerState;
 
-  const [metadata, setMetadata] = useState(null);
-  const [signedToken, setSignedToken] = useState(null);
-  const [isSeeking, setIsSeeking] = useState(false);
-  const [isQueueOpen, setIsQueueOpen] = useState(false);
-  const [isLiked, setIsLiked] = useState(false);
-  const [playId, setPlayId] = useState(null);
-  const [isRequestingToken, setIsRequestingToken] = useState(false);
-  const [isHandlingTrackChange, setIsHandlingTrackChange] = useState(false);
-  const [isInitializing, setIsInitializing] = useState(false);
+  // Get current track from selector
+  const currentTrack = useSelector(selectCurrentTrack);
+  const queueLength = useSelector(selectQueueLength);
 
-  const howlRef = useRef(null);
   const audioRef = useRef(null);
-  const animationFrameRef = useRef(null);
-  const lastUpdateTimeRef = useRef(0);
-  const playStartTimeRef = useRef(null);
-  const reportedPlayRef = useRef(false);
-  const tokenMusicIdRef = useRef(null);
-  const retryTimeoutRef = useRef(null);
-  const abortControllerRef = useRef(null);
-  const mediaSessionInitializedRef = useRef(false);
-  const seekPositionRef = useRef(null);
-  const initialPlayRequestRef = useRef(false);
-  const previousMusicIdRef = useRef(null);
-  const savedProgressRef = useRef(0);
-  const tokenExpiryTimeRef = useRef(null);
-  const lastToggleRef = useRef(0); // New ref to debounce toggles
+  const hlsRef = useRef(null);
+  const progressRef = useRef(null);
+  const [showQueue, setShowQueue] = useState(false);
 
-  const MAX_RETRIES = 2;
-  const TOKEN_REFRESH_INTERVAL = 45 * 60 * 1000;
-  const TOKEN_EXPIRY_BUFFER = 5 * 60 * 1000;
-  const TOGGLE_DEBOUNCE_MS = 300;
+  // Memoized calculations
+  const progressPercent = useMemo(() => {
+    if (!duration || duration <= 0 || !isFinite(currentTime)) return 0;
+    return Math.max(0, Math.min(100, (currentTime / duration) * 100));
+  }, [currentTime, duration]);
 
-  const currentTrack = metadata ? {
-    name: metadata.title,
-    artist: metadata.artist,
-    album: metadata.album || '',
-    cover_photo: metadata.cover_photo || null,
-    duration: metadata.duration || 0
-  } : null;
+  const repeatModes = useMemo(() => ['none', 'all', 'single'], []);
 
-  const refreshTokenIfNeeded = async (force = false) => {
-    if (!musicId || isRequestingToken) return null;
-    
-    if (!force && signedToken && tokenMusicIdRef.current === musicId && 
-        tokenExpiryTimeRef.current && Date.now() < tokenExpiryTimeRef.current - TOKEN_EXPIRY_BUFFER) {
-      return signedToken;
-    }
-
-    setIsRequestingToken(true);
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
-
-    try {
-      const response = await api.get(`/api/music/token/${musicId}/`, {
-        signal: abortControllerRef.current.signal,
-        timeout: 5000
-      });
-
-      setSignedToken(response.data.token);
-      setPlayId(response.data.play_id);
-      tokenMusicIdRef.current = musicId;
-      tokenExpiryTimeRef.current = Date.now() + TOKEN_REFRESH_INTERVAL;
-      
-      return response.data.token;
-    } catch (error) {
-      console.error('Token refresh failed:', error);
-      return null;
-    } finally {
-      setIsRequestingToken(false);
-    }
-  };
-
+  // Fetch stream URL when music changes
   useEffect(() => {
-    return () => {
-      cleanupAudio();
-      dispatch(setActionLock(false));
-    };
+    if (currentMusicId && !streamUrl && !isLoading) {
+      dispatch(fetchStreamUrl(currentMusicId));
+    }
+  }, [currentMusicId, streamUrl, isLoading, dispatch]);
+
+  // Cleanup HLS instance
+  const cleanup = useCallback(() => {
+    if (hlsRef.current) {
+      try {
+        hlsRef.current.detachMedia();
+        hlsRef.current.destroy();
+      } catch (e) {
+        console.warn('Error destroying HLS:', e);
+      }
+      hlsRef.current = null;
+    }
+  }, []);
+
+  // Memoized event handlers
+  const handleLoadedMetadata = useCallback(() => {
+    if (audioRef.current) {
+      dispatch(setDuration(audioRef.current.duration || 0));
+    }
   }, [dispatch]);
 
+  const handleTimeUpdate = useCallback(() => {
+    if (audioRef.current && !audioRef.current.seeking) {
+      const currentTime = audioRef.current.currentTime || 0;
+      dispatch(setCurrentTime(currentTime));
+    }
+  }, [dispatch]);
+
+  const handleEnded = useCallback(() => {
+    dispatch(setIsPlaying(false));
+    
+    if (repeatMode === 'single' && audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().then(() => {
+        dispatch(setIsPlaying(true));
+      }).catch(err => {
+        console.error('Repeat play error:', err);
+      });
+    } else {
+      dispatch(playNext());
+    }
+  }, [dispatch, repeatMode]);
+
+  const handlePlay = useCallback(() => dispatch(setIsPlaying(true)), [dispatch]);
+  const handlePause = useCallback(() => dispatch(setIsPlaying(false)), [dispatch]);
+  const handleError = useCallback((e) => {
+    console.error('Audio error:', e.target?.error);
+    dispatch(setIsPlaying(false));
+  }, [dispatch]);
+
+  // Setup audio stream - FIXED: Only runs when streamUrl or currentMusicId changes
   useEffect(() => {
-    if (!isPlaying || !musicId) return;
+    const audio = audioRef.current;
+    if (!streamUrl || !audio) return;
 
-    const tokenRefreshInterval = setInterval(() => {
-      if (tokenExpiryTimeRef.current && Date.now() > tokenExpiryTimeRef.current - TOKEN_EXPIRY_BUFFER) {
-        refreshTokenIfNeeded(true);
-      }
-    }, 60000);
+    console.log('Setting up audio stream:', streamUrl);
+    
+    cleanup();
 
-    return () => clearInterval(tokenRefreshInterval);
-  }, [isPlaying, musicId]);
-
-  useEffect(() => {
-    if (queue.length > 0 && currentIndex === 0 && queue[currentIndex]?.id === musicId) {
-      if (howlRef.current && playerState.initializationComplete) {
-        if (isChanging || isHandlingTrackChange) {
-          dispatch(setChangeComplete());
-          setIsHandlingTrackChange(false);
-          if (isPlaying && !howlRef.current.playing()) {
-            howlRef.current.seek(savedProgressRef.current);
-            howlRef.current.play();
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: false,
+        lowLatencyMode: false,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+      });
+      
+      hlsRef.current = hls;
+      hls.loadSource(streamUrl);
+      hls.attachMedia(audio);
+      
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        console.log('HLS Manifest parsed successfully');
+      });
+      
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        console.error('HLS Error:', data);
+        if (data.fatal) {
+          if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR && 
+              data.response?.code === 403) {
+            dispatch(refreshStream());
+          } else {
+            dispatch(setIsPlaying(false));
           }
         }
-      }
+      });
+    } else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
+      audio.src = streamUrl;
     }
-  }, [queue, currentIndex, musicId, isChanging, isHandlingTrackChange, playerState.initializationComplete, dispatch, isPlaying]);
 
-  useEffect(() => {
-    if (playerState.error && actionLock) {
-      const lockReleaseTimeout = setTimeout(() => {
-        dispatch(setActionLock(false));
-      }, 2000);
-      return () => clearTimeout(lockReleaseTimeout);
-    }
-  }, [playerState.error, actionLock, dispatch]);
-
-  useEffect(() => {
-    if (!('mediaSession' in navigator) || !currentTrack || !howlRef.current) return;
-
-    navigator.mediaSession.metadata = new MediaMetadata({
-      title: currentTrack.name,
-      artist: currentTrack.artist,
-      album: currentTrack.album,
-      artwork: currentTrack.cover_photo ? [
-        { src: currentTrack.cover_photo, sizes: '512x512', type: 'image/jpeg' }
-      ] : []
-    });
-
-    navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-
-    const actionHandlers = {
-      play: () => dispatch(setIsPlaying(true)),
-      pause: () => dispatch(setIsPlaying(false)),
-      previoustrack: handlePrevious,
-      nexttrack: handleNext,
-      seekto: (details) => {
-        if (details.seekTime && howlRef.current) {
-          seekPositionRef.current = details.seekTime;
-          handleSeek(details.seekTime);
-        }
-      },
-      seekbackward: (details) => {
-        const skipTime = details.seekOffset || 10;
-        const newTime = Math.max(0, playerState.progress - skipTime);
-        seekPositionRef.current = newTime;
-        handleSeek(newTime);
-      },
-      seekforward: (details) => {
-        const skipTime = details.seekOffset || 10;
-        const newTime = Math.min(playerState.duration, playerState.progress + skipTime);
-        seekPositionRef.current = newTime;
-        handleSeek(newTime);
-      }
-    };
-
-    Object.entries(actionHandlers).forEach(([action, handler]) => {
-      try {
-        navigator.mediaSession.setActionHandler(action, handler);
-      } catch (error) {
-        console.warn(`Media Session "${action}" action not supported`);
-      }
-    });
-
-    mediaSessionInitializedRef.current = true;
+    // Add event listeners
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+    audio.addEventListener('error', handleError);
 
     return () => {
-      if ('mediaSession' in navigator) {
-        Object.keys(actionHandlers).forEach(action => {
-          try {
-            navigator.mediaSession.setActionHandler(action, null);
-          } catch (error) {
-            console.warn(`Error clearing media session handler for ${action}`);
-          }
-        });
-      }
+      // Cleanup listeners only - don't cleanup HLS here
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('error', handleError);
     };
-  }, [currentTrack, isPlaying, dispatch]);
+  }, [streamUrl, currentMusicId]); // FIXED: Removed isPlaying from dependencies
 
+  // Handle volume and mute changes
   useEffect(() => {
-    if (isChanging) {
-      setIsHandlingTrackChange(true);
-    } else {
-      const timeout = setTimeout(() => setIsHandlingTrackChange(false), 300);
-      return () => clearTimeout(timeout);
-    }
-  }, [isChanging]);
+    const audio = audioRef.current;
+    if (!audio) return;
+    
+    audio.volume = volume;
+    audio.muted = isMuted;
+  }, [volume, isMuted]);
 
-  const handleSeek = (position) => {
-    if (!howlRef.current) return;
-
-    const safePosition = Math.max(0, Math.min(position, howlRef.current.duration() || 0));
-    try {
-      howlRef.current.seek(safePosition);
-      savedProgressRef.current = safePosition;
-      setPlayerState(prev => ({ ...prev, progress: safePosition }));
-    } catch (error) {
-      console.error('Seek failed:', error);
-    }
-  };
-
+  // Handle play/pause from Redux state - FIXED: Separated from stream setup
   useEffect(() => {
-    if ('mediaSession' in navigator && mediaSessionInitializedRef.current) {
-      navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
-    }
-  }, [isPlaying]);
+    const audio = audioRef.current;
+    if (!audio || !streamUrl) return;
 
-  useEffect(() => {
-    if (!('mediaSession' in navigator) || !mediaSessionInitializedRef.current || !howlRef.current || !playerState.duration || isSeeking) return;
-
-    const now = Date.now();
-    if (now - lastUpdateTimeRef.current >= 250) {
-      try {
-        navigator.mediaSession.setPositionState({
-          duration: playerState.duration,
-          playbackRate: 1.0,
-          position: playerState.progress
-        });
-        lastUpdateTimeRef.current = now;
-      } catch (error) {
-        console.warn('Error updating position state:', error);
-      }
-    }
-  }, [playerState.progress, playerState.duration, isSeeking]);
-
-  useEffect(() => {
-    if (howlRef.current) {
-      audioRef.current = {
-        play: () => {
-          howlRef.current.seek(savedProgressRef.current);
-          howlRef.current.play();
-        },
-        pause: () => howlRef.current.pause(),
-        duration: howlRef.current.duration(),
-        currentTime: howlRef.current.seek(),
-        playbackRate: 1
-      };
-    }
-  }, [howlRef.current]);
-
-  useEffect(() => {
-    if (audioRef.current && howlRef.current) {
-      audioRef.current.currentTime = playerState.progress;
-      audioRef.current.duration = playerState.duration;
-    }
-  }, [playerState.progress, playerState.duration]);
-
-  const reportPlayCompletion = async (duration, percentage = null) => {
-    if (!musicId || !playId) return;
-
-    try {
-      const response = await api.post('api/music/record_play_completion/', {
-        music_id: musicId,
-        played_duration: duration,
-        play_percentage: percentage,
-        play_id: playId
-      });
-
-      if (response.data.counted_as_play) {
-        reportedPlayRef.current = true;
-      } else {
-        reportedPlayRef.current = false;
-      }
-      return response.data;
-    } catch (error) {
-      console.error('Failed to report play completion:', error);
-      return null;
-    }
-  };
-
-  useEffect(() => {
-    if (!musicId) return;
-
-    const fetchData = async () => {
-      setPlayerState(prev => ({ ...prev, loading: true, error: null, initializationComplete: false }));
-      dispatch(setActionLock(true));
-
-      try {
-        const [metadataResponse, tokenResponse, likedResponse] = await Promise.all([
-          api.get(`/api/music/metadata/${musicId}/`),
-          api.get(`/api/music/token/${musicId}/`),
-          api.get(`/api/playlist/playlists/is_liked/?music_id=${musicId}`)
-        ]);
-
-        setMetadata(metadataResponse.data);
-        setIsLiked(likedResponse.data.liked);
-        setSignedToken(tokenResponse.data.token);
-        setPlayId(tokenResponse.data.play_id);
-        tokenMusicIdRef.current = musicId;
-        tokenExpiryTimeRef.current = Date.now() + TOKEN_REFRESH_INTERVAL;
-
-        setPlayerState(prev => ({
-          ...prev,
-          loading: true,
-          duration: metadataResponse.data.duration,
-          progress: 0,
-          error: null,
-          retryCount: 0
-        }));
-
-        mediaSessionInitializedRef.current = false;
-        
-        initializeAudio(tokenResponse.data.token, metadataResponse.data);
-      } catch (error) {
-        console.error('Failed to fetch data:', error);
-        setPlayerState(prev => ({
-          ...prev,
-          loading: false,
-          error: 'Failed to load track information',
-          retryCount: 0,
-          initializationComplete: false
-        }));
-        dispatch(setActionLock(false));
-      }
-    };
-
-    fetchData();
-  }, [musicId, dispatch]);
-
-  const handleLike = async () => {
-    try {
-      const response = await api.post(`/api/playlist/playlists/like_songs/`, { music_id: musicId });
-      setIsLiked(response.data.liked);
-    } catch (error) {
-      console.error('Failed to toggle like status:', error);
-    }
-  };
-
-  useEffect(() => {
-    if (!queue.length) return;
-
-    const currentTrack = queue[currentIndex];
-    if (currentTrack && currentTrack.id !== musicId) {
-      dispatch(setMusicId(currentTrack.id));
-    }
-  }, [queue, currentIndex, dispatch, musicId]);
-
-  const cleanupAudio = () => {
-    if (howlRef.current) {
-      if (playStartTimeRef.current && !reportedPlayRef.current) {
-        const playedDuration = (Date.now() - playStartTimeRef.current) / 1000;
-        const percentage = howlRef.current ? howlRef.current.seek() / howlRef.current.duration() : null;
-        reportPlayCompletion(playedDuration, percentage);
-      }
-      howlRef.current.unload();
-      howlRef.current = null;
-    }
-
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-
-    if (retryTimeoutRef.current) {
-      clearTimeout(retryTimeoutRef.current);
-      retryTimeoutRef.current = null;
-    }
-
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-  };
-
-  const initializeAudio = (token, meta) => {
-    try {
-      cleanupAudio();
-      setPlayerState(prev => ({ ...prev, loading: true, error: null, progress: 0, initializationComplete: false }));
-
-      const audioUrl = `${api.defaults.baseURL}/api/music/stream/${musicId}/?token=${token}`;
-      const sound = new Howl({
-        src: [audioUrl],
-        format: [meta.format],
-        html5: true,
-        preload: true,
-        volume: playerState.isMuted ? 0 : playerState.volume,
-        xhr: {
-          timeout: 10000,
-          headers: { 'X-Client-ID': 'music-player-v1' }
-        },
-        onload: () => {
-          const actualDuration = sound.duration();
-          setPlayerState(prev => ({
-            ...prev,
-            duration: actualDuration,
-            loading: false,
-            error: null,
-            retryCount: 0,
-            progress: savedProgressRef.current || 0,
-            initializationComplete: true
-          }));
-          dispatch(setChangeComplete());
-          dispatch(setActionLock(false));
-          setIsInitializing(false);
-
-          if (savedProgressRef.current > 0) {
-            sound.seek(savedProgressRef.current);
-          }
-          
-          if (isPlaying && !sound.playing()) {
-            sound.play();
-          }
-        },
-        onloaderror: (id, error) => {
-          console.error('Audio load error:', error);
-          const isTokenError = error && (error.includes('401') || error.includes('403') || error.includes('Unauthorized'));
-          
-          setPlayerState(prev => {
-            const newRetryCount = prev.retryCount + 1;
-            if (newRetryCount <= MAX_RETRIES) {
-              if (isTokenError) {
-                refreshTokenIfNeeded(true).then(newToken => {
-                  if (newToken && meta) {
-                    setTimeout(() => initializeAudio(newToken, meta), 500);
-                  }
-                });
-              } else {
-                const retryDelay = Math.min(1000 * Math.pow(2, newRetryCount - 1), 5000);
-                retryTimeoutRef.current = setTimeout(() => {
-                  refreshTokenIfNeeded(true).then(newToken => {
-                    if (newToken && meta) {
-                      initializeAudio(newToken, meta);
-                    }
-                  });
-                }, retryDelay);
-              }
-              
-              return {
-                ...prev,
-                retryCount: newRetryCount,
-                loading: true,
-                initializationComplete: false,
-                error: `Loading audio... (Attempt ${newRetryCount}/${MAX_RETRIES})`
-              };
-            }
-            
-            dispatch(setActionLock(false));
-            setIsInitializing(false);
-            return {
-              ...prev,
-              loading: false,
-              initializationComplete: false,
-              error: 'Failed to load audio after multiple attempts.',
-              retryCount: 0
-            };
-          });
-        },
-        onplayerror: (id, error) => {
-          console.error('Audio playback error:', error);
-          sound.once('unlock', () => {
-            sound.seek(savedProgressRef.current);
-            sound.play();
-          });
-        },
-        onplay: () => {
-          dispatch(setIsPlaying(true));
-          if ('mediaSession' in navigator) {
-            navigator.mediaSession.playbackState = 'playing';
-          }
-          playStartTimeRef.current = Date.now();
-          if (tokenMusicIdRef.current !== musicId) {
-            reportedPlayRef.current = false;
-          }
-          if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
-          }
-          updateSeeker();
-        },
-        onpause: () => {
+    if (isPlaying && audio.paused) {
+      audio.play().catch((err) => {
+        console.warn('Play failed:', err);
+        if (err.name !== 'AbortError') {
           dispatch(setIsPlaying(false));
-          if ('mediaSession' in navigator) {
-            navigator.mediaSession.playbackState = 'paused';
-          }
-          savedProgressRef.current = sound.seek() || 0;
-          setPlayerState(prev => ({ ...prev, progress: savedProgressRef.current }));
-          if (playStartTimeRef.current) {
-            const playDuration = (Date.now() - playStartTimeRef.current) / 1000;
-            const percentage = sound ? sound.seek() / sound.duration() : null;
-            reportPlayCompletion(playDuration, percentage);
-            playStartTimeRef.current = null;
-          }
-          if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
-            animationFrameRef.current = null;
-          }
-        },
-        onstop: () => {
-          dispatch(setIsPlaying(false));
-          if ('mediaSession' in navigator) {
-            navigator.mediaSession.playbackState = 'paused';
-          }
-          savedProgressRef.current = 0;
-          setPlayerState(prev => ({ ...prev, progress: 0 }));
-          if (playStartTimeRef.current) {
-            const playedDuration = (Date.now() - playStartTimeRef.current) / 1000;
-            reportPlayCompletion(playedDuration);
-            playStartTimeRef.current = null;
-          }
-          if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
-            animationFrameRef.current = null;
-          }
-        },
-        onend: () => {
-          if (meta && meta.duration) {
-            reportPlayCompletion(meta.duration, 1.0);
-          }
-          dispatch(markAsPlayed(musicId));
-          if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
-            animationFrameRef.current = null;
-          }
-          dispatch(playNext());
-          savedProgressRef.current = 0;
-        },
-        onseek: () => {
-          const actualPosition = sound.seek();
-          savedProgressRef.current = actualPosition;
-          setPlayerState(prev => ({ ...prev, progress: actualPosition }));
-          if ('mediaSession' in navigator && sound && sound.duration()) {
-            const now = Date.now();
-            if (now - lastUpdateTimeRef.current >= 250) {
-              try {
-                navigator.mediaSession.setPositionState({
-                  duration: sound.duration(),
-                  playbackRate: 1.0,
-                  position: actualPosition
-                });
-                lastUpdateTimeRef.current = now;
-              } catch (error) {
-                console.warn('Error updating position state:', error);
-              }
-            }
-          }
-          if (isPlaying && !animationFrameRef.current) {
-            updateSeeker();
-          }
         }
       });
-
-      howlRef.current = sound;
-    } catch (error) {
-      console.error('Error initializing audio:', error);
-      setPlayerState(prev => ({
-        ...prev,
-        loading: false,
-        initializationComplete: false,
-        error: 'Failed to initialize audio player',
-        retryCount: 0
-      }));
-      dispatch(setActionLock(false));
-      setIsInitializing(false);
+    } else if (!isPlaying && !audio.paused) {
+      audio.pause();
     }
-  };
+  }, [isPlaying, streamUrl, dispatch]);
 
-  const updateSeeker = () => {
-    if (!howlRef.current || isSeeking) {
-      animationFrameRef.current = null;
-      return;
+  // Cleanup on unmount
+  useEffect(() => {
+    return cleanup;
+  }, [cleanup]);
+
+  // Progress click handler
+  const handleProgressClick = useCallback((e) => {
+    if (!progressRef.current || !duration || duration <= 0) return;
+    
+    const rect = progressRef.current.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const percent = Math.max(0, Math.min(1, clickX / rect.width));
+    const newTime = percent * duration;
+    
+    if (audioRef.current) {
+      audioRef.current.currentTime = newTime;
+      dispatch(setCurrentTime(newTime));
     }
+  }, [duration, dispatch]);
 
-    let currentTime;
-    try {
-      currentTime = howlRef.current.seek() || 0;
-    } catch (error) {
-      console.warn('Error getting current time:', error);
-      currentTime = playerState.progress;
+  // Control handlers
+  const togglePlay = useCallback(() => {
+    if (!currentMusicId) return;
+    dispatch(setIsPlaying(!isPlaying));
+  }, [currentMusicId, isPlaying, dispatch]);
+
+  const handleNext = useCallback(() => {
+    if (queueLength > 1) {
+      dispatch(playNext());
     }
+  }, [queueLength, dispatch]);
 
-    if (Math.abs(currentTime - playerState.progress) > 0.1) {
-      setPlayerState(prev => ({
-        ...prev,
-        progress: currentTime
-      }));
-      savedProgressRef.current = currentTime;
+  const handlePrevious = useCallback(() => {
+    if (queueLength > 1) {
+      dispatch(playPrevious());
     }
+  }, [queueLength, dispatch]);
 
-    animationFrameRef.current = requestAnimationFrame(updateSeeker);
-  };
+  const toggleMute = useCallback(() => {
+    dispatch(setIsMuted(!isMuted));
+  }, [isMuted, dispatch]);
 
-  const handleSeekChange = (e) => {
-    const value = parseFloat(e.target.value);
-    setPlayerState(prev => ({ ...prev, progress: value }));
-  };
+  const handleVolumeChange = useCallback((e) => {
+    const newVolume = parseFloat(e.target.value);
+    dispatch(setVolume(newVolume));
+  }, [dispatch]);
 
-  const handleSeekMouseUp = (e) => {
-    const value = parseFloat(e.target.value);
-    setIsSeeking(false);
+  const handleTrackSelect = useCallback((track) => {
+    dispatch(setCurrentMusic(track));
+    setShowQueue(false);
+  }, [dispatch]);
 
-    if (howlRef.current) {
-      howlRef.current.seek(value);
-      savedProgressRef.current = value;
-      setPlayerState(prev => ({ ...prev, progress: value }));
-    }
+  const handleQueueClose = useCallback(() => {
+    setShowQueue(false);
+  }, []);
 
-    if (isPlaying && howlRef.current && !howlRef.current.playing()) {
-      howlRef.current.play();
-    }
-
-    if (!animationFrameRef.current) {
-      updateSeeker();
-    }
-  };
-
-  const handleSeekMouseDown = () => {
-    setIsSeeking(true);
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-  };
-
-  const handleRetry = () => {
-    setPlayerState(prev => ({ ...prev, retryCount: 0, loading: true, error: null, initializationComplete: false }));
-    dispatch(setActionLock(true));
-
-    refreshTokenIfNeeded(true).then(token => {
-      if (token && metadata) {
-        initializeAudio(token, metadata);
-      } else {
-        setIsInitializing(false);
-        dispatch(setActionLock(false));
-      }
-    });
-  };
-
-  const handleNext = () => {
-    if (isHandlingTrackChange || actionLock) return;
-
-    setIsHandlingTrackChange(true);
-    savedProgressRef.current = 0;
-    cleanupAudio();
-    dispatch(playNext());
-
-    setTimeout(() => setIsHandlingTrackChange(false), 500);
-  };
-
-  const handlePrevious = () => {
-    if (isHandlingTrackChange || actionLock) return;
-
-    setIsHandlingTrackChange(true);
-    savedProgressRef.current = 0;
-    cleanupAudio();
-    dispatch(playPrevious());
-
-    setTimeout(() => setIsHandlingTrackChange(false), 500);
-  };
-
-  const handleToggleShuffle = () => {
-    if (actionLock) return;
+  const toggleShuffle_ = useCallback(() => {
     dispatch(toggleShuffle());
-  };
+  }, [dispatch]);
 
-  const handleRepeatMode = () => {
-    if (actionLock) return;
-    const modes = ['none', 'all', 'one'];
-    const currentIndex = modes.indexOf(repeat);
-    const nextMode = modes[(currentIndex + 1) % modes.length];
-    dispatch(setRepeat(nextMode));
-  };
+  const handleRepeatModeChange = useCallback(() => {
+    const currentIndex = repeatModes.indexOf(repeatMode);
+    const nextMode = repeatModes[(currentIndex + 1) % repeatModes.length];
+    dispatch(setRepeatMode(nextMode));
+  }, [repeatMode, repeatModes, dispatch]);
 
-  const toggleVolume = () => {
-    if (!howlRef.current) return;
-    const newMutedState = !playerState.isMuted;
-    howlRef.current.volume(newMutedState ? 0 : playerState.volume);
-    setPlayerState(prev => ({ ...prev, isMuted: newMutedState }));
-  };
+  const handleRefreshStream = useCallback(() => {
+    dispatch(refreshStream());
+  }, [dispatch]);
 
-  const handleVolumeChange = (e) => {
-    if (!howlRef.current) return;
-    const value = parseFloat(e.target.value);
-    howlRef.current.volume(value);
-    setPlayerState(prev => ({
-      ...prev,
-      volume: value,
-      isMuted: value === 0
-    }));
-  };
+  const handleClearError = useCallback(() => {
+    dispatch(clearError());
+  }, [dispatch]);
 
-  const togglePlayPause = () => {
-    if (!playerState.initializationComplete || playerState.loading || isChanging || actionLock || !howlRef.current) return;
+  const toggleQueueVisibility = useCallback(() => {
+    setShowQueue(prev => !prev);
+  }, []);
 
-    const now = Date.now();
-    if (now - lastToggleRef.current < TOGGLE_DEBOUNCE_MS) return;
-    lastToggleRef.current = now;
-
-    const newPlayingState = !isPlaying;
-    dispatch(setIsPlaying(newPlayingState));
-
-    if (newPlayingState) {
-      const currentProgress = savedProgressRef.current || 0;
-      howlRef.current.seek(currentProgress);
-      howlRef.current.play();
-    } else {
-      howlRef.current.pause();
-      savedProgressRef.current = howlRef.current.seek() || 0;
-      setPlayerState(prev => ({ ...prev, progress: savedProgressRef.current }));
-    }
-  };
-
-  useEffect(() => {
-    if (!howlRef.current || !playerState.initializationComplete || playerState.loading || isChanging) return;
-
-    if (playerState.firstLoad) {
-      setPlayerState(prev => ({ ...prev, firstLoad: false }));
-      return;
-    }
-
-    // Skip if togglePlayPause was recently called
-    const now = Date.now();
-    if (now - lastToggleRef.current < TOGGLE_DEBOUNCE_MS) return;
-
-    if (isPlaying && !howlRef.current.playing()) {
-      howlRef.current.seek(savedProgressRef.current || 0);
-      howlRef.current.play();
-    } else if (!isPlaying && howlRef.current.playing()) {
-      howlRef.current.pause();
-      savedProgressRef.current = howlRef.current.seek() || 0;
-      setPlayerState(prev => ({ ...prev, progress: savedProgressRef.current }));
-    }
-  }, [isPlaying, playerState.initializationComplete, playerState.loading, isChanging]);
-
-  useEffect(() => {
-    if (playerState.initializationComplete && initialPlayRequestRef.current) {
-      initialPlayRequestRef.current = false;
-    }
-  }, [playerState.initializationComplete]);
-
-  useEffect(() => {
-    if (!musicId) {
-      dispatch(setIsPlaying(false));
-    }
-  }, [musicId, dispatch]);
-
-  const formatTime = (seconds) => {
-    if (!seconds) return '0:00';
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = Math.floor(seconds % 60);
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-
-  const toggleQueue = () => {
-    setIsQueueOpen(!isQueueOpen);
-  };
-
-  const isLoading = playerState.loading || isLoadingTrack || isChanging || isInitializing || !playerState.initializationComplete;
-
-  const progressPercentage = playerState.duration ? (playerState.progress / playerState.duration) * 100 : 0;
+  // Don't render if no music is selected
+  if (!currentMusicId) {
+    return (
+      <div className="bg-gradient-to-r from-gray-900 via-black to-gray-900 border-t border-gray-700">
+        <div className="px-4 py-4 text-center">
+          <p className="text-gray-400 text-sm">Select a track to start playing</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative">
-      {playerState.error && !playerState.loading && (
-        <div className="bg-red-900 text-white p-2 flex items-center justify-between">
-          <span className="text-sm">{playerState.error}</span>
-          <button 
-            onClick={handleRetry} 
-            className="bg-red-700 hover:bg-red-600 rounded-full p-1 flex items-center justify-center"
-          >
-            <RefreshCw className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-      
-      <div className="bg-black bg-opacity-90 text-white border-t border-gray-900 backdrop-blur-lg p-1 sm:p-2 shadow-lg">
-        <div className="flex flex-col md:hidden space-y-3 pt-2 pb-2 pl-2 pr-2">
+      <QueueOverlay
+        showQueue={showQueue}
+        queue={queue}
+        currentMusicId={currentMusicId}
+        isPlaying={isPlaying}
+        onClose={handleQueueClose}
+        onTrackSelect={handleTrackSelect}
+      />
+
+      <div className="bg-gradient-to-r from-gray-900 via-black to-gray-900 border-t border-gray-700 backdrop-blur-sm">
+        <audio ref={audioRef} preload="metadata" />
+        
+        <ProgressBar
+          progressPercent={progressPercent}
+          onProgressClick={handleProgressClick}
+          progressRef={progressRef}
+          currentTime={currentTime}
+          duration={duration}
+        />
+
+        <div className="px-4 py-3 md:px-6 md:py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              {metadata?.cover_photo ? (
-                <div className="w-10 h-10 rounded-md overflow-hidden">
-                  <img 
-                    src={metadata.cover_photo}
-                    alt={metadata.title}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="w-10 h-10 rounded-md bg-gray-800 flex items-center justify-center">
-                  <Music className="w-5 h-5 text-gray-400" />
-                </div>
-              )}
-              <div className="overflow-hidden">
-                <h3 className="text-sm font-medium truncate">{metadata?.title}</h3>
-                <p className="text-xs text-gray-400 truncate">{metadata?.artist}</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center space-x-1">
-              <button 
-                onClick={handleLike}
-                disabled={!musicId || playerState.loading}
-                className={`p-1 rounded-full ${
-                  isLiked ? 'text-pink-500' : 'text-gray-400'
-                } ${!musicId || playerState.loading ? 'opacity-50' : ''}`}
-              >
-                <Heart className="w-4 h-4" fill={isLiked ? "currentColor" : "none"} />
-              </button>
-              <button onClick={toggleQueue} className="p-1 text-gray-400">
-                <ListMusic className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-          
-          {playerState.loading && (
-            <div className="flex items-center justify-center py-1">
-              <div className="w-full bg-gray-800 rounded-full h-1 overflow-hidden">
-                <div className="bg-indigo-500 h-1 rounded-full animate-pulse w-full"></div>
-              </div>
-            </div>
-          )}
+            <MusicInfo
+              isLoading={isLoading}
+              musicDetails={musicDetails}
+              currentTrack={currentTrack}
+            />
 
-          {!playerState.loading && (
-            <div className="px-1">
-              <div className="relative h-1 bg-gray-800 rounded-full overflow-hidden">
-                <div 
-                  className="absolute top-0 left-0 h-full bg-indigo-500"
-                  style={{ width: `${progressPercentage}%` }}
-                ></div>
-                <input
-                  type="range"
-                  min="0"
-                  max={playerState.duration || 100}
-                  value={playerState.progress || 0}
-                  onChange={handleSeekChange}
-                  onMouseDown={handleSeekMouseDown}
-                  onTouchStart={handleSeekMouseDown}
-                  onMouseUp={handleSeekMouseUp}
-                  onTouchEnd={handleSeekMouseUp}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-              </div>
-              <div className="flex justify-between mt-1">
-                <span className="text-xs text-gray-500">
-                  {formatTime(playerState.progress)}
-                </span>
-                <span className="text-xs text-gray-500">
-                  {formatTime(playerState.duration)}
-                </span>
-              </div>
-            </div>
-          )}
-          
-          <div className="flex items-center justify-between px-2">
-            <button 
-              onClick={handleToggleShuffle}
-              className={`${shuffle ? 'text-indigo-400' : 'text-gray-500'}`}
-              disabled={actionLock}
-            >
-              <Shuffle className="w-4 h-4" />
-            </button>
-            
-            <div className="flex items-center space-x-4">
-              <button 
+            {/* Control Buttons */}
+            <div className="flex items-center space-x-2 md:space-x-3">
+              {/* Queue Button */}
+              <ControlButton
+                onClick={toggleQueueVisibility}
+                className={`p-2 rounded transition-colors duration-200 ${
+                  showQueue 
+                    ? 'text-blue-400 bg-blue-400/20' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                title="Show Queue"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
+                </svg>
+              </ControlButton>
+
+              {/* Shuffle Button */}
+              <ControlButton
+                onClick={toggleShuffle_}
+                className={`p-2 rounded transition-colors duration-200 ${
+                  isShuffled 
+                    ? 'text-blue-400 bg-blue-400/20' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                title={isShuffled ? 'Shuffle On' : 'Shuffle Off'}
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/>
+                </svg>
+              </ControlButton>
+
+              <ControlButton
                 onClick={handlePrevious}
-                className="text-gray-300 disabled:opacity-50"
-                disabled={
-                  !musicId || 
-                  queue.length === 0 || 
-                  (currentIndex === 0 && repeat !== 'all') || 
-                  playerState.loading || 
-                  isChanging || 
-                  isHandlingTrackChange || 
-                  actionLock
-                }
+                className="p-2 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
+                disabled={queueLength <= 1}
+                title="Previous"
               >
-                <SkipBack className="w-5 h-5" />
-              </button>
-              
-              <button 
-                onClick={togglePlayPause}
-                disabled={isLoading || actionLock || !musicId}
-                className="play-button disabled:opacity-50"
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M6 18V6h2v12H6zm3-4.5V18l8-6-8-6v4.5z"/>
+                </svg>
+              </ControlButton>
+
+              <ControlButton
+                onClick={togglePlay}
+                disabled={!streamUrl && isLoading}
+                className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full hover:from-blue-600 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transform hover:scale-105"
+                title={isPlaying ? 'Pause' : 'Play'}
               >
-                {isLoading ? (
-                  <RefreshCw className="w-5 h-5 text-white animate-spin" />
-                ) : isPlaying ? (
-                  <Pause />
+                {isPlaying ? (
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+                  </svg>
                 ) : (
-                  <Play />
+                  <svg className="w-5 h-5 ml-0.5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
                 )}
-              </button>
+              </ControlButton>
 
-              <button 
+              <ControlButton
                 onClick={handleNext}
-                className="text-gray-300 disabled:opacity-50"
-                disabled={
-                  !musicId || 
-                  queue.length === 0 || 
-                  (currentIndex === queue.length - 1 && repeat !== 'all') || 
-                  playerState.loading || 
-                  isChanging || 
-                  isHandlingTrackChange || 
-                  actionLock
-                }
+                className="p-2 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
+                disabled={queueLength <= 1}
+                title="Next"
               >
-                <SkipForward className="w-5 h-5" />
-              </button>
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M18 18V6h-2v12h2zm-3-4.5V18l-8-6 8-6v4.5z"/>
+                </svg>
+              </ControlButton>
+
+              {/* Repeat Button */}
+              <ControlButton
+                onClick={handleRepeatModeChange}
+                className={`p-2 rounded transition-colors duration-200 ${
+                  repeatMode !== 'none' 
+                    ? 'text-blue-400 bg-blue-400/20' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+                title={`Repeat: ${repeatMode}`}
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  {repeatMode === 'single' ? (
+                    <>
+                      <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7z"/>
+                      <path d="M17 17H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+                      <text x="12" y="16" fontSize="8" textAnchor="middle" fill="currentColor">1</text>
+                    </>
+                  ) : (
+                    <>
+                      <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7z"/>
+                      <path d="M17 17H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
+                    </>
+                  )}
+                </svg>
+              </ControlButton>
             </div>
-            
-            <button 
-              onClick={handleRepeatMode}
-              className={`${repeat !== 'none' ? 'text-indigo-400' : 'text-gray-500'}`}
-              disabled={actionLock}
-            >
-              <Repeat className="w-4 h-4" />
-            </button>
+
+            <VolumeControls
+              currentTime={currentTime}
+              duration={duration}
+              isMuted={isMuted}
+              volume={volume}
+              isLoading={isLoading}
+              onToggleMute={toggleMute}
+              onVolumeChange={handleVolumeChange}
+              onRefreshStream={handleRefreshStream}
+            />
           </div>
+
+          <QualityInfo qualityInfo={qualityInfo} />
+          <ErrorDisplay error={error} onClearError={handleClearError} />
         </div>
-
-        <div className="hidden md:grid md:grid-cols-3 md:items-center md:gap-4 pr-2 pl-2 pt-1 pb-1">
-          <div className="flex items-center space-x-3">
-            {metadata?.cover_photo ? (
-              <div className="w-12 h-12 rounded-md overflow-hidden">
-                <img 
-                  src={metadata.cover_photo}
-                  alt={metadata.title}
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            ) : (
-              <div className="w-12 h-12 rounded-md bg-gray-800 flex items-center justify-center">
-                <Music className="w-5 h-5 text-gray-400" />
-              </div>
-            )}
-            <div className="overflow-hidden">
-              <h3 className="text-sm font-medium truncate">{metadata?.title}</h3>
-              <p className="text-xs text-gray-400 truncate">{metadata?.artist}</p>
-            </div>
-            <button 
-              onClick={handleLike}
-              disabled={!musicId || playerState.loading}
-              className={`p-1 ${isLiked ? 'text-pink-500' : 'text-gray-400'}`}
-            >
-              <Heart className="w-4 h-4" fill={isLiked ? "currentColor" : "none"} />
-            </button>
-          </div>
-          
-          <div className="flex flex-col items-center">
-          <div className="flex items-center justify-center space-x-4 mb-1">
-            <button 
-              onClick={handleToggleShuffle}
-              className={`${shuffle ? 'text-indigo-400' : 'text-gray-500'}`}
-              disabled={actionLock}
-            >
-              <Shuffle className="w-4 h-4" />
-            </button>
-            
-            <button 
-              onClick={handlePrevious}
-              className="text-gray-300"
-              disabled={
-                !musicId || 
-                queue.length === 0 || 
-                (currentIndex === 0 && repeat !== 'all') || 
-                playerState.loading || 
-                isChanging || 
-                isHandlingTrackChange || 
-                actionLock
-              }
-            >
-              <SkipBack className="w-5 h-5" />
-            </button>
-            
-            <button 
-              onClick={playerState.loading && playerState.retryCount > 0 ? handleRetry : togglePlayPause}
-              className="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center shadow-md disabled:opacity-50"
-              disabled={isLoading || actionLock}
-            >
-              {isLoading ? (
-                <RefreshCw className="w-5 h-5 text-white animate-spin" />
-              ) : isPlaying ? (
-                <Pause className="w-5 h-5 text-white" />
-              ) : (
-                <Play className="w-5 h-5 text-white ml-0.5" />
-              )}
-            </button>
-            
-            <button 
-              onClick={handleNext}
-              className="text-gray-300"
-              disabled={
-                !musicId || 
-                queue.length === 0 || 
-                (currentIndex === queue.length - 1 && repeat !== 'all') || 
-                playerState.loading || 
-                isChanging || 
-                isHandlingTrackChange || 
-                actionLock
-              }
-            >
-              <SkipForward className="w-5 h-5" />
-            </button>
-            
-            <button 
-              onClick={handleRepeatMode}
-              className={`${repeat !== 'none' ? 'text-indigo-400' : 'text-gray-500'}`}
-              disabled={actionLock}
-            >
-              <Repeat className="w-4 h-4" />
-            </button>
-          </div>
-
-            {playerState.loading && (
-              <div className="w-full px-4 mb-1">
-                <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
-                  <div className="bg-indigo-500 h-1 rounded-full animate-pulse w-full"></div>
-                </div>
-              </div>
-            )}
-
-            {!playerState.loading && (
-              <div className="w-full px-4 space-y-1">
-                <div className="relative h-1 bg-gray-800 rounded-full overflow-hidden group">
-                  <div 
-                    className="absolute top-0 left-0 h-full bg-indigo-500"
-                    style={{ width: `${progressPercentage}%` }}
-                  ></div>
-                  <input
-                    type="range"
-                    min="0"
-                    max={playerState.duration || 100}
-                    value={playerState.progress || 0}
-                    onChange={handleSeekChange}
-                    onMouseDown={handleSeekMouseDown}
-                    onMouseUp={handleSeekMouseUp}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                  />
-                </div>
-                
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>{formatTime(playerState.progress)}</span>
-                  <span>{formatTime(playerState.duration)}</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center justify-end space-x-4">
-            <div className="hidden lg:flex items-center space-x-2">
-              <button onClick={toggleVolume} className="text-gray-400">
-                {playerState.isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-              </button>
-              <div className="relative w-20 h-1 bg-gray-800 rounded-full overflow-hidden">
-                <div
-                  className="absolute top-0 left-0 h-full bg-indigo-500"
-                  style={{ width: `${playerState.isMuted ? 0 : playerState.volume * 100}%` }}
-                ></div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  value={playerState.isMuted ? 0 : playerState.volume}
-                  onChange={handleVolumeChange}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full"
-                />
-              </div>
-            </div>
-            
-            <button onClick={toggleVolume} className="lg:hidden text-gray-400">
-              {playerState.isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-            </button>
-            
-            <button onClick={toggleQueue} className="text-gray-400">
-              <ListMusic className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+        
+        <style>{`
+          .slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            border: 2px solid #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          }
+          .slider::-moz-range-thumb {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            border: 2px solid #ffffff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+          }
+        `}</style>
       </div>
-
-      {isQueueOpen && (
-        <div className="fixed z-50 inset-x-0 bottom-0 md:absolute md:bottom-full md:right-0 w-full md:w-80 max-h-72 md:max-h-80 bg-black bg-opacity-95 border border-gray-900 rounded-t-lg md:rounded-lg shadow-xl">
-          <div className="p-3 border-b border-gray-800 flex justify-between items-center sticky top-0 z-10">
-            <h3 className="text-sm font-medium text-indigo-400">Play Queue</h3>
-            <button onClick={() => setIsQueueOpen(false)} className="text-gray-400">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          
-          <div className="overflow-y-auto max-h-64">
-            {queue[currentIndex] && (
-              <div className="p-3 border-b border-gray-800/30 bg-indigo-900/20">
-                <h4 className="text-xs text-gray-400 mb-2">Now Playing</h4>
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded bg-gray-800 flex items-center justify-center">
-                    {queue[currentIndex].coverPhoto ? (
-                      <img src={queue[currentIndex].coverPhoto} alt="" className="w-full h-full object-cover rounded" />
-                    ) : (
-                      <Music className="w-4 h-4 text-gray-400" />
-                    )}
-                  </div>
-                  <div className="overflow-hidden flex-1">
-                    <p className="text-sm truncate text-white">{queue[currentIndex].name}</p>
-                    <p className="text-xs text-gray-400 truncate">{queue[currentIndex].artist}</p>
-                  </div>
-                  <div className="h-6 w-6 rounded-full bg-indigo-500/30 flex items-center justify-center">
-                    <div className="h-2 w-2 bg-indigo-500 rounded-full animate-pulse"></div>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            <div className="p-3">
-              <h4 className="text-xs text-gray-400 mb-2">Up Next</h4>
-              {queue.slice(currentIndex + 1).length > 0 ? (
-                queue.slice(currentIndex + 1).map((track, index) => (
-                  <div 
-                    key={track.id} 
-                    className="flex items-center space-x-2 py-2 hover:bg-gray-800/30 rounded cursor-pointer"
-                    onClick={() => {
-                      dispatch(setMusicId(track.id));
-                      setIsQueueOpen(false);
-                    }}
-                  >
-                    <span className="text-xs text-gray-500 w-4">{index + 1}</span>
-                    <div className="w-7 h-7 rounded bg-gray-800 flex items-center justify-center">
-                      {track.coverPhoto ? (
-                        <img src={track.coverPhoto} alt="" className="w-full h-full object-cover rounded" />
-                      ) : (
-                        <Music className="w-3 h-3 text-gray-400" />
-                      )}
-                    </div>
-                    <div className="overflow-hidden flex-1">
-                      <p className="text-xs truncate text-white">{track.name}</p>
-                      <p className="text-xs text-gray-500 truncate">{track.artist}</p>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="flex flex-col items-center justify-center py-6 text-center">
-                  <ListMusic className="w-8 h-8 text-gray-700 mb-2" />
-                  <p className="text-sm text-gray-500">Queue is empty</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

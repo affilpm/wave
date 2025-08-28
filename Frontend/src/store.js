@@ -7,8 +7,7 @@ import adminReducer from './slices/admin/adminSlice';
 import modalReducer from './slices/artist/modalSlice';
 import playlistReducer from './slices/user/playlistSlice';
 import albumReducer from './slices/user/albumSlice';
-import musicPlayerReducer from './slices/user/musicPlayerSlice';
-import playerReducer from './slices/user/PlayerSlice';
+import playerReducer from './slices/user/playerSlice';
 import playerMiddleware from './middleware/playerMiddleware';
 
 const rootReducer = combineReducers({
@@ -17,7 +16,6 @@ const rootReducer = combineReducers({
   modal: modalReducer,
   playlists: playlistReducer,
   album: albumReducer,
-  musicPlayer: musicPlayerReducer,
   player: playerReducer,   
 });
 
@@ -25,7 +23,7 @@ const persistConfig = {
   key: 'root',
   storage,
   whitelist: ['user', 'admin', 'album'], 
-  blacklist: ['player', 'musicPlayer'],
+  // blacklist: ['player', 'musicPlayer'],
 
 };
 

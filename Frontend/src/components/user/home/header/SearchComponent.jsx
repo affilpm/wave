@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Search, Play, Pause, Loader } from 'lucide-react';
 import api from '../../../../api';
-import { setQueue, setMusicId, setIsPlaying } from '../../../../slices/user/musicPlayerSlice';
+import { setQueue, setCurrentMusic, setIsPlaying } from '../../../../slices/user/playerSlice';
 
 const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -15,7 +15,7 @@ const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
   const searchResultsRef = useRef(null);
   
   // Get current playback state from Redux
-  const { musicId, isPlaying, queue } = useSelector(state => state.musicPlayer);
+  const { currentMusicId, isPlaying, queue } = useSelector(state => state.player);
   
   // Focus the search input when the component mounts
   useEffect(() => {
@@ -74,7 +74,7 @@ const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
   };
 
   const handlePlayTrack = (track) => {
-    const isCurrentTrack = track.id === musicId;
+    const isCurrentTrack = track.id === currentMusicId;
     
     if (isCurrentTrack) {
       // Toggle play/pause for the current track
@@ -88,7 +88,7 @@ const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
       }));
       
       // Set the track to play
-      dispatch(setMusicId(track.id));
+      dispatch(setCurrentMusic(track));
       
       // Start playing
       dispatch(setIsPlaying(true));
@@ -110,7 +110,7 @@ const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
 
   // Checks if a track is currently playing
   const isTrackPlaying = (trackId) => {
-    return isPlaying && musicId === trackId;
+    return isPlaying && currentMusicId === trackId;
   };
 
   return (
@@ -147,13 +147,13 @@ const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
                 <div 
                   key={track.id}
                   className={`flex items-center px-4 py-2 hover:bg-gray-800 cursor-pointer ${
-                    track.id === musicId ? 'bg-gray-800 bg-opacity-50' : ''
+                    track.id === currentMusicId ? 'bg-gray-800 bg-opacity-50' : ''
                   }`}
                   onClick={() => handlePlayTrack(track)}
                 >
                   <div className="w-10 h-10 mr-3 relative group">
                     <img 
-                      src={track.cover_photo} 
+                      src={track.image_photo} 
                       alt={track.name}
                       className="w-full h-full object-cover rounded"
                       onError={(e) => {
@@ -161,14 +161,14 @@ const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
                         e.target.src = '/assets/default-album.png';
                       }}
                     />
-                    {track.id === musicId && (
+                    {track.id === currentMusicId && (
                       <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center rounded">
                         <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
                       </div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-medium ${track.id === musicId ? 'text-green-400' : 'text-white'} truncate`}>
+                    <div className={`text-sm font-medium ${track.id === currentMusicId ? 'text-green-400' : 'text-white'} truncate`}>
                       {track.name}
                     </div>
                     <div className="text-xs text-gray-400 truncate">{track.artist}</div>
