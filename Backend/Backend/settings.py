@@ -13,7 +13,7 @@ https://docs.djangoproject.com/en/5.0/ref/settings/
 from pathlib import Path
 from datetime import timedelta
 from decouple import config
-
+from corsheaders.defaults import default_headers
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -28,40 +28,7 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG')
 
-ALLOWED_HOSTS = config("ALLOWED_HOSTS", "localhost").split(",")
-
-
-
-REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ],
-    'DEFAULT_PARSER_CLASSES': [
-        'rest_framework.parsers.JSONParser',
-        'rest_framework.parsers.FormParser',
-        'rest_framework.parsers.MultiPartParser',
-    ],
-    # 'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    # 'PAGE_SIZE': 5
-
-}
-
-# Django settings.py
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
-}
-
- 
- 
-
- 
-
+ALLOWED_HOSTS = config("ALLOWED_HOSTS", "localhost").split(",") 
 
 
 # Application definition
@@ -115,8 +82,8 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'corsheaders.middleware.CorsMiddleware',
-    'allauth.account.middleware.AccountMiddleware',  # Add this line
-    'django.middleware.common.CommonMiddleware',  # Make sure this is included
+    'allauth.account.middleware.AccountMiddleware',  
+    'django.middleware.common.CommonMiddleware',  
     'csp.middleware.CSPMiddleware',
     'agora.middleware.LivestreamCleanupMiddleware',
     
@@ -145,7 +112,6 @@ TEMPLATES = [
 # WSGI_APPLICATION = 'Backend.wsgi.application'
 
 ASGI_APPLICATION = 'Backend.asgi.application'
-
 
 
 # Database
@@ -206,82 +172,32 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ],
+    'DEFAULT_PARSER_CLASSES': [
+        'rest_framework.parsers.JSONParser',
+        'rest_framework.parsers.FormParser',
+        'rest_framework.parsers.MultiPartParser',
+    ],
+    "DEFAULT_THROTTLE_CLASSES": [],
+    "DEFAULT_THROTTLE_RATES": {
+        "music_streaming": "20/hour",   # scope used here
+    },
+}
 
 
-
-#cors permissions
-
-CORS_ALLOW_CREDENTIALS = True
-
-
-CORS_ALLOW_HEADERS = [
-    'accept',
-    'accept-encoding',
-    'authorization',
-    'content-type',
-    'dnt',
-    'origin',
-    'user-agent',
-    'x-csrftoken',
-    'x-requested-with',
-    'range',  # Important for audio streaming
-]
-
-
-
-
-CORS_ALLOW_METHODS = [
-    'DELETE',
-    'GET',
-    'OPTIONS',
-    'PATCH',
-    'POST',
-    'PUT',
-]
-
-# CORS_ALLOWED_ORIGINS = [
-#     "http://localhost:5173",  # Your Vite dev server
-#     "https://*.ngrok-free.app",  
-# ]
-
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",          # React app on local device
-    "https://api.affils.site",
-    "http://192.168.0.100:5173",      # IP-based access for LAN
-    "https://abcd-202-164-149-48.ngrok-free.app",  # Ngrok tunnel (if used)
-]
-
-CORS_ALLOW_CREDENTIALS = True  # Allow cookies and credentials
-# Add these headers to your response
-SECURE_CONTENT_TYPE_NOSNIFF = False
-CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
-CROSS_ORIGIN_EMBEDDER_POLICY = 'require-corp'
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOWS_CREDENTIALS = True
-
-
-from corsheaders.defaults import default_headers
-
-CORS_ALLOW_HEADERS = default_headers + (
-    'authorization',
-    'content-type',
-)
-
-
-
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:5173",
-    "http://192.168.0.100:5173", 
-    "https://abcd-202-164-149-48.ngrok-free.app",
-    "https://api.affils.site",
-]
-
-
-
-
-
-
-
+# Django settings.py
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=5),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+}
 
 
 
@@ -299,7 +215,7 @@ EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD')
 CACHES = {
     'default': {
         'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': 'redis://redis:6379/1',  # Local Redis server URL ,  # Redis server URL
+        'LOCATION': 'redis://127.0.0.1:6379/1',  # Local Redis server URL redis://127.0.0.1:6379/1,  # Redis server URL redis://redis:6379/1
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         }
@@ -312,11 +228,10 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [('redis', 6379)],  # Default Redis settings
+            "hosts": [('127.0.0.1', 6379)],  # Default Redis settings
         },
     },
 }
-
 
 
 
@@ -325,12 +240,10 @@ REST_USE_JWT = True
 TOKEN_MODEL = None  # Disable the token model if you don't need it
 
 
-
 #google Auth configuration
 SOCIAL_AUTH_GOOGLE_OAUTH2_KEY = config('SOCIAL_AUTH_GOOGLE_OAUTH2_KEY')
 SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET = config('SOCIAL_AUTH_GOOGLE_OAUTH2_SECRET')
 GOOGLE_CLIENT_ID = config('SOCIAL_AUTH_GOOGLE_OAUTH2_KEY')
-
 
 
 #razorpay configuration
@@ -340,9 +253,7 @@ RAZORPAY_KEY_ID = config('RAZOR_KEY_ID')
 RAZORPAY_KEY_SECRET = config('RAZOR_KEY_SECRET')
 
 
-
 SITE_ID = 1
-
 
 
 #agora configuration
@@ -351,13 +262,11 @@ AGORA_APP_CERTIFICATE = config('AGORA_APP_CERTIFICATE')
 
 
 
-
 # Authentication Backends
 AUTHENTICATION_BACKENDS = (
     'django.contrib.auth.backends.ModelBackend',
     'allauth.account.auth_backends.AuthenticationBackend',
 )
-
 
 
 
@@ -374,11 +283,11 @@ AWS_S3_OBJECT_PARAMETERS = {
 # Set to False to allow public access to files without query parameters
 AWS_QUERYSTRING_AUTH = False
 
-# Optional: Set default ACL behavior if needed (often not required)
-# AWS_DEFAULT_ACL = 'public-read'
 
 CLOUDFRONT_DISTRIBUTION_ID= config('CLOUDFRONT_DISTRIBUTION_ID')
 CLOUDFRONT_DOMAIN = config('CLOUDFRONT_DOMAIN')
+# CLOUDFRONT_PRIVATE_KEY_PATH = 'cloudfront-private-key.pem'
+# CLOUDFRONT_KEY_ID = config('CLOUDFRONT_KEY_ID')
 
 # Use CloudFront for serving media
 MEDIA_URL = f'https://{CLOUDFRONT_DOMAIN}/media/'
@@ -400,5 +309,146 @@ STORAGES = {
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+
+
+
+# Celery Configuration
+CELERY_BROKER_URL = config("CELERY_BROKER_URL", default="redis://127.0.0.1:6379/0")
+CELERY_RESULT_BACKEND = config("CELERY_RESULT_BACKEND", default="redis://127.0.0.1:6379/0")
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 7200
+CELERY_WORKER_CONCURRENCY = config('CELERY_WORKER_CONCURRENCY', default=8, cast=int)
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+
+
+
+
+#cors permissions
+CORS_ALLOW_CREDENTIALS = True
+
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'X-Client-IP',
+    
+    'range',  # Important for audio streaming
+]
+
+
+
+
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+
+
+CORS_ALLOWED_ORIGINS = [
+    f"https://{CLOUDFRONT_DOMAIN}",
+    "http://localhost:5173",          # React app on local device
+    "https://api.affils.site",
+]
+
+CORS_ALLOW_CREDENTIALS = True  # Allow cookies and credentials
+
+SECURE_CONTENT_TYPE_NOSNIFF = False
+CROSS_ORIGIN_OPENER_POLICY = 'same-origin'
+CROSS_ORIGIN_EMBEDDER_POLICY = 'require-corp'
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOWS_CREDENTIALS = True
+
+
+
+CORS_ALLOW_HEADERS = default_headers + (
+    'authorization',
+    'content-type',
+)
+
+APPEND_SLASH = True
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://192.168.0.100:5173", 
+    "https://abcd-202-164-149-48.ngrok-free.app",
+    "https://api.affils.site",
+]
+
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+
+    # --------------- FORMATTERS ---------------
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} [{name}] {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+
+    # --------------- HANDLERS ---------------
+    'handlers': {
+        'file_info': {
+            'level': 'INFO',
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': os.path.join(BASE_DIR, 'info.log'),
+            'maxBytes': 5*1024*1024,  # 5 MB
+            'backupCount': 5,         # Keep last 5 files
+            'formatter': 'verbose',
+        },
+        'file_error': {
+            'level': 'ERROR',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'errors.log'),
+            'formatter': 'verbose',
+        },
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+
+    # --------------- LOGGERS ---------------
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file_info', 'file_error'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'music': {
+            'handlers': ['console', 'file_info', 'file_error'],
+            'level': 'DEBUG',  # Keep DEBUG for dev, change to INFO in prod
+            'propagate': False,
+        },
+    },
+}
+
+
+
+
 
 

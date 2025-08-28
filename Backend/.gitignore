@@ -1,2 +1,19 @@
+# Environment variables
 .env
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Django media files
+media/
+staticfiles/
+
+# Logs
+*.log
+
 settings.txt
+
+cloudfront-private-key.pem
+cloudfront-public-key.pem

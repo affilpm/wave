@@ -1,37 +1,86 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
-import { Play, Pause, Clock, Share2, Shuffle, Music, Headphones, Radio, Mic, Guitar, Stars } from 'lucide-react';
-import { useDispatch, useSelector } from 'react-redux';
-import { 
-  setMusicId,
-  setQueue,
+import { Play, Pause, Clock, Share2, Music, Headphones, Radio, Mic, Guitar, Stars } from 'lucide-react';
+import { useDispatch, useSelector, shallowEqual } from 'react-redux';
+import { createSelector } from '@reduxjs/toolkit';
+import {
+  setCurrentMusic,
   setIsPlaying,
-  toggleShuffle,
-  setCurrentPlaylistId
-} from '../../../../../slices/user/musicPlayerSlice';
+  setQueue,
+  clearQueue,
+} from "../../../../../slices/user/playerSlice";
 import api from '../../../../../api';
 import { formatDuration, convertToSeconds, convertToHrMinFormat } from '../../../../../utils/formatters';
 
+const selectPlayerState = createSelector(
+  [(state) => state.player],
+  (player) => ({
+    currentMusicId: player.currentMusicId,
+    isPlaying: player.isPlaying,
+    queue: player.queue,
+    currentIndex: player.currentIndex,
+  })
+);
+
 const GenrePage = () => {
   const dispatch = useDispatch();
-  const { musicId, isPlaying, currentPlaylistId } = useSelector((state) => state.musicPlayer);
+  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+    selectPlayerState,
+    shallowEqual
+  );
   const [genreData, setGenreData] = useState(null);
   const [tracks, setTracks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const { genreId } = useParams();
   const [totalDuration, setTotalDuration] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1)
-
+  const [totalPages, setTotalPages] = useState(1);
 
   const genreIcons = {
-    'Pop': { icon: <Music size={36} className="text-white mb-2" />, color: 'bg-pink-500' },
-    'Electronic': { icon: <Headphones size={36} className="text-white mb-2" />, color: 'bg-purple-500' },
-    'Rock': { icon: <Guitar size={36} className="text-white mb-2" />, color: 'bg-red-500' },
+    Pop: { icon: <Music size={36} className="text-white mb-2" />, color: 'bg-pink-500' },
+    Electronic: { icon: <Headphones size={36} className="text-white mb-2" />, color: 'bg-purple-500' },
+    Rock: { icon: <Guitar size={36} className="text-white mb-2" />, color: 'bg-red-500' },
     'Hip Hop': { icon: <Mic size={36} className="text-white mb-2" />, color: 'bg-blue-500' },
-    'Jazz': { icon: <Radio size={36} className="text-white mb-2" />, color: 'bg-yellow-500' },
-    'Indie': { icon: <Stars size={36} className="text-white mb-2" />, color: 'bg-green-500' }
+    Jazz: { icon: <Radio size={36} className="text-white mb-2" />, color: 'bg-yellow-500' },
+    Indie: { icon: <Stars size={36} className="text-white mb-2" />, color: 'bg-green-500' },
   };
+
+  const stableTracks = useMemo(() => tracks || [], [tracks]);
+
+  const isQueueFromGenreTracks = useMemo(() => {
+    if (!queue.length) return false;
+    return queue.every(
+      (track) => track.source === 'public_songs'
+    );
+  }, [queue]);
+
+  const isCurrentTrackFromGenreTracks = useMemo(() => {
+    if (!stableTracks.length || !currentMusicId || !isQueueFromGenreTracks) {
+      console.log('isCurrentTrackFromGenreTracks: Early return', {
+        hasTracks: !!stableTracks.length,
+        currentMusicId,
+        isQueueFromGenreTracks,
+        queueLength: queue.length,
+        currentIndex,
+      });
+      return false;
+    }
+    const currentTrack = queue[currentIndex];
+    const isTrackInTracks = stableTracks.some(
+      (track) => Number(track.id) === Number(currentMusicId)
+    );
+    console.log('isCurrentTrackFromGenreTracks: Result', {
+      currentTrackId: currentTrack?.id,
+      currentMusicId,
+      isTrackInTracks,
+      isPlaying,
+    });
+    return (
+      currentTrack &&
+      Number(currentTrack.id) === Number(currentMusicId) &&
+      isTrackInTracks
+    );
+  }, [stableTracks, currentMusicId, isQueueFromGenreTracks, queue, currentIndex]);
 
   useEffect(() => {
     const fetchGenreData = async () => {
@@ -40,14 +89,11 @@ const GenrePage = () => {
           api.get(`/api/home/public_genres/${genreId}/`),
           api.get(`/api/home/by-genre/${genreId}/?page=${currentPage}`)
         ]);
-        console.log(tracksResponse.data.results)
         setGenreData(genreResponse.data);
         setTracks(tracksResponse.data.results);
-        
-        // Set total pages from the response
-        setTotalPages(Math.ceil(tracksResponse.data.count / 10));  // Assuming 10 items per page
-  
-        const seconds = tracksResponse.data.results.reduce((acc, track) => 
+        setTotalPages(Math.ceil(tracksResponse.data.count / 10));
+
+        const seconds = tracksResponse.data.results.reduce((acc, track) =>
           acc + convertToSeconds(track.duration), 0);
         setTotalDuration(convertToHrMinFormat(seconds));
       } catch (err) {
@@ -56,73 +102,69 @@ const GenrePage = () => {
         setIsLoading(false);
       }
     };
-  
+
     fetchGenreData();
-  }, [genreId, currentPage]);  // Make sure currentPage is in the dependency array
+  }, [genreId, currentPage]);
 
-  const prepareTrackForPlayer = (track) => ({
-    id: track.id,
+  const prepareTrackForPlayer = useCallback((track) => ({
+    id: Number(track.id),
     name: track.name,
-    artist: track.artist?.user?.username || 'Unknown Artist', // Update to use username
+    title: track.name,
+    artist: track.artist?.user?.username || 'Unknown Artist',
     artist_full: track.artist?.full_name,
-    cover_photo: track.cover_photo,
-    duration: track.duration
-  });
+    album: 'Single', // Added for similarity to Profile, assuming no album data
+    cover_photo: track.cover_photo || '/api/placeholder/48/48',
+    duration: convertToSeconds(track.duration || '00:00:00'),
+    genre: track.genre || '',
+    year: track.release_date ? new Date(track.release_date).getFullYear() : null,
+    release_date: track.release_date,
+    track_number: track.track_number || 0,
+    source: 'public_songs',
+  }), []);
 
-  const handlePlayGenre = () => {
-    if (!tracks.length) return;
-    
-    const formattedTracks = tracks.map(prepareTrackForPlayer);
-    
-    if (currentPlaylistId === genreId && isPlaying) {
-      // If current playlist is playing, pause it
-      dispatch(setIsPlaying(false));
-    } else {
-      // Start playing this playlist
-      dispatch(setQueue({
-        tracks: formattedTracks,
-        playlistId: genreId
-      }));
-      dispatch(setMusicId(formattedTracks[0].id));
+  const handlePlayTrack = useCallback(
+    (track, index) => {
+      const formattedTracks = stableTracks.map(prepareTrackForPlayer);
+      const formattedTrack = formattedTracks[index];
+
+      console.log('handlePlayTrack:', {
+        trackId: track.id,
+        currentMusicId,
+        isQueueFromGenreTracks,
+        isPlaying,
+        action: Number(currentMusicId) === Number(formattedTrack.id) && isQueueFromGenreTracks ? 'toggle' : 'play new',
+      });
+
+      if (
+        Number(currentMusicId) === Number(formattedTrack.id) &&
+        isQueueFromGenreTracks
+      ) {
+        dispatch(setIsPlaying(!isPlaying));
+        return;
+      }
+
+      dispatch(clearQueue());
+      dispatch(setQueue(formattedTracks));
+      dispatch(setCurrentMusic(formattedTrack));
       dispatch(setIsPlaying(true));
-      dispatch(setCurrentPlaylistId(genreId));
-    }
-  };
-
-  const handlePlayTrack = (track, index) => {
-    const formattedTrack = prepareTrackForPlayer(track);
-    if (musicId === formattedTrack.id) {
-      dispatch(setIsPlaying(!isPlaying));
-      return;
-    }
-
-    const formattedTracks = tracks.map(prepareTrackForPlayer);
-    dispatch(setQueue({
-      tracks: formattedTracks,
-      playlistId: genreId
-    }));
-    dispatch(setMusicId(formattedTrack.id));
-    dispatch(setIsPlaying(true));
-    dispatch(setCurrentPlaylistId(genreId));
-  };
-
-  const handleShuffle = () => {
-    dispatch(toggleShuffle());
-  };
-
+    },
+    [currentMusicId, isQueueFromGenreTracks, isPlaying, stableTracks, dispatch, prepareTrackForPlayer]
+  );
 
   const handlePreviousPage = () => {
     if (currentPage > 1) {
-      setCurrentPage(currentPage-1)
+      console.log('Navigating to previous page:', currentPage - 1);
+      setCurrentPage(currentPage - 1);
     }
   };
 
-
   const handleNextPage = () => {
     if (currentPage < totalPages) {
-      setCurrentPage(currentPage+1)
+      console.log('Navigating to next page:', currentPage + 1);
+      setCurrentPage(currentPage + 1);
     }
-  }
+  };
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-4">
@@ -132,8 +174,23 @@ const GenrePage = () => {
     );
   }
 
+  const isTrackPlaying = (track) => {
+    const isPlayingThisTrack =
+      Number(currentMusicId) === Number(track.id) &&
+      isCurrentTrackFromGenreTracks &&
+      isPlaying;
+    console.log('isTrackPlaying:', {
+      trackId: track.id,
+      currentMusicId,
+      isCurrentTrackFromGenreTracks,
+      isPlaying,
+      isPlayingThisTrack,
+    });
+    return isPlayingThisTrack;
+  };
+
   const TrackRow = ({ track, index }) => {
-    const isCurrentlyPlaying = musicId === track.id && isPlaying;
+    const currentlyPlaying = isTrackPlaying(track);
 
     return (
       <tr className="group hover:bg-white/10 transition-colors">
@@ -144,7 +201,7 @@ const GenrePage = () => {
               className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
               onClick={() => handlePlayTrack(track, index)}
             >
-              {isCurrentlyPlaying ? (
+              {currentlyPlaying ? (
                 <Pause className="h-4 w-4" />
               ) : (
                 <Play className="h-4 w-4" />
@@ -155,7 +212,7 @@ const GenrePage = () => {
         <td className="py-3 pl-3">
           <div className="flex items-center gap-3">
             <img
-              src={`${import.meta.env.VITE_API_URL}${track.cover_photo}`}
+              src={track.cover_photo}
               alt={track.name}
               className="w-10 h-10 rounded-md"
             />
@@ -163,7 +220,7 @@ const GenrePage = () => {
           </div>
         </td>
         <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
-          {track.artist?.user?.username || 'Unknown Artist'} {/* Update to show username */}
+          {track.artist?.user?.username || 'Unknown Artist'}
         </td>
         <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
           {new Date(track.release_date).toLocaleDateString()}
@@ -176,8 +233,6 @@ const GenrePage = () => {
   };
 
   const genreStyle = genreIcons[genreData?.name] || { icon: <Music size={48} className="text-white" />, color: 'bg-gray-700' };
-
-  const isGenrePlaying = currentPlaylistId === genreId && isPlaying;
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 via-black to-black text-white">
@@ -200,23 +255,6 @@ const GenrePage = () => {
             </span>
           </div>
         </div>
-      </div>
-
-      <div className="flex items-center gap-4 p-6">
-        <button
-          className="w-14 h-14 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors"
-          onClick={handlePlayGenre}
-        >
-          {isGenrePlaying ? (
-            <Pause className="h-6 w-6 text-black" />
-          ) : (
-            <Play className="h-6 w-6 text-black ml-1" />
-          )}
-        </button>
-
-        <button className="p-2 text-gray-400 hover:text-white transition-colors">
-          <Share2 className="h-6 w-6" />
-        </button>
       </div>
 
       <div className="flex-1 p-6">
@@ -243,26 +281,25 @@ const GenrePage = () => {
           </tbody>
         </table>
         <div className="flex items-center justify-between p-6">
-        <button 
-          onClick={handlePreviousPage} 
-          disabled={currentPage === 1} 
-          className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50" 
-        >
-          Previous
-        </button>
-        <span className="">
-          Page {currentPage} of {totalPages}
-        </span>
-        <button 
-          onClick={handleNextPage} 
-          disabled={currentPage === totalPages} 
-          className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50" 
-        >
-          Next
-        </button>
+          <button
+            onClick={handlePreviousPage}
+            disabled={currentPage === 1}
+            className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span>
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            onClick={handleNextPage}
+            disabled={currentPage === totalPages}
+            className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
       </div>
-      </div>
-      
     </div>
   );
 };
