@@ -17,10 +17,7 @@ const BANNER_ASPECT = 16 / 9; // Widescreen for banner
 
 
 const AlbumCreator = () => {
-  const navigate = useNavigate();
   const dispatch = useDispatch();
-  const dropdownRef = useRef(null);
-  const searchInputRef = useRef(null);
 
   const [albumData, setAlbumData] = useState({
     name: '',
@@ -359,15 +356,15 @@ const renderCropper = (isCover) => {
 
 const handleSubmit = async (e) => {
   e.preventDefault();
-  
+
   if (isLoading) return;
-  
+
   setError('');
   setSuccessMessage('');
   setIsLoading(true);
 
   try {
-    // Validation checks
+    // --- Frontend validation ---
     if (!albumData.name?.trim()) {
       throw new Error('Album name is required');
     }
@@ -380,53 +377,57 @@ const handleSubmit = async (e) => {
     if (dateError) {
       throw new Error(dateError);
     }
-    // if (!selectedTracks.length) {
-    //   throw new Error('Please select at least one track');
-    // }
     if (albumNameError) {
       throw new Error('Please fix the album name error before submitting');
     }
 
-
-
-    // Create submission data
+    // --- Prepare submission data ---
     const submissionData = {
       name: albumData.name.trim(),
       description: albumData.description.trim(),
       releaseDate: albumData.releaseDate,
       is_public: albumData.is_public,
       coverPhoto: albumData.coverPhoto,
-      bannerImg: albumData.bannerImg
+      bannerImg: albumData.bannerImg,
     };
 
     console.log('Submitting data:', {
       ...submissionData,
-      releaseDate: new Date(submissionData.releaseDate).toISOString()
+      releaseDate: new Date(submissionData.releaseDate).toISOString(),
     });
 
     const response = await albumService.createAlbum(submissionData);
-    
-    toast.success('Album created successfully!', {
-      position: 'top-right',
-      autoClose: 3000,
-      hideProgressBar: false,
-      closeOnClick: true,
-      pauseOnHover: true,
-      draggable: true,
-      progress: undefined,
-      theme: 'dark',
-    });
 
+    toast.success('Album created successfully!', { theme: 'dark' });
     dispatch(closeModal());
-    
   } catch (err) {
     console.error('Album creation error:', err);
-    const errorMessage = err.message || 'Failed to create album';
+
+    let errorMessage = 'Failed to create album';
+
+    // Handle API errors 
+    if (err.response) {
+      // Server responded with error
+      if (err.response.data?.detail) {
+        errorMessage = err.response.data.detail;
+      } else if (typeof err.response.data === 'object') {
+        // Extract field-specific errors (Django REST often returns this way)
+        errorMessage = Object.values(err.response.data)
+          .flat()
+          .join(', ');
+      } else {
+        errorMessage = err.response.data;
+      }
+    } else if (err.request) {
+      // Request made but no response
+      errorMessage = 'No response from server. Please check your network.';
+    } else if (err.message) {
+      // Custom error (frontend validation)
+      errorMessage = err.message;
+    }
+
     setError(errorMessage);
-    toast.error(errorMessage, {
-      position: 'top-right',
-      theme: 'dark',
-    });
+    toast.error(errorMessage, { theme: 'dark' });
   } finally {
     setIsLoading(false);
   }
@@ -511,12 +512,12 @@ return (
                     <label className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                       <Upload className="w-8 h-8 text-white" />
                       <input
-  type="file"
-  name="coverPhoto"
-  onChange={(e) => handleImageChange(e, 'cover')}
-  accept="image/jpeg,image/png"
-  className="hidden"
-/>
+                        type="file"
+                        name="coverPhoto"
+                        onChange={(e) => handleImageChange(e, 'cover')}
+                        accept="image/jpeg,image/png"
+                        className="hidden"
+                      />
                     </label>
                   </div>
                 </div>

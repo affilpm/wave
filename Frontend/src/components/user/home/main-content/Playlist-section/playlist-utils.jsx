@@ -1,5 +1,6 @@
 import { setCurrentMusic, setIsPlaying, setQueue, clearQueue } from "../../../../../slices/user/playerSlice";
 import api from "../../../../../api";
+import { convertToSeconds } from "../../../../../utils/formatters";
 
 export const fetchPlaylistTracks = async (playlistId) => {
   try {
@@ -18,7 +19,7 @@ export const fetchPlaylistTracks = async (playlistId) => {
 export const handlePlaybackAction = async ({
   tracks,
   playlistId,
-  playlistName, // Optional: pass playlist name if available
+  playlistName, 
   dispatch,
   currentState,
   startPlaying = true,
@@ -85,11 +86,4 @@ export const handlePlaybackAction = async ({
       dispatch(setIsPlaying(true));
     }
   }
-};
-
-// Utility function to convert duration to seconds (if not already defined elsewhere)
-const convertToSeconds = (duration) => {
-  if (!duration) return 0;
-  const [hours = 0, minutes = 0, seconds = 0] = duration.split(":").map(Number);
-  return hours * 3600 + minutes * 60 + seconds;
 };

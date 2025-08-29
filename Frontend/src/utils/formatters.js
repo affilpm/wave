@@ -34,7 +34,7 @@ export const combineDurations = (durations) => {
 };
 
 
-// utils/formatters.js
+
 
 export const formatDuration = (duration) => {
     if (!duration) return '00:00';

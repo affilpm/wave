@@ -1,7 +1,6 @@
 import axios from 'axios';
 import jwt_decode from 'jwt-decode';
 import { persistor } from './store';
-// Constants
 const TOKEN_BUFFER_TIME = 30000; // 30 seconds in milliseconds
 const UNAUTHORIZED = 401;
 

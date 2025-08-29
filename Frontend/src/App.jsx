@@ -28,8 +28,6 @@ import UsernameSelectionPage from './components/user/register/UsernameSelectionP
 import GenrePage from './components/user/home/main-content/Genre-section/GenrePage';
 import Profile from './components/user/home/header/profile/Profile';
 import MonetizationPage from './components/artist/studio/Monetization';
-// import { apiInstance } from './api';
-// import { musicStreamService } from './services/user/musicService';
 import PlaylistShowMorePage from './components/user/home/main-content/Playlist-section/PlaylistShowMore';
 import AlbumShowMorePage from './components/user/home/main-content/Album-section/AlbumShowMore';
 import ArtistPage from './components/user/home/main-content/Artist-section/ArtistPage';
@@ -41,22 +39,12 @@ import StreamListingPage from './components/livestream/LiveStreamViewerApp';
 import TransactionHistory from './components/user/home/header/settings/TransactionHistory';
 import ArtistsShowMorePage from './components/user/home/main-content/Artist-section/ArtistsShowMorePage';
 import NotFound from './components/NotFound';
-// import VideoStreamingPage from './components/livestream/testing/VideoStreamingPage';
-// import StreamsList from './components/livestream/testing/list';
-// import LiveStreamPage from './components/livestream/testing/fdf';
 import ArtistRoute from './components/artist/ArtistRoute';
 
-
-// export const logout= () => {
-//   // Completely clear all data from localStorage
-//   localStorage.clear();
-// };
 
 
 function App() {
   const { isAuthenticated } = useSelector((state) => state.user);
-  // musicStreamService.setApiInstance(apiInstance);
-  const dispatch = useDispatch();
 
   return (
     <Router>

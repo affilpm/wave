@@ -1,4 +1,3 @@
-// tokenUtils.js
 export const decodeToken = (token) => {
     try {
       // Basic token validation
