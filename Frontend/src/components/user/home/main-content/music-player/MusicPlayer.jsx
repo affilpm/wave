@@ -12,346 +12,20 @@ import {
   clearError,
   refreshStream,
   toggleShuffle,
-  setRepeatMode,
   setCurrentMusic,
-  fetchStreamUrl,
   selectCurrentTrack,
-  selectQueueLength
+  selectQueueLength,
+  selectNextTrack,
+  selectPreviousTrack
 } from '../../../../../slices/user/playerSlice';
-
-// Utility function for time formatting
-const formatTime = (time) => {
-  if (!time || isNaN(time)) return '0:00';
-  const minutes = Math.floor(time / 60);
-  const seconds = Math.floor(time % 60);
-  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-};
-
-// Enhanced ProgressBar with drag support
-const ProgressBar = React.memo(({ 
-  progressPercent, 
-  onProgressClick, 
-  progressRef,
-  currentTime,
-  duration 
-}) => {
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragPercent, setDragPercent] = useState(0);
-  
-  const handleMouseDown = useCallback((e) => {
-    setIsDragging(true);
-    onProgressClick(e);
-  }, [onProgressClick]);
-  
-  const handleMouseMove = useCallback((e) => {
-    if (!isDragging || !progressRef.current || !duration) return;
-    
-    const rect = progressRef.current.getBoundingClientRect();
-    const percent = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-    setDragPercent(percent);
-  }, [isDragging, duration]);
-  
-  const handleMouseUp = useCallback((e) => {
-    if (isDragging) {
-      setIsDragging(false);
-      onProgressClick(e);
-    }
-  }, [isDragging, onProgressClick]);
-  
-  useEffect(() => {
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-    }
-  }, [isDragging, handleMouseMove, handleMouseUp]);
-  
-  const displayPercent = isDragging ? dragPercent : progressPercent;
-  
-  return (
-    <div 
-      className="w-full bg-gray-800 h-1 cursor-pointer group hover:h-2 transition-all duration-200" 
-      ref={progressRef}
-      onMouseDown={handleMouseDown}
-    >
-      <div 
-        className="h-full bg-gradient-to-r from-blue-500 to-purple-500 relative transition-all duration-100"
-        style={{ width: `${displayPercent}%` }}
-      >
-        <div className="absolute right-0 top-1/2 transform -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 shadow-lg" />
-      </div>
-      {/* Time tooltip on hover */}
-      <div className="absolute top-0 left-0 w-full h-full pointer-events-none">
-        <div 
-          className="absolute top-0 transform -translate-x-1/2 -translate-y-8 bg-black text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-10"
-          style={{ left: `${displayPercent}%` }}
-        >
-          {formatTime((displayPercent / 100) * duration)}
-        </div>
-      </div>
-    </div>
-  );
-});
-
-const QueueOverlay = React.memo(({ 
-  showQueue, 
-  queue, 
-  currentMusicId, 
-  isPlaying, 
-  onClose, 
-  onTrackSelect 
-}) => {
-  if (!showQueue) return null;
-
-  return (
-    <div className="absolute bottom-full left-0 right-0 bg-gray-900 border border-gray-700 rounded-t-lg shadow-2xl max-h-64 overflow-hidden z-50">
-      <div className="p-3 border-b border-gray-700 flex items-center justify-between">
-        <h3 className="text-white font-semibold">Queue ({queue.length})</h3>
-        <button 
-          onClick={onClose}
-          className="text-gray-400 hover:text-white p-1"
-        >
-          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-          </svg>
-        </button>
-      </div>
-      <div className="overflow-y-auto max-h-48">
-        {queue.map((track, index) => (
-          <QueueItem
-            key={track.id}
-            track={track}
-            index={index}
-            isCurrentTrack={track.id === currentMusicId}
-            isPlaying={isPlaying}
-            onSelect={onTrackSelect}
-          />
-        ))}
-      </div>
-    </div>
-  );
-});
-
-const QueueItem = React.memo(({ 
-  track, 
-  index, 
-  isCurrentTrack, 
-  isPlaying, 
-  onSelect 
-}) => (
-  <div 
-    onClick={() => onSelect(track)}
-    className={`p-3 hover:bg-gray-800 cursor-pointer border-b border-gray-800 last:border-b-0 flex items-center space-x-3 ${
-      isCurrentTrack ? 'bg-gray-800 border-l-4 border-blue-500' : ''
-    }`}
-  >
-    <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded flex items-center justify-center">
-      {isCurrentTrack && isPlaying ? (
-        <div className="flex items-center space-x-0.5">
-          <div className="w-1 h-3 bg-white rounded animate-pulse"></div>
-          <div className="w-1 h-4 bg-white rounded animate-pulse" style={{animationDelay: '0.1s'}}></div>
-          <div className="w-1 h-2 bg-white rounded animate-pulse" style={{animationDelay: '0.2s'}}></div>
-        </div>
-      ) : (
-        <span className="text-xs text-white font-bold">{index + 1}</span>
-      )}
-    </div>
-    <div className="flex-1 min-w-0">
-      <p className="text-white text-sm font-medium truncate">
-        {track.name}
-      </p>
-      <p className="text-gray-400 text-xs truncate">
-        {track.artist}
-        {track.album && (
-          <>
-            <span className="mx-1">•</span>
-            {track.album}
-          </>
-        )}
-      </p>
-      {track.duration > 0 && (
-        <p className="text-gray-500 text-xs">
-          {formatTime(track.duration)}
-        </p>
-      )}
-    </div>
-    {isCurrentTrack && (
-      <div className="text-blue-400">
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-        </svg>
-      </div>
-    )}
-  </div>
-));
-
-const ControlButton = React.memo(({ 
-  onClick, 
-  disabled, 
-  className, 
-  title, 
-  children 
-}) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    className={className}
-    title={title}
-  >
-    {children}
-  </button>
-));
-
-const MusicInfo = React.memo(({ 
-  isLoading, 
-  musicDetails, 
-  currentTrack 
-}) => (
-  <div className="flex items-center space-x-3 min-w-0 flex-1">
-    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0 relative">
-      {isLoading ? (
-        <svg className="w-5 h-5 text-white animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-      ) : (
-        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-        </svg>
-      )}
-    </div>
-    <div className="min-w-0 flex-1">
-      <h3 className="text-sm font-semibold text-white truncate">
-        {musicDetails.name || currentTrack?.name || 'Unknown Track'}
-      </h3>
-      <p className="text-xs text-gray-400 truncate">
-        {musicDetails.artist || currentTrack?.artist || 'Unknown Artist'}
-        {currentTrack?.album && (
-          <>
-            <span className="mx-1">•</span>
-            {currentTrack.album}
-          </>
-        )}
-      </p>
-      {isLoading && (
-        <p className="text-xs text-blue-400">Loading stream...</p>
-      )}
-    </div>
-  </div>
-));
-
-const VolumeControls = React.memo(({ 
-  currentTime, 
-  duration, 
-  isMuted, 
-  volume, 
-  isLoading, 
-  onToggleMute, 
-  onVolumeChange, 
-  onRefreshStream 
-}) => (
-  <div className="hidden md:flex items-center space-x-3 min-w-0 flex-1 justify-end">
-    <div className="flex items-center space-x-2">
-      <span className="text-xs text-gray-400 tabular-nums min-w-[2.5rem] text-right">
-        {formatTime(currentTime)}
-      </span>
-      <span className="text-xs text-gray-500">/</span>
-      <span className="text-xs text-gray-400 tabular-nums min-w-[2.5rem]">
-        {formatTime(duration)}
-      </span>
-    </div>
-    
-    <div className="flex items-center space-x-2">
-      <button
-        onClick={onToggleMute}
-        className="p-1 text-gray-400 hover:text-white transition-colors duration-200"
-        title={isMuted ? 'Unmute' : 'Mute'}
-      >
-        {isMuted || volume === 0 ? (
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.23 2.63-.76 3.74-1.58L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
-          </svg>
-        ) : (
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
-          </svg>
-        )}
-      </button>
-      <input
-        type="range"
-        min="0"
-        max="1"
-        step="0.01"
-        value={isMuted ? 0 : volume}
-        onChange={onVolumeChange}
-        className="w-20 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-        title={`Volume: ${Math.round(volume * 100)}%`}
-      />
-      <button
-        onClick={onRefreshStream}
-        disabled={isLoading}
-        className="p-1 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
-        title="Refresh Stream"
-      >
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M17.65 6.35A7.958 7.958 0 0012 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0112 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
-        </svg>
-      </button>
-    </div>
-  </div>
-));
-
-const ErrorDisplay = React.memo(({ error, onClearError }) => {
-  if (!error) return null;
-
-  return (
-    <div className="mt-2 flex items-center justify-center">
-      <div className="flex items-center space-x-2 px-3 py-2 bg-red-900/50 border border-red-700 rounded-lg max-w-md">
-        <svg className="w-4 h-4 text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-        </svg>
-        <span className="text-sm text-red-300 truncate">{error}</span>
-        <button
-          onClick={onClearError}
-          className="ml-2 text-red-400 hover:text-red-300 flex-shrink-0"
-          title="Dismiss"
-        >
-          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-          </svg>
-        </button>
-      </div>
-    </div>
-  );
-});
-
-const QualityInfo = React.memo(({ qualityInfo }) => {
-  if (!qualityInfo.served) return null;
-
-  return (
-    <div className="mt-2 flex items-center justify-center">
-      <div className="flex items-center space-x-2 text-xs text-gray-500">
-        <span>Quality:</span>
-        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-          qualityInfo.matched 
-            ? 'bg-green-900/50 text-green-300 border border-green-700' 
-            : 'bg-yellow-900/50 text-yellow-300 border border-yellow-700'
-        }`}>
-          {qualityInfo.served}
-        </span>
-        {qualityInfo.preferred && qualityInfo.served !== qualityInfo.preferred && (
-          <>
-            <span className="text-gray-600">•</span>
-            <span>Preferred: {qualityInfo.preferred}</span>
-          </>
-        )}
-      </div>
-    </div>
-  );
-});
+import ProgressBar from './ProgressBar';
+import QualityInfo from './QualityInfo';
+import QueueOverlay from './QueueOverlay';
+import VolumeControls from './VolumeControls';
+import MusicInfo from './MusicInfo';
+import ControlButton from './ControlButton';
+import ErrorDisplay from './ErrorDisplay ';
+import DeviceAudioControl from './DeviceAudioControl';
 
 const MusicPlayer = () => {
   const dispatch = useDispatch();
@@ -365,7 +39,6 @@ const MusicPlayer = () => {
       prev.volume === next.volume &&
       prev.isMuted === next.isMuted &&
       prev.isShuffled === next.isShuffled &&
-      prev.repeatMode === next.repeatMode &&
       prev.streamUrl === next.streamUrl &&
       prev.isLoading === next.isLoading &&
       prev.error === next.error &&
@@ -384,7 +57,6 @@ const MusicPlayer = () => {
     volume,
     isMuted,
     isShuffled,
-    repeatMode,
     streamUrl,
     musicDetails,
     qualityInfo,
@@ -394,9 +66,11 @@ const MusicPlayer = () => {
     duration
   } = playerState;
 
-  // Get current track from selector
+  // Get current track and navigation info from selectors
   const currentTrack = useSelector(selectCurrentTrack);
   const queueLength = useSelector(selectQueueLength);
+  const nextTrack = useSelector(selectNextTrack);
+  const previousTrack = useSelector(selectPreviousTrack);
 
   const audioRef = useRef(null);
   const hlsRef = useRef(null);
@@ -409,14 +83,9 @@ const MusicPlayer = () => {
     return Math.max(0, Math.min(100, (currentTime / duration) * 100));
   }, [currentTime, duration]);
 
-  const repeatModes = useMemo(() => ['none', 'all', 'single'], []);
-
-  // Fetch stream URL when music changes
-  useEffect(() => {
-    if (currentMusicId && !streamUrl && !isLoading) {
-      dispatch(fetchStreamUrl(currentMusicId));
-    }
-  }, [currentMusicId, streamUrl, isLoading, dispatch]);
+  // Check if we can navigate
+  const canPlayNext = Boolean(nextTrack);
+  const canPlayPrevious = Boolean(previousTrack);
 
   // Cleanup HLS instance
   const cleanup = useCallback(() => {
@@ -445,20 +114,13 @@ const MusicPlayer = () => {
     }
   }, [dispatch]);
 
+  // Enhanced handleEnded with proper end-of-queue behavior
   const handleEnded = useCallback(() => {
-    dispatch(setIsPlaying(false));
-    
-    if (repeatMode === 'single' && audioRef.current) {
-      audioRef.current.currentTime = 0;
-      audioRef.current.play().then(() => {
-        dispatch(setIsPlaying(true));
-      }).catch(err => {
-        console.error('Repeat play error:', err);
-      });
-    } else {
-      dispatch(playNext());
-    }
-  }, [dispatch, repeatMode]);
+    console.log('Track ended, checking for next track...');
+  
+    // Rely on playNext to handle all next-track logic, including end-of-queue
+    dispatch(playNext());
+  }, [dispatch]);
 
   const handlePlay = useCallback(() => dispatch(setIsPlaying(true)), [dispatch]);
   const handlePause = useCallback(() => dispatch(setIsPlaying(false)), [dispatch]);
@@ -467,7 +129,7 @@ const MusicPlayer = () => {
     dispatch(setIsPlaying(false));
   }, [dispatch]);
 
-  // Setup audio stream - FIXED: Only runs when streamUrl or currentMusicId changes
+  // Setup audio stream
   useEffect(() => {
     const audio = audioRef.current;
     if (!streamUrl || !audio) return;
@@ -497,6 +159,7 @@ const MusicPlayer = () => {
         if (data.fatal) {
           if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR && 
               data.response?.code === 403) {
+            // CHANGED: Use refreshStream instead of direct API call
             dispatch(refreshStream());
           } else {
             dispatch(setIsPlaying(false));
@@ -524,7 +187,7 @@ const MusicPlayer = () => {
       audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('error', handleError);
     };
-  }, [streamUrl, currentMusicId]); // FIXED: Removed isPlaying from dependencies
+  }, [streamUrl, currentMusicId, handleLoadedMetadata, handleTimeUpdate, handleEnded, handlePlay, handlePause, handleError, dispatch, cleanup]);
 
   // Handle volume and mute changes
   useEffect(() => {
@@ -535,7 +198,7 @@ const MusicPlayer = () => {
     audio.muted = isMuted;
   }, [volume, isMuted]);
 
-  // Handle play/pause from Redux state - FIXED: Separated from stream setup
+  // Handle play/pause from Redux state - don't auto-play when paused at end of queue
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !streamUrl) return;
@@ -579,16 +242,19 @@ const MusicPlayer = () => {
   }, [currentMusicId, isPlaying, dispatch]);
 
   const handleNext = useCallback(() => {
-    if (queueLength > 1) {
+    if (canPlayNext) {
+      dispatch(playNext());
+    } else {
+      // When at end of queue, go to first track but pause
       dispatch(playNext());
     }
-  }, [queueLength, dispatch]);
+  }, [canPlayNext, dispatch]);
 
   const handlePrevious = useCallback(() => {
-    if (queueLength > 1) {
+    if (canPlayPrevious) {
       dispatch(playPrevious());
     }
-  }, [queueLength, dispatch]);
+  }, [canPlayPrevious, dispatch]);
 
   const toggleMute = useCallback(() => {
     dispatch(setIsMuted(!isMuted));
@@ -612,12 +278,7 @@ const MusicPlayer = () => {
     dispatch(toggleShuffle());
   }, [dispatch]);
 
-  const handleRepeatModeChange = useCallback(() => {
-    const currentIndex = repeatModes.indexOf(repeatMode);
-    const nextMode = repeatModes[(currentIndex + 1) % repeatModes.length];
-    dispatch(setRepeatMode(nextMode));
-  }, [repeatMode, repeatModes, dispatch]);
-
+  // CHANGED: refreshStream now triggers middleware to fetch new stream URL
   const handleRefreshStream = useCallback(() => {
     dispatch(refreshStream());
   }, [dispatch]);
@@ -654,7 +315,15 @@ const MusicPlayer = () => {
 
       <div className="bg-gradient-to-r from-gray-900 via-black to-gray-900 border-t border-gray-700 backdrop-blur-sm">
         <audio ref={audioRef} preload="metadata" />
-        
+        <DeviceAudioControl
+          audioRef={audioRef}
+          currentTrack={currentTrack}
+          isPlaying={isPlaying}
+          volume={volume}
+          isMuted={isMuted}
+          currentTime={currentTime}
+          duration={duration}
+        />
         <ProgressBar
           progressPercent={progressPercent}
           onProgressClick={handleProgressClick}
@@ -681,11 +350,12 @@ const MusicPlayer = () => {
                     ? 'text-blue-400 bg-blue-400/20' 
                     : 'text-gray-400 hover:text-white'
                 }`}
-                title="Show Queue"
+                title={`${showQueue ? 'Hide' : 'Show'} Queue (${queueLength} tracks)`}
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
                 </svg>
+
               </ControlButton>
 
               {/* Shuffle Button */}
@@ -705,9 +375,9 @@ const MusicPlayer = () => {
 
               <ControlButton
                 onClick={handlePrevious}
-                className="p-2 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
-                disabled={queueLength <= 1}
-                title="Previous"
+                className="p-2 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!canPlayPrevious}
+                title={canPlayPrevious ? 'Previous' : 'No previous track'}
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M6 18V6h2v12H6zm3-4.5V18l8-6-8-6v4.5z"/>
@@ -716,7 +386,7 @@ const MusicPlayer = () => {
 
               <ControlButton
                 onClick={togglePlay}
-                disabled={!streamUrl && isLoading}
+                disabled={isLoading && !streamUrl} // Only disable if loading and no stream URL
                 className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full hover:from-blue-600 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transform hover:scale-105"
                 title={isPlaying ? 'Pause' : 'Play'}
               >
@@ -733,38 +403,12 @@ const MusicPlayer = () => {
 
               <ControlButton
                 onClick={handleNext}
-                className="p-2 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50"
-                disabled={queueLength <= 1}
-                title="Next"
+                className="p-2 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={false} // Always allow next button (it handles end-of-queue internally)
+                title={canPlayNext ? `Next: ${nextTrack?.name}` : 'Go to first track'}
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M18 18V6h-2v12h2zm-3-4.5V18l-8-6 8-6v4.5z"/>
-                </svg>
-              </ControlButton>
-
-              {/* Repeat Button */}
-              <ControlButton
-                onClick={handleRepeatModeChange}
-                className={`p-2 rounded transition-colors duration-200 ${
-                  repeatMode !== 'none' 
-                    ? 'text-blue-400 bg-blue-400/20' 
-                    : 'text-gray-400 hover:text-white'
-                }`}
-                title={`Repeat: ${repeatMode}`}
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  {repeatMode === 'single' ? (
-                    <>
-                      <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7z"/>
-                      <path d="M17 17H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
-                      <text x="12" y="16" fontSize="8" textAnchor="middle" fill="currentColor">1</text>
-                    </>
-                  ) : (
-                    <>
-                      <path d="M7 7h10v3l4-4-4-4v3H5v6h2V7z"/>
-                      <path d="M17 17H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/>
-                    </>
-                  )}
                 </svg>
               </ControlButton>
             </div>
@@ -781,7 +425,24 @@ const MusicPlayer = () => {
             />
           </div>
 
-          <QualityInfo qualityInfo={qualityInfo} />
+          {/* Queue status indicator with better end-of-queue messaging */}
+          {queueLength > 1 && (
+            <div className="mt-2 text-xs text-gray-500 text-center">
+              {isShuffled ? 'Shuffled' : 'Linear'} playback • 
+              Track {queue.findIndex(t => t.id === currentMusicId) + 1} of {queueLength}
+              {nextTrack && (
+                <>
+                  {' '} • Next: <span className="text-gray-400">{nextTrack.name}</span>
+                </>
+              )}
+              {!nextTrack && queueLength > 0 && (
+                <span className="text-orange-400">
+                  {' '} • {isPlaying ? 'Last track - next will restart queue' : 'At start of queue'}
+                </span>
+              )}
+            </div>
+          )}
+
           <ErrorDisplay error={error} onClearError={handleClearError} />
         </div>
         

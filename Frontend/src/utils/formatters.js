@@ -34,8 +34,6 @@ export const combineDurations = (durations) => {
 };
 
 
-
-
 export const formatDuration = (duration) => {
     if (!duration) return '00:00';
 
@@ -53,4 +51,12 @@ export const formatDuration = (duration) => {
 
     // Remove hour if it is 00 and also remove trailing ":00" or ":"
     return formattedTime.replace(/^00:/, '').replace(/^0:/, '').replace(/:00$/, '').replace(/:$/, '');
+};
+
+
+export const formatTime = (time) => {
+  if (!time || isNaN(time)) return '0:00';
+  const minutes = Math.floor(time / 60);
+  const seconds = Math.floor(time % 60);
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 };

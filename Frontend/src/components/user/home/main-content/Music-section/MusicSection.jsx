@@ -122,7 +122,7 @@ const MusicSection = ({ title, items }) => {
       }
 
       dispatch(clearQueue());
-      dispatch(setQueue(formattedTracks));
+      dispatch(setQueue(formattedTrack));
       dispatch(setCurrentMusic(formattedTrack));
       dispatch(setIsPlaying(true));
     },

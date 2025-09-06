@@ -1,7 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../api';
 
-// Enhanced async thunk with better abort handling
 export const fetchStreamUrl = createAsyncThunk(
   'player/fetchStreamUrl',
   async (musicId, { rejectWithValue, signal, getState }) => {
@@ -31,7 +30,7 @@ export const fetchStreamUrl = createAsyncThunk(
         throw new Error('Invalid response format');
       }
 
-      const { url, name, artist, quality_served, user_preferred_quality, quality_matched } = response.data;
+      const { url, name, artist, quality_served, user_preferred_quality, quality_matched, cover_photo } = response.data;
 
       if (!url) {
         throw new Error('No stream URL provided');
@@ -41,6 +40,7 @@ export const fetchStreamUrl = createAsyncThunk(
         url: String(url),
         name: name || 'Unknown Track',
         artist: artist || 'Unknown Artist',
+        cover_photo: cover_photo || '',
         qualityInfo: {
           served: quality_served || null,
           preferred: user_preferred_quality || null,
@@ -138,7 +138,7 @@ const createTrackObject = (item) => {
 
 const resetStreamState = (state) => {
   state.streamUrl = null;
-  state.musicDetails = { name: '', artist: '' };
+  state.musicDetails = { name: '', artist: '', cover_photo: '' };
   state.error = null;
   state.currentTime = 0;
   state.duration = 0;
@@ -151,31 +151,33 @@ const resetStreamState = (state) => {
 
 const getNextIndex = (state) => {
   if (state.queue.length === 0) return -1;
-  if (state.repeatMode === 'single') return state.currentIndex;
-  
-  if (state.isShuffled) {
-    const availableIndices = state.queue
-      .map((_, index) => index)
-      .filter(index => index !== state.currentIndex);
-    
-    return availableIndices.length > 0
-      ? availableIndices[Math.floor(Math.random() * availableIndices.length)]
-      : 0;
+
+  if (!state.isShuffled) {
+    const nextIndex = state.currentIndex + 1;
+    return nextIndex < state.queue.length ? nextIndex : -1;
   }
-  
-  const nextIndex = state.currentIndex + 1;
-  return nextIndex < state.queue.length 
-    ? nextIndex 
-    : (state.repeatMode === 'all' ? 0 : -1);
+
+  // For shuffled mode
+  const playedIds = new Set(state.shuffleHistory);
+  const availableIndices = state.queue
+    .map((_, index) => index)
+    .filter(index => !playedIds.has(state.queue[index].id));
+
+  if (availableIndices.length === 0) {
+    // Reset shuffle history when all tracks have been played
+    state.shuffleHistory = state.currentMusicId ? [state.currentMusicId] : [];
+    return state.queue.length > 0 ? 0 : -1;
+  }
+
+  // Randomly select from available indices
+  return availableIndices[Math.floor(Math.random() * availableIndices.length)];
 };
 
 const getPreviousIndex = (state) => {
   if (state.queue.length === 0) return -1;
-  
+
   const prevIndex = state.currentIndex - 1;
-  return prevIndex >= 0 
-    ? prevIndex 
-    : (state.repeatMode === 'all' ? state.queue.length - 1 : 0);
+  return prevIndex >= 0 ? prevIndex : -1;
 };
 
 const initialState = {
@@ -189,11 +191,10 @@ const initialState = {
   volume: 1,
   isMuted: false,
   isShuffled: false,
-  repeatMode: 'none', // 'none', 'single', 'all'
   
   // Stream state
   streamUrl: null,
-  musicDetails: { name: '', artist: '' },
+  musicDetails: { name: '', artist: '', cover_photo: '' },
   qualityInfo: {
     served: null,
     preferred: null,
@@ -218,7 +219,7 @@ const playerSlice = createSlice({
   name: 'player',
   initialState,
   reducers: {
-    setCurrentMusic: (state, action) => {
+setCurrentMusic: (state, action) => {
       const musicData = action.payload;
       const newMusicId = typeof musicData === 'object' && musicData !== null 
         ? musicData.id 
@@ -248,16 +249,19 @@ const playerSlice = createSlice({
         resetStreamState(state);
         state.fetchAttempts = 0;
         
-        // Add to shuffle history
+        // Add to shuffle history only if shuffled and not already in history
         if (state.isShuffled && !state.shuffleHistory.includes(newMusicId)) {
           state.shuffleHistory.push(newMusicId);
           // Keep history size manageable
-          if (state.shuffleHistory.length > 50) {
-            state.shuffleHistory = state.shuffleHistory.slice(-50);
+          if (state.shuffleHistory.length > state.queue.length) {
+            state.shuffleHistory = state.shuffleHistory.slice(-state.queue.length);
           }
         }
       }
     },
+
+
+
 
     setQueue: (state, action) => {
       const newQueue = Array.isArray(action.payload) ? action.payload : [];
@@ -318,7 +322,25 @@ const playerSlice = createSlice({
       const nextIndex = getNextIndex(state);
       
       if (nextIndex === -1) {
-        state.isPlaying = false;
+        // End of queue: reset to first track and pause
+        if (state.queue.length > 0) {
+          state.currentIndex = 0;
+          state.currentMusicId = state.queue[0]?.id || null;
+          state.isPlaying = false;
+          resetStreamState(state);
+          state.fetchAttempts = 0;
+          // Reset shuffle history for fresh cycle
+          if (state.isShuffled) {
+            state.shuffleHistory = state.currentMusicId ? [state.currentMusicId] : [];
+          }
+        } else {
+          state.currentMusicId = null;
+          state.currentIndex = 0;
+          state.isPlaying = false;
+          resetStreamState(state);
+          state.fetchAttempts = 0;
+          state.shuffleHistory = [];
+        }
         return;
       }
       
@@ -327,8 +349,14 @@ const playerSlice = createSlice({
         state.currentMusicId = state.queue[nextIndex]?.id || null;
         resetStreamState(state);
         state.fetchAttempts = 0;
+        state.isPlaying = true;
+        // Add to shuffle history
+        if (state.isShuffled && state.currentMusicId && !state.shuffleHistory.includes(state.currentMusicId)) {
+          state.shuffleHistory.push(state.currentMusicId);
+        }
       }
     },
+
 
     playPrevious: (state) => {
       const prevIndex = getPreviousIndex(state);
@@ -338,6 +366,7 @@ const playerSlice = createSlice({
         state.currentMusicId = state.queue[prevIndex]?.id || null;
         resetStreamState(state);
         state.fetchAttempts = 0;
+        state.isPlaying = true; // Ensure playback continues
       }
     },
 
@@ -402,13 +431,9 @@ const playerSlice = createSlice({
       state.isShuffled = !state.isShuffled;
       if (!state.isShuffled) {
         state.shuffleHistory = [];
-      }
-    },
-
-    setRepeatMode: (state, action) => {
-      const validModes = ['none', 'single', 'all'];
-      if (validModes.includes(action.payload)) {
-        state.repeatMode = action.payload;
+      } else {
+        // Start fresh shuffle cycle with current track
+        state.shuffleHistory = state.currentMusicId ? [state.currentMusicId] : [];
       }
     },
 
@@ -441,11 +466,13 @@ const playerSlice = createSlice({
           state.streamUrl = action.payload.url;
           state.musicDetails = {
             name: action.payload.name,
-            artist: action.payload.artist
+            artist: action.payload.artist,
+            cover_photo: action.payload.cover_photo
           };
           state.qualityInfo = action.payload.qualityInfo;
           state.error = null;
           state.fetchAttempts = 0;
+          state.isPlaying = true; // Ensure playback starts after successful fetch
         }
       })
       .addCase(fetchStreamUrl.rejected, (state, action) => {
@@ -488,11 +515,9 @@ export const {
   setCurrentTime,
   setDuration,
   toggleShuffle,
-  setRepeatMode,
   refreshStream,
   clearError,
 } = playerSlice.actions;
-
 
 export const selectCurrentTrack = (state) => {
   const { queue, currentIndex } = state.player || {};
@@ -502,27 +527,23 @@ export const selectCurrentTrack = (state) => {
 export const selectQueueLength = (state) => state.player?.queue?.length || 0;
 
 export const selectNextTrack = (state) => {
-  const { queue, currentIndex, repeatMode } = state.player || {};
+  const { queue, currentIndex } = state.player || {};
   if (!queue?.length) return null;
   
   const nextIndex = currentIndex + 1;
   if (nextIndex < queue.length) {
     return queue[nextIndex];
-  } else if (repeatMode === 'all') {
-    return queue[0];
   }
   return null;
 };
 
 export const selectPreviousTrack = (state) => {
-  const { queue, currentIndex, repeatMode } = state.player || {};
+  const { queue, currentIndex } = state.player || {};
   if (!queue?.length) return null;
   
   const prevIndex = currentIndex - 1;
   if (prevIndex >= 0) {
     return queue[prevIndex];
-  } else if (repeatMode === 'all') {
-    return queue[queue.length - 1];
   }
   return null;
 };

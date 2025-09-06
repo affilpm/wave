@@ -424,7 +424,8 @@ class MusicStreamingView(APIView):
                 "url": streaming_file.hls_playlist,
                 "name": music.name,
                 "artist": music.artist.user.email,
-                "quality_matched": quality_to_use == preferred_quality
+                "quality_matched": quality_to_use == preferred_quality,
+                "cover_photo": music.cover_photo.url if music.cover_photo else None,
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
