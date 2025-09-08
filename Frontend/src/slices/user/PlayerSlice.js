@@ -260,9 +260,6 @@ setCurrentMusic: (state, action) => {
       }
     },
 
-
-
-
     setQueue: (state, action) => {
       const newQueue = Array.isArray(action.payload) ? action.payload : [];
       state.queue = newQueue.map(createTrackObject);
@@ -322,8 +319,13 @@ setCurrentMusic: (state, action) => {
       const nextIndex = getNextIndex(state);
       
       if (nextIndex === -1) {
-        // End of queue: reset to first track and pause
-        if (state.queue.length > 0) {
+        // End of queue behavior
+        if (state.queue.length === 1) {
+          // Single track: pause at the end
+          state.isPlaying = false;
+          // Keep the track at the current position (don't reset)
+        } else if (state.queue.length > 1) {
+          // Multiple tracks: reset to first track and pause
           state.currentIndex = 0;
           state.currentMusicId = state.queue[0]?.id || null;
           state.isPlaying = false;
@@ -334,6 +336,7 @@ setCurrentMusic: (state, action) => {
             state.shuffleHistory = state.currentMusicId ? [state.currentMusicId] : [];
           }
         } else {
+          // Empty queue
           state.currentMusicId = null;
           state.currentIndex = 0;
           state.isPlaying = false;

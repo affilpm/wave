@@ -1,7 +1,8 @@
 from django.urls import path
-from .views import UserRecentlyPlayedView
+from .views import UserRecentlyPlayedView, log_activity
 
 
 urlpatterns = [
-    path('recently-played/', UserRecentlyPlayedView.as_view(), name='user-recently-played'),
+    path('recently-played/', UserRecentlyPlayedView.as_view(), name='user_recently_played'),
+    path('record-activity/<int:music_id>/', log_activity, name='record_activity'),
 ]

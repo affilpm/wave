@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
+import { createSelector } from '@reduxjs/toolkit';
 import Hls from 'hls.js';
+import { debounce } from 'lodash'; 
 import { 
   setIsPlaying, 
   setVolume, 
@@ -17,39 +19,38 @@ import {
   selectQueueLength,
   selectNextTrack,
   selectPreviousTrack
-} from '../../../../../slices/user/playerSlice';
+} from "../../../../../slices/user/playerSlice";
 import ProgressBar from './ProgressBar';
 import QualityInfo from './QualityInfo';
 import QueueOverlay from './QueueOverlay';
 import VolumeControls from './VolumeControls';
 import MusicInfo from './MusicInfo';
 import ControlButton from './ControlButton';
-import ErrorDisplay from './ErrorDisplay ';
+import ErrorDisplay from './ErrorDisplay';
 import DeviceAudioControl from './DeviceAudioControl';
+
+const selectPlayerState = createSelector(
+  [(state) => state.player],
+  (player) => ({
+    currentMusicId: player?.currentMusicId,
+    isPlaying: player?.isPlaying || false,
+    volume: player?.volume || 1,
+    isMuted: player?.isMuted || false,
+    isShuffled: player?.isShuffled || false,
+    streamUrl: player?.streamUrl,
+    isLoading: player?.isLoading || false,
+    error: player?.error,
+    currentTime: player?.currentTime || 0,
+    duration: player?.duration || 0,
+    queue: player?.queue || [],
+    musicDetails: player?.musicDetails || {},
+    qualityInfo: player?.qualityInfo || {}
+  })
+);
 
 const MusicPlayer = () => {
   const dispatch = useDispatch();
-  
-  // Memoized selector to prevent unnecessary re-renders
-  const playerState = useSelector(state => state.player, (prev, next) => {
-    // Custom equality check for performance
-    return (
-      prev.currentMusicId === next.currentMusicId &&
-      prev.isPlaying === next.isPlaying &&
-      prev.volume === next.volume &&
-      prev.isMuted === next.isMuted &&
-      prev.isShuffled === next.isShuffled &&
-      prev.streamUrl === next.streamUrl &&
-      prev.isLoading === next.isLoading &&
-      prev.error === next.error &&
-      prev.currentTime === next.currentTime &&
-      prev.duration === next.duration &&
-      JSON.stringify(prev.queue) === JSON.stringify(next.queue) &&
-      JSON.stringify(prev.musicDetails) === JSON.stringify(next.musicDetails) &&
-      JSON.stringify(prev.qualityInfo) === JSON.stringify(next.qualityInfo)
-    );
-  });
-  
+  const playerState = useSelector(selectPlayerState);
   const {
     currentMusicId,
     queue,
@@ -66,7 +67,6 @@ const MusicPlayer = () => {
     duration
   } = playerState;
 
-  // Get current track and navigation info from selectors
   const currentTrack = useSelector(selectCurrentTrack);
   const queueLength = useSelector(selectQueueLength);
   const nextTrack = useSelector(selectNextTrack);
@@ -77,17 +77,14 @@ const MusicPlayer = () => {
   const progressRef = useRef(null);
   const [showQueue, setShowQueue] = useState(false);
 
-  // Memoized calculations
   const progressPercent = useMemo(() => {
     if (!duration || duration <= 0 || !isFinite(currentTime)) return 0;
     return Math.max(0, Math.min(100, (currentTime / duration) * 100));
   }, [currentTime, duration]);
 
-  // Check if we can navigate
   const canPlayNext = Boolean(nextTrack);
   const canPlayPrevious = Boolean(previousTrack);
 
-  // Cleanup HLS instance
   const cleanup = useCallback(() => {
     if (hlsRef.current) {
       try {
@@ -100,7 +97,6 @@ const MusicPlayer = () => {
     }
   }, []);
 
-  // Memoized event handlers
   const handleLoadedMetadata = useCallback(() => {
     if (audioRef.current) {
       dispatch(setDuration(audioRef.current.duration || 0));
@@ -114,11 +110,8 @@ const MusicPlayer = () => {
     }
   }, [dispatch]);
 
-  // Enhanced handleEnded with proper end-of-queue behavior
   const handleEnded = useCallback(() => {
     console.log('Track ended, checking for next track...');
-  
-    // Rely on playNext to handle all next-track logic, including end-of-queue
     dispatch(playNext());
   }, [dispatch]);
 
@@ -129,13 +122,16 @@ const MusicPlayer = () => {
     dispatch(setIsPlaying(false));
   }, [dispatch]);
 
-  // Setup audio stream
   useEffect(() => {
     const audio = audioRef.current;
     if (!streamUrl || !audio) return;
 
-    console.log('Setting up audio stream:', streamUrl);
-    
+    let hasRecordedComplete = false;
+
+    audio.pause();
+    audio.currentTime = 0;
+    audio.src = '';
+
     cleanup();
 
     if (Hls.isSupported()) {
@@ -159,7 +155,6 @@ const MusicPlayer = () => {
         if (data.fatal) {
           if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR && 
               data.response?.code === 403) {
-            // CHANGED: Use refreshStream instead of direct API call
             dispatch(refreshStream());
           } else {
             dispatch(setIsPlaying(false));
@@ -170,8 +165,16 @@ const MusicPlayer = () => {
       audio.src = streamUrl;
     }
 
-    // Add event listeners
+    const handleTimeUpdateWithComplete = () => {
+      handleTimeUpdate();
+      if (!hasRecordedComplete && audio.currentTime >= 30) {
+        dispatch({ type: "player/trackCompleted" });
+        hasRecordedComplete = true;
+      }
+    };
+
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+    audio.addEventListener('timeupdate', handleTimeUpdateWithComplete);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('play', handlePlay);
@@ -179,17 +182,20 @@ const MusicPlayer = () => {
     audio.addEventListener('error', handleError);
 
     return () => {
-      // Cleanup listeners only - don't cleanup HLS here
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      audio.removeEventListener('timeupdate', handleTimeUpdateWithComplete);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
       audio.removeEventListener('error', handleError);
+      audio.pause();
+      audio.src = '';
+      audio.currentTime = 0;
+      cleanup();
     };
   }, [streamUrl, currentMusicId, handleLoadedMetadata, handleTimeUpdate, handleEnded, handlePlay, handlePause, handleError, dispatch, cleanup]);
 
-  // Handle volume and mute changes
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
@@ -198,7 +204,6 @@ const MusicPlayer = () => {
     audio.muted = isMuted;
   }, [volume, isMuted]);
 
-  // Handle play/pause from Redux state - don't auto-play when paused at end of queue
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !streamUrl) return;
@@ -215,12 +220,10 @@ const MusicPlayer = () => {
     }
   }, [isPlaying, streamUrl, dispatch]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return cleanup;
   }, [cleanup]);
 
-  // Progress click handler
   const handleProgressClick = useCallback((e) => {
     if (!progressRef.current || !duration || duration <= 0) return;
     
@@ -235,26 +238,30 @@ const MusicPlayer = () => {
     }
   }, [duration, dispatch]);
 
-  // Control handlers
   const togglePlay = useCallback(() => {
     if (!currentMusicId) return;
     dispatch(setIsPlaying(!isPlaying));
   }, [currentMusicId, isPlaying, dispatch]);
 
-  const handleNext = useCallback(() => {
-    if (canPlayNext) {
-      dispatch(playNext());
-    } else {
-      // When at end of queue, go to first track but pause
-      dispatch(playNext());
-    }
-  }, [canPlayNext, dispatch]);
+  const debouncedHandleNext = useCallback(
+    debounce(() => {
+      if (canPlayNext) {
+        dispatch(playNext());
+      } else {
+        dispatch(playNext());
+      }
+    }, 300),
+    [canPlayNext, dispatch]
+  );
 
-  const handlePrevious = useCallback(() => {
-    if (canPlayPrevious) {
-      dispatch(playPrevious());
-    }
-  }, [canPlayPrevious, dispatch]);
+  const debouncedHandlePrevious = useCallback(
+    debounce(() => {
+      if (canPlayPrevious) {
+        dispatch(playPrevious());
+      }
+    }, 300),
+    [canPlayPrevious, dispatch]
+  );
 
   const toggleMute = useCallback(() => {
     dispatch(setIsMuted(!isMuted));
@@ -278,7 +285,6 @@ const MusicPlayer = () => {
     dispatch(toggleShuffle());
   }, [dispatch]);
 
-  // CHANGED: refreshStream now triggers middleware to fetch new stream URL
   const handleRefreshStream = useCallback(() => {
     dispatch(refreshStream());
   }, [dispatch]);
@@ -291,7 +297,6 @@ const MusicPlayer = () => {
     setShowQueue(prev => !prev);
   }, []);
 
-  // Don't render if no music is selected
   if (!currentMusicId) {
     return (
       <div className="bg-gradient-to-r from-gray-900 via-black to-gray-900 border-t border-gray-700">
@@ -314,7 +319,8 @@ const MusicPlayer = () => {
       />
 
       <div className="bg-gradient-to-r from-gray-900 via-black to-gray-900 border-t border-gray-700 backdrop-blur-sm">
-        <audio ref={audioRef} preload="metadata" />
+        <audio ref={audioRef} preload="metadata" onEnded={() => dispatch({ type: "player/trackCompleted" })}/>
+
         <DeviceAudioControl
           audioRef={audioRef}
           currentTrack={currentTrack}
@@ -340,9 +346,7 @@ const MusicPlayer = () => {
               currentTrack={currentTrack}
             />
 
-            {/* Control Buttons */}
             <div className="flex items-center space-x-2 md:space-x-3">
-              {/* Queue Button */}
               <ControlButton
                 onClick={toggleQueueVisibility}
                 className={`p-2 rounded transition-colors duration-200 ${
@@ -355,10 +359,8 @@ const MusicPlayer = () => {
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M15 6H3v2h12V6zm0 4H3v2h12v-2zM3 16h8v-2H3v2zM17 6v8.18c-.31-.11-.65-.18-1-.18-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3V8h3V6h-5z"/>
                 </svg>
-
               </ControlButton>
 
-              {/* Shuffle Button */}
               <ControlButton
                 onClick={toggleShuffle_}
                 className={`p-2 rounded transition-colors duration-200 ${
@@ -374,7 +376,7 @@ const MusicPlayer = () => {
               </ControlButton>
 
               <ControlButton
-                onClick={handlePrevious}
+                onClick={debouncedHandlePrevious}
                 className="p-2 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={!canPlayPrevious}
                 title={canPlayPrevious ? 'Previous' : 'No previous track'}
@@ -386,7 +388,7 @@ const MusicPlayer = () => {
 
               <ControlButton
                 onClick={togglePlay}
-                disabled={isLoading && !streamUrl} // Only disable if loading and no stream URL
+                disabled={isLoading && !streamUrl}
                 className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full hover:from-blue-600 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transform hover:scale-105"
                 title={isPlaying ? 'Pause' : 'Play'}
               >
@@ -402,9 +404,9 @@ const MusicPlayer = () => {
               </ControlButton>
 
               <ControlButton
-                onClick={handleNext}
+                onClick={debouncedHandleNext}
                 className="p-2 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={false} // Always allow next button (it handles end-of-queue internally)
+                disabled={false}
                 title={canPlayNext ? `Next: ${nextTrack?.name}` : 'Go to first track'}
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -425,7 +427,6 @@ const MusicPlayer = () => {
             />
           </div>
 
-          {/* Queue status indicator with better end-of-queue messaging */}
           {queueLength > 1 && (
             <div className="mt-2 text-xs text-gray-500 text-center">
               {isShuffled ? 'Shuffled' : 'Linear'} playback • 
@@ -473,3 +474,4 @@ const MusicPlayer = () => {
 };
 
 export default MusicPlayer;
+

@@ -9,6 +9,7 @@ import playlistReducer from './slices/user/playlistSlice';
 import albumReducer from './slices/user/albumSlice';
 import playerReducer from './slices/user/playerSlice';
 import playerMiddleware from './middleware/playerMiddleware';
+import { activityMiddleware } from './middleware/activityMiddleware';
 
 const rootReducer = combineReducers({
   user: userReducer,
@@ -36,7 +37,7 @@ const store = configureStore({
         ignoredActions: [FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER],
         ignoredPaths: ['user.image', 'admin.password'],
       },
-    }).concat(playerMiddleware),
+    }).concat(playerMiddleware, activityMiddleware),
   devTools: process.env.NODE_ENV !== 'production',
 });
 
