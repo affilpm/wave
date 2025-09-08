@@ -186,7 +186,7 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_THROTTLE_CLASSES": [],
     "DEFAULT_THROTTLE_RATES": {
-        "music_streaming": "20/hour",   # scope used here
+        "music_streaming": "10/minute",   # scope used here
     },
 }
 

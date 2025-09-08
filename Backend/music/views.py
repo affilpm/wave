@@ -374,7 +374,7 @@ class MusicVerificationViewSet(viewsets.ModelViewSet):
 
 class MusicStreamingView(APIView):
     permission_classes = [IsAuthenticated]
-    # throttle_classes = [MusicStreamingRateThrottle]
+    throttle_classes = [MusicStreamingRateThrottle]
 
     def get(self, request, music_id):
         try:

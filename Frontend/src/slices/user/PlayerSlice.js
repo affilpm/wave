@@ -61,7 +61,7 @@ export const fetchStreamUrl = createAsyncThunk(
         const errorMap = {
           403: { type: 'TOKEN_EXPIRED', message: 'Stream token expired, retrying...' },
           404: { type: 'NOT_FOUND', message: 'Track not found' },
-          429: { type: 'RATE_LIMITED', message: 'Too many requests, please wait' },
+          429: { type: 'RATE_LIMITED', message: 'Too many requests, please try again after a while.' },
           500: { type: 'SERVER_ERROR', message: 'Server error, please try again' },
           502: { type: 'SERVER_ERROR', message: 'Bad gateway' },
           503: { type: 'SERVER_ERROR', message: 'Service unavailable' },
