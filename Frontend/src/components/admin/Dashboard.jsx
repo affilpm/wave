@@ -37,17 +37,17 @@ const Dashboard = () => {
           apiInstance.get('/api/admins/top-songs/'),
           apiInstance.get('/api/admins/top-artists/')
         ]);
-  console.log(statsRes.data)
+
         // Format top songs data for chart
         const formattedSongs = topSongsRes.data.map(song => ({
-          name: song.music__name,
+          name: song.name,
           plays: song.play_count,
-          artist: song.music__artist__user__email
+          artist: song.artist
         }));
   
         // Format top artists data for chart
         const formattedArtists = topArtistsRes.data.map(artist => ({
-          name: artist.user__email,
+          name: artist.user__username,
           plays: artist.follower_count
         }));
   

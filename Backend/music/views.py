@@ -36,7 +36,6 @@ from django.conf import settings
 from django.core.cache import cache
 from django.http import StreamingHttpResponse
 from rest_framework.permissions import AllowAny  
-from listening_history.models import PlaySession
 from .models import EqualizerPreset
 import traceback
 import logging

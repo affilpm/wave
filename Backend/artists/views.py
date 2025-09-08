@@ -14,8 +14,8 @@ from django.shortcuts import get_object_or_404
 from .models import Artist, Follow
 from .serializers import FollowSerializer
 from music.models import Album
-from listening_history.models import PlaySession
-
+from listening_history.models import ArtistPlayCount, ArtistActivity
+from django.utils import timezone
 
 
 class Pagination(PageNumberPagination):
@@ -367,8 +367,9 @@ class Artist_totalplays(APIView):
         if not artist:
             return Response({'error': 'Artist Profile not Found'}, status=status.HTTP_404_NOT_FOUND)
         
+        artist_play = ArtistPlayCount.objects.filter(artist = artist).first()
         
-        total_plays = PlaySession.objects.filter(music__artist = artist, counted_as_play = True).count()
+        total_plays = artist_play.total_plays 
         
         return Response({'total_plays': total_plays}, status=status.HTTP_200_OK)    
     
@@ -384,8 +385,14 @@ class Artist_listeners(APIView):
         if not artist:
             return Response({'error': 'Artist Profile not Found'}, status=status.HTTP_404_NOT_FOUND)
         
-        total_listeners = PlaySession.objects.filter(music__artist = artist).values('user').distinct().count()
+        today = timezone.now().date()
+        first_day_of_the_month = today.replace(day=1)
         
+        total_listeners = ArtistActivity.objects.filter(
+            artist=artist,
+            last_played__gt = first_day_of_the_month
+        ).values('user').exclude(user=artist.user).count()
+     
         return Response({'total_listeners': total_listeners}, status=status.HTTP_200_OK)
 
 

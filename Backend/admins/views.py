@@ -27,7 +27,7 @@ import json
 from django.utils import timezone
 from django.utils.timezone import now
 from django.db.models import Count
-from listening_history.models import PlaySession
+from listening_history.models import MusicPlayCount
 from artists.serializers import ArtistSerializer
 from artists.models import ArtistVerificationStatus
 from rest_framework.permissions import IsAdminUser
@@ -74,7 +74,7 @@ class Pagination(PageNumberPagination):
     page_size_query_param = 'page_size'
     max_page_size = 100      
     
-class UserTableViewSet(viewsets.ModelViewSet):  # Changed from ReadOnlyModelViewSet
+class UserTableViewSet(viewsets.ModelViewSet):  
     queryset = User.objects.filter(is_superuser=False)
     serializer_class = UserTableSerializer
     permission_classes = [IsAdminUser]
@@ -460,14 +460,22 @@ def total_premium_users_and_revenue(request):
 @permission_classes([IsAdminUser]) 
 def top_5_songs(request):
     # Aggregate play counts from completed sessions
-    top_songs = (
-        PlaySession.objects.filter(status='completed')
-        .values('music__id', 'music__name', 'music__artist__user__email')  # Fetch music details
-        .annotate(play_count=Count('id'))  # Count completed plays
-        .order_by('-play_count')[:5]  # Get top 5 songs
-    )
-
-    return Response(top_songs)    
+    top_songs = MusicPlayCount.objects.select_related(
+        'music',
+        'music__artist__user'
+        ).order_by('-total_plays')[:5]
+    
+    data = [
+        {
+        'name': play.music.name,
+        'play_count': play.total_plays,
+        'artist': play.music.artist.user.username
+        } 
+        for play in top_songs    
+    ]
+    
+    print(data)
+    return Response(data)  
 
 
 
@@ -481,7 +489,7 @@ def top_5_artists(request):
     top_artists = (
         Artist.objects.annotate(follower_count=Count('followers'))
         .order_by('-follower_count')[:5]
-        .values('id', 'user__email', 'bio', 'follower_count')  # Fetch artist details
+        .values('id', 'user__username', 'bio', 'follower_count')  # Fetch artist details
     )
-
+    print(top_artists)
     return Response(top_artists)
