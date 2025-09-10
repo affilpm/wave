@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import Genre, Music
 from artists.models import Artist
-from .models import Album, AlbumTrack, Music, EqualizerPreset
+from .models import Album, AlbumTrack, Music, EqualizerPreset, UserPreference
 from users.models import CustomUser
 
 import os
@@ -14,18 +14,24 @@ class GenreSerializer(serializers.ModelSerializer):
 class MusicMetadataSerializer(serializers.Serializer):
     duration = serializers.FloatField()
     title = serializers.CharField()
-    artist = serializers.CharField(source="artist.email")  # Adjust this based on what you need
+    artist = serializers.CharField(source="artist.email")  
     format = serializers.CharField()        
 
 
-
+class UserPreferenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserPreference
+        fields = ['preferred_quality'] 
+        extra_kwargs = {
+            'preferred_quality': {'required': True}    
+        }
         
         
 class MusicSerializer(serializers.ModelSerializer):
     genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
     album_id = serializers.IntegerField(required=False, write_only=True)
     track_number = serializers.IntegerField(required=False, write_only=True)
-    duration = serializers.DurationField(required=False)  # Add this line
+    duration = serializers.DurationField(required=False)  
 
     class Meta:
         model = Music
@@ -82,8 +88,8 @@ class ArtistSerializer(serializers.ModelSerializer):
 
 
 class MusicDataSerializer(serializers.ModelSerializer):
-    artist = ArtistSerializer()  # Make sure this includes user data
-    duration = serializers.DurationField(required=False)  # Add this line
+    artist = ArtistSerializer()  
+    duration = serializers.DurationField(required=False)  
 
     class Meta:
         model = Music
@@ -97,7 +103,7 @@ class MusicDataSerializer(serializers.ModelSerializer):
         
     
 class MusicVerificationSerializer(serializers.ModelSerializer):
-    artist = ArtistSerializer()  # Make sure this includes user data
+    artist = ArtistSerializer()  
     status = serializers.CharField(source='approval_status')
     submitted_date = serializers.DateTimeField(source='created_at', format="%Y-%m-%dT%H:%M:%S")
     genres = GenreSerializer(many=True)
@@ -129,9 +135,6 @@ class MusicVerificationSerializer(serializers.ModelSerializer):
             seconds = obj.duration.seconds % 60
             return f"{minutes}:{seconds:02d}"
         return None
-
-
-
 
 
 

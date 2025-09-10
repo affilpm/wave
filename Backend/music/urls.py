@@ -2,7 +2,7 @@ from django.urls import path
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import GenreViewSet, MusicViewSet, MusicVerificationViewSet, PublicSongsView, SongsByArtistView, get_equalizer_presets, user_equalizer_preset, UserQualityPreferenceView, MusicStreamingView
-
+from . import views
 router = DefaultRouter()
 router.register(r'genres', GenreViewSet)
 
@@ -26,7 +26,9 @@ urlpatterns = [
     path('<int:music_id>/stream/', MusicStreamingView.as_view(), name='music-stream-preferred'),
     
     # User preferences endpoints
-    path('user/preferences/', UserQualityPreferenceView.as_view(), name='user-preferences'),
+    path('user/quality-preference/', UserQualityPreferenceView.as_view(), name='user-quality-preference'),
+    path('user/update-preference/', views.UpdateUserPreferenceView.as_view(), name='update-preference'),
+    
 
          
 ]

@@ -5,13 +5,15 @@ from artists.models import Artist
 from users.models import CustomUser
 from users.serializers import UserSerializer
 from premium.models import PremiumPlan, UserSubscription, RazorpayTransaction
-
+from music.models import Music
+from music.serializers import ArtistSerializer, GenreSerializer        
+        
 class AdminLoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        # Move authentication to view for better control
+
         return attrs
 
 class AdminSerializer(serializers.ModelSerializer):
@@ -116,10 +118,7 @@ class RazorpayTransactionDetailSerializer(serializers.ModelSerializer):
         except UserSubscription.DoesNotExist:
             return None
         
-from artists.models import Artist
-from music.models import Music
-from music.serializers import ArtistSerializer, GenreSerializer        
-        
+
         
 class MusicVerificationSerializer(serializers.ModelSerializer):
     artist = ArtistSerializer()  # Make sure this includes user data

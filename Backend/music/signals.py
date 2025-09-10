@@ -4,6 +4,7 @@ from .models import Music, MusicApprovalStatus, StreamingFile
 from django.db import transaction
 from .tasks import convert_audio_to_hls, cleanup_failed_hls_conversion
 import logging
+from users.models import CustomUser
 
 logger = logging.getLogger(__name__)
 
@@ -112,3 +113,52 @@ def handle_approval_status_change(sender, instance, created, **kwargs):
             pass  # Old instance doesn't exist, skip
         except Exception as e:
             logger.error(f"Error in handle_approval_status_change for music {instance.id}: {str(e)}")            
+            
+            
+from django.db.models.signals import post_save, pre_save
+from django.dispatch import receiver
+from django.utils import timezone
+from .models import UserPreference, HLSQuality
+from premium.models import UserSubscription
+@receiver(post_save, sender=UserSubscription)
+def handle_subscription_status_change(sender, instance, created, **kwargs):
+    """
+    Signal to handle subscription status changes and revert quality to low when premium expires
+    """
+    if not created:  # Only for updates, not new subscriptions
+        # Check if subscription is no longer active
+        if instance.status in ['expired', 'cancelled']:
+            try:
+                user_preference = UserPreference.objects.get(user=instance.user)
+                # Revert to low quality if user had higher quality
+                if user_preference.preferred_quality != HLSQuality.LOW:
+                    user_preference.preferred_quality = HLSQuality.LOW
+                    user_preference.save()
+                    
+                    # Optional: Log this action
+                    print(f"Reverted user {instance.user.username} quality to LOW due to subscription {instance.status}")
+                    
+            except UserPreference.DoesNotExist:
+                # Create preference with low quality if it doesn't exist
+                UserPreference.objects.create(
+                    user=instance.user,
+                    preferred_quality=HLSQuality.LOW
+                )
+
+@receiver(pre_save, sender=UserSubscription)
+def check_subscription_expiry(sender, instance, **kwargs):
+    """
+    Check if subscription is expiring and update status accordingly
+    """
+    if instance.expires_at and instance.expires_at <= timezone.now():
+        if instance.status == 'active':
+            instance.status = 'expired'            
+            
+
+@receiver(post_save, sender=CustomUser)
+def create_user_preference(sender, instance, created, **kwargs):
+    if created:
+        UserPreference.objects.create(
+            user=instance,
+            preferred_quality=HLSQuality.LOW
+        )            

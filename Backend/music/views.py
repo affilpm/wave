@@ -1,7 +1,7 @@
 from django.shortcuts import render, get_object_or_404
 import subprocess
-from .models import Genre, Music
-from .serializers import GenreSerializer, MusicSerializer, MusicDataSerializer, EqualizerPresetSerializer
+from .models import Genre, Music, UserPreference
+from .serializers import GenreSerializer, MusicSerializer, MusicDataSerializer, EqualizerPresetSerializer, UserPreferenceSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
@@ -13,26 +13,11 @@ from .serializers import MusicVerificationSerializer
 from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from rest_framework.generics import UpdateAPIView
 from django.db import transaction
 from .models import Album
-# from .serializers import AlbumSerializer
-from mutagen.mp3 import MP3
-from mutagen.wavpack import WavPack
-from mutagen import File
 from .models import AlbumTrack
-# from .serializers import AlbumTrackSerializer
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError
-import json
-import tempfile
-from django.http import HttpResponse, FileResponse
-from django.utils import timezone
-import os
-import time
-import hmac
-import hashlib
-from datetime import datetime, timedelta
-from django.conf import settings
 from django.core.cache import cache
 from django.http import StreamingHttpResponse
 from rest_framework.permissions import AllowAny  
@@ -40,27 +25,18 @@ from .models import EqualizerPreset
 import traceback
 import logging
 from rest_framework import generics
-from django.db.models import F
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
-from users.models import CustomUser
 from django.db import models, transaction
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-import re
-import boto3
-import redis
 from rest_framework.decorators import api_view, permission_classes
-from django.shortcuts import get_object_or_404
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
 from .models import Music, StreamingFile, HLSQuality, UserPreference
-from django.conf import settings
 from .throttles import MusicStreamingRateThrottle
+from premium.models import UserSubscription
 
 
 class GenreViewSet(viewsets.ReadOnlyModelViewSet):
@@ -265,10 +241,6 @@ class MusicViewSet(ModelViewSet):
 
 
 
-
-
-
-# Add API endpoint to get all available presets
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_equalizer_presets(request):
@@ -282,7 +254,6 @@ def get_equalizer_presets(request):
 
 
 
-# Add API endpoint to get user's current preset preference
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def user_equalizer_preset(request):
@@ -379,14 +350,12 @@ class MusicStreamingView(APIView):
         try:
             music = get_object_or_404(Music, id=music_id)
 
-            # Check if music is accessible to the user
             if not music.is_public and music.artist.user != request.user:
                 return Response(
                     {"error": "You do not have permission to access this music."},
                     status=status.HTTP_403_FORBIDDEN
                 )
 
-            # Get user's preferred quality (default to LOW)
             try:
                 user_preference = UserPreference.objects.get(user=request.user)
                 preferred_quality = user_preference.preferred_quality
@@ -398,13 +367,11 @@ class MusicStreamingView(APIView):
                 )
                 preferred_quality = HLSQuality.LOW
 
-            # Get available qualities for this music
             available_qualities = list(
                 StreamingFile.objects.filter(music=music)
                 .values_list('quality', flat=True)
             )
 
-            # Determine the best quality to use
             quality_to_use = self._get_best_available_quality(preferred_quality, available_qualities)
 
             if not quality_to_use:
@@ -442,11 +409,9 @@ class MusicStreamingView(APIView):
         if not available_qualities:
             return None
 
-        # If preferred quality is available, use it
         if preferred_quality in available_qualities:
             return preferred_quality
 
-        # Define quality hierarchy (highest to lowest)
         quality_hierarchy = [
             HLSQuality.LOSSLESS,
             HLSQuality.HIGH,
@@ -454,71 +419,82 @@ class MusicStreamingView(APIView):
             HLSQuality.LOW
         ]
 
-        # Find the preferred quality index
         try:
             preferred_index = quality_hierarchy.index(preferred_quality)
         except ValueError:
-            # Default to LOW if unknown preferred quality
             preferred_index = 3
 
-        # Try to find the closest lower quality
         for i in range(preferred_index, len(quality_hierarchy)):
             if quality_hierarchy[i] in available_qualities:
                 return quality_hierarchy[i]
 
-        # If no lower quality found, try higher qualities
         for i in range(preferred_index - 1, -1, -1):
             if quality_hierarchy[i] in available_qualities:
                 return quality_hierarchy[i]
 
-        # Return any available quality as last resort
         return available_qualities[0]
 
 
 class UserQualityPreferenceView(APIView):
-    """View to get and update user preferences"""
+    """View to get user preferences"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        """Get user's current preferences"""
-        try:
-            preference = UserPreference.objects.get(user=request.user)
-            return Response({
-                "preferred_quality": preference.preferred_quality,
-                "available_qualities": [choice[0] for choice in HLSQuality.choices]
-            })
-        except UserPreference.DoesNotExist:
-            # Create default preference with LOW quality
-            preference = UserPreference.objects.create(
-                user=request.user,
-                preferred_quality=HLSQuality.LOW
-            )
-            return Response({
-                "preferred_quality": preference.preferred_quality,
-                "available_qualities": [choice[0] for choice in HLSQuality.choices]
-            })
-
-    def post(self, request):
-        """Update user's preferred quality"""
-        preferred_quality = request.data.get('preferred_quality')
+        user = request.user
         
-        valid_qualities = [choice[0] for choice in HLSQuality.choices]
-        if preferred_quality not in valid_qualities:
-            return Response(
-                {"error": f"Invalid quality. Must be one of: {valid_qualities}"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        preference, created = UserPreference.objects.get_or_create(
-            user=request.user,
-            defaults={'preferred_quality': preferred_quality}
+        user_preference, created = UserPreference.objects.get_or_create(
+            user=user,
+            defaults={'preferred_quality': HLSQuality.LOW}
         )
         
-        if not created:
-            preference.preferred_quality = preferred_quality
-            preference.save()
-
+        try:
+            subscription = user.subscription
+            is_premium = subscription.status == 'active'
+        except UserSubscription.DoesNotExist:
+            is_premium = False
+        
+        if not is_premium:
+            
+            if user_preference.preferred_quality != HLSQuality.LOW:
+                user_preference.preferred_quality = HLSQuality.LOW
+                user_preference.save()
+        
         return Response({
-            "message": "Preference updated successfully",
-            "preferred_quality": preference.preferred_quality
-        })
+            'current_quality': user_preference.preferred_quality,
+            'is_premium': is_premium
+        }, status=status.HTTP_200_OK)
+
+
+        
+        
+        
+class UpdateUserPreferenceView(UpdateAPIView):  
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserPreferenceSerializer
+    
+    def get_object(self):
+        user_preference, created = UserPreference.objects.get_or_create(
+            user=self.request.user,
+            defaults={'preferred_quality': HLSQuality.LOW}
+        )
+        return user_preference
+    
+    def update(self, request, *args, **kwargs):
+        try:
+            subscription = request.user.subscription
+            is_premium = subscription.status == 'active'
+        except UserSubscription.DoesNotExist:
+            is_premium = False
+        
+        requested_quality = request.data.get('preferred_quality')
+        
+        if not is_premium and requested_quality != HLSQuality.LOW:
+            return Response({
+                'error': 'Premium subscription required for higher quality options'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        return super().update(request, *args, **kwargs)
+
+
+        
+     

@@ -5,7 +5,6 @@ import razorpay
 
 class PremiumPlan(models.Model):
     name = models.CharField(max_length=100)
-    # Custom duration in days instead of predefined choices
     duration_days = models.PositiveIntegerField(help_text="Duration in days")
     duration_label = models.CharField(
         max_length=50, 
