@@ -15,6 +15,7 @@ import {
   refreshStream,
   toggleShuffle,
   setCurrentMusic,
+  clearCurrentMusic, // NEW: Import the new action
   selectCurrentTrack,
   selectQueueLength,
   selectNextTrack,
@@ -28,6 +29,7 @@ import MusicInfo from './MusicInfo';
 import ControlButton from './ControlButton';
 import ErrorDisplay from './ErrorDisplay';
 import DeviceAudioControl from './DeviceAudioControl';
+import AudioEqualizer from './AudioEqualizer';
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
@@ -84,6 +86,11 @@ const MusicPlayer = () => {
 
   const canPlayNext = Boolean(nextTrack);
   const canPlayPrevious = Boolean(previousTrack);
+
+  // Check if error is rate limit related
+  const isRateLimited = useMemo(() => {
+    return error && error.includes('Too many requests');
+  }, [error]);
 
   const cleanup = useCallback(() => {
     if (hlsRef.current) {
@@ -208,6 +215,12 @@ const MusicPlayer = () => {
     const audio = audioRef.current;
     if (!audio || !streamUrl) return;
 
+    // Don't try to play if rate limited
+    if (isRateLimited) {
+      audio.pause();
+      return;
+    }
+
     if (isPlaying && audio.paused) {
       audio.play().catch((err) => {
         console.warn('Play failed:', err);
@@ -218,7 +231,7 @@ const MusicPlayer = () => {
     } else if (!isPlaying && !audio.paused) {
       audio.pause();
     }
-  }, [isPlaying, streamUrl, dispatch]);
+  }, [isPlaying, streamUrl, isRateLimited, dispatch]);
 
   useEffect(() => {
     return cleanup;
@@ -240,8 +253,14 @@ const MusicPlayer = () => {
 
   const togglePlay = useCallback(() => {
     if (!currentMusicId) return;
+    
+    // Don't allow play if rate limited
+    if (isRateLimited) {
+      return;
+    }
+    
     dispatch(setIsPlaying(!isPlaying));
-  }, [currentMusicId, isPlaying, dispatch]);
+  }, [currentMusicId, isPlaying, isRateLimited, dispatch]);
 
   const debouncedHandleNext = useCallback(
     debounce(() => {
@@ -297,11 +316,36 @@ const MusicPlayer = () => {
     setShowQueue(prev => !prev);
   }, []);
 
-  if (!currentMusicId) {
+  // Handle clearing current music when no song is selected
+  const handleClearCurrentMusic = useCallback(() => {
+    dispatch(clearCurrentMusic());
+    setShowQueue(false);
+  }, [dispatch]);
+
+  // If no current music or queue, show empty state with error display
+  if (!currentMusicId || queue.length === 0) {
     return (
       <div className="bg-gradient-to-r from-gray-900 via-black to-gray-900 border-t border-gray-700">
         <div className="px-4 py-4 text-center">
-          <p className="text-gray-400 text-sm">Select a track to start playing</p>
+          <p className="text-gray-400 text-sm mb-2">No track selected</p>
+          {/* Show ErrorDisplay if there's an error */}
+          {error && (
+            <ErrorDisplay 
+              error={error} 
+              onClearError={handleClearError}
+              isRateLimited={isRateLimited}
+            />
+          )}
+          {/* Only show clear button if queue or musicDetails exist, but always allow clearing error */}
+          {(queue.length > 0 || musicDetails?.name) && (
+            <button
+              onClick={handleClearCurrentMusic}
+              className="text-xs text-gray-500 hover:text-gray-300 transition-colors duration-200 mt-2"
+              title="Clear all player data"
+            >
+              Clear player data
+            </button>
+          )}
         </div>
       </div>
     );
@@ -321,6 +365,10 @@ const MusicPlayer = () => {
       <div className="bg-gradient-to-r from-gray-900 via-black to-gray-900 border-t border-gray-700 backdrop-blur-sm">
         <audio ref={audioRef} preload="metadata" onEnded={() => dispatch({ type: "player/trackCompleted" })}/>
 
+        <AudioEqualizer 
+          audioRef={audioRef} 
+        />
+
         <DeviceAudioControl
           audioRef={audioRef}
           currentTrack={currentTrack}
@@ -330,6 +378,7 @@ const MusicPlayer = () => {
           currentTime={currentTime}
           duration={duration}
         />
+        
         <ProgressBar
           progressPercent={progressPercent}
           onProgressClick={handleProgressClick}
@@ -344,6 +393,8 @@ const MusicPlayer = () => {
               isLoading={isLoading}
               musicDetails={musicDetails}
               currentTrack={currentTrack}
+              forceUseMusicDetails={isRateLimited || (!streamUrl && musicDetails.name === '')}
+              hasError={!!error} 
             />
 
             <div className="flex items-center space-x-2 md:space-x-3">
@@ -388,11 +439,28 @@ const MusicPlayer = () => {
 
               <ControlButton
                 onClick={togglePlay}
-                disabled={isLoading && !streamUrl}
-                className="p-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full hover:from-blue-600 hover:to-purple-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg transform hover:scale-105"
-                title={isPlaying ? 'Pause' : 'Play'}
+                disabled={isLoading && !streamUrl || isRateLimited}
+                className={`p-3 text-white rounded-full transition-all duration-200 shadow-lg transform hover:scale-105 ${
+                  isRateLimited 
+                    ? 'bg-red-500/70 cursor-not-allowed opacity-50' 
+                    : isLoading && !streamUrl
+                    ? 'bg-gray-500/70 cursor-not-allowed opacity-50'
+                    : 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'
+                }`}
+                title={
+                  isRateLimited 
+                    ? 'Rate limited - Please wait' 
+                    : isPlaying 
+                    ? 'Pause' 
+                    : 'Play'
+                }
               >
-                {isPlaying ? (
+                {isRateLimited ? (
+                  // Show warning icon when rate limited
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                  </svg>
+                ) : isPlaying ? (
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
                   </svg>
@@ -444,7 +512,11 @@ const MusicPlayer = () => {
             </div>
           )}
 
-          <ErrorDisplay error={error} onClearError={handleClearError} />
+          <ErrorDisplay 
+            error={error} 
+            onClearError={handleClearError}
+            isRateLimited={isRateLimited} 
+          />
         </div>
         
         <style>{`
@@ -474,4 +546,3 @@ const MusicPlayer = () => {
 };
 
 export default MusicPlayer;
-

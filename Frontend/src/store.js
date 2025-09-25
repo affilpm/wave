@@ -10,6 +10,7 @@ import albumReducer from './slices/user/albumSlice';
 import playerReducer from './slices/user/playerSlice';
 import playerMiddleware from './middleware/playerMiddleware';
 import { activityMiddleware } from './middleware/activityMiddleware';
+import equalizerReducer from './slices/user/equalizerSlice';
 
 const rootReducer = combineReducers({
   user: userReducer,
@@ -18,12 +19,13 @@ const rootReducer = combineReducers({
   playlists: playlistReducer,
   album: albumReducer,
   player: playerReducer,   
+  equalizer: equalizerReducer,
 });
 
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['user', 'admin', 'album', 'player'], 
+  whitelist: ['user', 'admin', 'album', 'player', 'equalizer'], 
 
 };
 

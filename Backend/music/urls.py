@@ -19,7 +19,6 @@ urlpatterns = [
 
     path('presets/', get_equalizer_presets, name='equalizer-presets'),
     path('user-preset/', user_equalizer_preset, name='user-equalizer-preset'),
-    path('user-preset/', user_equalizer_preset, name='user-equalizer-preset'),
     path('public-songs/', PublicSongsView.as_view(), name='public-songs'),
     path('artist/<int:artist_id>/', SongsByArtistView.as_view(), name='songs-by-artist'),
 

@@ -55,7 +55,7 @@ const Studio = () => {
     { icon: Upload, view: 'upload', label: 'Upload' },
     { icon: Music, view: 'musicCrud', label: 'Music CRUD' },
     { icon: Library, view: 'albumManagement', label: 'Albums' },
-    { icon: Video, view: 'livestream', label: 'Livestream' },
+    // { icon: Video, view: 'livestream', label: 'Livestream' },
     { icon: Settings, view: 'settings', label: 'Settings' },
   ];
 
@@ -70,7 +70,7 @@ const Studio = () => {
     upload: <UploadOptions />,
     musicCrud: <MusicManagement />,
     albumManagement: <AlbumManagement />,
-    livestream: <ArtistLiveStream />,
+    // livestream: <ArtistLiveStream />,
     settings: (
       <div className="bg-gray-800 rounded-xl border border-gray-700">
         <div className="px-6 py-4 border-b border-gray-700">

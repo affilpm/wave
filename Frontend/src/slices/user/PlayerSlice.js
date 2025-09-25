@@ -114,7 +114,7 @@ export const fetchStreamUrl = createAsyncThunk(
 // Helper functions for state management
 const createTrackObject = (item) => {
   if (typeof item === 'object' && item !== null) {
-    return {
+    return {  
       id: item.id,
       name: item.name || item.title || 'Unknown Track',
       artist: item.artist || 'Unknown Artist',
@@ -147,6 +147,28 @@ const resetStreamState = (state) => {
     preferred: null,
     matched: false
   };
+  state.isLoading = false; // Also reset loading state
+};
+
+// NEW: Complete reset for when no song is selected
+const resetAllPlayerData = (state) => {
+  state.currentMusicId = null;
+  state.queue = [];
+  state.currentIndex = null;
+  state.isPlaying = false;
+  state.volume = 1;
+  state.isMuted = false;
+  state.isShuffled = false;
+  state.streamUrl = null;
+  state.musicDetails = { name: '', artist: '', cover_photo: '' };
+  state.qualityInfo = { served: null, preferred: null, matched: false };
+  state.isLoading = false;
+  state.error = null;
+  state.currentTime = 0;
+  state.duration = 0;
+  state.shuffleHistory = [];
+  state.lastFetchTime = 0;
+  state.fetchAttempts = 0;
 };
 
 const getNextIndex = (state) => {
@@ -219,13 +241,17 @@ const playerSlice = createSlice({
   name: 'player',
   initialState,
   reducers: {
-setCurrentMusic: (state, action) => {
+    setCurrentMusic: (state, action) => {
       const musicData = action.payload;
       const newMusicId = typeof musicData === 'object' && musicData !== null 
         ? musicData.id 
         : musicData;
       
-      if (!newMusicId) return;
+      if (!newMusicId) {
+        // NEW: If no music ID provided, clear all data
+        resetAllPlayerData(state);
+        return;
+      }
 
       // Handle queue updates
       if (typeof musicData === 'object' && musicData !== null) {
@@ -262,6 +288,13 @@ setCurrentMusic: (state, action) => {
 
     setQueue: (state, action) => {
       const newQueue = Array.isArray(action.payload) ? action.payload : [];
+      
+      if (newQueue.length === 0) {
+        // NEW: If empty queue provided, clear all data
+        resetAllPlayerData(state);
+        return;
+      }
+      
       state.queue = newQueue.map(createTrackObject);
       state.currentIndex = 0;
       state.shuffleHistory = [];
@@ -303,9 +336,8 @@ setCurrentMusic: (state, action) => {
       } else if (indexToRemove === state.currentIndex) {
         // Current track was removed
         if (state.queue.length === 0) {
-          state.currentMusicId = null;
-          state.currentIndex = 0;
-          resetStreamState(state);
+          // NEW: If queue becomes empty, clear all data
+          resetAllPlayerData(state);
         } else {
           // Ensure index is within bounds
           state.currentIndex = Math.min(state.currentIndex, state.queue.length - 1);
@@ -336,13 +368,8 @@ setCurrentMusic: (state, action) => {
             state.shuffleHistory = state.currentMusicId ? [state.currentMusicId] : [];
           }
         } else {
-          // Empty queue
-          state.currentMusicId = null;
-          state.currentIndex = 0;
-          state.isPlaying = false;
-          resetStreamState(state);
-          state.fetchAttempts = 0;
-          state.shuffleHistory = [];
+          // Empty queue - clear all data
+          resetAllPlayerData(state);
         }
         return;
       }
@@ -359,7 +386,6 @@ setCurrentMusic: (state, action) => {
         }
       }
     },
-
 
     playPrevious: (state) => {
       const prevIndex = getPreviousIndex(state);
@@ -396,13 +422,13 @@ setCurrentMusic: (state, action) => {
     },
 
     clearQueue: (state) => {
-      state.queue = [];
-      state.currentIndex = 0;
-      state.currentMusicId = null;
-      state.isPlaying = false;
-      state.shuffleHistory = [];
-      state.fetchAttempts = 0;
-      resetStreamState(state);
+      // NEW: Use complete reset when clearing queue
+      resetAllPlayerData(state);
+    },
+
+    // NEW: Action to clear current music and all related data
+    clearCurrentMusic: (state) => {
+      resetAllPlayerData(state);
     },
 
     // Playback controls with validation
@@ -475,7 +501,7 @@ setCurrentMusic: (state, action) => {
           state.qualityInfo = action.payload.qualityInfo;
           state.error = null;
           state.fetchAttempts = 0;
-          state.isPlaying = true; // Ensure playback starts after successful fetch
+          state.isPlaying = true;
         }
       })
       .addCase(fetchStreamUrl.rejected, (state, action) => {
@@ -485,16 +511,21 @@ setCurrentMusic: (state, action) => {
           
           const errorType = action.payload?.type;
           
-          // Don't show error for aborted or stale requests
           if (['ABORTED', 'STALE_REQUEST'].includes(errorType)) {
             return;
           }
           
-          // Don't show error for token expired (will be retried)
+          // Handle rate-limiting: clear all player data
+          if (errorType === 'RATE_LIMITED') {
+            resetAllPlayerData(state); // Clear all data, including currentMusicId and queue
+            state.error = action.payload?.message || 'Too many requests, please try again later.';
+            return;
+          }
+          
           if (errorType === 'TOKEN_EXPIRED') {
             state.error = null;
           } else {
-            state.streamUrl = null;
+            resetStreamState(state);
             state.error = action.payload?.message || 'Failed to fetch stream';
           }
         }
@@ -512,6 +543,7 @@ export const {
   playPrevious,
   moveInQueue,
   clearQueue,
+  clearCurrentMusic, // NEW: Export the new action
   setIsPlaying,
   setVolume,
   setIsMuted,

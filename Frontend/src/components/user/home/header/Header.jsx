@@ -197,13 +197,13 @@ const Header = ({ toggleMobileSidebar }) => {
             <span className="text-sm lg:text-base font-medium">Home</span>
           </button>
           
-          <button 
+          {/* <button 
             className="flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors"
             onClick={() => handleNavigation('/livestreams')}
           >
             <Video className="h-5 w-5 lg:h-6 lg:w-6" />
             <span className="text-sm lg:text-base font-medium">Livestream</span>
-          </button>
+          </button> */}
           
           {/* Desktop Search Component */}
           <div className="flex-1 mx-2 lg:mx-4 max-w-md">

@@ -469,6 +469,7 @@ class UserQualityPreferenceView(APIView):
         
         
 class UpdateUserPreferenceView(UpdateAPIView):  
+    """View to update user quality preference"""
     permission_classes = [IsAuthenticated]
     serializer_class = UserPreferenceSerializer
     
