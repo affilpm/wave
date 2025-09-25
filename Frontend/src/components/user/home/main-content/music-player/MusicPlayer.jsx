@@ -15,7 +15,7 @@ import {
   refreshStream,
   toggleShuffle,
   setCurrentMusic,
-  clearCurrentMusic, // NEW: Import the new action
+  clearCurrentMusic,
   selectCurrentTrack,
   selectQueueLength,
   selectNextTrack,
@@ -84,7 +84,7 @@ const MusicPlayer = () => {
     return Math.max(0, Math.min(100, (currentTime / duration) * 100));
   }, [currentTime, duration]);
 
-  const canPlayNext = Boolean(nextTrack);
+  const canPlayNext = queueLength > 1 && Boolean(nextTrack); // Updated to disable next for single song
   const canPlayPrevious = Boolean(previousTrack);
 
   // Check if error is rate limit related
@@ -119,8 +119,12 @@ const MusicPlayer = () => {
 
   const handleEnded = useCallback(() => {
     console.log('Track ended, checking for next track...');
-    dispatch(playNext());
-  }, [dispatch]);
+    if (queueLength > 1) { // Only play next if queue has more than one song
+      dispatch(playNext());
+    } else {
+      dispatch(setIsPlaying(false)); // Stop playback for single song
+    }
+  }, [dispatch, queueLength]);
 
   const handlePlay = useCallback(() => dispatch(setIsPlaying(true)), [dispatch]);
   const handlePause = useCallback(() => dispatch(setIsPlaying(false)), [dispatch]);
@@ -265,8 +269,6 @@ const MusicPlayer = () => {
   const debouncedHandleNext = useCallback(
     debounce(() => {
       if (canPlayNext) {
-        dispatch(playNext());
-      } else {
         dispatch(playNext());
       }
     }, 300),
@@ -474,8 +476,8 @@ const MusicPlayer = () => {
               <ControlButton
                 onClick={debouncedHandleNext}
                 className="p-2 text-gray-400 hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                disabled={false}
-                title={canPlayNext ? `Next: ${nextTrack?.name}` : 'Go to first track'}
+                disabled={!canPlayNext}
+                title={canPlayNext ? `Next: ${nextTrack?.name || 'Next track'}` : 'No next track'}
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M18 18V6h-2v12h2zm-3-4.5V18l-8-6 8-6v4.5z"/>
@@ -506,7 +508,7 @@ const MusicPlayer = () => {
               )}
               {!nextTrack && queueLength > 0 && (
                 <span className="text-orange-400">
-                  {' '} • {isPlaying ? 'Last track - next will restart queue' : 'At start of queue'}
+                  {' '} • Last track
                 </span>
               )}
             </div>
