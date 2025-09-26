@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useCallback, useState, useMemo } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { createSelector } from '@reduxjs/toolkit';
-import Hls from 'hls.js';
 import { debounce } from 'lodash'; 
 import { 
   setIsPlaying, 
@@ -30,6 +29,17 @@ import ControlButton from './ControlButton';
 import ErrorDisplay from './ErrorDisplay';
 import DeviceAudioControl from './DeviceAudioControl';
 import AudioEqualizer from './AudioEqualizer';
+
+// Dynamically load HLS.js only when needed
+const loadHLS = async () => {
+  try {
+    const { default: Hls } = await import('hls.js');
+    return Hls;
+  } catch (error) {
+    console.warn('Failed to load HLS.js from CDN:', error);
+    return null;
+  }
+};
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
@@ -78,21 +88,20 @@ const MusicPlayer = () => {
   const hlsRef = useRef(null);
   const progressRef = useRef(null);
   const [showQueue, setShowQueue] = useState(false);
+  const [hlsLoaded, setHlsLoaded] = useState(false);
+  const hasRecordedCompleteRef = useRef(false);
 
   const progressPercent = useMemo(() => {
     if (!duration || duration <= 0 || !isFinite(currentTime)) return 0;
     return Math.max(0, Math.min(100, (currentTime / duration) * 100));
   }, [currentTime, duration]);
 
-  const canPlayNext = queueLength > 1 && Boolean(nextTrack); // Updated to disable next for single song
+  const canPlayNext = queueLength > 1 && Boolean(nextTrack);
   const canPlayPrevious = Boolean(previousTrack);
+  const isRateLimited = useMemo(() => error?.includes('Too many requests'), [error]);
 
-  // Check if error is rate limit related
-  const isRateLimited = useMemo(() => {
-    return error && error.includes('Too many requests');
-  }, [error]);
-
-  const cleanup = useCallback(() => {
+  // Cleanup HLS instance
+  const cleanupHLS = useCallback(() => {
     if (hlsRef.current) {
       try {
         hlsRef.current.detachMedia();
@@ -104,6 +113,89 @@ const MusicPlayer = () => {
     }
   }, []);
 
+  // HLS setup with graceful CDN loading
+  const setupHLS = useCallback(async (audio, streamUrl) => {
+    if (!hlsLoaded) {
+      const Hls = await loadHLS();
+      if (!Hls) {
+        // Fallback to native HLS support (Safari)
+        if (audio.canPlayType('application/vnd.apple.mpegurl')) {
+          audio.src = streamUrl;
+          return null;
+        }
+        dispatch({ type: 'player/setError', payload: 'HLS not supported' });
+        return null;
+      }
+      setHlsLoaded(true);
+      window.Hls = Hls; // Cache for reuse
+    }
+
+    const Hls = window.Hls;
+    if (!Hls?.isSupported()) {
+      if (audio.canPlayType('application/vnd.apple.mpegurl')) {
+        audio.src = streamUrl;
+        return null;
+      }
+      return null;
+    }
+
+    const hls = new Hls({
+      enableWorker: false,
+      lowLatencyMode: false,
+      maxBufferLength: 30,
+      maxMaxBufferLength: 60,
+      maxBufferSize: 60 * 1000 * 1000,
+      maxBufferHole: 0.5,
+      manifestLoadingTimeOut: 10000,
+      manifestLoadingMaxRetry: 3,
+      manifestLoadingRetryDelay: 1000,
+      fragLoadingTimeOut: 20000,
+      fragLoadingMaxRetry: 3,
+      fragLoadingRetryDelay: 1000,
+    });
+
+    hlsRef.current = hls;
+    hls.loadSource(streamUrl);
+    hls.attachMedia(audio);
+
+    // Simplified error handling
+    hls.on(Hls.Events.ERROR, (event, data) => {
+      console.error('HLS Error:', data);
+      
+      if (data.details === Hls.ErrorDetails.BUFFER_STALL_ERROR) {
+        // Handle buffer stalls gracefully
+        const buffered = audio.buffered;
+        const currentTime = audio.currentTime;
+        
+        for (let i = 0; i < buffered.length; i++) {
+          if (buffered.start(i) > currentTime) {
+            audio.currentTime = buffered.start(i);
+            break;
+          }
+        }
+        
+        try {
+          hls.startLoad();
+        } catch (e) {
+          console.warn('Could not restart loading:', e);
+        }
+        return;
+      }
+
+      if (data.fatal) {
+        if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR && data.response?.code === 403) {
+          dispatch(refreshStream());
+        } else {
+          dispatch(setIsPlaying(false));
+          dispatch({ type: 'player/setError', payload: 'Stream playback failed' });
+        }
+      }
+    });
+
+    return hls;
+  }, [hlsLoaded, dispatch]);
+
+  // Consolidated audio event handlers
   const handleLoadedMetadata = useCallback(() => {
     if (audioRef.current) {
       dispatch(setDuration(audioRef.current.duration || 0));
@@ -111,81 +203,79 @@ const MusicPlayer = () => {
   }, [dispatch]);
 
   const handleTimeUpdate = useCallback(() => {
-    if (audioRef.current && !audioRef.current.seeking) {
-      const currentTime = audioRef.current.currentTime || 0;
+    const audio = audioRef.current;
+    if (audio && !audio.seeking) {
+      const currentTime = audio.currentTime || 0;
       dispatch(setCurrentTime(currentTime));
+      
+      // Track completion logic
+      if (!hasRecordedCompleteRef.current && currentTime >= 30) {
+        dispatch({ type: "player/trackCompleted" });
+        hasRecordedCompleteRef.current = true;
+      }
     }
   }, [dispatch]);
 
   const handleEnded = useCallback(() => {
-    console.log('Track ended, checking for next track...');
-    if (queueLength > 1) { // Only play next if queue has more than one song
+    if (queueLength > 1) {
       dispatch(playNext());
     } else {
-      dispatch(setIsPlaying(false)); // Stop playback for single song
+      dispatch(setIsPlaying(false));
     }
   }, [dispatch, queueLength]);
 
   const handlePlay = useCallback(() => dispatch(setIsPlaying(true)), [dispatch]);
   const handlePause = useCallback(() => dispatch(setIsPlaying(false)), [dispatch]);
+
   const handleError = useCallback((e) => {
-    console.error('Audio error:', e.target?.error);
+    const error = e.target?.error;
+    if (!error) return;
+    
+    let errorMessage = 'Playback error occurred';
+    
+    switch (error.code) {
+      case MediaError.MEDIA_ERR_NETWORK:
+        errorMessage = navigator.onLine ? 'Network error occurred' : 'No internet connection';
+        break;
+      case MediaError.MEDIA_ERR_DECODE:
+        errorMessage = 'Audio format error';
+        break;
+      case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+        errorMessage = 'Audio format not supported';
+        break;
+      default:
+        if (!navigator.onLine) {
+          errorMessage = 'No internet connection';
+        }
+    }
+    
+    dispatch({ type: 'player/setError', payload: errorMessage });
     dispatch(setIsPlaying(false));
   }, [dispatch]);
 
+  // Main effect for stream setup
   useEffect(() => {
     const audio = audioRef.current;
     if (!streamUrl || !audio) return;
 
-    let hasRecordedComplete = false;
+    // Reset completion tracking
+    hasRecordedCompleteRef.current = false;
 
+    // Reset audio state
     audio.pause();
     audio.currentTime = 0;
     audio.src = '';
+    cleanupHLS();
 
-    cleanup();
-
-    if (Hls.isSupported()) {
-      const hls = new Hls({
-        enableWorker: false,
-        lowLatencyMode: false,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-      });
-      
-      hlsRef.current = hls;
-      hls.loadSource(streamUrl);
-      hls.attachMedia(audio);
-      
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        console.log('HLS Manifest parsed successfully');
-      });
-      
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        console.error('HLS Error:', data);
-        if (data.fatal) {
-          if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR && 
-              data.response?.code === 403) {
-            dispatch(refreshStream());
-          } else {
-            dispatch(setIsPlaying(false));
-          }
-        }
-      });
-    } else if (audio.canPlayType('application/vnd.apple.mpegurl')) {
-      audio.src = streamUrl;
-    }
-
-    const handleTimeUpdateWithComplete = () => {
-      handleTimeUpdate();
-      if (!hasRecordedComplete && audio.currentTime >= 30) {
-        dispatch({ type: "player/trackCompleted" });
-        hasRecordedComplete = true;
-      }
+    // Setup new stream
+    const initializeStream = async () => {
+      await setupHLS(audio, streamUrl);
     };
 
+    initializeStream();
+
+    // Add event listeners
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('timeupdate', handleTimeUpdateWithComplete);
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('play', handlePlay);
@@ -194,7 +284,6 @@ const MusicPlayer = () => {
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('timeupdate', handleTimeUpdateWithComplete);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('play', handlePlay);
@@ -202,45 +291,67 @@ const MusicPlayer = () => {
       audio.removeEventListener('error', handleError);
       audio.pause();
       audio.src = '';
-      audio.currentTime = 0;
-      cleanup();
+      cleanupHLS();
     };
-  }, [streamUrl, currentMusicId, handleLoadedMetadata, handleTimeUpdate, handleEnded, handlePlay, handlePause, handleError, dispatch, cleanup]);
+  }, [streamUrl, currentMusicId, setupHLS, cleanupHLS, handleLoadedMetadata, handleTimeUpdate, handleEnded, handlePlay, handlePause, handleError]);
 
+  // Volume and mute control
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio) return;
-    
-    audio.volume = volume;
-    audio.muted = isMuted;
+    if (audio) {
+      audio.volume = volume;
+      audio.muted = isMuted;
+    }
   }, [volume, isMuted]);
 
+  // Play/pause control
   useEffect(() => {
     const audio = audioRef.current;
-    if (!audio || !streamUrl) return;
-
-    // Don't try to play if rate limited
-    if (isRateLimited) {
-      audio.pause();
-      return;
-    }
+    if (!audio || !streamUrl || isRateLimited) return;
 
     if (isPlaying && audio.paused) {
-      audio.play().catch((err) => {
-        console.warn('Play failed:', err);
-        if (err.name !== 'AbortError') {
-          dispatch(setIsPlaying(false));
-        }
-      });
+      const playPromise = audio.play();
+      if (playPromise) {
+        playPromise.catch((err) => {
+          console.warn('Play failed:', err);
+          if (err.name !== 'AbortError') {
+            dispatch(setIsPlaying(false));
+          }
+        });
+      }
     } else if (!isPlaying && !audio.paused) {
       audio.pause();
     }
   }, [isPlaying, streamUrl, isRateLimited, dispatch]);
 
+  // Network status monitoring (simplified)
   useEffect(() => {
-    return cleanup;
-  }, [cleanup]);
+    const handleOnline = () => {
+      if (error?.includes('internet connection') || error?.includes('Network')) {
+        dispatch(clearError());
+      }
+    };
 
+    const handleOffline = () => {
+      dispatch({ type: 'player/setError', payload: 'No internet connection' });
+      dispatch(setIsPlaying(false));
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [dispatch, error]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return cleanupHLS;
+  }, [cleanupHLS]);
+
+  // Event handlers with debouncing
   const handleProgressClick = useCallback((e) => {
     if (!progressRef.current || !duration || duration <= 0) return;
     
@@ -256,30 +367,20 @@ const MusicPlayer = () => {
   }, [duration, dispatch]);
 
   const togglePlay = useCallback(() => {
-    if (!currentMusicId) return;
-    
-    // Don't allow play if rate limited
-    if (isRateLimited) {
-      return;
-    }
-    
+    if (!currentMusicId || isRateLimited) return;
     dispatch(setIsPlaying(!isPlaying));
   }, [currentMusicId, isPlaying, isRateLimited, dispatch]);
 
   const debouncedHandleNext = useCallback(
     debounce(() => {
-      if (canPlayNext) {
-        dispatch(playNext());
-      }
+      if (canPlayNext) dispatch(playNext());
     }, 300),
     [canPlayNext, dispatch]
   );
 
   const debouncedHandlePrevious = useCallback(
     debounce(() => {
-      if (canPlayPrevious) {
-        dispatch(playPrevious());
-      }
+      if (canPlayPrevious) dispatch(playPrevious());
     }, 300),
     [canPlayPrevious, dispatch]
   );
@@ -289,8 +390,7 @@ const MusicPlayer = () => {
   }, [isMuted, dispatch]);
 
   const handleVolumeChange = useCallback((e) => {
-    const newVolume = parseFloat(e.target.value);
-    dispatch(setVolume(newVolume));
+    dispatch(setVolume(parseFloat(e.target.value)));
   }, [dispatch]);
 
   const handleTrackSelect = useCallback((track) => {
@@ -298,39 +398,22 @@ const MusicPlayer = () => {
     setShowQueue(false);
   }, [dispatch]);
 
-  const handleQueueClose = useCallback(() => {
-    setShowQueue(false);
-  }, []);
-
-  const toggleShuffle_ = useCallback(() => {
-    dispatch(toggleShuffle());
-  }, [dispatch]);
-
-  const handleRefreshStream = useCallback(() => {
-    dispatch(refreshStream());
-  }, [dispatch]);
-
-  const handleClearError = useCallback(() => {
-    dispatch(clearError());
-  }, [dispatch]);
-
-  const toggleQueueVisibility = useCallback(() => {
-    setShowQueue(prev => !prev);
-  }, []);
-
-  // Handle clearing current music when no song is selected
+  const handleQueueClose = useCallback(() => setShowQueue(false), []);
+  const toggleShuffle_ = useCallback(() => dispatch(toggleShuffle()), [dispatch]);
+  const handleRefreshStream = useCallback(() => dispatch(refreshStream()), [dispatch]);
+  const handleClearError = useCallback(() => dispatch(clearError()), [dispatch]);
+  const toggleQueueVisibility = useCallback(() => setShowQueue(prev => !prev), []);
   const handleClearCurrentMusic = useCallback(() => {
     dispatch(clearCurrentMusic());
     setShowQueue(false);
   }, [dispatch]);
 
-  // If no current music or queue, show empty state with error display
+  // Early return for empty state
   if (!currentMusicId || queue.length === 0) {
     return (
       <div className="bg-gradient-to-r from-gray-900 via-black to-gray-900 border-t border-gray-700">
         <div className="px-4 py-4 text-center">
           <p className="text-gray-400 text-sm mb-2">No track selected</p>
-          {/* Show ErrorDisplay if there's an error */}
           {error && (
             <ErrorDisplay 
               error={error} 
@@ -338,7 +421,6 @@ const MusicPlayer = () => {
               isRateLimited={isRateLimited}
             />
           )}
-          {/* Only show clear button if queue or musicDetails exist, but always allow clearing error */}
           {(queue.length > 0 || musicDetails?.name) && (
             <button
               onClick={handleClearCurrentMusic}
@@ -365,11 +447,9 @@ const MusicPlayer = () => {
       />
 
       <div className="bg-gradient-to-r from-gray-900 via-black to-gray-900 border-t border-gray-700 backdrop-blur-sm">
-        <audio ref={audioRef} preload="metadata" onEnded={() => dispatch({ type: "player/trackCompleted" })}/>
+        <audio ref={audioRef} preload="metadata" />
 
-        <AudioEqualizer 
-          audioRef={audioRef} 
-        />
+        <AudioEqualizer audioRef={audioRef} />
 
         <DeviceAudioControl
           audioRef={audioRef}
@@ -458,7 +538,6 @@ const MusicPlayer = () => {
                 }
               >
                 {isRateLimited ? (
-                  // Show warning icon when rate limited
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
                   </svg>

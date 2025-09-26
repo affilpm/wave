@@ -150,7 +150,7 @@ const resetStreamState = (state) => {
   state.isLoading = false; // Also reset loading state
 };
 
-// NEW: Complete reset for when no song is selected
+// Complete reset for when no song is selected
 const resetAllPlayerData = (state) => {
   state.currentMusicId = null;
   state.queue = [];
@@ -248,7 +248,7 @@ const playerSlice = createSlice({
         : musicData;
       
       if (!newMusicId) {
-        // NEW: If no music ID provided, clear all data
+        // If no music ID provided, clear all data
         resetAllPlayerData(state);
         return;
       }
@@ -290,7 +290,7 @@ const playerSlice = createSlice({
       const newQueue = Array.isArray(action.payload) ? action.payload : [];
       
       if (newQueue.length === 0) {
-        // NEW: If empty queue provided, clear all data
+        // If empty queue provided, clear all data
         resetAllPlayerData(state);
         return;
       }
@@ -426,7 +426,7 @@ const playerSlice = createSlice({
       resetAllPlayerData(state);
     },
 
-    // NEW: Action to clear current music and all related data
+    // Action to clear current music and all related data
     clearCurrentMusic: (state) => {
       resetAllPlayerData(state);
     },
@@ -543,7 +543,7 @@ export const {
   playPrevious,
   moveInQueue,
   clearQueue,
-  clearCurrentMusic, // NEW: Export the new action
+  clearCurrentMusic, // Export the new action
   setIsPlaying,
   setVolume,
   setIsMuted,
