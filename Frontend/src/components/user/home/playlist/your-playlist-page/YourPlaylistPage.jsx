@@ -199,7 +199,7 @@ const YourPlaylistPage = () => {
     if (!trackToRemove) return;
 
     try {
-      await api.post(`/api/playlist/playlists/${playlistId}/remove_tracks/`, {
+      await api.post(`/api/playlist/playlists/${playlistId}/remove-tracks/`, {
         track_ids: [trackToRemove.id],
       });
 
@@ -468,8 +468,8 @@ const YourPlaylistPage = () => {
         <div className="relative group w-36 h-36 md:w-48 md:h-48 flex-shrink-0">
           {playlist.name === "Liked Songs" ? (
             <div className="w-full h-full relative">
-              <div className="absolute inset-0 flex items-center justify-center">
-                {/* Placeholder component */}
+              <div className="w-full h-full relative bg-gradient-to-br from-purple-700 via-pink-600 to-red-500 rounded-lg shadow-2xl flex items-center justify-center">
+                <Heart className="h-20 w-20 md:h-28 md:w-28 text-white" fill="currentColor" />
               </div>
             </div>
           ) : (

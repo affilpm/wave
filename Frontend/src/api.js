@@ -164,41 +164,37 @@ export class api {
 
 
   handleLogout = async () => {
-  try {
+    try {
       const refreshToken = this.getToken('refreshTokenKey');
       const accessToken = this.getToken('accessTokenKey');
-      
-      // Attempt to notify server
-      if (refreshToken) {
-          await this.api.post('/api/users/logout/', {
-              refresh_token: refreshToken
-          }, {
-              headers: {
-                  Authorization: `Bearer ${accessToken}`
-              }
-          });
+
+      // Non-blocking logout API call
+      if (refreshToken && accessToken) {
+        this.api.post('/api/users/logout/', { refresh_token: refreshToken }, {
+          headers: { Authorization: `Bearer ${accessToken}` }
+        }).catch(err => console.error('Logout API error (non-blocking):', err));
       }
-  } catch (error) {
-      console.error('Error during logout:', error);
-  } finally {
-      // Clean up tokens
-      localStorage.removeItem(this.config.accessTokenKey);
-      localStorage.removeItem(this.config.refreshTokenKey);
-      
-      // Clean up API instance
+    } catch (error) {
+      console.error('Unexpected error during logout:', error);
+    } finally {
+      this.setToken('accessTokenKey', null);
+      this.setToken('refreshTokenKey', null);
+
+      localStorage.clear();
       delete this.api.defaults.headers.common.Authorization;
-      
-      // Clear persisted state
-      persistor.purge();
-      
-      // Navigate (via config callback)
-      this.config.onLogout();
-  }
-}
+
+      // Clear Redux state and then redirect
+      persistor.purge().finally(() => {
+        if (this.config.onLogout) {
+          this.config.onLogout();
+        }
+      });
+    }
+  };
 
 
 
 }
 
-export const apiInstance = new api({ baseURL: import.meta.env.VITE_API_URL, onLogout: () => window.location.replace('/landingpage') });
+export const apiInstance = new api({ baseURL: import.meta.env.VITE_API_URL, onLogout: () => {} });
 export default apiInstance.api; 

@@ -371,8 +371,7 @@ def google_auth(request):
         })
 
     except Exception as e:
-        # Log the error in production (using Django logging)
-        print(f"Auth error: {str(e)}")  # You can replace this with proper logging in production
+
         return Response({'message': str(e)}, status=400)
 
 

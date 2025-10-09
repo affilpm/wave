@@ -7,12 +7,7 @@ from . import views
 router = DefaultRouter()
 router.register(r'albums', AlbumViewSet, basename='album')
 router.register(r'music', MusicViewSet, basename='music')
-router.register(r'album_data', AlbumData, basename='albumData')
-
-
-
-
-
+router.register(r'album-data', AlbumData, basename='albumData')
 
 urlpatterns = [
     path('', include(router.urls)),

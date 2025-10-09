@@ -36,7 +36,7 @@ const UsernameSelectionModal = ({
   
     try {
       setLoading(true);
-      await api.post('/api/users/google_register/', 
+      await api.post('/api/users/google-register/', 
         { 
           token: googleCredential, 
           username: username 

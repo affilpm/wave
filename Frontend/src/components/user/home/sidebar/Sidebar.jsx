@@ -42,7 +42,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
     const fetchData = async () => {
       try {
         // Fetch user's own playlists
-        const ownPlaylistsResponse = await api.get('/api/playlist/playlist_data/');
+        const ownPlaylistsResponse = await api.get('/api/playlist/playlist-data/');
         // First, remove "Liked Songs" from the response data if it exists
         const regularPlaylists = ownPlaylistsResponse.data.filter(
           playlist => playlist.name !== 'Liked Songs'
@@ -69,7 +69,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
           const likedSongs = {
             id: likedSongsPlaylist.id,
             name: 'Liked Songs',
-            icon: <Heart className="h-6 w-6" />,
+            icon: <Heart className="h-6 w-6 text-pink-500" />,
             image: likedSongsPlaylist.cover_photo || "/api/placeholder/40/40",
             songCount: likedSongsPlaylist.tracks?.length || 0,
             type: 'Playlist',

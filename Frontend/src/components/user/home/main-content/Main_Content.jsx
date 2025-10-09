@@ -1,4 +1,3 @@
-// Dashboard.js - Updated to properly handle the LiveStreamSection
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import MusicSection from "./Music-section/MusicSection";
 import PlaylistSection from "./Playlist-section/PlaylistSection";
@@ -11,8 +10,8 @@ import { Shuffle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 // import RecentlyPlayedSection from "./RecentlyPlayedSection";
 import ArtistSection from "./Artist-section/ArtistSection";
-import LiveStreamSection from "../../../livestream/LiveStreamViewerApp";
-import LivestreamViewerApp from "../../../livestream/LiveStreamViewerApp";
+// import LiveStreamSection from "../../../livestream/LiveStreamViewerApp";
+// import LivestreamViewerApp from "../../../livestream/LiveStreamViewerApp";
 
 const ShufflingDashboard = ({ children }) => {
   const [sections, setSections] = useState([]);
@@ -130,7 +129,7 @@ const Main_Content = () => {
   const [AlbumlistData, setAlbumlistData] = useState([]);
   const [recentlyPlayedData, setRecentlyPlayedData] = useState([]);
   const [artistlist, setArtistlist] = useState([]);
-  const [liveStreams, setLiveStreams] = useState([]);
+  // const [liveStreams, setLiveStreams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const navigate = useNavigate();

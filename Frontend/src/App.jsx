@@ -34,7 +34,7 @@ import ArtistPage from './components/user/home/main-content/Artist-section/Artis
 // import LivestreamApp from './components/live';
 import { useDispatch } from 'react-redux';
 // import LivestreamViewerApp from './components/live';
-import StreamListingPage from './components/livestream/LiveStreamViewerApp';
+// import StreamListingPage from './components/livestream/LiveStreamViewerApp';
 import TransactionHistory from './components/user/home/header/settings/TransactionHistory';
 import ArtistsShowMorePage from './components/user/home/main-content/Artist-section/ArtistsShowMorePage';
 import NotFound from './components/NotFound';
@@ -99,7 +99,7 @@ function App() {
           <Route path="/premium" element={<Premium/>} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/transactions" element={<TransactionHistory />} />
-          <Route path="/livestreams" element={<StreamListingPage/>} />
+          {/* <Route path="/livestreams" element={<StreamListingPage/>} /> */}
 
           <Route path="/" element={<HomePage />}>
               <Route index element={<Navigate to="/home" replace />} />

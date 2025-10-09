@@ -11,27 +11,24 @@ export const adminLogout = async () => {
     const accessToken = localStorage.getItem(ACCESS_TOKEN);
 
     try {
-        if (refreshToken) {
+        
+        if (refreshToken && accessToken) {
             await api.post(`${import.meta.env.VITE_API_URL}/api/users/logout/`, {
-                refresh_token: refreshToken,  
+                refresh_token: refreshToken,
             }, {
-                headers: {
-                    Authorization: `Bearer ${accessToken}`,
-                },
+                headers: { Authorization: `Bearer ${accessToken}` },
             });
         }
     } catch (err) {
         console.error('Error during logout:', err);
+        // Even if API fails, continue cleanup
     } finally {
-        localStorage.removeItem(ACCESS_TOKEN);
-        localStorage.removeItem(REFRESH_TOKEN);
+        localStorage.clear(); // clears everything at once
 
         delete api.defaults.headers.common.Authorization;
-        
-        persistor.purge().then( () => {
+
+        persistor.purge().finally(() => {
             window.location.href = '/adminlogin';
-        })
-        
+        });
     }
 };
-

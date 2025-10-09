@@ -145,7 +145,7 @@ const AlbumPage = () => {
     try {
       setIsLibraryLoading(true);
       if (isInLibrary) {
-        await api.post('/api/library/remove_album/', { album_id: albumId });
+        await api.post('/api/library/remove-album/', { album_id: albumId });
         setIsInLibrary(false);
       } else {
         await api.post('/api/library/library/add-album/', { album_id: albumId });
@@ -177,7 +177,7 @@ const AlbumPage = () => {
   useEffect(() => {
     const fetchAlbum = async () => {
       try {
-        const response = await api.get(`/api/album/album_data/${albumId}/`);
+        const response = await api.get(`/api/album/album-data/${albumId}/`);
         setAlbum(response.data);
         if (
           queue.length > 0 &&
@@ -375,7 +375,7 @@ const AlbumPage = () => {
             <Share2 className="h-5 w-5 sm:h-6 sm:w-6" />
           </button>
 
-          <button
+          {/* <button
             className={`group p-1 border-2 rounded-full w-8 h-8 flex items-center justify-center 
               transition-all duration-200 transform hover:scale-105
               ${isInLibrary
@@ -391,7 +391,7 @@ const AlbumPage = () => {
             ) : (
               <Plus className="h-5 w-5 text-gray-400 group-hover:text-white transition-colors" />
             )}
-          </button>
+          </button> */}
         </div>
       </div>
 

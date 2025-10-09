@@ -11,7 +11,7 @@ import MusicUpload from './music_uploader/MusicUpload';
 import AlbumCreator from './AlbumCreator';
 import MusicManagement from './MusicManagement';
 import AlbumManagement from './AlbumManagement';
-import ArtistLiveStream from '../../livestream/ArtistLiveStream';
+// import ArtistLiveStream from '../../livestream/ArtistLiveStream';
 
 const Studio = () => {
   const [activeView, setActiveView] = useState('dashboard');

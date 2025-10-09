@@ -101,7 +101,7 @@ const GenreDiscovery = () => {
   useEffect(() => {
     const fetchGenres = async () => {
       try {
-        const response = await api.get('/api/home/public_genres/');
+        const response = await api.get('/api/home/public-genres/');
         setGenres(response.data);
         setLoading(false);
       } catch (err) {

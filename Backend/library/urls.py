@@ -8,18 +8,13 @@ from .views import PlaylistLibraryView, PlaylistViewSet
 
 router = DefaultRouter()
 router.register(r'library', LibraryViewSet, basename='library')
-router.register(r'playlist_data', PlaylistViewSet, basename='playlist')
+router.register(r'playlist-data', PlaylistViewSet, basename='playlist')
 
 # Get the router URLs
 urlpatterns = router.urls
 urlpatterns = [
     path('', include(router.urls)),
-    path('playlists/', PlaylistLibraryView.as_view(), name='playlist-detail'),
-    # path('tracks/', UserTracksView.as_view(), name='user-tracks'),
-    # path('tracks/detailed/', UserTracksDetailView.as_view(), name='user-tracks-detailed'),
-    # path('', include(router.urls)),
-    # Add specific library endpoints
-    # path('p/', LibraryPlaylistView.as_view(), name='library-playlists'),
-    path('library/add-playlist/', views.LibraryViewSet.as_view({'post': 'add_playlist'}), name='library-add-playlist'),
-    path('remove_playlist/', views.LibraryViewSet.as_view({'post': 'remove_playlist'}), name='library-remove-playlist'),
+    path('playlists/', PlaylistLibraryView.as_view(), name='playlist_detail'),
+    path('library/add-playlist/', views.LibraryViewSet.as_view({'post': 'add_playlist'}), name='library_add_playlist'),
+    path('remove-playlist/', views.LibraryViewSet.as_view({'post': 'remove_playlist'}), name='library_remove_playlist'),
 ]

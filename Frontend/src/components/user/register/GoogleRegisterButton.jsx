@@ -1,4 +1,3 @@
-// GoogleRegisterButton.jsx
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../api';
@@ -25,7 +24,7 @@ const GoogleRegisterButton = () => {
         throw new Error('No credential received from Google');
       }
   
-      const { data } = await api.post('/api/users/google_pre_register/', 
+      const { data } = await api.post('/api/users/google-pre-register/', 
         { token: response.credential },
         { headers: { 'Content-Type': 'application/json' } }
       );

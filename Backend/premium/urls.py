@@ -9,7 +9,6 @@ from .views import (
     TransactionViewSet
 )
 
-# Create a router for the PremiumPlanViewSet
 router = DefaultRouter()
 router.register(r'plans', PremiumPlanViewSet, basename='premiumplan')
 router.register(r'transactions', TransactionViewSet, basename='transaction')
@@ -18,5 +17,5 @@ urlpatterns = [
     path('verify-payment/', VerifyPaymentView.as_view(), name='verify_payment'),
     path('user-subscription/', UserSubscriptionView.as_view(), name='user_subscription'),
     path('check-subscription-status/', CheckSubscriptionStatusView.as_view(), name='check_subscription_status'),
-    path('', include(router.urls)),  # Include the routes for PremiumPlanViewSet
+    path('', include(router.urls)),  
 ]

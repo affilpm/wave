@@ -77,7 +77,7 @@ const GoogleAuthButton = () => {
         throw new Error('No credential received from Google');
       }
   
-      const { data } = await api.post('/api/users/google_auth/', 
+      const { data } = await api.post('/api/users/google-auth/', 
         { token: response.credential },
         { headers: { 'Content-Type': 'application/json' } }
       );

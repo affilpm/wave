@@ -160,7 +160,7 @@ const SavedPlaylistPage = () => {
     try {
       setIsLibraryLoading(true);
       if (isInLibrary) {
-        await api.post('/api/library/remove_playlist/', { playlist_id: playlistId });
+        await api.post('/api/library/remove-playlist/', { playlist_id: playlistId });
         setIsInLibrary(false);
       } else {
         await api.post('/api/library/library/add-playlist/', { playlist_id: playlistId });
