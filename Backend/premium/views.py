@@ -9,8 +9,6 @@ from django.shortcuts import get_object_or_404
 import razorpay
 import uuid
 import logging
-from .models import PremiumPlan, UserSubscription, RazorpayTransaction
-from .serializers import PremiumPlanSerializer, UserSubscriptionSerializer, RazorpayTransactionSerializer
 from django_filters.rest_framework import DjangoFilterBackend
 from .models import RazorpayTransaction, UserSubscription, PremiumPlan
 from .serializers import RazorpayTransactionSerializer, UserSubscriptionSerializer, PremiumPlanSerializer
@@ -18,9 +16,7 @@ import csv
 from django.http import HttpResponse
 from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
-from rest_framework.response import Response
 from django.shortcuts import get_object_or_404
-from django.utils import timezone
 
 
 logger = logging.getLogger(__name__)

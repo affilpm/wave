@@ -1,9 +1,8 @@
-// src/store/modalSlice.js
 import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
   isOpen: false,
-  modalContent: null, // You can store the content of the modal here if needed
+  modalContent: null, 
 };
 
 const modalSlice = createSlice({
@@ -12,7 +11,7 @@ const modalSlice = createSlice({
   reducers: {
     openModal: (state, action) => {
       state.isOpen = true;
-      state.modalContent = action.payload; // You can pass the content to display in the modal
+      state.modalContent = action.payload; 
     },
     closeModal: (state) => {
       state.isOpen = false;

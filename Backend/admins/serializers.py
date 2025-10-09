@@ -1,8 +1,6 @@
 from rest_framework import serializers
-from django.contrib.auth import authenticate
 from users.models import CustomUser
 from artists.models import Artist
-from users.models import CustomUser
 from users.serializers import UserSerializer
 from premium.models import PremiumPlan, UserSubscription, RazorpayTransaction
 from music.models import Music

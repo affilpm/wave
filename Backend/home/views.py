@@ -101,12 +101,6 @@ class PublicGenresViewSet(viewsets.ReadOnlyModelViewSet):
     
     
 
-
-
-    
-
-
-
 @api_view(['GET'])
 def get_music_by_genre(request, genre_id):
     music = Music.objects.filter(
@@ -120,8 +114,6 @@ def get_music_by_genre(request, genre_id):
     serializer = MusicDataSerializer(result_page, many=True)
     return paginator.get_paginated_response(serializer.data)
 
-
-    
     
     
     

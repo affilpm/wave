@@ -8,11 +8,10 @@ const initialState = {
   first_name: '',
   last_name: '',
   image: '', // Image will be null initially
-  isAuthenticated: false, // Add isAuthenticated field
+  isAuthenticated: false, 
 
 };
 
-// Create the slice
 const userSlice = createSlice({
   name: 'user',
   initialState,
@@ -23,7 +22,7 @@ const userSlice = createSlice({
       state.username = action.payload.username;
       state.first_name = action.payload.first_name;
       state.last_name = action.payload.last_name;
-      state.image = action.payload.image || ''; // image can be added later
+      state.image = action.payload.image || ''; 
       state.isAuthenticated = true; // Set isAuthenticated to true when user data is set
     },
     
@@ -45,8 +44,6 @@ const userSlice = createSlice({
   },
 });
 
-// Export actions for use in components
 export const { setUserData, clearUserData, updateUserProfile } = userSlice.actions;
 
-// Export the reducer to be added to the store
 export default userSlice.reducer;

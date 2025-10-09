@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.db import transaction
-
+from users.models import CustomUser
+from artists.models import Artist
+from django.db.models import Count
 
 # this view is used search music and add to playlist
 class MusicService(viewsets.ModelViewSet):
@@ -62,10 +64,6 @@ class PlaylistData(viewsets.ModelViewSet):
         return queryset
         
         
-        
-from artists.models import Artist
-from django.db.models import Count
-
         
 class PublicPlaylistData(viewsets.ModelViewSet):
     serializer_class = PlaylistSerializer
@@ -155,8 +153,6 @@ class PlaylistViewSet(viewsets.ModelViewSet):
 
     
     def create(self, request, *args, **kwargs):
-
-    
         try:
             if request.data.get('name', '').lower() == 'liked tracks':
                 existing_liked_playlist = Playlist.objects.filter(
@@ -427,24 +423,6 @@ class PlaylistViewSet(viewsets.ModelViewSet):
             
             
             
-            
-            
-# # this view is used to list all the tracks in a playlist           
-# class PlaylistTrackViewSet(viewsets.ModelViewSet):
-#    serializer_class = PlaylistTrackSerializer
-#    permission_classes = [IsAuthenticated]
-   
-#    def get_queryset(self):
-#         queryset = PlaylistTrack.objects.filter(playlist__created_by=self.request.user)
-#         playlist_id = self.request.query_params.get('playlist', None)
-#         if playlist_id:
-#             queryset = queryset.filter(playlist_id=playlist_id)
-#         return queryset
-    
-    
-    
-from users.models import CustomUser
-
 
 @receiver(post_save, sender=CustomUser)
 def create_liked_playlist(sender, instance, created, **kwargs):
@@ -461,7 +439,6 @@ def create_liked_playlist(sender, instance, created, **kwargs):
                 description='Tracks you have liked'
             )
         except Exception as e:
-            # Log the error or handle it appropriately
             # print(f"Failed to create Liked Tracks playlist for user {instance.username}: {e}")
             pass
     

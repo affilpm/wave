@@ -9,7 +9,7 @@ def create_or_update_user_from_google(sender, request, sociallogin, **kwargs):
     user = sociallogin.user
     google_data = sociallogin.account.extra_data  # This contains the user's Google profile data
 
-    # Check if the user has an email (Google should provide this)
+    # Check if the user has an email 
     if user.email and not user.is_verified:
         user.is_verified = True  # Mark the user as verified after Google login
         user.save()

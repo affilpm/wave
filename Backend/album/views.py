@@ -1,27 +1,16 @@
-from django.shortcuts import render
-from .serializers import AlbumTrackSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework import viewsets, status
-from rest_framework.views import APIView
 from rest_framework.decorators import action
-from music.models import AlbumTrack, Album
-from rest_framework import viewsets, status
+from music.models import AlbumTrack, Album, Music, MusicApprovalStatus
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
-from mutagen.mp3 import MP3
-from mutagen.wavpack import WavPack
-from mutagen import File
 from .serializers import AlbumSerializer
-from django.core.exceptions import ValidationError
-from django.db import IntegrityError
 import json
 from rest_framework.parsers import JSONParser
 from music.serializers import  MusicSerializer
 from rest_framework.viewsets import ModelViewSet
-from music.models import Music, MusicApprovalStatus
-from django.db.models import Q, Prefetch
-
+from django.db.models import Prefetch
 
 
 
@@ -73,7 +62,6 @@ class AlbumViewSet(viewsets.ModelViewSet):
         Completely delete the album, including any related files or associated data.
         """
         album = self.get_object()  # Get the album object to be deleted
-        # Optional: You can add logic to delete related files or data here
         album.delete()  # Deletes the album from the database
 
         # Return a success response
@@ -280,9 +268,6 @@ class AlbumViewSet(viewsets.ModelViewSet):
         drafts = self.get_queryset().filter(status='draft')
         serializer = self.get_serializer(drafts, many=True)
         return Response(serializer.data)
-
-
-
 
 
 

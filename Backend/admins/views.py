@@ -1,35 +1,25 @@
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework import viewsets, filters
+from rest_framework import viewsets, filters, status
 from django_filters.rest_framework import DjangoFilterBackend
 from users.models import CustomUser
-from artists.models import Artist
-from .serializers import UserTableSerializer, UserStatusUpdateSerializer
+from artists.models import Artist, ArtistVerificationStatus
+from .serializers import UserTableSerializer, UserStatusUpdateSerializer, RazorpayTransactionSerializer, RazorpayTransactionDetailSerializer
 from django.db import models
-from rest_framework import viewsets, status
-from rest_framework.decorators import action
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db.models import Q
 from django.conf import settings
 import razorpay
 from premium.models import RazorpayTransaction, UserSubscription, PremiumPlan
-from .serializers import (
-    RazorpayTransactionSerializer,
-    RazorpayTransactionDetailSerializer
-)
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework.decorators import api_view, permission_classes
-import razorpay
-import json
+from rest_framework.decorators import api_view, permission_classes, action
 from django.utils import timezone
 from django.utils.timezone import now
-from django.db.models import Count
 from listening_history.models import MusicPlayCount
 from artists.serializers import ArtistSerializer
-from artists.models import ArtistVerificationStatus
 from rest_framework.permissions import IsAdminUser
 from django.db.models import Sum, Count
 import datetime
@@ -62,11 +52,8 @@ class AdminLoginView(TokenObtainPairView):
             )
             
             
-            
-
 #used to list users
 User = CustomUser
-
 
 
 class Pagination(PageNumberPagination):
@@ -105,11 +92,6 @@ class UserTableViewSet(viewsets.ModelViewSet):
         })
 
 
-
-
-
-
-
     
 # ViewSet for managing artists
 class ArtistViewSet(viewsets.ModelViewSet):
@@ -140,7 +122,7 @@ class ArtistViewSet(viewsets.ModelViewSet):
                     }
                     for artist in page
                 ]
-                return self.get_paginated_response(artist_data)  # ✅ Correct DRF pagination response
+                return self.get_paginated_response(artist_data)  
             
             # If pagination is not applied, return manually paginated response
             artist_data = [
@@ -156,10 +138,10 @@ class ArtistViewSet(viewsets.ModelViewSet):
             ]
 
             return Response({
-                'count': len(artist_data),  # ✅ Ensuring total count is sent
+                'count': len(artist_data),  
                 'next': None,
                 'previous': None,
-                'results': artist_data  # ✅ Consistent response format
+                'results': artist_data  
             }, status=200)
         
         except Exception as e:
@@ -185,13 +167,6 @@ class ArtistViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Artist not found'}, status=404)
 
                     
-                   
-                   
-                   
-
-                   
-                   
-
 
 class TransactionPagination(PageNumberPagination):
     page_size = 10
@@ -300,8 +275,7 @@ class AdminTransactionViewSet(viewsets.ReadOnlyModelViewSet):
             )
             
             
-            
-
+        
 
 class TransactionStatsView(APIView):
     """
@@ -424,8 +398,6 @@ def total_premium_users(request):
 
 
 
-
-
 @api_view(['GET'])
 @permission_classes([IsAdminUser]) 
 def total_premium_users_and_revenue(request):
@@ -476,8 +448,6 @@ def top_5_songs(request):
     
     print(data)
     return Response(data)  
-
-
 
 
 

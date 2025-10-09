@@ -1,6 +1,6 @@
 from django.urls import path, include
-from . import views  # Correct import for views from the same app
-from .views import AdminLoginView # or TokenObtainPairView if using the default
+from . import views  
+from .views import AdminLoginView 
 from rest_framework.routers import DefaultRouter
 from .views import UserTableViewSet, AdminTransactionViewSet, TransactionStatsView, total_users, top_5_songs, total_premium_users_and_revenue, top_5_artists
 

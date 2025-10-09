@@ -1,26 +1,16 @@
-from django.shortcuts import render
-
-# Create your views here.
-# views.py
-from rest_framework import status, viewsets
+from rest_framework import status, viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from .models import Library
 from playlist.models import Playlist
-# from .serializers import LibrarySerializer, PlaylistSerializer, PlaylistDetailSerializer, LibraryPlaylistSerializer
-from django.db.models import Q
 from .serializers import LibraryPlaylistSerializer
-
-from rest_framework import viewsets, permissions
-from rest_framework.decorators import action
-from rest_framework.response import Response
-from django.shortcuts import get_object_or_404
-from library.models import Library
-from playlist.models import Playlist
 from playlist.serializers import PlaylistSerializer
- 
+from rest_framework import generics
+from .serializers import PlaylistDetailSerializer
+
+
 class PlaylistViewSet(viewsets.ModelViewSet):
     serializer_class = PlaylistSerializer
     permission_classes = [IsAuthenticated]
@@ -132,39 +122,6 @@ class LibraryViewSet(viewsets.ViewSet):
 
 
 
-
-# class PlaylistViewSet(viewsets.ModelViewSet):
-#     queryset = Playlist.objects.all()
-#     permission_classes = [IsAuthenticated]
-    
-#     def get_serializer_class(self):
-#         if self.action == 'retrieve':
-#             return PlaylistDetailSerializer
-#         return PlaylistSerializer
-
-#     def perform_create(self, serializer):
-#         serializer.save(created_by=self.request.user)
-
-#     def get_queryset(self):
-#         # Return public playlists and user's own playlists
-#         return Playlist.objects.filter(
-#             Q(is_public=True) | 
-#             Q(created_by=self.request.user)
-#         )
-
-    
-
-
-# views.py
-from rest_framework import generics
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.exceptions import PermissionDenied
-from django.shortcuts import get_object_or_404
-from playlist.models import Playlist
-from .serializers import PlaylistDetailSerializer
-from rest_framework import generics
-from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q
 
 class PlaylistLibraryView(generics.ListAPIView):
     """

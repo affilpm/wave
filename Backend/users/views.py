@@ -1,6 +1,6 @@
 from google.oauth2 import id_token
 from google.auth.transport import requests
-from rest_framework.decorators import api_view, permission_classes,authentication_classes
+from rest_framework.decorators import api_view, permission_classes,authentication_classes, parser_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from django.conf import settings
@@ -22,7 +22,6 @@ from django.db.models import Count, F
 from .models import CustomUser
 from playlist.models import Playlist
 from .serializers import UserProfileSerializer, PlaylistSerializer
-from rest_framework.decorators import api_view, permission_classes, parser_classes
 from rest_framework.parsers import MultiPartParser, FormParser
 
 
@@ -514,10 +513,7 @@ def logout(request):
             status=status.HTTP_400_BAD_REQUEST
         )
         
-        
-        
-        
-        
+         
 
 
 @api_view(['POST'])
@@ -748,8 +744,6 @@ def user_playlists_view(request):
     )
     serializer = PlaylistSerializer(playlists, many=True)
     return Response(serializer.data)
-
-
 
 
 

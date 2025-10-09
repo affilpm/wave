@@ -1,5 +1,5 @@
 import React from 'react';
-import { FaMusic, FaPlay, FaHeadphones, FaListAlt } from 'react-icons/fa'; // Import icons from react-icons
+import { FaMusic, FaPlay, FaHeadphones, FaListAlt } from 'react-icons/fa'; 
 import { useNavigate } from 'react-router-dom';
 
 
@@ -10,7 +10,7 @@ const LandingPage = () => {
       {/* Navigation */}
       <nav className="container mx-auto px-6 py-4 flex justify-between items-center">
         <div className="flex items-center space-x-2">
-            <img src="/shape.png" alt="Music Logo" className="w-10 h-10" /> {/* Replace with your image */}
+            <img src="/shape.png" alt="Music Logo" className="w-10 h-10" /> 
             <span className="text-xl font-bold text-white">Wave</span>
         </div>
         <div className="space-x-4">

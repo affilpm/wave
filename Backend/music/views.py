@@ -1,40 +1,22 @@
-from django.shortcuts import render, get_object_or_404
-import subprocess
-from .models import Genre, Music, UserPreference
-from .serializers import GenreSerializer, MusicSerializer, MusicDataSerializer, EqualizerPresetSerializer, UserPreferenceSerializer
+from .models import Genre, Music, UserPreference, Album, AlbumTrack, MusicApprovalStatus, EqualizerPreset, StreamingFile, HLSQuality
+from .serializers import GenreSerializer, MusicSerializer, MusicDataSerializer, UserPreferenceSerializer, MusicVerificationSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 from rest_framework.viewsets import ModelViewSet
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view
 from rest_framework.permissions import IsAdminUser
-from .models import Music, MusicApprovalStatus
-from .serializers import MusicVerificationSerializer
-from rest_framework import viewsets, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.generics import UpdateAPIView
 from django.db import transaction
-from .models import Album
-from .models import AlbumTrack
 from django.core.exceptions import ValidationError
 from django.core.cache import cache
-from django.http import StreamingHttpResponse
-from rest_framework.permissions import AllowAny  
-from .models import EqualizerPreset
-import traceback
-import logging
 from rest_framework import generics
 from rest_framework.pagination import PageNumberPagination
 from django.db.models import Q
-from django.db import models, transaction
 from django.shortcuts import get_object_or_404
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
-from .models import Music, StreamingFile, HLSQuality, UserPreference
 from .throttles import MusicStreamingRateThrottle
 from premium.models import UserSubscription
 
@@ -69,9 +51,7 @@ class PublicSongsView(generics.ListAPIView):
         ).order_by('-release_date')
         
         
-        
-        
-        
+         
 
 class SongsByArtistView(generics.ListAPIView):
     serializer_class = MusicDataSerializer
@@ -87,15 +67,11 @@ class SongsByArtistView(generics.ListAPIView):
         
 
 
-
-
-
 class MusicPagination(PageNumberPagination):
     page_size = 8
     page_size_query_param = 'page_size'
     max_page_size = 100
-    
-    
+      
     
     
 class MusicViewSet(ModelViewSet):
@@ -189,9 +165,7 @@ class MusicViewSet(ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
             
-
-        
-        
+    
         
     @action(detail=False, methods=['get'])
     def check_name(self, request):
@@ -283,9 +257,6 @@ def user_equalizer_preset(request):
 
 
 
-
-
-
 class MusicVerificationViewSet(viewsets.ModelViewSet):
     serializer_class = MusicVerificationSerializer
     permission_classes = [IsAdminUser]
@@ -337,8 +308,6 @@ class MusicVerificationViewSet(viewsets.ModelViewSet):
             )
 
                     
-
-
 
 
 
@@ -465,7 +434,6 @@ class UserQualityPreferenceView(APIView):
         }, status=status.HTTP_200_OK)
 
 
-        
         
         
 class UpdateUserPreferenceView(UpdateAPIView):  

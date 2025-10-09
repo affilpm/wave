@@ -1,4 +1,3 @@
-// redux/slices/playlistSlice.js
 import { createSlice } from '@reduxjs/toolkit';
 
 const initialState = {
