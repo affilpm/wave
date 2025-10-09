@@ -15,7 +15,7 @@ urlpatterns = [
     path('transaction-stats/', TransactionStatsView.as_view(), name='transaction_stats'),
     path('login/', AdminLoginView.as_view(), name='admin_login'),
     path('total-users/', total_users, name='total_users'),
-    path('premium_stats/', total_premium_users_and_revenue, name='stats'),
+    path('premium-stats/', total_premium_users_and_revenue, name='stats'),
     path('top-songs/', top_5_songs, name='top_songs'),
     path('top-artists/', top_5_artists, name='top_artists'),
 

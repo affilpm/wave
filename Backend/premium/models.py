@@ -67,8 +67,12 @@ class UserSubscription(models.Model):
     expires_at = models.DateTimeField(null=True, blank=True)
     
     def is_active(self):
-        return (self.status == 'active' and self.expires_at and self.expires_at > timezone.now())
-    
+        if self.status == 'active' and self.expires_at and self.expires_at <= timezone.now():
+            # Auto-expire
+            self.status = 'expired'
+            self.save(update_fields=['status'])
+        return self.status == 'active'
+            
     def renew_subscription(self, plan):
         """Renew or upgrade subscription"""
         self.plan = plan

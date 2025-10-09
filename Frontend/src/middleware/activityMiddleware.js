@@ -3,7 +3,7 @@ import api from "../api";
 // small helper
 const recordActivity = async (musicId, activityType) => {
   try {
-    await api.post(`/api/listening_history/record-activity/${musicId}/`, {
+    await api.post(`/api/listening-history/record-activity/${musicId}/`, {
       activity_type: activityType,
     });
   } catch (err) {

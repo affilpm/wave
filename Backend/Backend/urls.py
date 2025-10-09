@@ -21,7 +21,7 @@ from django.conf.urls.static import static
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('api/users/', include('users.urls')),  # Include URLs for the 'users' app
+    path('api/users/', include('users.urls')),  
     path('api/artists/', include('artists.urls')), 
     path('api/admins/', include('admins.urls')), 
     path('api/music/', include('music.urls')), 
@@ -30,7 +30,7 @@ urlpatterns = [
     path('api/home/', include('home.urls')), 
     path('api/library/', include('library.urls')), 
     path('api/premium/', include('premium.urls')), 
-    # path('api/listening-history/', include('listening_history.urls')),
+    path('api/listening-history/', include('listening_history.urls')),
     path('api/livestream/', include('agora.urls')),
     
     

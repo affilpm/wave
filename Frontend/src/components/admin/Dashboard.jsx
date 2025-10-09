@@ -33,7 +33,7 @@ const Dashboard = () => {
         // Fetch data from all endpoints in parallel
         const [totalUsersRes, statsRes, topSongsRes, topArtistsRes] = await Promise.all([
           apiInstance.get('/api/admins/total-users/'),
-          apiInstance.get('/api/admins/premium_stats/'),
+          apiInstance.get('/api/admins/premium-stats/'),
           apiInstance.get('/api/admins/top-songs/'),
           apiInstance.get('/api/admins/top-artists/')
         ]);
