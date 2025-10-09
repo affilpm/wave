@@ -86,7 +86,7 @@ const GenrePage = () => {
     const fetchGenreData = async () => {
       try {
         const [genreResponse, tracksResponse] = await Promise.all([
-          api.get(`/api/home/public_genres/${genreId}/`),
+          api.get(`/api/home/public-genres/${genreId}/`),
           api.get(`/api/home/by-genre/${genreId}/?page=${currentPage}`)
         ]);
         setGenreData(genreResponse.data);
