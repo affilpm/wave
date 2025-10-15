@@ -22,7 +22,7 @@
 - [API Documentation](#-api-documentation)
 - [Deployment](#-deployment)
 - [Security](#-security)
-- [Screenshots](#-screenshots)
+<!-- - [Screenshots](#-screenshots) -->
 - [Contributing](#-contributing)
 - [License](#-license)
 - [Contact](#-contact)
@@ -31,7 +31,7 @@
 
 **Wave** is a powerful, feature-rich music streaming platform designed for both artists and listeners. The platform consists of a robust Django backend and a modern React frontend, providing a seamless experience for music discovery, playback, and artist promotion.
 
-Wave enables artists to upload, manage, and monetize their music while giving listeners a personalized experience for discovering, streaming, and organizing music. With premium subscription options, real-time interactions through WebSockets, and a responsive design for all devices, Wave offers a comprehensive solution for music streaming needs.
+Wave enables artists to upload, manage their music while giving listeners a personalized experience for discovering, streaming, and organizing music. With premium subscription options and a responsive design for all devices, Wave offers a comprehensive solution for music streaming needs.
 
 ## ✨ Features
 
@@ -45,17 +45,22 @@ Wave enables artists to upload, manage, and monetize their music while giving li
 
 <div style="background-color: #E0F7FA; padding: 10px; border-radius: 8px;">
   <h4>📋 Playlist Management</h4>
-  <p>Create, share, and discover playlists</p>
+  <p>Create and discover playlists</p>
 </div>
 
 <div style="background-color: #E8F5E9; padding: 10px; border-radius: 8px;">
   <h4>📚 Library Organization</h4>
-  <p>Save songs, albums, and playlists</p>
+  <p>Save songs, artists and playlists</p>
 </div>
 
 <div style="background-color: #F3E5F5; padding: 10px; border-radius: 8px;">
   <h4>🎛️ Audio Controls</h4>
   <p>Equalizer with custom presets</p>
+</div>
+
+<div style="background-color: #FFF8E1; padding: 10px; border-radius: 8px;">
+  <h4>🎚️ Streaming Quality Control</h4>
+  <p>Listeners can choose music quality: Low, Medium, High, or Lossless.</p>
 </div>
 
 <div style="background-color: #FFF8E1; padding: 10px; border-radius: 8px;">
@@ -65,7 +70,7 @@ Wave enables artists to upload, manage, and monetize their music while giving li
 
 <div style="background-color: #FFEBEE; padding: 10px; border-radius: 8px;">
   <h4>👥 Social Features</h4>
-  <p>Follow artists and share music</p>
+  <p>Follow artists</p>
 </div>
 </div>
 
@@ -87,39 +92,20 @@ Wave enables artists to upload, manage, and monetize their music while giving li
   <p>Track play counts and listener demographics</p>
 </div>
 
-<div style="background-color: #E0F2F1; padding: 10px; border-radius: 8px;">
-  <h4>💰 Monetization</h4>
-  <p>Earn from streams and premium features</p>
-</div>
-
-<div style="background-color: #FFF3E0; padding: 10px; border-radius: 8px;">
-  <h4>🔴 Livestreaming</h4>
-  <p>Host live performances for followers</p>
-</div>
-
 <div style="background-color: #F9FBE7; padding: 10px; border-radius: 8px;">
   <h4>🔍 Discovery Options</h4>
-  <p>Genre tagging and promotion tools</p>
+  <p>Genre tagging</p>
 </div>
 </div>
 
 ### Premium Features
 
 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-<div style="background-color: #FCE4EC; padding: 10px; border-radius: 8px;">
-  <h4>🎵 High-Quality Audio</h4>
-  <p>Access to lossless audio streaming</p>
+<div style="background-color: #E3F2FD; padding: 10px; border-radius: 8px;">
+  <h4>⚙️ Quality Selector</h4>
+  <p>Non-premium users stream in standard quality, while premium users enjoy adaptive streaming with manual quality selection.</p>
 </div>
 
-<div style="background-color: #E8EAF6; padding: 10px; border-radius: 8px;">
-  <h4>📴 Offline Playback</h4>
-  <p>Download music for offline listening</p>
-</div>
-
-<div style="background-color: #EFEBE9; padding: 10px; border-radius: 8px;">
-  <h4>🚫 Ad-Free Experience</h4>
-  <p>Uninterrupted listening without ads</p>
-</div>
 </div>
 
 ## 🛠️ Tech Stack
@@ -131,9 +117,11 @@ Wave enables artists to upload, manage, and monetize their music while giving li
   <img src="https://img.shields.io/badge/Django_REST_Framework-092E20?style=for-the-badge&logo=django&logoColor=white" alt="DRF" />
   <img src="https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
   <img src="https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis" />
+  <img src="https://img.shields.io/badge/Celery-37814A?style=for-the-badge&logo=celery&logoColor=white" alt="Celery" />
   <img src="https://img.shields.io/badge/Django_Channels-092E20?style=for-the-badge&logo=django&logoColor=white" alt="Django Channels" />
   <img src="https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=json-web-tokens&logoColor=white" alt="JWT" />
   <img src="https://img.shields.io/badge/Razorpay-3395FF?style=for-the-badge&logo=razorpay&logoColor=white" alt="Razorpay" />
+  <img src="https://img.shields.io/badge/AWS_CloudFront-FF9900?style=for-the-badge&logo=amazon-aws&logoColor=white" alt="AWS CloudFront" />
 </div>
 
 ### Frontend
@@ -145,7 +133,6 @@ Wave enables artists to upload, manage, and monetize their music while giving li
   <img src="https://img.shields.io/badge/React_Router-CA4245?style=for-the-badge&logo=react-router&logoColor=white" alt="React Router" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="Tailwind CSS" />
   <img src="https://img.shields.io/badge/Material_UI-0081CB?style=for-the-badge&logo=material-ui&logoColor=white" alt="Material UI" />
-  <img src="https://img.shields.io/badge/Chakra_UI-319795?style=for-the-badge&logo=chakra-ui&logoColor=white" alt="Chakra UI" />
   <img src="https://img.shields.io/badge/Framer_Motion-0055FF?style=for-the-badge&logo=framer&logoColor=white" alt="Framer Motion" />
   <img src="https://img.shields.io/badge/Axios-5A29E4?style=for-the-badge&logo=axios&logoColor=white" alt="Axios" />
 </div>
@@ -162,10 +149,14 @@ graph TD
     WebServer --> |WSGI| DjangoApp[Django Application]
     WSServer --> |ASGI| Channels[Django Channels]
     DjangoApp --> |Queries| PostgreSQL[(PostgreSQL Database)]
-    DjangoApp --> |Cache| Redis[(Redis Cache)]
     DjangoApp --> |Auth| JWT[JWT Auth]
     DjangoApp --> |Payments| Razorpay[Razorpay API]
     DjangoApp --> |Storage| S3[S3 Storage]
+    DjangoApp --> |Async Tasks| Celery[Celery Worker]
+    Celery --> |Broker / Backend| Redis[(Redis – Cache + Message Broker)]
+    Celery --> |Audio Processing| HLS[HLS Variant Generator]
+    HLS --> |Uploads| S3
+    S3 --> |CDN| CloudFront[Amazon CloudFront CDN]
     Channels --> Redis
 ```
 
@@ -209,6 +200,7 @@ Wave uses a comprehensive data model with the following key components:
     <li><code>Playlist</code> & <code>PlaylistTrack</code>: Playlists</li>
     <li><code>PlayCount</code> & <code>PlayHistory</code>: Analytics</li>
     <li><code>EqualizerPreset</code>: Audio settings</li>
+    <li><code>QualitySelector</code>: Allows listeners to change streaming quality (Low, Medium, High, Lossless)</li>
   </ul>
 </div>
 
@@ -456,10 +448,6 @@ Wave exposes a comprehensive RESTful API with these key endpoint groups:
 </div>
 </div>
 
-### Websocket Endpoints
-
-- `/ws/notifications/` - Real-time notifications
-- `/ws/livestream/{room_id}/` - Livestream chat and events
 
 ## 🚢 Deployment
 
@@ -478,7 +466,7 @@ Wave exposes a comprehensive RESTful API with these key endpoint groups:
   
   ```bash
   # Build and deploy with Docker Compose
-  docker-compose -f docker-compose.prod.yml up -d
+  docker-compose -f docker-compose.yml up -d
   ```
 </div>
 
@@ -536,14 +524,14 @@ Wave implements several security measures:
 - **Rate Limiting**: Protection against brute force attacks
 - **Signed URLs**: Secure media access
 
-## 📸 Screenshots
+<!-- ## 📸 Screenshots
 
 <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; margin-top: 20px;">
   <img src="https://via.placeholder.com/500x300?text=Home+Dashboard" alt="Home Dashboard" style="border-radius: 8px;"/>
   <img src="https://via.placeholder.com/500x300?text=Music+Player" alt="Music Player" style="border-radius: 8px;"/>
   <img src="https://via.placeholder.com/500x300?text=Artist+Profile" alt="Artist Profile" style="border-radius: 8px;"/>
   <img src="https://via.placeholder.com/500x300?text=Playlist+Management" alt="Playlist Management" style="border-radius: 8px;"/>
-</div>
+</div> -->
 
 ## 🤝 Contributing
 
