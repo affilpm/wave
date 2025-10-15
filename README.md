@@ -108,6 +108,25 @@ Wave enables artists to upload, manage their music while giving listeners a pers
 
 </div>
 
+### Admin Features
+
+<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+  <div style="background-color: #FFE0B2; padding: 10px; border-radius: 8px;">
+    <h4>🧑‍💼 User Management</h4>
+    <p>Manage users and artists, block/unblock accounts</p>
+  </div>
+
+  <div style="background-color: #FFCCBC; padding: 10px; border-radius: 8px;">
+    <h4>🎵 Music Moderation</h4>
+    <p>Block/unblock music due to copyright or other reasons</p>
+  </div>
+
+  <div style="background-color: #D1C4E9; padding: 10px; border-radius: 8px;">
+    <h4>💰 Premium & Payments</h4>
+    <p>Create premium plans, manage subscriptions, and track all payment transactions</p>
+  </div>
+</div>
+
 ## 🛠️ Tech Stack
 
 ### Backend
