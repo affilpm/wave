@@ -1,14 +1,13 @@
 from google.oauth2 import id_token
 from google.auth.transport import requests
 from rest_framework.decorators import api_view, permission_classes,authentication_classes, parser_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import UserSerializer
+from .serializers import UserSerializer, UserProfileSerializer, PlaylistSerializer
 from .models import CustomUser
-from datetime import timedelta
 from rest_framework import status
 from rest_framework_simplejwt.exceptions import TokenError
 from google.auth.transport.requests import Request
@@ -17,11 +16,8 @@ from .utils import generate_otp, send_otp_email
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 import re
-from rest_framework.permissions import IsAuthenticated
 from django.db.models import Count, F
-from .models import CustomUser
 from playlist.models import Playlist
-from .serializers import UserProfileSerializer, PlaylistSerializer
 from rest_framework.parsers import MultiPartParser, FormParser
 
 
@@ -470,10 +466,6 @@ def google_register(request):
         
         return Response({
             'message': 'User successfully registered',
-            'tokens': {
-                'refresh': str(refresh),
-                'access': str(refresh.access_token)
-            }
         }, status=201)
 
     except Exception as e:

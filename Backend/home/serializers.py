@@ -2,7 +2,6 @@ from rest_framework import serializers
 from music.models import Music, Album
 from playlist.models import Playlist
 from artists.models import Artist
-from users.serializers import UserSerializer
 
 class Music_ListSerializer(serializers.ModelSerializer):
     artist = serializers.SerializerMethodField()
@@ -55,7 +54,7 @@ class ArtistSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Artist
-        fields = ['id', 'email', 'first_name', 'last_name', 'bio', 'status', 'profile_photo', 'username', 'submitted_at', 'updated_at']
+        fields = ['id', 'email', 'first_name', 'last_name', 'bio', 'status', ']profile_photo', 'username', 'submitted_at', 'updated_at']
         read_only_fields = ['status', 'submitted_at', 'updated_at']
 
 

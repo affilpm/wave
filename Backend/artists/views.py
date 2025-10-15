@@ -16,7 +16,7 @@ from .serializers import FollowSerializer
 from music.models import Album
 from listening_history.models import ArtistPlayCount, ArtistActivity
 from django.utils import timezone
-
+from listening_history.models import RecentlyPlayed
 
 class Pagination(PageNumberPagination):
     page_size = 10
@@ -397,6 +397,35 @@ class Artist_listeners(APIView):
 
 
 
+class ArtistRecentPlaysView(APIView):
+    """
+    API endpoint to get the 3 most recently played songs of a given artist.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, format=None):
+        artist = getattr(request.user, 'artist_profile', None)
+
+        # Get RecentlyPlayed objects for songs uploaded by this artist
+        recent_songs = (
+            RecentlyPlayed.objects.filter(music__artist=artist)
+            .select_related('music')
+            .order_by('-last_played')[:3]
+        )
+
+        data = [
+            {
+                "music_id": rp.music.id,
+                "name": rp.music.name,
+                "cover_photo": request.build_absolute_uri(rp.music.cover_photo.url) if rp.music.cover_photo else None,
+                "last_played": rp.last_played,
+                "total_plays": getattr(rp.music.play_stats, 'total_plays', 0),
+            }
+            for rp in recent_songs
+        ]
+
+        return Response({"recently_played": data})
+    
 
 class HasAlbumsView(APIView):
     """

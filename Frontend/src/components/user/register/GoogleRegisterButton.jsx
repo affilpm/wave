@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../../api';
 import { GOOGLE_CLIENT_ID } from '../../../constants/authConstants';
-import UsernameSelectionModal from './UsernameSelectionPage';
+import UsernameSelectionModal from './UsernameSelectionModal';
 
 
 

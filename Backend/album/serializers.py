@@ -2,9 +2,7 @@ from rest_framework import serializers
 from music.models import Album, AlbumTrack, Music, Genre
 # from music.serializers import MusicSerializer
 import os
-from rest_framework.permissions import IsAuthenticated
-from rest_framework import viewsets
-from artists.serializers import ArtistSerializer
+
  
 
 class MusicSerializer(serializers.ModelSerializer):

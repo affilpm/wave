@@ -1,11 +1,7 @@
 from rest_framework import serializers
-from .models import CustomUser
-from rest_framework import serializers
 import uuid
-from rest_framework import serializers
 from .models import CustomUser
 from playlist.models import Playlist
-from rest_framework import serializers
 from django.contrib.auth import get_user_model
 
 

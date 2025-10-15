@@ -4,7 +4,6 @@ from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
-from rest_framework import status, viewsets
 from django.shortcuts import get_object_or_404
 import razorpay
 import uuid
@@ -16,7 +15,6 @@ import csv
 from django.http import HttpResponse
 from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
-from django.shortcuts import get_object_or_404
 
 
 logger = logging.getLogger(__name__)

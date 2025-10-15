@@ -1,7 +1,6 @@
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
-import razorpay
 
 class PremiumPlan(models.Model):
     name = models.CharField(max_length=100)

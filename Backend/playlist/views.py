@@ -3,19 +3,17 @@ from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Prefetch
 from .models import Playlist, PlaylistTrack, Music
-from .serializers import PlaylistSerializer, PlaylistTrackSerializer
-from django.db.models import Q
+from .serializers import MusicSerializer, PlaylistSerializer, PlaylistTrackSerializer
 import logging
-from .serializers import MusicSerializer
-logger = logging.getLogger(__name__)
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.db import transaction
 from users.models import CustomUser
 from artists.models import Artist
-from django.db.models import Count
+from django.db.models import Count, Q, Prefetch
+
+logger = logging.getLogger(__name__)
 
 # this view is used search music and add to playlist
 class MusicService(viewsets.ModelViewSet):

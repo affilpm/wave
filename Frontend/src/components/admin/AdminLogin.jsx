@@ -83,13 +83,14 @@ const AdminLogin = () => {
                                 className="appearance-none rounded-lg relative block w-full px-4 py-3 bg-gray-800 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 placeholder="Password"
 
-                            />                                <button
+                            />                                
+                        {/* <button
                             type="button"
                             onClick={togglePasswordVisibility}
                             className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400"
                           >
                             {isPasswordVisible ? 'Hide' : 'Show'}
-                          </button>
+                          </button> */}
                         </div>
 
                     </div>

@@ -120,7 +120,7 @@ const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
         <input
           ref={searchInputRef}
           type="text"
-          placeholder="Search for songs, artists..."
+          placeholder="Search for songs"
           className="bg-transparent text-white text-sm placeholder-gray-400 outline-none flex-1 ml-2"
           value={searchQuery}
           onChange={handleInputChange}

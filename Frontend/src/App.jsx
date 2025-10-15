@@ -24,7 +24,7 @@ import MusicShowMorePage from './components/user/home/main-content/Music-section
 import SavedPlaylistPage from './components/user/home/playlist/playlist-page/SavedPlaylistPage';
 import { Navigate } from 'react-router-dom';
 import AlbumPage from './components/user/home/album/AlbumPage';
-import UsernameSelectionPage from './components/user/register/UsernameSelectionPage';
+// import UsernameSelectionModal from './components/user/register/UsernameSelectionModal';
 import GenrePage from './components/user/home/main-content/Genre-section/GenrePage';
 import Profile from './components/user/home/header/profile/Profile';
 import MonetizationPage from './components/artist/studio/Monetization';
@@ -76,7 +76,7 @@ function App() {
 
 
 
-        <Route path="select-username" element={<UsernameSelectionPage/>} />
+        {/* <Route path="select-username" element={<UsernameSelectionModal/>} /> */}
 
 
 

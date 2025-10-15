@@ -1,11 +1,9 @@
 # views.py
 from rest_framework.permissions import IsAuthenticated
-from rest_framework import status
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework import generics
+from rest_framework import generics, viewsets, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from music.models import Music, Album
+from music.models import Music, Album, Genre, MusicApprovalStatus
 from artists.models import Artist
 from playlist.models import Playlist
 from .serializers import Music_ListSerializer, Playlist_ListSerializer, Album_ListSerializer, ArtistSerializer
@@ -13,8 +11,6 @@ from rest_framework.decorators import api_view, permission_classes
 from playlist.serializers import PlaylistSerializer
 from django.db.models import Q
 from rest_framework.pagination import PageNumberPagination
-from rest_framework import viewsets
-from music.models import Genre, MusicApprovalStatus
 from music.serializers import GenreSerializer, MusicDataSerializer
 
 
