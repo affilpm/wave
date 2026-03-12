@@ -48,12 +48,15 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
       {/* Shuffle */}
       <motion.button
         onClick={onToggleShuffle}
-        className={`w-9 h-9 flex items-center justify-center transition-colors ${
+        className={`relative w-9 h-9 flex items-center justify-center transition-colors ${
           shuffleMode ? 'text-[var(--player-accent)] opacity-100' : 'text-white opacity-40 hover:opacity-100'
         }`}
         whileTap={{ scale: 0.85 }}
       >
         <Shuffle size={20} />
+        {shuffleMode && (
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--player-accent)] shadow-[0_0_8px_var(--player-accent)]" />
+        )}
       </motion.button>
 
       {/* Previous */}
@@ -99,8 +102,11 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
         whileTap={{ scale: 0.85 }}
       >
         <Repeat size={20} />
+        {repeatMode !== 'off' && (
+          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--player-accent)] shadow-[0_0_8px_var(--player-accent)]" />
+        )}
         {repeatMode === 'one' && (
-          <div className="absolute top-[2px] right-[2px] bg-[var(--player-accent)] text-white text-[9px] font-bold w-[14px] h-[14px] flex items-center justify-center rounded-full">
+          <div className="absolute top-[2px] right-[2px] bg-[var(--player-accent)] text-white text-[9px] font-bold w-[13px] h-[13px] flex items-center justify-center rounded-full scale-90 border border-black/20">
             1
           </div>
         )}

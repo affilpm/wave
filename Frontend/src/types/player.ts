@@ -12,6 +12,7 @@ export interface Track {
   duration?: number;
   genre?: string;
   year?: number | null;
+  contextId?: string | number; // Added to identify which album/playlist the track came from
   [key: string]: any;
 }
 
@@ -35,4 +36,6 @@ export interface PlayerState {
   dominantColor: string;
   isFullPlayerOpen: boolean;
   isQueueOpen: boolean;
+  userQueue: Track[]; // Tracks manually added by user
+  history: Track[]; // Tracks already played
 }

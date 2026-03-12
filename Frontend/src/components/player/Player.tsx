@@ -70,12 +70,17 @@ export const Player: React.FC = () => {
         isLiked={isLiked}
         currentTime={currentTime}
         duration={duration}
+        shuffleMode={shuffleMode}
+        repeatMode={repeatMode}
         onPlayPause={() => dispatch(isPlaying ? pause() : resume())}
         onNext={() => dispatch(skipNext())}
         onPrev={() => dispatch(skipPrevious())}
         onToggleLike={() => dispatch(setIsLiked(!isLiked))}
         onExpand={() => dispatch(toggleFullPlayer())}
         onSeek={seek}
+        onToggleShuffle={() => dispatch(toggleShuffle())}
+        onCycleRepeat={() => dispatch(cycleRepeat())}
+        onToggleQueue={() => dispatch(toggleQueue())}
       />
 
       <FullPlayer

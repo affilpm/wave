@@ -54,6 +54,11 @@ export const useAudioPlayer = () => {
     };
   }, [dispatch]);
 
+  const currentTrackIdRef = useRef(currentTrack?.id);
+  useEffect(() => {
+    currentTrackIdRef.current = currentTrack?.id;
+  }, [currentTrack?.id]);
+
   // Handle track changes and HLS setup
   useEffect(() => {
     const audio = audioRef.current;
@@ -61,12 +66,36 @@ export const useAudioPlayer = () => {
 
     // Check if we have neither hlsUrl nor a fallback trigger
     const waitingForHls = !currentTrack.hlsUrl && !currentTrack.hlsFailed;
-    if (waitingForHls) return;
+    if (waitingForHls) {
+      if (status === 'loading') {
+        // Prevent audio from playing previous track's end
+        audio.pause();
+        audio.src = '';
+      }
+      return;
+    }
+
+    const trackIdAtStart = currentTrack.id;
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
       hlsRef.current = null;
     }
+
+    const startPlaying = () => {
+      // Final check: is this still the track Redux wants to play?
+      if (currentTrackIdRef.current !== trackIdAtStart) return;
+
+      setTimeout(() => {
+        if (status === 'loading' || status === 'playing') {
+          audio.play().catch(e => {
+            if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') {
+              console.error("Playback failed", e);
+            }
+          });
+        }
+      }, 50);
+    };
 
     if (currentTrack.hlsUrl && Hls.isSupported()) {
       const hls = new Hls({
@@ -82,8 +111,10 @@ export const useAudioPlayer = () => {
       hls.attachMedia(audio);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        audio.play().catch(e => { if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') console.error("Playback failed", e); });
-        dispatch(setStatus('playing'));
+        if (currentTrackIdRef.current === trackIdAtStart) {
+          startPlaying();
+          dispatch(setStatus('playing'));
+        }
       });
 
       hls.on(Hls.Events.ERROR, (event, data) => {
@@ -91,30 +122,28 @@ export const useAudioPlayer = () => {
           dispatch(setStatus('buffering'));
         }
       });
-
-      hls.on(Hls.Events.FRAG_BUFFERED, () => {
-        // If we were buffering, let it naturally transition to playing 
-        // via the 'playing' event on the audio element, 
-        // or aggressively dispatch playing if HLS buffered enough.
-        // We rely on audio 'playing' event for exact status.
-      });
       
     } else if (currentTrack.hlsUrl && audio.canPlayType('application/vnd.apple.mpegurl')) {
-      // Native Safari HLS
       audio.src = currentTrack.hlsUrl;
       audio.load();
-      audio.play().catch(e => { if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') console.error("Native playback failed", e); });
+      startPlaying();
       dispatch(setStatus('playing'));
     } else if (currentTrack.hlsFailed && currentTrack.audio_file) {
-      // Fallback for native audio file (mp3, wav, etc.) when HLS isn't available
       audio.src = currentTrack.audio_file;
       audio.load();
-      audio.play().catch(e => { if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') console.error("Fallback playback failed", e); });
+      startPlaying();
       dispatch(setStatus('playing'));
     }
-  }, [currentTrack, dispatch]);
 
-  // Handle play/pause status from Redux
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [currentTrack?.id, currentTrack?.hlsUrl, currentTrack?.hlsFailed, dispatch]); // Only re-init if core track identity or URL source changes
+
+  // Handle play/pause and specialized Command-based sync
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentTrack) return;
@@ -123,11 +152,16 @@ export const useAudioPlayer = () => {
       audio.play().catch(e => { if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') console.error("Failed to play", e); });
     } else if (status === 'paused' && !audio.paused) {
       audio.pause();
+    } else if (status === 'loading') {
+       // If status just became loading but currentTrack is same (e.g. restart), seek to 0
+       if (Math.abs(audio.currentTime) > 0.1) {
+         audio.currentTime = 0;
+       }
     } else if (status === 'idle') {
       audio.pause();
       audio.currentTime = 0;
     }
-  }, [status, currentTrack]);
+  }, [status, currentTrack?.id]);
 
   // Handle Volume and Mute
   useEffect(() => {

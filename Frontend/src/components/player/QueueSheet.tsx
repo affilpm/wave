@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
+import { useSelector } from 'react-redux';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
+import { PlayerState, Track } from '../../types/player';
 import {
   DndContext,
   closestCenter,
@@ -18,7 +20,6 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Track } from '../../types/player';
 import { GripVertical } from 'lucide-react';
 
 interface QueueSheetProps {
@@ -147,6 +148,9 @@ export const QueueSheet: React.FC<QueueSheetProps> = ({
   onRemove,
   onPlayTrack
 }) => {
+  const userQueue = useSelector((state: { player: PlayerState }) => state.player.userQueue);
+  const queueIndex = useSelector((state: { player: PlayerState }) => state.player.queueIndex);
+  
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -169,6 +173,23 @@ export const QueueSheet: React.FC<QueueSheetProps> = ({
     }
   };
 
+  // Derive sections
+  const currentTrack = queue[queueIndex];
+  const nextInQueue = [];
+  const nextFromContext = [];
+  
+  const remainingTracks = queue.slice(queueIndex + 1);
+  let foundContext = false;
+  
+  for (const track of remainingTracks) {
+    if (!foundContext && userQueue.some((ut: Track) => ut.id === track.id)) {
+      nextInQueue.push(track);
+    } else {
+      foundContext = true;
+      nextFromContext.push(track);
+    }
+  }
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -179,39 +200,93 @@ export const QueueSheet: React.FC<QueueSheetProps> = ({
           transition={{ type: 'spring', stiffness: 320, damping: 40 }}
           className="fixed inset-0 z-[70] flex flex-col"
           style={{
-            background: 'rgba(18,18,18,0.97)',
-            backdropFilter: 'blur(20px)'
+            background: 'rgba(18,18,18,0.98)',
+            backdropFilter: 'blur(25px)'
           }}
         >
           <div className="w-full flex justify-center py-4 cursor-pointer shrink-0" onClick={onClose}>
-            <div className="w-9 h-1 rounded-full bg-white/20" />
+            <div className="w-10 h-1.5 rounded-full bg-white/10" />
           </div>
 
-          <div className="px-5 pb-3 flex items-center justify-between shrink-0">
-            <h2 className="text-[17px] font-semibold text-white">Next Up</h2>
-            <span className="text-[13px] text-white/50">{queue.length} songs</span>
+          <div className="px-6 pb-6 pt-2 shrink-0">
+            <h2 className="text-[22px] font-bold text-white tracking-tight">Queue</h2>
           </div>
 
-          <div className="flex-1 overflow-y-auto pb-24">
+          <div className="flex-1 overflow-y-auto pb-32 scrollbar-hide">
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
             >
-              <SortableContext items={queue.map(t => t.id)} strategy={verticalListSortingStrategy}>
-                {queue.map((track, idx) => (
+              {/* Now Playing Section */}
+              {currentTrack && (
+                <div className="mb-8">
+                  <div className="px-6 mb-3">
+                    <h3 className="text-[13px] font-bold text-white/40 uppercase tracking-widest">Now Playing</h3>
+                  </div>
                   <SortableTrackItem
-                    key={track.id}
-                    track={track}
-                    index={idx}
-                    isCurrent={track.id === currentTrackId}
+                    track={currentTrack}
+                    index={queueIndex}
+                    isCurrent={true}
                     isPlaying={isPlaying}
                     onRemove={onRemove}
-                    onPlay={() => onPlayTrack(idx)}
+                    onPlay={() => {}}
                   />
-                ))}
-              </SortableContext>
+                </div>
+              )}
+
+              {/* Next In Queue Section (User Added) */}
+              {nextInQueue.length > 0 && (
+                <div className="mb-8">
+                  <div className="px-6 mb-3 flex items-center justify-between">
+                    <h3 className="text-[13px] font-bold text-white/40 uppercase tracking-widest">Next Up</h3>
+                    <button 
+                      onClick={() => {/* could add a clear user queue action here */}}
+                      className="text-[12px] font-medium text-[var(--player-accent)] hover:opacity-80"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                  <SortableContext items={nextInQueue.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                    {nextInQueue.map((track, idx) => (
+                      <SortableTrackItem
+                        key={track.id}
+                        track={track}
+                        index={queueIndex + 1 + idx}
+                        isCurrent={false}
+                        isPlaying={false}
+                        onRemove={onRemove}
+                        onPlay={() => onPlayTrack(queueIndex + 1 + idx)}
+                      />
+                    ))}
+                  </SortableContext>
+                </div>
+              )}
+
+              {/* Next From Context Section */}
+              {nextFromContext.length > 0 && (
+                <div>
+                  <div className="px-6 mb-3">
+                    <h3 className="text-[13px] font-bold text-white/40 uppercase tracking-widest">
+                      Next From: {currentTrack?.album || 'Context'}
+                    </h3>
+                  </div>
+                  <SortableContext items={nextFromContext.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                    {nextFromContext.map((track, idx) => (
+                      <SortableTrackItem
+                        key={track.id}
+                        track={track}
+                        index={queueIndex + 1 + nextInQueue.length + idx}
+                        isCurrent={false}
+                        isPlaying={false}
+                        onRemove={onRemove}
+                        onPlay={() => onPlayTrack(queueIndex + 1 + nextInQueue.length + idx)}
+                      />
+                    ))}
+                  </SortableContext>
+                </div>
+              )}
             </DndContext>
           </div>
         </motion.div>

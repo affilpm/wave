@@ -69,9 +69,8 @@ const initialState: PlayerState = {
   dominantColor: '#3b82f6',
   isFullPlayerOpen: false,
   isQueueOpen: false,
-  
-  // Extend state to keep error/loading compatibility if needed, but strictly matching requested shape
-  // Note: user requested "Extend the existing slice with this complete state shape". We will just use the new shape to keep it clean.
+  userQueue: [],
+  history: [],
 };
 
 // Helper for Fisher-Yates shuffle
@@ -89,16 +88,26 @@ const playerSlice = createSlice({
   initialState,
   reducers: {
     playTrack: (state, action: PayloadAction<Track>) => {
+      // Ensure history exists (persisted state migration)
+      if (!state.history) state.history = [];
+      if (!state.userQueue) state.userQueue = [];
+
+      // Add current track to history
+      if (state.currentTrack) {
+        state.history.push(state.currentTrack);
+        if (state.history.length > 50) state.history.shift();
+      }
+
       state.currentTrack = action.payload;
       state.status = 'loading';
       
-      const exists = state.originalQueue.find(t => t.id === action.payload.id);
+      const exists = state.originalQueue.find(t => String(t.id) === String(action.payload.id));
       if (!exists) {
         state.originalQueue = [action.payload];
         state.queue = [action.payload];
         state.queueIndex = 0;
       } else {
-        const index = state.queue.findIndex(t => t.id === action.payload.id);
+        const index = state.queue.findIndex(t => String(t.id) === String(action.payload.id));
         if (index !== -1) {
           state.queueIndex = index;
         }
@@ -110,10 +119,24 @@ const playerSlice = createSlice({
     playTrackAtIndex: (state, action: PayloadAction<number>) => {
       const index = action.payload;
       if (index >= 0 && index < state.queue.length) {
+        if (!state.history) state.history = [];
+        if (!state.userQueue) state.userQueue = [];
+
+        if (state.currentTrack) {
+          state.history.push(state.currentTrack);
+          if (state.history.length > 50) state.history.shift();
+        }
+
         state.queueIndex = index;
         state.currentTrack = state.queue[index];
         state.status = 'loading';
         state.currentTime = 0;
+
+        // If played from queue, remove from userQueue if it was there
+        if (state.currentTrack) {
+          const currentId = String(state.currentTrack.id);
+          state.userQueue = state.userQueue.filter(t => String(t.id) !== currentId);
+        }
       }
     },
     
@@ -169,6 +192,7 @@ const playerSlice = createSlice({
       }
       
       state.originalQueue = [...tracks];
+      state.userQueue = []; // Reset user manual queue when context changes
       
       if (state.shuffleMode) {
         if (tracks.length > 0) {
@@ -199,14 +223,35 @@ const playerSlice = createSlice({
     },
     
     addToQueue: (state, action: PayloadAction<Track | Track[]>) => {
+      if (!state.userQueue) state.userQueue = [];
       const tracks = Array.isArray(action.payload) ? action.payload : [action.payload];
-      state.originalQueue.push(...tracks);
-      state.queue.push(...tracks);
+      state.userQueue.push(...tracks);
+      
+      // Find where current userQueue ends in the active queue
+      // We insert after the last userQueue item that is currently after queueIndex
+      let insertIndex = state.queueIndex + 1;
+      while (insertIndex < state.queue.length && state.userQueue.some(t => t.id === state.queue[insertIndex].id)) {
+        insertIndex++;
+      }
+      
+      state.queue.splice(insertIndex, 0, ...tracks);
+    },
+
+    playNext: (state, action: PayloadAction<Track>) => {
+      if (!state.userQueue) state.userQueue = [];
+      const track = action.payload;
+      state.userQueue.unshift(track);
+      
+      // Insert immediately after current track
+      const insertIndex = state.queueIndex + 1;
+      state.queue.splice(insertIndex, 0, track);
     },
     
     removeFromQueue: (state, action: PayloadAction<string | number>) => {
+      if (!state.userQueue) state.userQueue = [];
       const id = action.payload;
-      state.originalQueue = state.originalQueue.filter(t => t.id !== id);
+      state.originalQueue = state.originalQueue.filter(t => String(t.id) !== String(id));
+      state.userQueue = state.userQueue.filter(t => String(t.id) !== String(id));
       
       const indexToRemove = state.queue.findIndex(t => t.id === id);
       if (indexToRemove !== -1) {
@@ -214,7 +259,6 @@ const playerSlice = createSlice({
         if (state.queueIndex > indexToRemove) {
           state.queueIndex -= 1;
         } else if (state.queueIndex === indexToRemove && state.queue.length > 0) {
-          // Current track was removed, play next
           if (state.queueIndex >= state.queue.length) {
             state.queueIndex = 0;
           }
@@ -241,10 +285,17 @@ const playerSlice = createSlice({
     skipNext: (state) => {
       if (state.queue.length === 0) return;
       
-      if (state.repeatMode === 'one') {
-        state.currentTime = 0;
-        state.status = 'loading'; // Will trigger replay in hook
-        return;
+      // Manual skip usually overrides "Repeat One" in most players (Spotify)
+      // If we want to strictly respect it, we'd keep the check, but user reported "not changing"
+      // so we remove the early return to ensure it always moves forward.
+
+      // Add to history
+      if (!state.history) state.history = [];
+      if (!state.userQueue) state.userQueue = [];
+
+      if (state.currentTrack) {
+        state.history.push(state.currentTrack);
+        if (state.history.length > 50) state.history.shift();
       }
       
       const isLastTrack = state.queueIndex === state.queue.length - 1;
@@ -256,7 +307,6 @@ const playerSlice = createSlice({
           state.currentTime = 0;
           state.status = 'loading';
         } else {
-          // off, stop
           state.status = 'idle';
           state.currentTime = 0;
         }
@@ -265,16 +315,20 @@ const playerSlice = createSlice({
         state.currentTrack = state.queue[state.queueIndex];
         state.currentTime = 0;
         state.status = 'loading';
+
+        // If played a userQueue track, remove it from tracking
+        state.userQueue = state.userQueue.filter(t => t.id !== state.currentTrack?.id);
       }
     },
     
     skipPrevious: (state) => {
       if (state.queue.length === 0) return;
+      if (!state.history) state.history = [];
+      if (!state.userQueue) state.userQueue = [];
       
       if (state.currentTime > 3) {
         // Restart current track
         state.currentTime = 0;
-        // Keep status as playing/loading
       } else {
         // Go back
         if (state.queueIndex > 0) {
@@ -286,6 +340,8 @@ const playerSlice = createSlice({
           if (state.repeatMode === 'all') {
             state.queueIndex = state.queue.length - 1;
             state.currentTrack = state.queue[state.queueIndex];
+            state.currentTime = 0;
+            state.status = 'loading';
           } else {
             // First track, just restart it
             state.currentTime = 0;
@@ -295,23 +351,28 @@ const playerSlice = createSlice({
     },
     
     toggleShuffle: (state) => {
+      if (!state.userQueue) state.userQueue = [];
       state.shuffleMode = !state.shuffleMode;
       
       if (state.shuffleMode) {
-        // ON: Fisher-Yates, keep currentTrack at index 0
         if (state.currentTrack && state.queue.length > 0) {
           const currentId = state.currentTrack.id;
-          const remaining = state.originalQueue.filter(t => t.id !== currentId);
-          state.queue = [state.currentTrack, ...shuffleArray(remaining)];
+          const remainingContext = state.originalQueue.filter(t => t.id !== currentId);
+          // Keep userQueue at the top after current track, then shuffle context
+          state.queue = [state.currentTrack, ...state.userQueue, ...shuffleArray(remainingContext)];
           state.queueIndex = 0;
         }
       } else {
-        // OFF: restore originalQueue, seek back to currentTrack
         state.queue = [...state.originalQueue];
         if (state.currentTrack) {
           const currentId = state.currentTrack.id;
           const index = state.queue.findIndex(t => t.id === currentId);
           state.queueIndex = index !== -1 ? index : 0;
+          
+          // Re-inject userQueue after current track site
+          if (state.userQueue.length > 0) {
+            state.queue.splice(state.queueIndex + 1, 0, ...state.userQueue);
+          }
         }
       }
     },
@@ -349,16 +410,29 @@ const playerSlice = createSlice({
     },
     
     setCurrentMusic: (state, action: PayloadAction<Track>) => {
-      playerSlice.caseReducers.playTrack(state, action);
+      // Inlined playTrack logic to avoid circular reference
+      if (!state.history) state.history = [];
+      if (!state.userQueue) state.userQueue = [];
+
+      if (state.currentTrack) {
+        state.history.push(state.currentTrack);
+        if (state.history.length > 50) state.history.shift();
+      }
+      state.currentTrack = action.payload;
+      state.status = 'loading';
+      const exists = state.originalQueue.find(t => String(t.id) === String(action.payload.id));
+      if (!exists) {
+        state.originalQueue = [action.payload];
+        state.queue = [action.payload];
+        state.queueIndex = 0;
+      } else {
+        const index = state.queue.findIndex(t => String(t.id) === String(action.payload.id));
+        if (index !== -1) state.queueIndex = index;
+      }
+      state.currentTime = 0;
     },
     setIsPlaying: (state, action: PayloadAction<boolean>) => {
       state.status = action.payload ? 'playing' : 'paused';
-    },
-    playNext: (state) => {
-      playerSlice.caseReducers.skipNext(state);
-    },
-    playPrevious: (state) => {
-      playerSlice.caseReducers.skipPrevious(state);
     },
     refreshStream: (state) => {
       state.status = 'loading';
@@ -370,12 +444,12 @@ const playerSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder.addCase(fetchStreamUrl.fulfilled, (state, action) => {
-      if (state.currentTrack && state.currentTrack.id === action.payload.id) {
+      if (state.currentTrack && String(state.currentTrack.id) === String(action.payload.id)) {
         // Populate the missing hlsUrl
         state.currentTrack = {
           ...state.currentTrack,
           hlsUrl: action.payload.url,
-          artworkUrl: action.payload.cover_photo || state.currentTrack.artworkUrl || state.currentTrack.cover_photo
+          artworkUrl: action.payload.cover_photo || state.currentTrack.artworkUrl
         };
         // Also update in queue 
         if (state.queueIndex !== -1 && state.queue[state.queueIndex]) {
@@ -417,13 +491,12 @@ export const {
   toggleFullPlayer,
   toggleQueue,
   setIsLiked,
+  playNext,
   
   // Legacy
   clearCurrentMusic,
   setCurrentMusic,
   setIsPlaying,
-  playNext,
-  playPrevious,
   refreshStream,
   clearError
 } = playerSlice.actions;

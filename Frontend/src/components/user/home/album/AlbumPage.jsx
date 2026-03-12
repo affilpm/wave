@@ -52,20 +52,20 @@ const AlbumPage = () => {
   const stableTracks = useMemo(() => album?.tracks || [], [album]);
 
   // Memoize isCurrentTrackFromAlbum
-  const isCurrentTrackFromAlbum = useMemo(() => {
-    if (!album?.tracks || !currentMusicId || currentAlbumId !== album?.id) {
-      return false;
-    }
-    const currentTrack = queue[currentIndex];
-    const isTrackInAlbum = album.tracks.some(
-      (track) => Number(track.music_details.id) === Number(currentMusicId)
-    );
-    return (
-      currentTrack &&
-      Number(currentTrack.id) === Number(currentMusicId) &&
-      isTrackInAlbum
-    );
-  }, [album, currentMusicId, currentAlbumId, queue, currentIndex]);
+    const isCurrentTrackFromAlbum = useMemo(() => {
+      if (!album?.tracks || !currentMusicId || currentAlbumId !== album?.id) {
+        return false;
+      }
+      const currentTrackAtPos = queue[queueIndex];
+      const isTrackInAlbum = album.tracks.some(
+        (track) => Number(track.music_details.id) === Number(currentMusicId)
+      );
+      return (
+        currentTrackAtPos &&
+        Number(currentTrackAtPos.id) === Number(currentMusicId) &&
+        isTrackInAlbum
+      );
+    }, [album, currentMusicId, currentAlbumId, queue, queueIndex]);
 
   // Memoize track preparation
   const prepareTrackForPlayer = useCallback(
