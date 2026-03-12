@@ -49,7 +49,7 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
         setOtp(''); // Clear OTP field when resending
 
         try {
-            const response = await api.post('/api/users/resend-otp/', { email });
+            const response = await api.post('/api/v1/users/resend-otp/', { email });
             
             // Get expiration and cooldown data from response
             const expiresIn = response.data?.expiresIn || 30;
@@ -90,7 +90,7 @@ const OTPVerification = ({ email, setIsOtpSent }) => {
             // Include the current timestamp when the user submitted the OTP
             const submitted_at = Date.now() / 1000; // Convert to seconds to match server time
             
-            const response = await api.post('/api/users/verify-otp/', { 
+            const response = await api.post('/api/v1/users/verify-otp/', { 
                 email, 
                 otp,
                 submitted_at

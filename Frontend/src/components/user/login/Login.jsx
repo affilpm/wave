@@ -20,7 +20,7 @@ const LoginPage = () => {
     setSuccess('');
 
     try {
-      await api.post('/api/users/login/', { email });
+      await api.post('/api/v1/users/login/', { email });
       setIsOtpSent(true);
     } catch (err) {
       setError(err.response?.data?.message || 'Something went wrong');

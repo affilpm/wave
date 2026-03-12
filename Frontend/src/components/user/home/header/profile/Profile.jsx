@@ -10,7 +10,7 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
-} from '../../../../../slices/user/playerSlice';
+} from '../../../../../store/slices/playerSlice';
 import { convertToSeconds } from '../../../../../utils/formatters';
 import ProfileEditModal from './ProfileEditModal';
 
@@ -18,10 +18,10 @@ import ProfileEditModal from './ProfileEditModal';
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue,
-    currentIndex: player.currentIndex,
+    queueIndex: player.queueIndex,
   })
 );
 
@@ -39,10 +39,13 @@ const Profile = () => {
   const [userFollowingCount, setUserFollowingCount] = useState(0);
   const [artistId, setArtistId] = useState('');
 
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing';
 
   // Memoize public songs for stable props
   const stableSongs = useMemo(() => publicSongs || [], [publicSongs]);
@@ -50,7 +53,7 @@ const Profile = () => {
   // Check if queue is from artist's public songs
   const isQueueFromArtistSongs = useMemo(() => {
     if (!queue.length) return false;
-    return queue.every(
+    return queue.some(
       (track) => track.source === 'public_songs'
     );
   }, [queue]);
@@ -58,31 +61,19 @@ const Profile = () => {
   // Memoize isCurrentTrackFromArtistSongs
   const isCurrentTrackFromArtistSongs = useMemo(() => {
     if (!stableSongs.length || !currentMusicId || !isQueueFromArtistSongs) {
-      console.log('isCurrentTrackFromArtistSongs: Early return', {
-        hasSongs: !!stableSongs.length,
-        currentMusicId,
-        isQueueFromArtistSongs,
-        queueLength: queue.length,
-        currentIndex,
-      });
       return false;
     }
-    const currentTrack = queue[currentIndex];
+    const trackAtIdx = queue[queueIndex];
     const isTrackInSongs = stableSongs.some(
       (song) => Number(song.id) === Number(currentMusicId)
     );
-    console.log('isCurrentTrackFromArtistSongs: Result', {
-      currentTrackId: currentTrack?.id,
-      currentMusicId,
-      isTrackInSongs,
-      isPlaying,
-    });
+    
     return (
-      currentTrack &&
-      Number(currentTrack.id) === Number(currentMusicId) &&
+      trackAtIdx &&
+      Number(trackAtIdx.id) === Number(currentMusicId) &&
       isTrackInSongs
     );
-  }, [stableSongs, currentMusicId, isQueueFromArtistSongs, queue, currentIndex]);
+  }, [stableSongs, currentMusicId, isQueueFromArtistSongs, queue, queueIndex]);
 
   // Memoize song preparation
   const prepareTrackForPlayer = useCallback(
@@ -93,7 +84,8 @@ const Profile = () => {
       artist: song.artist_username || username,
       artist_full: song.artist_full_name || username,
       album: song.album_name || 'Single',
-      cover_photo: song.cover_photo || '/api/placeholder/48/48',
+      cover_photo: song.cover_photo || '/api/v1/placeholder/48/48',
+      audio_file: song.audio_file,
       duration: convertToSeconds(song.duration || '00:00:00'),
       genre: song.genre || '',
       year: song.release_date
@@ -143,8 +135,8 @@ const Profile = () => {
     async (e, playlist) => {
       e.stopPropagation();
       try {
-        const response = await api.get(`/api/playlist/playlists/${playlist.id}/`);
-        console.log(response.data)
+        const response = await api.get(`/api/v1/playlist/playlists/${playlist.id}/`);
+
         const playlistData = response.data;
         const formattedTracks = playlistData.tracks.map((track) => ({
           id: Number(track.music_details.id),
@@ -154,6 +146,7 @@ const Profile = () => {
           artist_full: track.music_details.artist_full_name,
           album: track.music_details.album_name || playlistData.name || 'Unknown Album',
           cover_photo: track.music_details.cover_photo,
+          audio_file: track.music_details.audio_file,
           duration: convertToSeconds(track.music_details.duration || '00:00:00'),
           genre: track.music_details.genre || '',
           year: track.music_details.release_date
@@ -198,23 +191,23 @@ const Profile = () => {
   // Fetch user data
   const fetchUserData = async () => {
     try {
-      const artistStatusResponse = await api.get('/api/artists/check-artist-status/');
+      const artistStatusResponse = await api.get('/api/v1/artists/check-artist-status/');
       setIsArtist(artistStatusResponse.data.is_artist);
       setArtistId(artistStatusResponse.data.artist_id);
 
-      const response = await api.get('/api/users/user');
+      const response = await api.get('/api/v1/users/user');
       setUsername(response.data.username);
       setProfilePhoto(response.data.profile_photo);
 
-      const playlistsResponse = await api.get('/api/playlist/public_playlist_data/');
+      const playlistsResponse = await api.get('/api/v1/playlist/public_playlist_data/');
       setPlaylists(playlistsResponse.data);
 
       if (artistStatusResponse.data.is_artist) {
-        const songsResponse = await api.get('/api/music/public-songs/');
+        const songsResponse = await api.get('/api/v1/music/public-songs/');
         setPublicSongs(songsResponse.data);
       }
 
-      const followingResponse = await api.get('/api/artists/me/following-count/');
+      const followingResponse = await api.get('/api/v1/artists/me/following-count/');
       setUserFollowingCount(followingResponse.data.following_count);
 
       setLoading(false);
@@ -229,7 +222,7 @@ const Profile = () => {
     if (artistId) {
       const fetchArtistFollowerCount = async () => {
         try {
-          const artistResponse = await api.get(`/api/artists/${artistId}/followers-count/`);
+          const artistResponse = await api.get(`/api/v1/artists/${artistId}/followers-count/`);
           setArtistFollowerCount(artistResponse.data.followers_count);
         } catch (error) {
           console.error('Error fetching artist follower count:', error);
@@ -263,7 +256,7 @@ const Profile = () => {
       if (imageFile) {
         formData.append('profile_photo', imageFile);
       }
-      const response = await api.patch('/api/users/update/', formData, {
+      const response = await api.patch('/api/v1/users/update/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -413,7 +406,7 @@ const Profile = () => {
                   >
                     <div className="aspect-square relative">
                       <img
-                        src={playlist.cover_photo || '/api/placeholder/120/120'}
+                        src={playlist.cover_photo || '/api/v1/placeholder/120/120'}
                         alt={playlist.name}
                         className="w-full h-full object-cover"
                       />

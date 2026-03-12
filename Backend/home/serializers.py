@@ -66,8 +66,8 @@ class ArtistSerializer(serializers.ModelSerializer):
         
         # Check if profile_photo exists and construct the full URL
         if hasattr(instance.user, 'profile_photo') and instance.user.profile_photo:
-            if request:
-                profile_photo_url = request.build_absolute_uri(instance.user.profile_photo.url)
+            if instance.user.profile_photo:
+                profile_photo_url = instance.user.profile_photo.url
                 representation['profile_photo'] = profile_photo_url
             else:
                 representation['profile_photo'] = instance.user.profile_photo.url  # Return the relative URL if no request

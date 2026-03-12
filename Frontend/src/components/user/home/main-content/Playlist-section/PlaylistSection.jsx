@@ -9,10 +9,10 @@ import { handlePlaybackAction } from "./playlist-utils";
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue,
-    currentIndex: player.currentIndex,
+    queueIndex: player.queueIndex,
   })
 );
 
@@ -22,10 +22,13 @@ const PlaylistSection = ({ title, items, onLengthChange }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const username = useSelector((state) => state.user.username);
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing';
+  const currentIndex = queueIndex;
 
   const handlePlaylistClick = useCallback(
     (playlistId) => {

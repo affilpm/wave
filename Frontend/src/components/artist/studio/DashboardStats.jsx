@@ -16,10 +16,10 @@ const DashboardStats = () => {
     const fetchStats = async () => {
       try {
         const [tracksRes, albumsRes, playsRes, listenersRes] = await Promise.all([
-          api.get('api/artists/track-count/'),
-          api.get('api/artists/album-count/'),
-          api.get('api/artists/total-plays/'),
-          api.get('api/artists/listeners/'),
+          api.get('/api/v1/artists/track-count/'),
+          api.get('/api/v1/artists/album-count/'),
+          api.get('/api/v1/artists/total-plays/'),
+          api.get('/api/v1/artists/listeners/'),
         ]);
 
         setStats({

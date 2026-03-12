@@ -10,7 +10,7 @@ const SavedPlaylistSection = ({ playlists, isSidebarExpanded, setLibraryPlaylist
     const handleMenuAction = async (action, playlist) => {
       if (action === 'delete') {
         try {
-          await api.post('/api/library/remove-playlist/', {
+          await api.post('/api/v1/library/remove-playlist/', {
             playlist_id: playlist.id
           });
           setLibraryPlaylists(prev => prev.filter(p => p.id !== playlist.id));

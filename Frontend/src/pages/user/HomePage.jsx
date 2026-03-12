@@ -1,22 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from '../../components/user/home/sidebar/Sidebar';
 import Header from '../../components/user/home/header/Header';
-import MusicPlayer from '../../components/user/home/main-content/music-player/MusicPlayer';
+import Player from '../../components/player/Player';
 import { useNavigate, Outlet } from 'react-router-dom';
 
 const HomePage = () => {
   const navigate = useNavigate();
   const [isSidebarExpanded, setSidebarExpanded] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
-  const [currentSong, setCurrentSong] = useState(null);
   const [isMobileView, setIsMobileView] = useState(false);
-  const playerRef = useRef(null);
-  const [playerHeight, setPlayerHeight] = useState(0);
 
-  // Define player height constants for consistency
-  const PLAYER_HEIGHT_MOBILE = '5rem'; // 80px
-  const PLAYER_HEIGHT_DESKTOP = '5.5rem'; // 88px
+  const PLAYER_HEIGHT = '64px';
 
   useEffect(() => {
     const access_token = localStorage.getItem("access_token");
@@ -41,12 +35,6 @@ const HomePage = () => {
         // Always close the mobile overlay when going to desktop
         setShowMobileSidebar(false);
       }
-
-      // Get actual player height if element exists
-      if (playerRef.current) {
-        const height = playerRef.current.offsetHeight;
-        setPlayerHeight(height);
-      }
     };
     
     // Run once on mount
@@ -57,13 +45,7 @@ const HomePage = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [navigate, showMobileSidebar]);
 
-  // Update player height when it's rendered
-  useEffect(() => {
-    if (playerRef.current) {
-      const height = playerRef.current.offsetHeight;
-      setPlayerHeight(height);
-    }
-  }, [playerRef.current]);
+
 
   // Toggle sidebar based on device type
   const toggleSidebar = () => {
@@ -81,14 +63,7 @@ const HomePage = () => {
     setShowMobileSidebar(!showMobileSidebar);
   };
 
-  const handlePlayPause = () => setIsPlaying(!isPlaying);
-  const handleSkip = () => console.log("Skip to next song");
-  const handlePrevious = () => console.log("Go to previous song");
-
-  // Calculate actual player height for spacing or use default values
-  const actualPlayerHeight = playerHeight > 0 
-    ? `${playerHeight}px`
-    : isMobileView ? PLAYER_HEIGHT_MOBILE : PLAYER_HEIGHT_DESKTOP;
+  const actualPlayerHeight = PLAYER_HEIGHT;
 
   return (
     <div className="h-screen flex flex-col bg-gradient-to-b from-gray-900 to-black text-white">
@@ -154,25 +129,7 @@ const HomePage = () => {
         </main>
       </div>
 
-      {/* Music Player - Fixed at bottom with higher z-index */}
-      <div 
-        ref={playerRef}
-        className="fixed bottom-0 left-0 right-0 z-50 bg-gradient-to-t from-black to-black/95 shadow-lg rounded-t-lg md:rounded-t-xl"
-        style={{ 
-          minHeight: isMobileView ? PLAYER_HEIGHT_MOBILE : PLAYER_HEIGHT_DESKTOP,
-          boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.1), 0 -2px 4px -1px rgba(0, 0, 0, 0.06)'
-        }}
-      >
-        <div className="mx-auto max-w-screen-2xl h-full">
-          <MusicPlayer
-            isPlaying={isPlaying}
-            handlePlayPause={handlePlayPause}
-            handleSkip={handleSkip}
-            handlePrevious={handlePrevious}
-            currentSong={currentSong}
-          />
-        </div>
-      </div>
+      <Player />
     </div>
   );
 };

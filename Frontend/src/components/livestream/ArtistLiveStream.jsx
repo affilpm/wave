@@ -1,7 +1,7 @@
 // import React, { useState, useEffect, useRef } from 'react';
 // import AgoraRTC from 'agora-rtc-sdk-ng';
 // import { ArrowLeft, Video, Mic, MicOff, VideoOff, Users } from 'lucide-react';
-// import { apiInstance } from '../../api';
+// import api from '../../api';
 // import { useSelector } from 'react-redux';
 // import { useNavigate } from 'react-router-dom';
 
@@ -142,7 +142,7 @@
 //     if (!streamSettings.channel) return;
     
 //     try {
-//       const response = await apiInstance.api.get('/api/livestream/viewer-count/', {
+//       const response = await api.api.get('/api/v1/livestream/viewer-count/', {
 //         params: {
 //           channel_name: streamSettings.channel
 //         }
@@ -218,7 +218,7 @@
 //   const handleStreamEndOnExit = async (isReload = false) => {
 //     try {
 //       if (isReload) {
-//         await apiInstance.api.post('/api/livestream/end-stream/', {
+//         await api.api.post('/api/v1/livestream/end-stream/', {
 //           channel: streamSettings.channel || existingStreamError?.existing_stream?.channel,
 //           abruptExit: false,
 //           isReload: true
@@ -226,7 +226,7 @@
 //       } else {
 //         // End existing stream if present
 //         if (existingStreamError?.existing_stream?.channel) {
-//           await apiInstance.api.post('/api/livestream/end-stream/', {
+//           await api.api.post('/api/v1/livestream/end-stream/', {
 //             channel: existingStreamError.existing_stream.channel,
 //             abruptExit: true
 //           });
@@ -235,7 +235,7 @@
 //         // End current stream if present
 //         if (streamSettings.channel && 
 //             streamSettings.channel !== existingStreamError?.existing_stream?.channel) {
-//           await apiInstance.api.post('/api/livestream/end-stream/', {
+//           await api.api.post('/api/v1/livestream/end-stream/', {
 //             channel: streamSettings.channel,
 //             abruptExit: true
 //           });
@@ -318,7 +318,7 @@
 //     // Use API calls with proper error handling
 //     try {
 //       if (existingStreamError?.existing_stream?.channel) {
-//         await apiInstance.api.post('/api/livestream/end-stream/', {
+//         await api.api.post('/api/v1/livestream/end-stream/', {
 //           channel: existingStreamError.existing_stream.channel,
 //           abruptExit: true
 //         }, { timeout: 1000 });
@@ -326,7 +326,7 @@
       
 //       if (streamSettings.channel && 
 //           streamSettings.channel !== existingStreamError?.existing_stream?.channel) {
-//         await apiInstance.api.post('/api/livestream/end-stream/', {
+//         await api.api.post('/api/v1/livestream/end-stream/', {
 //           channel: streamSettings.channel,
 //           abruptExit: true
 //         }, { timeout: 1000 });
@@ -573,7 +573,7 @@
 //         ...options  // Spread any additional options to allow overriding
 //       };
       
-//       const response = await apiInstance.api.get('/api/livestream/token/', {
+//       const response = await api.api.get('/api/v1/livestream/token/', {
 //         params: queryParams
 //       });
       
@@ -806,7 +806,7 @@
 //             await ensureClientDisconnected();
             
 //             // End the stream on the backend
-//             await apiInstance.api.post('/api/livestream/end-stream/', {
+//             await api.api.post('/api/v1/livestream/end-stream/', {
 //               channel: existingChannel,
 //               abruptExit: false
 //             });
@@ -868,7 +868,7 @@
 //       try {
 //         // End current stream if it exists
 //         if (streamSettings.channel) {
-//           await apiInstance.api.post('/api/livestream/end-stream/', {
+//           await api.api.post('/api/v1/livestream/end-stream/', {
 //             channel: streamSettings.channel,
 //             abruptExit: false
 //           });
@@ -877,7 +877,7 @@
         
 //         // Also end any existing stream from error data if available
 //         if (existingStreamError?.existing_stream?.channel) {
-//           await apiInstance.api.post('/api/livestream/end-stream/', {
+//           await api.api.post('/api/v1/livestream/end-stream/', {
 //             channel: existingStreamError.existing_stream.channel,
 //             abruptExit: false
 //           });

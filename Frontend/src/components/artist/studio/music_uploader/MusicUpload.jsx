@@ -81,7 +81,7 @@ const MusicUpload = () => {
       setNameValidation({ isChecking: true, error: null });
   
       try {
-        const response = await api.get(`/api/music/music/check_name/?name=${encodeURIComponent(name)}`);
+        const response = await api.get(`/api/v1/music/music/check_name/?name=${encodeURIComponent(name)}`);
         
         if (response.data.exists) {
           setNameValidation({
@@ -102,7 +102,7 @@ const MusicUpload = () => {
 
 
     const isValidTrackName = (name) => {
-      const invalidChars = /[<>:"/\|?*]/; // Regex to check for invalid characters
+      const invalidChars = /[<>:"/\\|?*]/; // Regex to check for invalid characters
       return !invalidChars.test(name);
     };
 
@@ -173,9 +173,10 @@ const MusicUpload = () => {
     useEffect(() => {
       const fetchGenres = async () => {
         try {
-          const response = await api.get('/api/music/genres/');
-          setGenres(response.data.map(genre => ({
-            value: genre.id,  // Change this to use value instead of id
+          const response = await api.get('/api/v1/music/genres/');
+          const data = response.data.results || response.data || [];
+          setGenres(data.map(genre => ({
+            value: genre.id,
             label: genre.name
           })));
         } catch (err) {
@@ -469,7 +470,7 @@ const formatAudioFileName = () => {
   if (!files.audio || !formData.name || !formData.releaseDate) return files.audio.name;
 
   // Remove invalid characters from the track name
-  const sanitizedName = formData.name.replace(/[<>:"/\|?*]/g, '_');
+  const sanitizedName = formData.name.replace(/[<>:"/\\|?*]/g, '_');
   
   // Format the release date
   const releaseDate = new Date(formData.releaseDate);
@@ -521,7 +522,7 @@ const formatAudioFileName = () => {
           const milliseconds = Math.round((audioDuration % 1) * 1000000);
     
           const durationString = `P0DT${hours}H${minutes}M${seconds}.${milliseconds}S`;
-          console.log('Sending duration:', durationString);
+
           formDataToSubmit.append('duration', durationString);
         }
     
@@ -545,7 +546,7 @@ const formatAudioFileName = () => {
           formDataToSubmit.append('track_number', trackNumber);
         }
     
-        const response = await api.post('/api/music/music/', formDataToSubmit, {
+        const response = await api.post('/api/v1/music/music/', formDataToSubmit, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
     
@@ -609,15 +610,6 @@ const formatAudioFileName = () => {
         setCoverPreview(null);
       }
     }, [files.cover]);
-    // Show error message if there is one
-    if (error) {
-      return (
-        <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-          <strong className="font-bold">Error: </strong>
-          <span className="block sm:inline">{error}</span>
-        </div>
-      );
-    }
     const isFormValid = () => {
       return (
         files.audio && 
@@ -712,6 +704,18 @@ const formatAudioFileName = () => {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
     
+    // Removed conditional hooks related to rendering errors;
+    // Handled in regular render pipeline
+    // Show error message if there is one
+    if (error) {
+      return (
+        <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          <strong className="font-bold">Error: </strong>
+          <span className="block sm:inline">{error}</span>
+        </div>
+      );
+    }
+
     
   return (
     <div className="max-w-5xl mx-auto p-5">

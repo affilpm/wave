@@ -1,200 +1,185 @@
+/**
+ * API client — Axios instance with JWT token management.
+ *
+ * Features:
+ * - Automatic access-token refresh via interceptors
+ * - Concurrent-request deduplication during refresh
+ * - Centralised logout with Redux persist cleanup
+ *
+ * Usage:
+ *   import api from '@/api';
+ *   const { data } = await api.get(USERS.PROFILE);
+ */
+
 import axios from 'axios';
 import jwt_decode from 'jwt-decode';
+
+import { USERS } from './constants/apiEndpoints';
+import { ACCESS_TOKEN, REFRESH_TOKEN } from './constants/authConstants';
 import { persistor } from './store';
-const TOKEN_BUFFER_TIME = 30000; // 30 seconds in milliseconds
-const UNAUTHORIZED = 401;
 
-export class api {
-  constructor(config) {
-    this.config = {
-      baseURL: config.baseURL || import.meta.env.VITE_API_URL,
-      accessTokenKey: config.accessTokenKey || 'access_token',
-      refreshTokenKey: config.refreshTokenKey || 'refresh_token',
-      onLogout: config.onLogout || (() => {}),
-      tokenType: config.tokenType || 'Bearer'
-    };
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+const TOKEN_BUFFER_MS = 30_000;            // refresh 30 s before expiry
+const UNAUTHORIZED    = 401;
+const BASE_URL        = import.meta.env.VITE_API_URL;
+const IS_DEV          = import.meta.env.DEV;
 
-    this.refreshPromise = null;
-    this.api = this.setupAxiosInstance();
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Dev-only logger — silenced in production builds. */
+const devLog = IS_DEV
+  ? (...args) => console.warn('[api]', ...args)
+  : () => {};
+
+const getToken  = (key) => localStorage.getItem(key);
+const setToken  = (key, value) => {
+  if (value) localStorage.setItem(key, value);
+  else       localStorage.removeItem(key);
+};
+
+/** Returns `true` when the token is missing or within the buffer window. */
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  try {
+    const { exp } = jwt_decode(token);
+    return (exp * 1000) - TOKEN_BUFFER_MS <= Date.now();
+  } catch {
+    return true;
   }
-  async getUserProfile() {
-    try {
-      const response = await this.api.get('/api/users/user/');
-      return response.data;
-    } catch (error) {
-      console.error('Failed to fetch user profile:', error);
-      throw error;
-    }
-  }
-  setupAxiosInstance() {
-    const instance = axios.create({
-      baseURL: this.config.baseURL,
-      headers: { 'Content-Type': 'application/json' }
-    });
+};
 
-    instance.interceptors.request.use(
-      (config) => this.handleRequestInterceptor(config), 
-      (error) => this.handleRequestError(error)
+// ---------------------------------------------------------------------------
+// Axios instance
+// ---------------------------------------------------------------------------
+const api = axios.create({
+  baseURL: BASE_URL,
+  headers: { 'Content-Type': 'application/json' },
+});
+
+// ---------------------------------------------------------------------------
+// Token refresh (singleton promise prevents thundering-herd)
+// ---------------------------------------------------------------------------
+let refreshPromise = null;
+
+const refreshAccessToken = async () => {
+  const refreshToken = getToken(REFRESH_TOKEN);
+
+  if (!refreshToken || isTokenExpired(refreshToken)) {
+    devLog('Refresh token missing or expired — logging out.');
+    await handleLogout();
+    throw new Error('Invalid or expired refresh token');
+  }
+
+  try {
+    const { data } = await axios.post(
+      `${BASE_URL}${USERS.TOKEN_REFRESH}`,
+      { refresh: refreshToken },
     );
 
-    instance.interceptors.response.use(
-      (response) => response,
-      (error) => this.handleResponseError(error) 
+    setToken(ACCESS_TOKEN, data.access);
+    if (data.refresh) setToken(REFRESH_TOKEN, data.refresh);
+
+    window.dispatchEvent(
+      new CustomEvent('tokenRefreshed', { detail: { newToken: data.access } }),
     );
 
-    return instance;
+    return data.access;
+  } catch (err) {
+    devLog('Token refresh failed:', err.message);
+    await handleLogout();
+    throw err;
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Interceptors
+// ---------------------------------------------------------------------------
+
+/** Attach Authorization header, refreshing the token first if necessary. */
+api.interceptors.request.use(async (config) => {
+  const token = getToken(ACCESS_TOKEN);
+  if (!token) return config;
+
+  if (!isTokenExpired(token)) {
+    config.headers.Authorization = `Bearer ${token}`;
+    return config;
   }
 
-  getToken(key) {
-    return localStorage.getItem(this.config[key]);
+  try {
+    refreshPromise ??= refreshAccessToken();
+    const newToken = await refreshPromise;
+    config.headers.Authorization = `Bearer ${newToken}`;
+  } catch {
+    await handleLogout();
+  } finally {
+    refreshPromise = null;
   }
 
-  setToken(key, value) {
-    if (value) {
-      localStorage.setItem(this.config[key], value);
-    } else {
-      localStorage.removeItem(this.config[key]);
-    }
-  }
+  return config;
+});
 
-  isTokenExpired(token) {
-    if (!token) return true;
-
-    try {
-      const decoded = jwt_decode(token);
-      return (decoded.exp * 1000) - TOKEN_BUFFER_TIME <= Date.now();
-    } catch (error) {
-      console.error('Token decode error:', error);
-      return true;
-    }
-  }
-
-  async refreshAccessToken() {
-    try {
-      const refreshToken = this.getToken('refreshTokenKey');
-
-      if (!refreshToken || this.isTokenExpired(refreshToken)) {
-        console.error("Refresh token expired. Logging out.");
-        this.handleLogout();
-        throw new Error('Invalid or expired refresh token');
-      }
-
-      const response = await axios.post(`${this.config.baseURL}/api/users/token/refresh/`, {
-        refresh: refreshToken
-      });
-
-      const { access, refresh } = response.data;
-
-      this.setToken('accessTokenKey', access);
-      if (refresh) {
-        this.setToken('refreshTokenKey', refresh);
-      }
-
-      const event = new CustomEvent('tokenRefreshed', { detail: { newToken: access } });
-      window.dispatchEvent(event);
-    
-      return access;
-    } catch (error) {
-      console.error("Token refresh failed:", error);
-      this.handleLogout();
-      throw error;
-    }
-  }
-
-  async handleRequestInterceptor(config) {
-    const token = this.getToken('accessTokenKey');
-
-    if (!token) return config;
-
-    if (!this.isTokenExpired(token)) {
-      config.headers.Authorization = `${this.config.tokenType} ${token}`;
-      return config;
-    }
-
-    try {
-      if (!this.refreshPromise) {
-        this.refreshPromise = this.refreshAccessToken();
-      }
-
-      const newToken = await this.refreshPromise;
-      config.headers.Authorization = `${this.config.tokenType} ${newToken}`;
-      return config;
-    } catch (error) {
-      console.error('Token refresh failed in request interceptor:', error);
-      this.handleLogout();
-      throw error;
-    } finally {
-      this.refreshPromise = null;
-    }
-  }
-
-  async handleResponseError(error) {
-    const originalRequest = error.config;
-
-    if (!error.response) {
-      return Promise.reject(error);
-    }
+/** Retry once on 401 when the access token was stale. */
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const original = error.config;
 
     if (
-      error.response.status === UNAUTHORIZED &&
-      !originalRequest._retry &&
-      this.isTokenExpired(this.getToken('accessTokenKey'))
+      error.response?.status === UNAUTHORIZED &&
+      !original._retry &&
+      isTokenExpired(getToken(ACCESS_TOKEN))
     ) {
-      originalRequest._retry = true;
+      original._retry = true;
 
       try {
-        if (!this.refreshPromise) {
-          this.refreshPromise = this.refreshAccessToken();
-        }
-
-        const newToken = await this.refreshPromise;
-        originalRequest.headers.Authorization = `${this.config.tokenType} ${newToken}`;
-        return this.api(originalRequest);
-      } catch (refreshError) {
-        console.error("Failed to refresh token:", refreshError);
-        this.handleLogout();
-        return Promise.reject(refreshError);
+        refreshPromise ??= refreshAccessToken();
+        const newToken = await refreshPromise;
+        original.headers.Authorization = `Bearer ${newToken}`;
+        return api(original);
+      } catch (refreshErr) {
+        await handleLogout();
+        return Promise.reject(refreshErr);
       } finally {
-        this.refreshPromise = null;
+        refreshPromise = null;
       }
     }
 
     return Promise.reject(error);
-  }
+  },
+);
 
+// ---------------------------------------------------------------------------
+// Logout
+// ---------------------------------------------------------------------------
 
-  handleLogout = async () => {
-    try {
-      const refreshToken = this.getToken('refreshTokenKey');
-      const accessToken = this.getToken('accessTokenKey');
+/**
+ * Clear tokens, purge persisted Redux state, and redirect.
+ * Called automatically on unrecoverable auth failures.
+ */
+const handleLogout = async () => {
+  try {
+    const refreshToken = getToken(REFRESH_TOKEN);
+    const accessToken  = getToken(ACCESS_TOKEN);
 
-      // Non-blocking logout API call
-      if (refreshToken && accessToken) {
-        this.api.post('/api/users/logout/', { refresh_token: refreshToken }, {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        }).catch(err => console.error('Logout API error (non-blocking):', err));
-      }
-    } catch (error) {
-      console.error('Unexpected error during logout:', error);
-    } finally {
-      this.setToken('accessTokenKey', null);
-      this.setToken('refreshTokenKey', null);
-
-      localStorage.clear();
-      delete this.api.defaults.headers.common.Authorization;
-
-      // Clear Redux state and then redirect
-      persistor.purge().finally(() => {
-        if (this.config.onLogout) {
-          this.config.onLogout();
-        }
-      });
+    if (refreshToken && accessToken) {
+      // Fire-and-forget — don't block cleanup on network call
+      api.post(USERS.LOGOUT, { refresh_token: refreshToken }, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }).catch(() => {});
     }
-  };
+  } finally {
+    setToken(ACCESS_TOKEN, null);
+    setToken(REFRESH_TOKEN, null);
+    localStorage.clear();
+    delete api.defaults.headers.common.Authorization;
 
+    await persistor.purge();
+  }
+};
 
-
-}
-
-export const apiInstance = new api({ baseURL: import.meta.env.VITE_API_URL, onLogout: () => {} });
-export default apiInstance.api; 
+export { handleLogout };
+export default api;

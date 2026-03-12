@@ -33,12 +33,12 @@ const EqualizerControl = () => {
       try {
         dispatch(setLoading(true));
         const [presetsResponse, userPresetResponse] = await Promise.all([
-          api.get('/api/music/presets/'),
-          api.get('/api/music/user-preset/'),
+          api.get('/api/v1/music/presets/'),
+          api.get('/api/v1/music/user-preset/'),
         ]);
 
         setPresets(presetsResponse.data);
-        console.log(presetsResponse.data)
+
         // Find and select user's current preset
         const userPresetId = userPresetResponse.data.preset_id;
         const userPreset = presetsResponse.data.find((p) => p.id === userPresetId);
@@ -103,7 +103,7 @@ const EqualizerControl = () => {
     try {
       if (!presetId) return;
 
-      await api.post('/api/music/user-preset/', {
+      await api.post('/api/v1/music/user-preset/', {
         preset_id: presetId,
       });
 

@@ -8,24 +8,26 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
-} from "../../../../../slices/user/playerSlice";
+} from "../../../../../store/slices/playerSlice";
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue,
-    currentIndex: player.currentIndex,
+    queueIndex: player.queueIndex,
   })
 );
 
 const MusicSection = ({ title, items }) => {
   const dispatch = useDispatch();
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing';
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -35,36 +37,24 @@ const MusicSection = ({ title, items }) => {
 
   const isQueueFromSectionTracks = useMemo(() => {
     if (!queue.length) return false;
-    return queue.every((track) => track.source === 'public_songs');
-  }, [queue, title]);
+    return queue.some((track) => track.source === 'public_songs');
+  }, [queue]);
 
   const isCurrentTrackFromSectionTracks = useMemo(() => {
     if (!musiclistData.length || !currentMusicId || !isQueueFromSectionTracks) {
-      console.log('isCurrentTrackFromSectionTracks: Early return', {
-        hasTracks: !!musiclistData.length,
-        currentMusicId,
-        isQueueFromSectionTracks,
-        queueLength: queue.length,
-        currentIndex,
-      });
       return false;
     }
-    const currentTrack = queue[currentIndex];
+    const trackAtIdx = queue[queueIndex];
     const isTrackInTracks = musiclistData.some(
       (track) => Number(track.id) === Number(currentMusicId)
     );
-    console.log('isCurrentTrackFromSectionTracks: Result', {
-      currentTrackId: currentTrack?.id,
-      currentMusicId,
-      isTrackInTracks,
-      isPlaying,
-    });
+    
     return (
-      currentTrack &&
-      Number(currentTrack.id) === Number(currentMusicId) &&
+      trackAtIdx &&
+      Number(trackAtIdx.id) === Number(currentMusicId) &&
       isTrackInTracks
     );
-  }, [musiclistData, currentMusicId, isQueueFromSectionTracks, queue, currentIndex]);
+  }, [musiclistData, currentMusicId, isQueueFromSectionTracks, queue, queueIndex]);
 
   const handleScroll = useCallback((direction) => {
     const container = scrollContainerRef.current;
@@ -85,7 +75,8 @@ const MusicSection = ({ title, items }) => {
       artist: track.artist?.user?.username || track.artist || 'Unknown Artist',
       artist_full: track.artist_full || track.artist,
       album: 'Single',
-      cover_photo: track.cover_photo || '/api/placeholder/48/48',
+      cover_photo: track.cover_photo || '/api/v1/placeholder/48/48',
+      audio_file: track.audio_file,
       duration: track.duration || 0, // Assuming duration is in seconds or can be converted
       genre: track.genre || '',
       year: track.release_date ? new Date(track.release_date).getFullYear() : null,

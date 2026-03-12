@@ -480,10 +480,10 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
 
       // For debugging - log form data contents
       for (let pair of changes.entries()) {
-        console.log(pair[0] + ': ' + pair[1]);
+
       }
 
-      const response = await api.patch(`/api/album/albums/${album.id}/`, changes, {
+      const response = await api.patch(`/api/v1/album/albums/${album.id}/`, changes, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

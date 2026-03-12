@@ -78,7 +78,7 @@ const EditPlaylistModal = ({ isOpen, onClose, onEditPlaylist, playlist }) => {
         formData.append('cover_photo', coverPhoto);
       }
       
-      const response = await api.patch(`/api/playlist/playlists/${playlist.id}/`, formData, {
+      const response = await api.patch(`/api/v1/playlist/playlists/${playlist.id}/`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

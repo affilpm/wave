@@ -7,7 +7,7 @@ import adminReducer from './slices/admin/adminSlice';
 import modalReducer from './slices/artist/modalSlice';
 import playlistReducer from './slices/user/playlistSlice';
 import albumReducer from './slices/user/albumSlice';
-import playerReducer from './slices/user/playerSlice';
+import playerReducer from './store/slices/playerSlice';
 import playerMiddleware from './middleware/playerMiddleware';
 import { activityMiddleware } from './middleware/activityMiddleware';
 import equalizerReducer from './slices/user/equalizerSlice';

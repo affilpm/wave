@@ -34,10 +34,6 @@ class UserSerializer(serializers.ModelSerializer):
     
     def get_profile_photo_url(self, obj):
         if obj.profile_photo:
-            # Get the full URL for the profile photo
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.profile_photo.url)
             return obj.profile_photo.url
         return None
     
@@ -52,8 +48,11 @@ class LoginSerializer(serializers.Serializer):
             return User.objects.get(email=value)
         except User.DoesNotExist:
             raise serializers.ValidationError("User with this email does not exist.")
-        
-
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.cover_photo:
+            representation['cover_photo'] = instance.cover_photo.url
+        return representation
 
 
 class UserProfileSerializer(serializers.ModelSerializer):

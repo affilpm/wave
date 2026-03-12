@@ -3,7 +3,7 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
-} from "../../../../../slices/user/playerSlice";
+} from "../../../../../store/slices/playerSlice";
 import api from "../../../../../api";
 
 // Utility function to convert duration to seconds (aligned with AlbumSection)
@@ -23,7 +23,7 @@ export const prepareTrackForPlayer = (track, albumId, albumName) => {
     artist: details.artist_username || "Unknown Artist",
     artist_full: details.artist_full_name || details.artist_username || "Unknown Artist",
     album: Number(albumId), // Set album field to match item.id in isItemPlaying
-    cover_photo: details.cover_photo || "/api/placeholder/192/192",
+    cover_photo: details.cover_photo || "/api/v1/placeholder/192/192",
     audio_file: details.audio_file || "", // Ensure audio_file is included
     duration: details.duration ? convertToSeconds(details.duration) : 0,
     genre: details.genre || "",
@@ -38,7 +38,7 @@ export const prepareTrackForPlayer = (track, albumId, albumName) => {
 // Fetch album tracks and metadata
 export const fetchAlbumTracks = async (albumId) => {
   try {
-    const response = await api.get(`/api/album/album_data/${albumId}/`);
+    const response = await api.get(`/api/v1/album/album_data/${albumId}/`);
     return {
       tracks: response.data.tracks || [],
       name: response.data.name || "Unknown Album",

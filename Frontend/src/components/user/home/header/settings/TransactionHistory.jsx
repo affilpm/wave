@@ -14,8 +14,9 @@ const TransactionHistory = () => {
     const fetchTransactions = async () => {
       try {
         setLoading(true);
-        const response = await api.get('api/premium/transactions/');
-        setTransactions(response.data);
+        const response = await api.get('/api/v1/premium/transactions/');
+        const transactionsData = response.data.results || (Array.isArray(response.data) ? response.data : []);
+        setTransactions(transactionsData);
         setLoading(false);
       } catch (err) {
         setError('Failed to load transaction history');

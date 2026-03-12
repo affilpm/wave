@@ -18,8 +18,7 @@ const SimpleVerificationPlayer = ({ audioUrl, isPlaying, onPlayToggle, musicId }
       }
       
       // Fetch directly from S3 without using the backend proxy
-      console.log('Fetching audio directly from:', url);
-      
+
       fetch(url, {
         mode: 'cors',
         headers: {

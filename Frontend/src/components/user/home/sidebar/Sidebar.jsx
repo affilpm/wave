@@ -42,9 +42,11 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
     const fetchData = async () => {
       try {
         // Fetch user's own playlists
-        const ownPlaylistsResponse = await api.get('/api/playlist/playlist-data/');
+        const ownPlaylistsResponse = await api.get('/api/v1/playlist/playlist-data/');
+        const ownData = Array.isArray(ownPlaylistsResponse.data) ? ownPlaylistsResponse.data : (ownPlaylistsResponse.data.results || []);
+        
         // First, remove "Liked Songs" from the response data if it exists
-        const regularPlaylists = ownPlaylistsResponse.data.filter(
+        const regularPlaylists = ownData.filter(
           playlist => playlist.name !== 'Liked Songs'
         );
 
@@ -53,7 +55,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
           id: playlist.id,
           name: playlist.name,
           icon: null,
-          image: playlist.cover_photo || "/api/placeholder/40/40",
+          image: playlist.cover_photo || "/api/v1/placeholder/40/40",
           songCount: playlist.tracks?.length || 0,
           type: 'Playlist',
           description: playlist.description,
@@ -61,7 +63,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
         }));
   
         // Find and format Liked Songs playlist if it exists
-        const likedSongsPlaylist = ownPlaylistsResponse.data.find(
+        const likedSongsPlaylist = ownData.find(
           playlist => playlist.name === 'Liked Songs'
         );
   
@@ -70,7 +72,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
             id: likedSongsPlaylist.id,
             name: 'Liked Songs',
             icon: <Heart className="h-6 w-6 text-pink-500" />,
-            image: likedSongsPlaylist.cover_photo || "/api/placeholder/40/40",
+            image: likedSongsPlaylist.cover_photo || "/api/v1/placeholder/40/40",
             songCount: likedSongsPlaylist.tracks?.length || 0,
             type: 'Playlist',
             description: likedSongsPlaylist.description,
@@ -83,13 +85,14 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
         }
 
         // Fetch library playlists
-        const libraryPlaylistsResponse = await api.get('/api/library/playlists/');
+        const libraryPlaylistsResponse = await api.get('/api/v1/library/playlists/');
+        const libraryData = Array.isArray(libraryPlaylistsResponse.data) ? libraryPlaylistsResponse.data : (libraryPlaylistsResponse.data.results || []);
         
-        const formattedLibraryPlaylists = libraryPlaylistsResponse.data.map(playlist => ({
+        const formattedLibraryPlaylists = libraryData.map(playlist => ({
           id: playlist.id,
           name: playlist.name,
           icon: null,
-          image: playlist.cover_photo || "/api/placeholder/40/40",
+          image: playlist.cover_photo || "/api/v1/placeholder/40/40",
           songCount: playlist.tracks?.length || 0,
           type: 'Added Playlist',
           description: playlist.description,
@@ -99,10 +102,12 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
         setLibraryPlaylists(formattedLibraryPlaylists);
         
         // Fetch followed artists
-        const followingResponse = await api.get('/api/artists/me/following/');
-        if (followingResponse.data && Array.isArray(followingResponse.data)) {
+        const followingResponse = await api.get('/api/v1/artists/me/following/');
+        const followingData = Array.isArray(followingResponse.data) ? followingResponse.data : (followingResponse.data.results || []);
+        
+        if (followingData.length > 0) {
           // Extract artist data from the follow relationships
-          const artistsData = followingResponse.data.map(follow => follow.artist);
+          const artistsData = followingData.map(follow => follow.artist);
           setFollowedArtists(artistsData);
         }
   
@@ -123,7 +128,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
       id: newPlaylist.id,
       name: newPlaylist.name,
       icon: null,
-      image: newPlaylist.cover_photo || "/api/placeholder/40/40",
+      image: newPlaylist.cover_photo || "/api/v1/placeholder/40/40",
       songCount: 0,
       type: 'Playlist',
       description: newPlaylist.description,

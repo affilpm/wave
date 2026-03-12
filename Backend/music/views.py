@@ -1,469 +1,434 @@
-from .models import Genre, Music, UserPreference, Album, AlbumTrack, MusicApprovalStatus, EqualizerPreset, StreamingFile, HLSQuality
-from .serializers import GenreSerializer, MusicSerializer, MusicDataSerializer, UserPreferenceSerializer, MusicVerificationSerializer
-from rest_framework.parsers import MultiPartParser, FormParser
-from rest_framework.response import Response
-from rest_framework.viewsets import ModelViewSet
-from rest_framework import viewsets, status
-from rest_framework.decorators import action, api_view
-from rest_framework.permissions import IsAdminUser
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.views import APIView
-from rest_framework.generics import UpdateAPIView
-from django.db import transaction
-from django.core.exceptions import ValidationError
+"""
+Music API views — streaming, track management, equalizer presets.
+
+All query-heavy logic delegates to ``music.services``.
+"""
+
+from __future__ import annotations
+
+import logging
+
 from django.core.cache import cache
-from rest_framework import generics
-from rest_framework.pagination import PageNumberPagination
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from rest_framework.decorators import api_view, permission_classes
-from .throttles import MusicStreamingRateThrottle
+from rest_framework import generics, status, viewsets
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.generics import UpdateAPIView
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.viewsets import ModelViewSet
+
+from music.models import (
+    Album,
+    AlbumTrack,
+    EqualizerPreset,
+    Genre,
+    HLSQuality,
+    Music,
+    MusicApprovalStatus,
+    StreamingFile,
+    UserPreference,
+)
+from music.serializers import (
+    GenreSerializer,
+    MusicDataSerializer,
+    MusicSerializer,
+    MusicVerificationSerializer,
+    UserPreferenceSerializer,
+)
+from music.services import MusicService, StreamingService
+from music.throttles import MusicStreamingRateThrottle
 from premium.models import UserSubscription
 
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Genre views
+# ---------------------------------------------------------------------------
 
 class GenreViewSet(viewsets.ReadOnlyModelViewSet):
+    """List all genres (authenticated users)."""
+
     queryset = Genre.objects.all()
     serializer_class = GenreSerializer
     permission_classes = [IsAuthenticated]
-    
-    
-    
-    
-    
+
+
 class PublicGenresViewSet(viewsets.ReadOnlyModelViewSet):
+    """List genres that have at least one public track."""
+
     queryset = Genre.objects.filter(musical_works__is_public=True).distinct()
     serializer_class = GenreSerializer
 
 
-
-
-
+# ---------------------------------------------------------------------------
+# Track listing views
+# ---------------------------------------------------------------------------
 
 class PublicSongsView(generics.ListAPIView):
+    """List the current user's own approved, public tracks."""
+
     serializer_class = MusicDataSerializer
     permission_classes = [IsAuthenticated]
-    
+
     def get_queryset(self):
-        return Music.objects.filter(
-            artist__user=self.request.user,
-            is_public=True,
-            approval_status='approved'
-        ).order_by('-release_date')
-        
-        
-         
+        return (
+            Music.objects.filter(
+                artist__user=self.request.user,
+                is_public=True,
+                approval_status=MusicApprovalStatus.APPROVED,
+            )
+            .select_related("artist", "artist__user")
+            .order_by("-release_date")
+        )
+
 
 class SongsByArtistView(generics.ListAPIView):
+    """List approved, public tracks by a specific artist."""
+
     serializer_class = MusicDataSerializer
     permission_classes = [IsAuthenticated]
-    
-    def get_queryset(self):
-        artist_id = self.kwargs.get('artist_id')
-        return Music.objects.filter(
-            artist__id=artist_id,
-            is_public=True,
-            approval_status='approved'
-        ).order_by('-release_date')        
-        
 
+    def get_queryset(self):
+        artist_id = self.kwargs.get("artist_id")
+        return (
+            Music.objects.filter(
+                artist__id=artist_id,
+                is_public=True,
+                approval_status=MusicApprovalStatus.APPROVED,
+            )
+            .select_related("artist", "artist__user")
+            .order_by("-release_date")
+        )
+
+
+# ---------------------------------------------------------------------------
+# Pagination
+# ---------------------------------------------------------------------------
 
 class MusicPagination(PageNumberPagination):
     page_size = 8
-    page_size_query_param = 'page_size'
+    page_size_query_param = "page_size"
     max_page_size = 100
-      
-    
-    
+
+
+# ---------------------------------------------------------------------------
+# Music CRUD ViewSet
+# ---------------------------------------------------------------------------
+
 class MusicViewSet(ModelViewSet):
+    """Full CRUD for an artist's own tracks."""
+
     queryset = Music.objects.all()
     serializer_class = MusicSerializer
     parser_classes = (MultiPartParser, FormParser)
-    pagination_class = MusicPagination  
+    pagination_class = MusicPagination
 
+    def get_queryset(self):
+        queryset = (
+            Music.objects.filter(artist__user=self.request.user)
+            .select_related("artist", "artist__user")
+            .prefetch_related("genres")
+            .order_by("-created_at")
+        )
+        search_term = self.request.query_params.get("search", "")
+        if search_term:
+            queryset = queryset.filter(Q(name__icontains=search_term)).distinct()
+        return queryset
 
     @transaction.atomic
     def create(self, request, *args, **kwargs):
+        """Create a new track, optionally assigning it to an album."""
         try:
             artist = request.user.artist_profile
-            duration_str = request.data.get('duration')
-            duration = None
-            if duration_str:
-                try:
-                    # Using isodate to parse the ISO 8601 duration format
-                    import isodate
-                    duration = isodate.parse_duration(duration_str)
-                except (ValueError, TypeError) as e:
-                    return Response(
-                        {'error': f'Invalid duration format: {str(e)}'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+            duration = self._parse_duration(request.data.get("duration"))
 
-            # Prepare music data
             music_data = {
-                'name': request.data.get('name'),
-                'release_date': request.data.get('release_date'),
-                'artist': artist.id,
-                'genres': request.data.getlist('genres[]'),
-                'duration': duration,
-                **{field: request.FILES[field] 
-                for field in ['audio_file', 'cover_photo', 'video_file'] 
-                if field in request.FILES}
+                "name": request.data.get("name"),
+                "release_date": request.data.get("release_date"),
+                "artist": artist.id,
+                "genres": request.data.getlist("genres[]"),
+                "duration": duration,
+                **{
+                    field: request.FILES[field]
+                    for field in ("audio_file", "cover_photo", "video_file")
+                    if field in request.FILES
+                },
             }
 
             serializer = self.get_serializer(data=music_data)
             if not serializer.is_valid():
                 return Response(
-                    {'error': 'Validation failed', 'details': serializer.errors},
-                    status=status.HTTP_400_BAD_REQUEST
+                    {"error": "Validation failed", "details": serializer.errors},
+                    status=status.HTTP_400_BAD_REQUEST,
                 )
 
             music_track = serializer.save()
+            self._assign_to_album(request, artist, music_track)
 
-            # Handle album assignment
-            album_id = request.data.get('album')
-            track_number = request.data.get('track_number')
-            
-            if album_id and track_number:
-                try:
-                    album = Album.objects.select_for_update().get(
-                        id=album_id, 
-                        artist=artist
-                    )
-                    
-                    # Check for duplicate track numbers
-                    if AlbumTrack.objects.filter(
-                        album=album, 
-                        track_number=track_number
-                    ).exists():
-                        raise ValidationError('Track number already exists in this album')
-                    
-                    AlbumTrack.objects.create(
-                        album=album,
-                        track=music_track,
-                        track_number=int(track_number)
-                    )
-                    
-                except Album.DoesNotExist:
-                    return Response(
-                        {'error': 'Album not found or does not belong to artist'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                except ValidationError as e:
-                    return Response(
-                        {'error': str(e)},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
 
+        except ValidationError as exc:
+            return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            logger.exception("Error creating track")
             return Response(
-                serializer.data,
-                status=status.HTTP_201_CREATED
+                {"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-            
-    
-        
-    @action(detail=False, methods=['get'])
-    def check_name(self, request):
-        name = request.query_params.get('name', '').strip()
-        artist = request.user.artist_profile
-        exists = Music.objects.filter(
-            name__iexact=name, 
-            artist=artist
-        ).exists()
-        return Response({
-            'exists': exists
-        })
-        
-    def get_queryset(self):
-        search_term = self.request.query_params.get('search', '')
-        queryset = Music.objects.filter(artist__user=self.request.user).order_by('-created_at')
-        
-        if search_term:
-            queryset = queryset.filter(
-                Q(name__icontains=search_term)  # Search by track name
-            ).distinct()
-
-        return queryset
-        
-        
-        
     def destroy(self, request, *args, **kwargs):
+        """Delete a track and its associated media files."""
         instance = self.get_object()
-        # Completely delete the music file and cover photo
-        if instance.audio_file:
-            instance.audio_file.delete(save=False)
-        if instance.video_file:
-            instance.video_file.delete(save=False)
-        if instance.cover_photo:
-            instance.cover_photo.delete(save=False)
+        for field_name in ("audio_file", "video_file", "cover_photo"):
+            field = getattr(instance, field_name, None)
+            if field:
+                field.delete(save=False)
         instance.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=True, methods=['POST'])
+    @action(detail=False, methods=["get"])
+    def check_name(self, request):
+        """Check if a track name already exists for this artist."""
+        name = request.query_params.get("name", "").strip()
+        artist = request.user.artist_profile
+        exists = Music.objects.filter(name__iexact=name, artist=artist).exists()
+        return Response({"exists": exists})
+
+    @action(detail=True, methods=["post"])
     def toggle_visibility(self, request, pk=None):
+        """Toggle the is_public flag on a track."""
         music = self.get_object()
         music.is_public = not music.is_public
-        music.save()
-        return Response({'is_public': music.is_public})
-    
-      
+        music.save(update_fields=["is_public", "updated_at"])
+        return Response({"is_public": music.is_public})
+
+    # --- Helpers ---
+
+    @staticmethod
+    def _parse_duration(duration_str: str | None):
+        """Parse an ISO 8601 duration string, returning None on failure."""
+        if not duration_str:
+            return None
+        try:
+            import isodate
+            return isodate.parse_duration(duration_str)
+        except (ValueError, TypeError) as exc:
+            raise ValidationError(f"Invalid duration format: {exc}")
+
+    @staticmethod
+    def _assign_to_album(request, artist, music_track):
+        """Optionally assign a track to an album at a given position."""
+        album_id = request.data.get("album")
+        track_number = request.data.get("track_number")
+        if not album_id or not track_number:
+            return
+        album = Album.objects.select_for_update().get(id=album_id, artist=artist)
+        if AlbumTrack.objects.filter(album=album, track_number=track_number).exists():
+            raise ValidationError("Track number already exists in this album")
+        AlbumTrack.objects.create(
+            album=album, track=music_track, track_number=int(track_number)
+        )
 
 
+# ---------------------------------------------------------------------------
+# Equalizer presets
+# ---------------------------------------------------------------------------
 
-@api_view(['GET'])
+@api_view(["GET"])
 @permission_classes([IsAuthenticated])
-def get_equalizer_presets(request):
-    """Get all available equalizer presets"""
+def get_equalizer_presets(request) -> Response:
+    """Return all available equalizer presets."""
     presets = EqualizerPreset.objects.all().values(
-        'id', 'name', 'description', 
-        'band_31', 'band_62', 'band_125', 'band_250', 'band_500',
-        'band_1k', 'band_2k', 'band_4k', 'band_8k', 'band_16k'
+        "id", "name", "description",
+        "band_31", "band_62", "band_125", "band_250", "band_500",
+        "band_1k", "band_2k", "band_4k", "band_8k", "band_16k",
     )
     return Response(list(presets))
 
 
-
-@api_view(['GET', 'POST'])
+@api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
-def user_equalizer_preset(request):
-    """Get or set user's equalizer preset preference"""
-    if request.method == 'GET':
-        preset_id = cache.get(f"user_eq_preset:{request.user.id}", 1) 
-        return Response({'preset_id': preset_id})
-    
-    elif request.method == 'POST':
-        preset_id = request.data.get('preset_id')
-        if not preset_id:
-            return Response({'error': 'preset_id is required'}, status=400)
-        
-        # Verify preset exists
-        try:
-            preset = EqualizerPreset.objects.get(pk=preset_id)
-            # Store user preference in cache
-            cache.set(f"user_eq_preset:{request.user.id}", preset_id, timeout=None)  # No expiration
-            return Response({'success': True, 'preset': {
-                'id': preset.id,
-                'name': preset.name,
-                'description': preset.description
-            }})
-        except EqualizerPreset.DoesNotExist:
-            return Response({'error': 'Preset not found'}, status=404)
+def user_equalizer_preset(request) -> Response:
+    """Get or set the user's preferred equalizer preset."""
+    cache_key = f"user_eq_preset:{request.user.id}"
+
+    if request.method == "GET":
+        preset_id = cache.get(cache_key, 1)
+        return Response({"preset_id": preset_id})
+
+    preset_id = request.data.get("preset_id")
+    if not preset_id:
+        return Response({"error": "preset_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        preset = EqualizerPreset.objects.get(pk=preset_id)
+    except EqualizerPreset.DoesNotExist:
+        return Response({"error": "Preset not found"}, status=status.HTTP_404_NOT_FOUND)
+
+    cache.set(cache_key, preset_id, timeout=None)
+    return Response({
+        "success": True,
+        "preset": {"id": preset.id, "name": preset.name, "description": preset.description},
+    })
 
 
-
+# ---------------------------------------------------------------------------
+# Admin verification
+# ---------------------------------------------------------------------------
 
 class MusicVerificationViewSet(viewsets.ModelViewSet):
+    """Admin-only CRUD + approve/reject for track verification."""
+
     serializer_class = MusicVerificationSerializer
     permission_classes = [IsAdminUser]
-    
+
     def get_queryset(self):
-        return Music.objects.select_related(
-            'artist', 
-            'artist__user'
-        ).prefetch_related(
-            'genres'
-        ).order_by('-created_at')
-    
+        return (
+            Music.objects.select_related("artist", "artist__user")
+            .prefetch_related("genres")
+            .order_by("-created_at")
+        )
+
     def get_serializer_context(self):
-        context = super().get_serializer_context()
-        context['request'] = self.request
-        return context
+        ctx = super().get_serializer_context()
+        ctx["request"] = self.request
+        return ctx
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
-        try:
-            music = self.get_object()
-            music.approval_status = MusicApprovalStatus.APPROVED
-            # music.is_public = True
-            music.save()
-            
-            # Re-serialize the updated object
-            serializer = self.get_serializer(music)
-            return Response(serializer.data)
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-    
-    @action(detail=True, methods=['post'])
+        """Approve a track for public availability."""
+        music = self.get_object()
+        music.approval_status = MusicApprovalStatus.APPROVED
+        music.save(update_fields=["approval_status", "updated_at"])
+        serializer = self.get_serializer(music)
+        return Response(serializer.data)
+
+    @action(detail=True, methods=["post"])
     def reject(self, request, pk=None):
-        try:
-            music = self.get_object()
-            music.approval_status = MusicApprovalStatus.REJECTED
-            music.save()
-            
-            # Re-serialize the updated object
-            serializer = self.get_serializer(music)
-            return Response(serializer.data)
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-                    
+        """Reject a track."""
+        music = self.get_object()
+        music.approval_status = MusicApprovalStatus.REJECTED
+        music.save(update_fields=["approval_status", "updated_at"])
+        serializer = self.get_serializer(music)
+        return Response(serializer.data)
 
 
+# ---------------------------------------------------------------------------
+# Streaming
+# ---------------------------------------------------------------------------
 
 class MusicStreamingView(APIView):
+    """Return the HLS streaming URL for a track at the user's preferred quality."""
+
     permission_classes = [IsAuthenticated]
     throttle_classes = [MusicStreamingRateThrottle]
 
-    def get(self, request, music_id):
-        try:
-            music = get_object_or_404(Music, id=music_id)
+    def get(self, request, music_id: int) -> Response:
+        music = get_object_or_404(Music, id=music_id)
 
-            if not music.is_public and music.artist.user != request.user:
-                return Response(
-                    {"error": "You do not have permission to access this music."},
-                    status=status.HTTP_403_FORBIDDEN
-                )
-
-            try:
-                user_preference = UserPreference.objects.get(user=request.user)
-                preferred_quality = user_preference.preferred_quality
-            except UserPreference.DoesNotExist:
-                # Create default preference with LOW quality
-                user_preference = UserPreference.objects.create(
-                    user=request.user,
-                    preferred_quality=HLSQuality.LOW
-                )
-                preferred_quality = HLSQuality.LOW
-
-            available_qualities = list(
-                StreamingFile.objects.filter(music=music)
-                .values_list('quality', flat=True)
-            )
-
-            quality_to_use = self._get_best_available_quality(preferred_quality, available_qualities)
-
-            if not quality_to_use:
-                return Response(
-                    {"error": "No streaming files available for this music."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-            # Get the streaming file for the determined quality
-            streaming_file = get_object_or_404(StreamingFile, music=music, quality=quality_to_use)
-
-            return Response({
-                "music_id": music_id,
-                "quality_served": quality_to_use,
-                "user_preferred_quality": preferred_quality,
-                "url": streaming_file.hls_playlist,
-                "name": music.name,
-                "artist": music.artist.user.email,
-                "quality_matched": quality_to_use == preferred_quality,
-                "cover_photo": music.cover_photo.url if music.cover_photo else None,
-            }, status=status.HTTP_200_OK)
-
-        except Exception as e:
-            print({str(e)})
+        # Permission check
+        if not music.is_public and music.artist.user != request.user:
             return Response(
-                {"error": f"An error occurred: {str(e)}"},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": "You do not have permission to access this music."},
+                status=status.HTTP_403_FORBIDDEN,
             )
 
-    def _get_best_available_quality(self, preferred_quality, available_qualities):
-        """
-        Returns the best available quality based on user preference.
-        Falls back to lower quality if preferred is not available.
-        """
-        if not available_qualities:
-            return None
+        # Resolve quality via service
+        preferred_quality = StreamingService.resolve_quality(request.user)
+        streaming_url = StreamingService.get_streaming_url(music_id, preferred_quality)
 
-        if preferred_quality in available_qualities:
-            return preferred_quality
+        if not streaming_url:
+            return Response(
+                {"error": "No streaming files available for this music."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
 
-        quality_hierarchy = [
-            HLSQuality.LOSSLESS,
-            HLSQuality.HIGH,
-            HLSQuality.MEDIUM,
-            HLSQuality.LOW
-        ]
+        # Determine actual quality served
+        streaming_file = StreamingFile.objects.filter(
+            music=music, hls_playlist=streaming_url
+        ).first()
+        quality_served = streaming_file.quality if streaming_file else preferred_quality
 
-        try:
-            preferred_index = quality_hierarchy.index(preferred_quality)
-        except ValueError:
-            preferred_index = 3
+        # Use relative URLs for proxy compatibility in local development
+        # HLS.js handled by Vite proxy for /media requests
+        
+        cover_photo_url = None
+        if music.cover_photo:
+            cover_photo_url = music.cover_photo.url
 
-        for i in range(preferred_index, len(quality_hierarchy)):
-            if quality_hierarchy[i] in available_qualities:
-                return quality_hierarchy[i]
+        return Response({
+            "music_id": music_id,
+            "quality_served": quality_served,
+            "user_preferred_quality": preferred_quality,
+            "url": streaming_url,
+            "name": music.name,
+            "artist": music.artist.user.email,
+            "quality_matched": quality_served == preferred_quality,
+            "cover_photo": cover_photo_url,
+        })
 
-        for i in range(preferred_index - 1, -1, -1):
-            if quality_hierarchy[i] in available_qualities:
-                return quality_hierarchy[i]
 
-        return available_qualities[0]
-
+# ---------------------------------------------------------------------------
+# User quality preference
+# ---------------------------------------------------------------------------
 
 class UserQualityPreferenceView(APIView):
-    """View to get user preferences"""
+    """Get the user's current streaming quality setting."""
+
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
+    def get(self, request) -> Response:
         user = request.user
-        
-        user_preference, created = UserPreference.objects.get_or_create(
-            user=user,
-            defaults={'preferred_quality': HLSQuality.LOW}
+        pref, _ = UserPreference.objects.get_or_create(
+            user=user, defaults={"preferred_quality": HLSQuality.LOW}
         )
-        
-        try:
-            subscription = user.subscription
-            is_premium = subscription.status == 'active'
-        except UserSubscription.DoesNotExist:
-            is_premium = False
-        
-        if not is_premium:
-            
-            if user_preference.preferred_quality != HLSQuality.LOW:
-                user_preference.preferred_quality = HLSQuality.LOW
-                user_preference.save()
-        
+
+        is_premium = self._check_premium(user)
+
+        # Force low quality for non-premium users
+        if not is_premium and pref.preferred_quality != HLSQuality.LOW:
+            pref.preferred_quality = HLSQuality.LOW
+            pref.save(update_fields=["preferred_quality", "updated_at"])
+
         return Response({
-            'current_quality': user_preference.preferred_quality,
-            'is_premium': is_premium
-        }, status=status.HTTP_200_OK)
+            "current_quality": pref.preferred_quality,
+            "is_premium": is_premium,
+        })
+
+    @staticmethod
+    def _check_premium(user) -> bool:
+        try:
+            return user.subscription.status == "active"
+        except UserSubscription.DoesNotExist:
+            return False
 
 
-        
-        
-class UpdateUserPreferenceView(UpdateAPIView):  
-    """View to update user quality preference"""
+class UpdateUserPreferenceView(UpdateAPIView):
+    """Update the user's streaming quality preference (premium only for higher tiers)."""
+
     permission_classes = [IsAuthenticated]
     serializer_class = UserPreferenceSerializer
-    
+
     def get_object(self):
-        user_preference, created = UserPreference.objects.get_or_create(
+        pref, _ = UserPreference.objects.get_or_create(
             user=self.request.user,
-            defaults={'preferred_quality': HLSQuality.LOW}
+            defaults={"preferred_quality": HLSQuality.LOW},
         )
-        return user_preference
-    
+        return pref
+
     def update(self, request, *args, **kwargs):
-        try:
-            subscription = request.user.subscription
-            is_premium = subscription.status == 'active'
-        except UserSubscription.DoesNotExist:
-            is_premium = False
-        
-        requested_quality = request.data.get('preferred_quality')
-        
+        is_premium = UserQualityPreferenceView._check_premium(request.user)
+        requested_quality = request.data.get("preferred_quality")
+
         if not is_premium and requested_quality != HLSQuality.LOW:
-            return Response({
-                'error': 'Premium subscription required for higher quality options'
-            }, status=status.HTTP_403_FORBIDDEN)
-        
+            return Response(
+                {"error": "Premium subscription required for higher quality options"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         return super().update(request, *args, **kwargs)
-
-
-        
-     

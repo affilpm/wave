@@ -1,11 +1,11 @@
-import { setCurrentMusic, setIsPlaying, setQueue, clearQueue } from "../../../../../slices/user/playerSlice";
+import { setCurrentMusic, setIsPlaying, setQueue, clearQueue } from "../../../../../store/slices/playerSlice";
 import api from "../../../../../api";
 import { convertToSeconds } from "../../../../../utils/formatters";
 
 export const fetchPlaylistTracks = async (playlistId) => {
   try {
-    const response = await api.get(`/api/playlist/playlists/${playlistId}/`);
-    console.log(response.data.tracks, 'afds');
+    const response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
+
     return {
       tracks: response.data.tracks,
       playlistName: response.data.name || "Unknown Playlist",

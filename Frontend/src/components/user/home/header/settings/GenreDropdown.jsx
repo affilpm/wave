@@ -109,12 +109,14 @@ const GenreDropdown = ({
   return (
     <div className="relative" ref={dropdownRef}>
       {/* Dropdown Trigger with Scrollable Tags */}
-      <button
-        type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full border border-gray-600 rounded-lg bg-gray-700 text-white text-left hover:bg-gray-600 transition-colors"
+      <div
+        className="w-full border border-gray-600 rounded-lg bg-gray-700 text-white text-left"
       >
-        <div className="p-3 flex items-center justify-between border-b border-gray-600">
+        <button
+          type="button"
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-full p-3 flex items-center justify-between border-b border-gray-600 hover:bg-gray-600 transition-colors rounded-t-lg"
+        >
           <div className="flex items-center gap-2">
             <Music className="h-5 w-5 text-gray-400" />
             <span className="text-gray-300">
@@ -122,7 +124,7 @@ const GenreDropdown = ({
             </span>
           </div>
           {isOpen ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
-        </div>
+        </button>
         
         {selectedGenres.length > 0 && (
           <div className="max-h-24 overflow-y-auto scrollbar-default p-2">
@@ -150,7 +152,7 @@ const GenreDropdown = ({
             </div>
           </div>
         )}
-      </button>
+      </div>
 
       {/* Dropdown Menu */}
       {isOpen && (

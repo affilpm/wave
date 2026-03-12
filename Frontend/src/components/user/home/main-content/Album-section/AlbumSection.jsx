@@ -9,10 +9,10 @@ import { handleAlbumPlaybackAction } from "./album-utils";
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue,
-    currentIndex: player.currentIndex,
+    queueIndex: player.queueIndex,
   })
 );
 
@@ -22,10 +22,13 @@ const AlbumSection = memo(({ title, items }) => {
   const [isLoading, setIsLoading] = useState({}); 
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing';
+  const currentIndex = queueIndex;
 
   const handleScroll = useCallback((direction) => {
     const container = scrollContainerRef.current;
@@ -138,7 +141,7 @@ const AlbumSection = memo(({ title, items }) => {
               >
                 <div className="relative group">
                   <img
-                    src={item.cover_photo || "/api/placeholder/192/192"} // Fallback image
+                    src={item.cover_photo || "/api/v1/placeholder/192/192"} // Fallback image
                     alt={item.name || "Unknown Album"}
                     className="w-40 h-40 object-cover rounded-md"
                     loading="lazy"
@@ -202,4 +205,5 @@ const AlbumSection = memo(({ title, items }) => {
   );
 });
 
+AlbumSection.displayName = 'AlbumSection';
 export default AlbumSection;

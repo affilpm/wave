@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Search, Play, Pause, Loader } from 'lucide-react';
 import api from '../../../../api';
-import { setQueue, setCurrentMusic, setIsPlaying } from '../../../../slices/user/playerSlice';
+import { setQueue, setCurrentMusic, setIsPlaying } from '../../../../store/slices/playerSlice';
 
 const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -15,7 +15,9 @@ const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
   const searchResultsRef = useRef(null);
   
   // Get current playback state from Redux
-  const { currentMusicId, isPlaying, queue } = useSelector(state => state.player);
+  const { currentTrack, status } = useSelector(state => state.player);
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing';
   
   // Focus the search input when the component mounts
   useEffect(() => {
@@ -62,7 +64,7 @@ const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
     setError(null);
     
     try {
-      const { data } = await api.get(`/api/home/search/?query=${encodeURIComponent(searchQuery)}`);
+      const { data } = await api.get(`/api/v1/home/search/?query=${encodeURIComponent(searchQuery)}`);
       setSearchResults(data.results || []);
     } catch (err) {
       console.error('Search error:', err);

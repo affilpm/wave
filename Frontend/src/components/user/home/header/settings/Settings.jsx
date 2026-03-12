@@ -33,7 +33,7 @@ const Settings = () => {
   const fetchQualityOptions = async () => {
     try {
       setIsLoadingQuality(true);
-      const response = await api.get('api/music/user/quality-preference/');
+      const response = await api.get('/api/v1/music/user/quality-preference/');
       
       setSelectedQuality(response.data.current_quality);
       setIsPremium(response.data.is_premium);
@@ -60,7 +60,7 @@ const Settings = () => {
       setQualityError('');
       setQualitySuccess('');
 
-      const response = await api.put('api/music/user/update-preference/', {
+      const response = await api.put('/api/v1/music/user/update-preference/', {
         preferred_quality: qualityValue
       });
 

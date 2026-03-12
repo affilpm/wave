@@ -25,8 +25,8 @@ class ArtistSerializer(serializers.ModelSerializer):
         # Check if artist's profile photo exists
         if representation['profile_photo'] is None and hasattr(instance.user, 'profile_photo') and instance.user.profile_photo:
             # Use user's profile photo if artist's profile photo is not set
-            if request:
-                representation['profile_photo'] = request.build_absolute_uri(instance.user.profile_photo.url)
+            if instance.user.profile_photo:
+                representation['profile_photo'] = instance.user.profile_photo.url
             else:
                 representation['profile_photo'] = instance.user.profile_photo.url
         elif representation['profile_photo'] is None:

@@ -146,19 +146,18 @@ const Main_Content = () => {
           // recentlyPlayedResponse, 
           artistlistResponse,
         ] = await Promise.all([
-          api.get(`/api/home/musiclist/?top10=true`),
-          api.get("/api/home/playlist/?top10=true"),
-          api.get("/api/home/albumlist/?top10=true"),
-          // api.get("/api/listening_history/recently-played/"),
-          api.get("/api/home/artistlist/"),
+          api.get(`/api/v1/home/musiclist/?top10=true`),
+          api.get("/api/v1/home/playlist/?top10=true"),
+          api.get("/api/v1/home/albumlist/?top10=true"),
+          // api.get("/api/v1/listening_history/recently-played/"),
+          api.get("/api/v1/home/artistlist/"),
         ]);
         
         
-        setMusiclistData(musiclistResponse.data.results || []);
-        setPlaylistData(playlistResponse.data.results || []);
-        setAlbumlistData(albumlistResponse.data.results || []);
-        // setRecentlyPlayedData(recentlyPlayedResponse.data || []);
-        setArtistlist(artistlistResponse.data || []);
+        setMusiclistData(musiclistResponse.data.results || musiclistResponse.data || []);
+        setPlaylistData(playlistResponse.data.results || playlistResponse.data || []);
+        setAlbumlistData(albumlistResponse.data.results || albumlistResponse.data || []);
+        setArtistlist(artistlistResponse.data.results || artistlistResponse.data || []);
       } catch (err) {
         setError("Failed to load data.");
         console.error("Error fetching data:", err);

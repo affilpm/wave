@@ -37,8 +37,14 @@ class MusicSerializer(serializers.ModelSerializer):
         # Check the length of the filename
         file_name, file_extension = os.path.splitext(value.name)
         if len(file_name) > 250:
-            raise serializers.ValidationError("Ensure this filename has at most 100 characters.")
+            raise serializers.ValidationError("Ensure this filename has at most 250 characters.")
         return value
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.cover_photo:
+            representation['cover_photo'] = instance.cover_photo.url
+        return representation
     
     
     

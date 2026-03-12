@@ -31,7 +31,7 @@ class MusicSerializer(serializers.ModelSerializer):
     genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
     album_id = serializers.IntegerField(required=False, write_only=True)
     track_number = serializers.IntegerField(required=False, write_only=True)
-    duration = serializers.DurationField(required=False)  
+    duration = serializers.DurationField(required=False)
 
     class Meta:
         model = Music
@@ -41,6 +41,23 @@ class MusicSerializer(serializers.ModelSerializer):
             'approval_status', 'duration', 'artist', 'is_public',
             'album_id', 'track_number'
         ]
+
+    def to_representation(self, instance):
+        """
+        Ensure relative URIs for file fields in the output (for Vite proxy compatibility).
+        Remove audio_file from output as requested by user.
+        """
+        representation = super().to_representation(instance)
+        
+        # Remove audio_file from public representation to prioritize HLS
+        representation.pop('audio_file', None)
+
+        if instance.cover_photo:
+            representation['cover_photo'] = instance.cover_photo.url
+        if instance.video_file:
+            representation['video_file'] = instance.video_file.url
+        
+        return representation
 
     def create(self, validated_data):
         album_id = validated_data.pop('album_id', None)
@@ -89,14 +106,22 @@ class ArtistSerializer(serializers.ModelSerializer):
 
 class MusicDataSerializer(serializers.ModelSerializer):
     artist = ArtistSerializer()  
-    duration = serializers.DurationField(required=False)  
+    duration = serializers.DurationField(required=False)
 
     class Meta:
         model = Music
         fields = [
-            'id', 'name', 'cover_photo', 'release_date',
+            'id', 'name', 'cover_photo', 'audio_file', 'release_date',
             'duration', 'artist'
         ]
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        # Remove audio_file to prioritize HLS
+        representation.pop('audio_file', None)
+        if instance.cover_photo:
+            representation['cover_photo'] = instance.cover_photo.url
+        return representation
         
         
         
@@ -121,8 +146,14 @@ class MusicVerificationSerializer(serializers.ModelSerializer):
     
     def get_audio_url(self, obj):
         if obj.audio_file:
-            return self.context['request'].build_absolute_uri(obj.audio_file.url)
+            return obj.audio_file.url
         return None
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.cover_photo:
+            representation['cover_photo'] = instance.cover_photo.url
+        return representation
     
     # def get_video_url(self, obj):
     #     if obj.video_file:

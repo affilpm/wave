@@ -193,7 +193,7 @@ const ProfileEditModal = ({ isOpen, onClose, onSave, initialUsername, initialPho
               <div className="flex items-center gap-4">
                 <div className="relative w-24 h-24 rounded-full overflow-hidden bg-neutral-800">
                   <img
-                    src={previewUrl || '/api/placeholder/96/96'}
+                    src={previewUrl || '/api/v1/placeholder/96/96'}
                     alt="Preview"
                     className="w-full h-full object-cover"
                   />

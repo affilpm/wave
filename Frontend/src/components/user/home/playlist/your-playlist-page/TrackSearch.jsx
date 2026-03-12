@@ -12,13 +12,10 @@ const TrackSearch = ({ playlistId, onTracksUpdate }) => {
     const fetchTracks = async (query) => {
       try {
         setIsLoading(true);
-        const response = await api.get(`/api/playlist/music/?search=${query}&playlist_id=${playlistId}`);
-        console.log('Search Results:', response.data);
-        if (response.data && Array.isArray(response.data)) {
-          setSearchResults(response.data);
-        } else {
-          setSearchResults([]);
-        }
+        const response = await api.get(`/api/v1/playlist/music/?search=${query}&playlist_id=${playlistId}`);
+
+        const searchData = response.data.results || (Array.isArray(response.data) ? response.data : []);
+        setSearchResults(searchData);
       } catch (error) {
         console.error('Error fetching tracks:', error);
         setSearchResults([]);
@@ -45,7 +42,7 @@ const TrackSearch = ({ playlistId, onTracksUpdate }) => {
 
   const handleTrackSelect = async (trackId) => {
     try {
-      await api.post(`/api/playlist/playlists/${playlistId}/add_tracks/`, {
+      await api.post(`/api/v1/playlist/playlists/${playlistId}/add_tracks/`, {
         tracks: [{ music: trackId }]
       });
       onTracksUpdate();
@@ -99,7 +96,7 @@ const TrackSearch = ({ playlistId, onTracksUpdate }) => {
                   className="w-full px-4 py-2 hover:bg-gray-700 flex items-center gap-3 group"
                 >
                   <img
-                    src={track.cover_photo || "/api/placeholder/40/40"}
+                    src={track.cover_photo || "/api/v1/placeholder/40/40"}
                     alt={track.name}
                     className="w-10 h-10 rounded object-cover"
                   />

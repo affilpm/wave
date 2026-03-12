@@ -14,16 +14,16 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
-} from "../../../../slices/user/playerSlice";
+} from "../../../../store/slices/playerSlice";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue,
-    currentIndex: player.currentIndex,
+    queueIndex: player.queueIndex,
   })
 );
 
@@ -40,10 +40,13 @@ const AlbumPage = () => {
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
   const [currentAlbumId, setCurrentAlbumId] = useState(null);
 
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+  
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing';
 
   // Memoize tracks for stable props
   const stableTracks = useMemo(() => album?.tracks || [], [album]);
@@ -74,6 +77,7 @@ const AlbumPage = () => {
       artist_full: track.music_details.artist_full_name,
       album: track.music_details.album_name || album?.name || "Unknown Album",
       cover_photo: track.music_details.cover_photo,
+      audio_file: track.music_details.audio_file,
       duration: convertToSeconds(track.music_details.duration || "00:00:00"),
       genre: track.music_details.genre || "",
       year: track.music_details.release_date
@@ -133,7 +137,7 @@ const AlbumPage = () => {
   // Check if album is in library
   const checkLibraryStatus = useCallback(async () => {
     try {
-      const response = await api.get(`/api/library/library/check-album/${albumId}/`);
+      const response = await api.get(`/api/v1/library/check-album/${albumId}/`);
       setIsInLibrary(response.data.is_in_library);
     } catch (error) {
       console.error("Failed to check library status:", error);
@@ -145,10 +149,10 @@ const AlbumPage = () => {
     try {
       setIsLibraryLoading(true);
       if (isInLibrary) {
-        await api.post('/api/library/remove-album/', { album_id: albumId });
+        await api.post('/api/v1/library/remove-album/', { album_id: albumId });
         setIsInLibrary(false);
       } else {
-        await api.post('/api/library/library/add-album/', { album_id: albumId });
+        await api.post('/api/v1/library/library/add-album/', { album_id: albumId });
         setIsInLibrary(true);
       }
     } catch (error) {
@@ -177,7 +181,7 @@ const AlbumPage = () => {
   useEffect(() => {
     const fetchAlbum = async () => {
       try {
-        const response = await api.get(`/api/album/album-data/${albumId}/`);
+        const response = await api.get(`/api/v1/album/album-data/${albumId}/`);
         setAlbum(response.data);
         if (
           queue.length > 0 &&
@@ -222,7 +226,7 @@ const AlbumPage = () => {
         </div>
 
         <img
-          src={track.music_details.cover_photo || "/api/placeholder/40/40"}
+          src={track.music_details.cover_photo || "/api/v1/placeholder/40/40"}
           alt={track.music_details.name}
           className="w-10 h-10 rounded-md"
         />
@@ -272,7 +276,7 @@ const AlbumPage = () => {
         <td className="py-3 pl-6">
           <div className="flex items-center gap-3">
             <img
-              src={track.music_details.cover_photo || "/api/placeholder/40/40"}
+              src={track.music_details.cover_photo || "/api/v1/placeholder/40/40"}
               alt={track.music_details.name}
               className="w-10 h-10 rounded-md"
             />
@@ -332,7 +336,7 @@ const AlbumPage = () => {
       <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 p-4 sm:p-6 pt-6">
         <div className="w-36 h-36 sm:w-48 sm:h-48 flex-shrink-0 shadow-xl">
           <img
-            src={album.cover_photo || "/api/placeholder/192/192"}
+            src={album.cover_photo || "/api/v1/placeholder/192/192"}
             alt={album.name}
             className="w-full h-full object-cover rounded-lg shadow-2xl"
           />

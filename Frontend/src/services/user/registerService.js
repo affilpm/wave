@@ -1,14 +1,14 @@
 // src/services/authService.js
 import api from "../../api";
+import { USERS } from "../../constants/apiEndpoints";
 
 export const registerService = {
   async initiateRegistration(email) {
     try {
-      const response = await api.post('api/users/register/initiate/', { email });
+      const response = await api.post(USERS.REGISTER_INITIATE, { email });
       return response.data;
     } catch (error) {
       if (error.response?.status === 429) {
-        // Rate limiting response
         throw { 
           error: error.response?.data?.error || 'Too many requests. Please try again later.',
           isRateLimited: true 
@@ -20,10 +20,9 @@ export const registerService = {
 
   async verifyOTP(email, otp) {
     try {
-      const response = await api.post('api/users/register/verify-otp/', { email, otp });
+      const response = await api.post(USERS.REGISTER_VERIFY, { email, otp });
       return response.data;
     } catch (error) {
-      // Check if this is an expiration issue
       if (error.response?.data?.error?.includes('expired')) {
         throw { 
           error: error.response?.data?.error || 'OTP has expired',
@@ -36,10 +35,9 @@ export const registerService = {
 
   async resendOTP(email) {
     try {
-      const response = await api.post('api/users/register/resend-otp/', { email });
+      const response = await api.post(USERS.REGISTER_RESEND, { email });
       return response.data;
     } catch (error) {
-      // Specifically handle rate limiting
       if (error.response?.status === 429) {
         const message = error.response?.data?.error || 'Please wait before requesting another code';
         throw { 
@@ -60,10 +58,9 @@ export const registerService = {
 
   async completeRegistration(userData) {
     try {
-      const response = await api.post('api/users/register/complete/', userData);
+      const response = await api.post(USERS.REGISTER_COMPLETE, userData);
       return response.data;
     } catch (error) {
-      // Check if this is a session expiration issue
       if (error.response?.data?.error?.includes('expired')) {
         throw { 
           error: error.response?.data?.error || 'Registration session expired',
@@ -74,10 +71,9 @@ export const registerService = {
     }
   },
   
-  // Helper method to check remaining time on verification token
   async checkVerificationStatus(email, token) {
     try {
-      const response = await api.post('api/users/register/check-status/', { 
+      const response = await api.post(USERS.REGISTER_STATUS, { 
         email, 
         verification_token: token 
       });

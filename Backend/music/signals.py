@@ -1,164 +1,146 @@
-from django.db.models.signals import post_save, post_delete
-from django.dispatch import receiver
-from .models import Music, MusicApprovalStatus, StreamingFile
-from django.db import transaction
-from .tasks import convert_audio_to_hls, cleanup_failed_hls_conversion
+"""
+Django signals for the music app.
+
+Handles:
+- Auto-unpublish when a track is not approved
+- HLS conversion trigger on new uploads
+- HLS cleanup on deletion
+- Subscription-based quality enforcement
+- Default user preferences on user creation
+"""
+
+from __future__ import annotations
+
 import logging
+
+from django.db import transaction
+from django.db.models.signals import post_delete, post_save, pre_save
+from django.dispatch import receiver
+from django.utils import timezone
+
+from music.models import HLSQuality, Music, MusicApprovalStatus, StreamingFile, UserPreference
+from music.tasks import cleanup_failed_hls_conversion, convert_audio_to_hls
+from premium.models import SubscriptionStatus, UserSubscription
 from users.models import CustomUser
 
 logger = logging.getLogger(__name__)
 
-@receiver(post_save, sender = Music)
-def update_is_public(sender, instance, **kwargs):
-    if instance.approval_status in [MusicApprovalStatus.PENDING, MusicApprovalStatus.REJECTED]:
-        if instance.is_public:
-            instance.is_public = False
-            instance.save(update_fields = ['is_public'])
-            
-            
+
+# ---------------------------------------------------------------------------
+# Music lifecycle signals
+# ---------------------------------------------------------------------------
+
+@receiver(post_save, sender=Music)
+def enforce_approval_visibility(sender, instance, **kwargs):
+    """
+    Ensure tracks that are not approved cannot be public.
+
+    Uses ``update_fields`` to avoid triggering this signal recursively.
+    """
+    if instance.approval_status in (
+        MusicApprovalStatus.PENDING,
+        MusicApprovalStatus.REJECTED,
+    ) and instance.is_public:
+        Music.objects.filter(pk=instance.pk).update(is_public=False)
+
 
 @receiver(post_save, sender=Music)
 def auto_convert_to_hls(sender, instance, created, **kwargs):
     """
-    Automatically convert audio to HLS format when a Music instance is created or updated.
-    Uses transaction.on_commit to ensure DB operations are complete before queuing tasks.
+    Queue HLS conversion for new uploads or tracks without streaming files.
+
+    Uses ``transaction.on_commit`` to avoid Celery processing before the
+    DB commit completes.
     """
-    def queue_hls_conversion():
-        try:
-            # Double-check that the instance still exists and has audio file
-            if not Music.objects.filter(id=instance.id, audio_file__isnull=False).exists():
-                logger.info(f"Skipping HLS conversion for music {instance.id} - no audio file or record deleted")
-                return
-            
-            # Only process if music has an audio file
-            if not instance.audio_file:
-                logger.info(f"Skipping HLS conversion for {instance.name} - no audio file")
-                return
-            
-            # Check if this is a new music upload or if the audio file was changed
-            should_convert = False
-            
-            if created:
-                # New music instance
-                should_convert = True
-                logger.info(f"New music created: {instance.name} (ID: {instance.id}) - triggering HLS conversion")
-            else:
-                # For updates, we need to compare with the previous state
-                # Since we're in post_save, we can't easily get the old instance
-                # So we'll check if there are existing StreamingFiles
-                existing_streams = StreamingFile.objects.filter(music=instance).exists()
-                if not existing_streams:
-                    # No existing streams, likely a new upload
-                    should_convert = True
-                    logger.info(f"No existing HLS streams for {instance.name} (ID: {instance.id}) - triggering conversion")
-            
-            if should_convert:
-                # Add a longer delay to ensure file upload is complete
-                logger.info(f"Queuing HLS conversion task for music: {instance.name} (ID: {instance.id})")
-                convert_audio_to_hls.apply_async(args=[instance.id], countdown=10)
-                
-        except Exception as e:
-            logger.error(f"Error in queued HLS conversion for music {instance.id}: {str(e)}")
-    
-    # Use transaction.on_commit to ensure the database transaction is complete
-    # This prevents race conditions where Celery task runs before DB commit
-    transaction.on_commit(queue_hls_conversion)
+    def _queue():
+        from .services import MusicService
+        MusicService.handle_music_save(instance, created)
+
+    transaction.on_commit(_queue)
+
+
+@receiver(post_save, sender=Music)
+def handle_approval_hls_check(sender, instance, created, **kwargs):
+    """
+    When a track is approved, ensure HLS files exist.
+
+    If no ``StreamingFile`` records exist, queue a conversion.
+    """
+    if created:
+        return
+
+    if (
+        instance.approval_status == MusicApprovalStatus.APPROVED
+        and instance.audio_file
+        and not StreamingFile.objects.filter(music=instance).exists()
+    ):
+        logger.info(
+            "Approved track missing HLS files — triggering conversion music_id=%s",
+            instance.id,
+        )
+        convert_audio_to_hls.delay(instance.id)
 
 
 @receiver(post_delete, sender=Music)
-def cleanup_hls_files_on_delete(sender, instance, **kwargs):
-    """
-    Clean up HLS files when a Music instance is deleted
-    """
-    try:
-        logger.info(f"Music deleted: {instance.name} (ID: {instance.id}) - cleaning up HLS files")
-        cleanup_failed_hls_conversion.delay(instance.id)
-    except Exception as e:
-        logger.error(f"Error cleaning up HLS files for deleted music {instance.id}: {str(e)}")
+def cleanup_hls_on_delete(sender, instance, **kwargs):
+    """Queue cleanup of S3 HLS artefacts when a track is deleted."""
+    logger.info("Music deleted id=%s — cleaning up HLS files", instance.id)
+    cleanup_failed_hls_conversion.delay(instance.id)
 
 
 @receiver(post_delete, sender=StreamingFile)
 def log_streaming_file_deletion(sender, instance, **kwargs):
-    """
-    Log when streaming files are deleted
-    """
+    """Log when an individual streaming file record is removed."""
     try:
-        logger.info(f"StreamingFile deleted: {instance.music.name} - {instance.quality}")
-    except Exception as e:
-        logger.error(f"Error logging StreamingFile deletion: {str(e)}")
+        logger.info(
+            "StreamingFile deleted music=%s quality=%s",
+            instance.music.name, instance.quality,
+        )
+    except Exception:
+        pass  # Music may have already been deleted
 
 
+# ---------------------------------------------------------------------------
+# Subscription & preference signals
+# ---------------------------------------------------------------------------
 
-@receiver(post_save, sender=Music)
-def handle_approval_status_change(sender, instance, created, **kwargs):
-    """
-    Handle actions when music approval status changes
-    """
-    if not created:  # Only for updates
-        try:
-            # Check if approval status changed to approved
-            old_instance = Music.objects.get(pk=instance.pk)
-            
-            if (old_instance.approval_status != instance.approval_status and 
-                instance.approval_status == 'approved'):
-                
-                # Ensure HLS files exist for approved music
-                streaming_files_count = StreamingFile.objects.filter(music=instance).count()
-                
-                if streaming_files_count == 0 and instance.audio_file:
-                    logger.info(f"Approved music {instance.name} has no HLS files - triggering conversion")
-                    convert_audio_to_hls.delay(instance.id)
-                    
-        except Music.DoesNotExist:
-            pass  # Old instance doesn't exist, skip
-        except Exception as e:
-            logger.error(f"Error in handle_approval_status_change for music {instance.id}: {str(e)}")            
-            
-            
-from django.db.models.signals import post_save, pre_save
-from django.dispatch import receiver
-from django.utils import timezone
-from .models import UserPreference, HLSQuality
-from premium.models import UserSubscription
 @receiver(post_save, sender=UserSubscription)
-def handle_subscription_status_change(sender, instance, created, **kwargs):
+def enforce_quality_on_subscription_change(sender, instance, created, **kwargs):
     """
-    Signal to handle subscription status changes and revert quality to low when premium expires
+    Revert streaming quality to LOW when a subscription expires or is cancelled.
     """
-    if not created:  # Only for updates, not new subscriptions
-        # Check if subscription is no longer active
-        if instance.status in ['expired', 'cancelled']:
-            try:
-                user_preference = UserPreference.objects.get(user=instance.user)
-                # Revert to low quality if user had higher quality
-                if user_preference.preferred_quality != HLSQuality.LOW:
-                    user_preference.preferred_quality = HLSQuality.LOW
-                    user_preference.save()
-                    
-                    # Optional: Log this action
-                    print(f"Reverted user {instance.user.username} quality to LOW due to subscription {instance.status}")
-                    
-            except UserPreference.DoesNotExist:
-                # Create preference with low quality if it doesn't exist
-                UserPreference.objects.create(
-                    user=instance.user,
-                    preferred_quality=HLSQuality.LOW
-                )
+    if created:
+        return
+    if instance.status not in (SubscriptionStatus.EXPIRED, SubscriptionStatus.CANCELLED):
+        return
+
+    pref = UserPreference.objects.filter(user=instance.user).first()
+    if pref and pref.preferred_quality != HLSQuality.LOW:
+        pref.preferred_quality = HLSQuality.LOW
+        pref.save(update_fields=["preferred_quality", "updated_at"])
+        logger.info(
+            "Reverted quality to LOW for user=%s (subscription %s)",
+            instance.user.email, instance.status,
+        )
+    elif not pref:
+        UserPreference.objects.create(user=instance.user, preferred_quality=HLSQuality.LOW)
+
 
 @receiver(pre_save, sender=UserSubscription)
-def check_subscription_expiry(sender, instance, **kwargs):
-    """
-    Check if subscription is expiring and update status accordingly
-    """
-    if instance.expires_at and instance.expires_at <= timezone.now():
-        if instance.status == 'active':
-            instance.status = 'expired'            
-            
+def auto_expire_subscription(sender, instance, **kwargs):
+    """Mark subscriptions as expired if `expires_at` is in the past."""
+    if (
+        instance.expires_at
+        and instance.expires_at <= timezone.now()
+        and instance.status == SubscriptionStatus.ACTIVE
+    ):
+        instance.status = SubscriptionStatus.EXPIRED
+
 
 @receiver(post_save, sender=CustomUser)
-def create_user_preference(sender, instance, created, **kwargs):
+def create_default_user_preference(sender, instance, created, **kwargs):
+    """Create a default LOW-quality streaming preference for new users."""
     if created:
         UserPreference.objects.create(
-            user=instance,
-            preferred_quality=HLSQuality.LOW
-        )            
+            user=instance, preferred_quality=HLSQuality.LOW
+        )

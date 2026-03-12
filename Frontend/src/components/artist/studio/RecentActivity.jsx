@@ -10,9 +10,10 @@ const RecentActivity = () => {
   useEffect(() => {
     const fetchRecentSongs = async () => {
       try {
-        const response = await api.get('api/artists/artist-recent-plays/'); 
-        console.log(response.data)
-        setRecentSongs(response.data.recently_played); 
+        const response = await api.get('/api/v1/artists/artist-recent-plays/'); 
+
+        const songs = response.data.recently_played || (Array.isArray(response.data) ? response.data : response.data.results || []);
+        setRecentSongs(songs); 
       } catch (error) {
         console.error('Error fetching recent activity:', error);
       } finally {

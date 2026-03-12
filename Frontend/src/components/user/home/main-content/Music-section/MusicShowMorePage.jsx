@@ -9,16 +9,16 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
-} from "../../../../../slices/user/playerSlice";
+} from "../../../../../store/slices/playerSlice";
 
 // Define the same selector as in MusicSection
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue,
-    currentIndex: player.currentIndex,
+    queueIndex: player.queueIndex,
   })
 );
 
@@ -26,10 +26,13 @@ const MusicShowMorePage = () => {
   const location = useLocation();
   const { title } = location.state || {};
   const dispatch = useDispatch();
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+  
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing';
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -43,7 +46,7 @@ const MusicShowMorePage = () => {
   // Check if the queue is from this page's tracks
   const isQueueFromSectionTracks = useMemo(() => {
     if (!queue.length) return false;
-    return queue.every((track) => track.source === 'public_songs');
+    return queue.some((track) => track.source === 'public_songs');
   }, [queue]);
 
   // Check if the current track is from this page's tracks
@@ -80,10 +83,14 @@ const MusicShowMorePage = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const musiclistResponse = await api.get(`/api/home/musiclist/?all_songs&page=${page}`);
-        setItems(musiclistResponse.data.results);
+        const musiclistResponse = await api.get(`/api/v1/home/musiclist/?all_songs&page=${page}`);
+        const data = musiclistResponse.data.results || musiclistResponse.data || [];
+        const count = musiclistResponse.data.results ? musiclistResponse.data.count : data.length;
+        const pageSize = musiclistResponse.data.results ? (musiclistResponse.data.page_size || 20) : 20;
+
+        setItems(data);
         setHasNextPage(!!musiclistResponse.data.next);
-        setTotalPages(Math.ceil(musiclistResponse.data.count / musiclistResponse.data.page_size));
+        setTotalPages(Math.ceil(count / pageSize));
       } catch (error) {
         console.error("Error fetching music data:", error);
       } finally {
@@ -103,7 +110,8 @@ const MusicShowMorePage = () => {
       artist: track.artist?.user?.username || track.artist || 'Unknown Artist',
       artist_full: track.artist_full || track.artist,
       album: 'Single',
-      cover_photo: track.cover_photo || '/api/placeholder/48/48',
+      cover_photo: track.cover_photo || '/api/v1/placeholder/48/48',
+      audio_file: track.audio_file,
       duration: track.duration || 0,
       genre: track.genre || '',
       year: track.release_date ? new Date(track.release_date).getFullYear() : null,

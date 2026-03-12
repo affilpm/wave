@@ -99,7 +99,7 @@ const Header = ({ toggleMobileSidebar }) => {
   useEffect(() => {
     const fetchPremiumStatus = async () => {
       try {
-        const { data } = await api.get('/api/premium/check-subscription-status/');
+        const { data } = await api.get('/api/v1/premium/check-subscription-status/');
         setIsPremium(data.status === 'success');
       } catch (error) {
         setIsPremium(false);

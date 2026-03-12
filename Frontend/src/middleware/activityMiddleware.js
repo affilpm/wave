@@ -1,13 +1,16 @@
 import api from "../api";
+import { LISTENING } from "../constants/apiEndpoints";
 
-// small helper
+const devLog = import.meta.env.DEV ? (...args) => console.warn('[activityMiddleware]', ...args) : () => {};
+
+/** Helper to record listening activity. */
 const recordActivity = async (musicId, activityType) => {
   try {
-    await api.post(`/api/listening-history/record-activity/${musicId}/`, {
+    await api.post(LISTENING.RECORD(musicId), {
       activity_type: activityType,
     });
   } catch (err) {
-    console.error("Activity recording failed:", err);
+    devLog("Activity recording failed:", err.message);
   }
 };
 

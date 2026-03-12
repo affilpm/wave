@@ -10,10 +10,10 @@ import { handleAlbumPlaybackAction } from "./album-utils";
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue || [],
-    currentIndex: player.currentIndex || 0,
+    queueIndex: player.queueIndex || 0,
     currentPlaylistId: player.currentPlaylistId,
   })
 );
@@ -23,10 +23,13 @@ const AlbumShowMorePage = () => {
   const { title } = location.state || {};
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing';
+  const currentIndex = queueIndex;
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
   const [items, setItems] = useState([]);
@@ -40,10 +43,14 @@ const AlbumShowMorePage = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const response = await api.get(`/api/home/albumlist/?all_songs&page=${page}`);
-        setItems(response.data.results);
+        const response = await api.get(`/api/v1/home/albumlist/?all_songs&page=${page}`);
+        const data = response.data.results || response.data || [];
+        const count = response.data.results ? response.data.count : data.length;
+        const pageSize = response.data.results ? (response.data.page_size || 20) : 20;
+
+        setItems(data);
         setHasNextPage(!!response.data.next);
-        setTotalPages(Math.ceil(response.data.count / response.data.page_size));
+        setTotalPages(Math.ceil(count / pageSize));
       } catch (error) {
         console.error("Error fetching album data:", error);
       } finally {
@@ -181,7 +188,7 @@ const AlbumShowMorePage = () => {
               >
                 <div className="relative group">
                   <img
-                    src={item.cover_photo || "/api/placeholder/192/192"}
+                    src={item.cover_photo || "/api/v1/placeholder/192/192"}
                     alt={item.name || "Unknown Album"}
                     className="w-40 h-40 object-cover rounded-md shadow-lg"
                     loading="lazy"

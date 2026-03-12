@@ -9,7 +9,7 @@ import {
   setQueue,
   clearQueue,
   setIsPlaying,
-} from "../../../../../slices/user/playerSlice";
+} from "../../../../../store/slices/playerSlice";
 import {
   formatDuration,
   convertToSeconds,
@@ -19,10 +19,10 @@ import {
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue,
-    currentIndex: player.currentIndex,
+    queueIndex: player.queueIndex,
   })
 );
 
@@ -43,10 +43,13 @@ const ArtistDetailPage = () => {
   const [currentArtistId, setCurrentArtistId] = useState(null);
 
   const currentUserId = useSelector((state) => state.user_id);
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing';
 
   // Check if viewing on mobile device
   useEffect(() => {
@@ -65,20 +68,20 @@ const ArtistDetailPage = () => {
         setLoading(true);
 
         // Fetch artist information
-        const artistResponse = await api.get(`/api/home/artistlist/${artistId}/`);
+        const artistResponse = await api.get(`/api/v1/home/artistlist/${artistId}/`);
         setArtist(artistResponse.data);
 
         // Fetch artist's public songs
-        const songsResponse = await api.get(`/api/music/artist/${artistId}/`);
+        const songsResponse = await api.get(`/api/v1/music/artist/${artistId}/`);
         setPublicSongs(songsResponse.data.results || songsResponse.data);
 
         // Fetch followers count
-        const followersCountResponse = await api.get(`/api/artists/${artistId}/followers-count/`);
+        const followersCountResponse = await api.get(`/api/v1/artists/${artistId}/followers-count/`);
         setFollowersCount(followersCountResponse.data.followers_count);
 
         // Check if current user is following this artist
         try {
-          const userFollowingResponse = await api.get(`/api/artists/me/following/`);
+          const userFollowingResponse = await api.get(`/api/v1/artists/me/following/`);
           const isFollowingArtist = userFollowingResponse.data.some(
             (follow) => follow.artist.id === Number(artistId)
           );
@@ -133,6 +136,7 @@ const ArtistDetailPage = () => {
         "Unknown Artist",
       album: song.album_name || "Unknown Album",
       cover_photo: song.cover_photo || null,
+      audio_file: song.audio_file,
       duration: convertToSeconds(song.duration || "00:00:00"),
       genre: song.genre || "",
       year: song.release_date
@@ -220,11 +224,11 @@ const ArtistDetailPage = () => {
     setFollowLoading(true);
     try {
       if (isFollowing) {
-        await api.delete(`/api/artists/${artistId}/follow/`);
+        await api.delete(`/api/v1/artists/${artistId}/follow/`);
         setIsFollowing(false);
         setFollowersCount((prevCount) => prevCount - 1);
       } else {
-        await api.post(`/api/artists/${artistId}/follow/`);
+        await api.post(`/api/v1/artists/${artistId}/follow/`);
         setIsFollowing(true);
         setFollowersCount((prevCount) => prevCount + 1);
       }
@@ -381,7 +385,7 @@ const ArtistDetailPage = () => {
                         <td className="py-2 md:py-3 pl-2 md:pl-3">
                           <div className="flex items-center gap-2 md:gap-3">
                             <img
-                              src={song.cover_photo || "/api/placeholder/40/40"}
+                              src={song.cover_photo || "/api/v1/placeholder/40/40"}
                               alt={song.title}
                               className="w-8 h-8 md:w-10 md:h-10 rounded-md"
                             />

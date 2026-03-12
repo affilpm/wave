@@ -18,16 +18,16 @@ import {
   setQueue,
   clearQueue,
   playNext,
-} from "../../../../../slices/user/playerSlice";
+} from "../../../../../store/slices/playerSlice";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue,
-    currentIndex: player.currentIndex,
+    queueIndex: player.queueIndex,
   })
 );
 
@@ -45,10 +45,13 @@ const YourPlaylistPage = () => {
   const [currentPlaylistId, setCurrentPlaylistId] = useState(null);
   const [totalDuration, setTotalDuration] = useState("");
 
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing';
 
   // Memoize tracks for stable props
   const stableTracks = useMemo(() => playlist?.tracks || [], [playlist]);
@@ -56,29 +59,19 @@ const YourPlaylistPage = () => {
   // Memoize isCurrentTrackFromPlaylist with debug logging
   const isCurrentTrackFromPlaylist = useMemo(() => {
     if (!playlist?.tracks || !currentMusicId || currentPlaylistId !== playlist?.id) {
-      console.log("isCurrentTrackFromPlaylist: Early return", {
-        hasTracks: !!playlist?.tracks,
-        currentMusicId,
-        currentPlaylistId,
-        playlistId: playlist?.id,
-      });
       return false;
     }
-    const currentTrack = queue[currentIndex];
+    const trackAtIdx = queue[queueIndex];
     const isTrackInPlaylist = playlist.tracks.some(
       (track) => track.music_details.id === currentMusicId
     );
-    console.log("isCurrentTrackFromPlaylist: Result", {
-      currentTrack,
-      isTrackInPlaylist,
-      currentMusicId,
-    });
+    
     return (
-      currentTrack &&
-      currentTrack.id === currentMusicId &&
+      trackAtIdx &&
+      trackAtIdx.id === currentMusicId &&
       isTrackInPlaylist
     );
-  }, [playlist, currentMusicId, currentPlaylistId, queue, currentIndex]);
+  }, [playlist, currentMusicId, currentPlaylistId, queue, queueIndex]);
 
   // Memoize track preparation
   const prepareTrackForPlayer = useCallback(
@@ -90,6 +83,7 @@ const YourPlaylistPage = () => {
       artist_full: track.music_details.artist_full_name,
       album: track.music_details.album_name || playlist?.name || "Unknown Album",
       cover_photo: track.music_details.cover_photo,
+      audio_file: track.music_details.audio_file,
       duration: convertToSeconds(track.music_details.duration || "00:00:00"),
       genre: track.music_details.genre || "",
       year: track.music_details.release_date
@@ -163,7 +157,7 @@ const YourPlaylistPage = () => {
   // Handle toggle privacy
   const handleTogglePrivacy = useCallback(async () => {
     try {
-      await api.patch(`/api/playlist/playlists/${playlistId}/`, {
+      await api.patch(`/api/v1/playlist/playlists/${playlistId}/`, {
         is_public: !playlist.is_public,
       });
       setPlaylist((prev) => ({ ...prev, is_public: !prev.is_public }));
@@ -180,7 +174,7 @@ const YourPlaylistPage = () => {
           dispatch(clearQueue());
           setCurrentPlaylistId(null); // Reset currentPlaylistId
         }
-        await api.delete(`/api/playlist/playlists/${playlistId}/`);
+        await api.delete(`/api/v1/playlist/playlists/${playlistId}/`);
         navigate("/home");
       } catch (err) {
         setError("Failed to delete playlist");
@@ -199,7 +193,7 @@ const YourPlaylistPage = () => {
     if (!trackToRemove) return;
 
     try {
-      await api.post(`/api/playlist/playlists/${playlistId}/remove-tracks/`, {
+      await api.post(`/api/v1/playlist/playlists/${playlistId}/remove-tracks/`, {
         track_ids: [trackToRemove.id],
       });
 
@@ -254,7 +248,7 @@ const YourPlaylistPage = () => {
   // Handle tracks update
   const handleTracksUpdate = useCallback(async () => {
     try {
-      const response = await api.get(`/api/playlist/playlists/${playlistId}/`);
+      const response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
       setPlaylist(response.data);
       if (currentPlaylistId === response.data.id && response.data.tracks) {
         const formattedTracks = response.data.tracks.map(prepareTrackForPlayer);
@@ -284,7 +278,7 @@ const YourPlaylistPage = () => {
   useEffect(() => {
     const fetchPlaylist = async () => {
       try {
-        const response = await api.get(`/api/playlist/playlists/${playlistId}/`);
+        const response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
         setPlaylist(response.data);
         // Initialize currentPlaylistId if the queue matches this playlist
         if (
@@ -338,7 +332,7 @@ const YourPlaylistPage = () => {
           <td className="py-3 pl-6">
             <div className="flex items-center gap-3">
               <img
-                src={track.music_details.cover_photo || "/api/placeholder/40/40"}
+                src={track.music_details.cover_photo || "/api/v1/placeholder/40/40"}
                 alt={track.music_details.name}
                 className="w-10 h-10 rounded-md"
               />
@@ -403,7 +397,7 @@ const YourPlaylistPage = () => {
             </button>
           </div>
           <img
-            src={track.music_details.cover_photo || "/api/placeholder/40/40"}
+            src={track.music_details.cover_photo || "/api/v1/placeholder/40/40"}
             alt={track.music_details.name}
             className="w-10 h-10 rounded-md"
           />
@@ -474,7 +468,7 @@ const YourPlaylistPage = () => {
             </div>
           ) : (
             <img
-              src={playlist.cover_photo || "/api/placeholder/192/192"}
+              src={playlist.cover_photo || "/api/v1/placeholder/192/192"}
               alt={playlist.name}
               className="w-full h-full object-cover rounded-lg shadow-2xl transition-opacity duration-200 ease-in-out group-hover:opacity-75"
             />
@@ -614,4 +608,5 @@ const YourPlaylistPage = () => {
   );
 };
 
+YourPlaylistPage.displayName = 'YourPlaylistPage';
 export default YourPlaylistPage;

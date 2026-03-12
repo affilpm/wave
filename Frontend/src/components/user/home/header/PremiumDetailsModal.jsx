@@ -39,7 +39,7 @@ const PremiumDetailsModal = ({ isOpen, onClose }) => {
   const fetchSubscriptionDetails = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/api/premium/check-subscription-status/');
+      const { data } = await api.get('/api/v1/premium/check-subscription-status/');
       setSubscriptionDetails(data);
       setError(null);
     } catch (err) {

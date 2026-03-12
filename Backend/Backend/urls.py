@@ -1,45 +1,55 @@
 """
-URL configuration for Backend project.
+Root URL configuration for the Wave Backend.
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
+All API endpoints are served under ``/api/v1/`` to enforce versioning.
 """
-from django.contrib import admin
-from django.urls import path, include
+
+from __future__ import annotations
+
 from django.conf import settings
 from django.conf.urls.static import static
+from django.contrib import admin
+from django.urls import include, path
 
-urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/users/', include('users.urls')),  
-    path('api/artists/', include('artists.urls')), 
-    path('api/admins/', include('admins.urls')), 
-    path('api/music/', include('music.urls')), 
-    path('api/album/', include('album.urls')), 
-    path('api/playlist/', include('playlist.urls')), 
-    path('api/home/', include('home.urls')), 
-    path('api/library/', include('library.urls')), 
-    path('api/premium/', include('premium.urls')), 
-    path('api/listening-history/', include('listening_history.urls')),
-    path('api/livestream/', include('agora.urls')),
-    
-    
-    
-    
-    
-    
-    
-    
-    
+# ---------------------------------------------------------------------------
+# API v1 namespaced routes
+# ---------------------------------------------------------------------------
+api_v1_patterns: list = [
+    path("users/", include("users.urls")),
+    path("artists/", include("artists.urls")),
+    path("admins/", include("admins.urls")),
+    path("music/", include("music.urls")),
+    path("album/", include("album.urls")),
+    path("playlist/", include("playlist.urls")),
+    path("home/", include("home.urls")),
+    path("library/", include("library.urls")),
+    path("premium/", include("premium.urls")),
+    path("listening-history/", include("listening_history.urls")),
+    path("livestream/", include("agora.urls")),
+    path("", include("common.urls")),
 ]
 
+urlpatterns: list = [
+    path("admin/", admin.site.urls),
+    path("api/v1/", include(api_v1_patterns)),
+
+    # Backwards-compatible non-versioned routes (deprecate in future)
+    path("api/users/", include("users.urls")),
+    path("api/artists/", include("artists.urls")),
+    path("api/admins/", include("admins.urls")),
+    path("api/music/", include("music.urls")),
+    path("api/album/", include("album.urls")),
+    path("api/playlist/", include("playlist.urls")),
+    path("api/home/", include("home.urls")),
+    path("api/library/", include("library.urls")),
+    path("api/premium/", include("premium.urls")),
+    path("api/listening-history/", include("listening_history.urls")),
+    path("api/livestream/", include("agora.urls")),
+]
+
+# ---------------------------------------------------------------------------
+# Serve media files locally during development
+# ---------------------------------------------------------------------------
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=getattr(settings, "MEDIA_ROOT", ""))
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

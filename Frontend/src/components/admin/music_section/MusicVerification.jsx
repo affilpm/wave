@@ -198,7 +198,7 @@ const MusicVerification = () => {
       setError(null);
       const data = await musicVerificationService.getPendingVerifications();
       setVerifications(data);
-      console.log('Fetched verifications:', data);
+
     } catch (err) {
       setError(err.message);
     } finally {

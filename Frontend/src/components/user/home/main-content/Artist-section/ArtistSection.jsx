@@ -7,7 +7,7 @@ import {
   setQueue,
   clearQueue,
   setIsPlaying,
-} from "../../../../../slices/user/playerSlice";
+} from "../../../../../store/slices/playerSlice";
 import api from "../../../../../api";
 
 const ArtistSection = ({ title, items }) => {
@@ -44,6 +44,7 @@ const ArtistSection = ({ title, items }) => {
       artist_full: artist?.full_name || artist?.username || "Unknown Artist",
       album: song.album_name || "Unknown Album",
       cover_photo: song.cover_photo || null,
+      audio_file: song.audio_file,
       duration: song.duration
         ? Math.round(
             song.duration
@@ -85,7 +86,7 @@ const ArtistSection = ({ title, items }) => {
       }
 
       // Fetch artist's songs only if switching to a new artist
-      const songsResponse = await api.get(`/api/music/artist/${artist.id}/`);
+      const songsResponse = await api.get(`/api/v1/music/artist/${artist.id}/`);
       const songs = songsResponse.data.results || songsResponse.data;
 
       if (songs && songs.length > 0) {
@@ -104,7 +105,7 @@ const ArtistSection = ({ title, items }) => {
           dispatch(setIsPlaying(true));
         }
       } else {
-        console.log("No songs found for this artist");
+
       }
     } catch (error) {
       console.error("Error fetching artist songs:", error);

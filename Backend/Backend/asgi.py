@@ -5,7 +5,7 @@ from channels.auth import AuthMiddlewareStack
 import django
 
 # Set up Django environment and initialize
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Backend.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Backend.settings.development')
 django.setup()
 
 # Import the routing module after Django setup

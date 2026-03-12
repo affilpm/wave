@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import apiInstance from '../../api';
+import api from '../../api';
 
 // Modern card component with gradient background
 const DashboardCard = ({ title, value, subtext, icon: Icon, color }) => (
@@ -32,10 +32,10 @@ const Dashboard = () => {
         
         // Fetch data from all endpoints in parallel
         const [totalUsersRes, statsRes, topSongsRes, topArtistsRes] = await Promise.all([
-          apiInstance.get('/api/admins/total-users/'),
-          apiInstance.get('/api/admins/premium-stats/'),
-          apiInstance.get('/api/admins/top-songs/'),
-          apiInstance.get('/api/admins/top-artists/')
+          api.get('/api/v1/admins/total-users/'),
+          api.get('/api/v1/admins/premium-stats/'),
+          api.get('/api/v1/admins/top-songs/'),
+          api.get('/api/v1/admins/top-artists/')
         ]);
 
         // Format top songs data for chart

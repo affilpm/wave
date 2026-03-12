@@ -7,7 +7,7 @@ export const useArtistStatus = () => {
 
   const checkArtistStatus = async () => {
     try {
-      const response = await api.get('/api/artists/check-artist-status/');
+      const response = await api.get('/api/v1/artists/check-artist-status/');
       setIsArtist(response.data.is_artist);
     } catch (error) {
       console.error('Error checking artist status:', error);

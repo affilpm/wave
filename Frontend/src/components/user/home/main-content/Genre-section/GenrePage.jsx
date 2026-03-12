@@ -8,26 +8,29 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
-} from "../../../../../slices/user/playerSlice";
+} from "../../../../../store/slices/playerSlice";
 import api from '../../../../../api';
 import { formatDuration, convertToSeconds, convertToHrMinFormat } from '../../../../../utils/formatters';
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue,
-    currentIndex: player.currentIndex,
+    queueIndex: player.queueIndex,
   })
 );
 
 const GenrePage = () => {
   const dispatch = useDispatch();
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+  
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing';
   const [genreData, setGenreData] = useState(null);
   const [tracks, setTracks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,51 +52,43 @@ const GenrePage = () => {
 
   const isQueueFromGenreTracks = useMemo(() => {
     if (!queue.length) return false;
-    return queue.every(
+    return queue.some(
       (track) => track.source === 'public_songs'
     );
   }, [queue]);
 
   const isCurrentTrackFromGenreTracks = useMemo(() => {
     if (!stableTracks.length || !currentMusicId || !isQueueFromGenreTracks) {
-      console.log('isCurrentTrackFromGenreTracks: Early return', {
-        hasTracks: !!stableTracks.length,
-        currentMusicId,
-        isQueueFromGenreTracks,
-        queueLength: queue.length,
-        currentIndex,
-      });
       return false;
     }
-    const currentTrack = queue[currentIndex];
+    const trackAtIdx = queue[queueIndex];
     const isTrackInTracks = stableTracks.some(
       (track) => Number(track.id) === Number(currentMusicId)
     );
-    console.log('isCurrentTrackFromGenreTracks: Result', {
-      currentTrackId: currentTrack?.id,
-      currentMusicId,
-      isTrackInTracks,
-      isPlaying,
-    });
+    
     return (
-      currentTrack &&
-      Number(currentTrack.id) === Number(currentMusicId) &&
+      trackAtIdx &&
+      Number(trackAtIdx.id) === Number(currentMusicId) &&
       isTrackInTracks
     );
-  }, [stableTracks, currentMusicId, isQueueFromGenreTracks, queue, currentIndex]);
+  }, [stableTracks, currentMusicId, isQueueFromGenreTracks, queue, queueIndex]);
 
   useEffect(() => {
     const fetchGenreData = async () => {
       try {
         const [genreResponse, tracksResponse] = await Promise.all([
-          api.get(`/api/home/public-genres/${genreId}/`),
-          api.get(`/api/home/by-genre/${genreId}/?page=${currentPage}`)
+          api.get(`/api/v1/home/public-genres/${genreId}/`),
+          api.get(`/api/v1/home/by-genre/${genreId}/?page=${currentPage}`)
         ]);
-        setGenreData(genreResponse.data);
-        setTracks(tracksResponse.data.results);
-        setTotalPages(Math.ceil(tracksResponse.data.count / 10));
+        const genreData = genreResponse.data;
+        const tracksData = tracksResponse.data.results || tracksResponse.data || [];
+        const count = tracksResponse.data.results ? tracksResponse.data.count : tracksData.length;
+        
+        setGenreData(genreData);
+        setTracks(tracksData);
+        setTotalPages(Math.ceil(count / 10));
 
-        const seconds = tracksResponse.data.results.reduce((acc, track) =>
+        const seconds = tracksData.reduce((acc, track) =>
           acc + convertToSeconds(track.duration), 0);
         setTotalDuration(convertToHrMinFormat(seconds));
       } catch (err) {
@@ -113,7 +108,8 @@ const GenrePage = () => {
     artist: track.artist?.user?.username || 'Unknown Artist',
     artist_full: track.artist?.full_name,
     album: 'Single', // Added for similarity to Profile, assuming no album data
-    cover_photo: track.cover_photo || '/api/placeholder/48/48',
+    cover_photo: track.cover_photo || '/api/v1/placeholder/48/48',
+    audio_file: track.audio_file,
     duration: convertToSeconds(track.duration || '00:00:00'),
     genre: track.genre || '',
     year: track.release_date ? new Date(track.release_date).getFullYear() : null,
@@ -153,14 +149,14 @@ const GenrePage = () => {
 
   const handlePreviousPage = () => {
     if (currentPage > 1) {
-      console.log('Navigating to previous page:', currentPage - 1);
+
       setCurrentPage(currentPage - 1);
     }
   };
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
-      console.log('Navigating to next page:', currentPage + 1);
+
       setCurrentPage(currentPage + 1);
     }
   };

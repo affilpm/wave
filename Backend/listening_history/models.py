@@ -1,75 +1,103 @@
-from django.db import models
-from users.models import CustomUser
-from music.models import Music
+"""
+Listening history and activity tracking models for the Wave platform.
+
+Records user play activity, artist engagement, and aggregated play counts
+for analytics and recommendation purposes.
+"""
+
+from __future__ import annotations
+
 from django.conf import settings
+from django.db import models
 from django.utils.timezone import now
 
-    
-# ---------------------------
-# 1. Activity Types
-# ---------------------------
+
+# ---------------------------------------------------------------------------
+# Enumerations
+# ---------------------------------------------------------------------------
+
 class MusicActivityType(models.TextChoices):
+    """Possible music activity events."""
+
     PLAY = "play", "Play"
     COMPLETE = "complete", "Complete"
 
 
+# ---------------------------------------------------------------------------
+# Aggregated stats
+# ---------------------------------------------------------------------------
 
-# ---------------------------
-# 2. Music-Level Stats
-# ---------------------------
 class MusicPlayCount(models.Model):
-    """Aggregated play count for each track"""
+    """Aggregated play count for a single track."""
+
     music = models.OneToOneField(
-        "music.Music", on_delete=models.CASCADE, related_name="play_stats"
+        "music.Music",
+        on_delete=models.CASCADE,
+        related_name="play_stats",
     )
     total_plays = models.PositiveIntegerField(default=0)
 
-    def __str__(self):
+    class Meta:
+        verbose_name = "track play count"
+        verbose_name_plural = "track play counts"
+
+    def __str__(self) -> str:
         return f"{self.music.name} - {self.total_plays} plays"
 
 
-# ---------------------------
-# 3. Artist-Level Stats
-# ---------------------------
 class ArtistPlayCount(models.Model):
-    """Aggregated play count for each artist"""
+    """Aggregated play count across all tracks by an artist."""
+
     artist = models.OneToOneField(
-        "artists.Artist", on_delete=models.CASCADE, related_name="play_stats"
+        "artists.Artist",
+        on_delete=models.CASCADE,
+        related_name="play_stats",
     )
     total_plays = models.PositiveIntegerField(default=0)
 
-    def __str__(self):
+    class Meta:
+        verbose_name = "artist play count"
+        verbose_name_plural = "artist play counts"
+
+    def __str__(self) -> str:
         return f"{self.artist.user.email} - {self.total_plays} plays"
 
 
-# ---------------------------
-# 4. Full User Activity Log
-# ---------------------------
+# ---------------------------------------------------------------------------
+# Activity log
+# ---------------------------------------------------------------------------
+
 class MusicActivity(models.Model):
-    """Raw log of all user activities with music"""
+    """Raw log of user play / complete events for a track."""
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
         related_name="music_activities",
     )
     music = models.ForeignKey(
-        'music.Music', on_delete=models.CASCADE, related_name="activities"
+        "music.Music",
+        on_delete=models.CASCADE,
+        related_name="activities",
     )
-    activity_type = models.CharField(max_length=20, choices=MusicActivityType.choices)
+    activity_type = models.CharField(
+        max_length=20,
+        choices=MusicActivityType.choices,
+    )
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
+        verbose_name = "music activity"
+        verbose_name_plural = "music activities"
         ordering = ["-timestamp"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user} - {self.music.name} ({self.activity_type})"
 
 
-# ---------------------------
-# 5. Recently Played (Cache)
-# ---------------------------
 class RecentlyPlayed(models.Model):
-    """Quick lookup for user’s last played tracks"""
+    """Cache of users' most recently played tracks for quick lookup."""
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -79,18 +107,23 @@ class RecentlyPlayed(models.Model):
     last_played = models.DateTimeField(default=now)
 
     class Meta:
-        unique_together = ("user", "music")
+        verbose_name = "recently played"
+        verbose_name_plural = "recently played"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "music"],
+                name="unique_user_recently_played",
+            )
+        ]
         ordering = ["-last_played"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user} recently played {self.music.name}"
 
 
-# ---------------------------
-# 6. User–Artist Activity
-# ---------------------------
 class ArtistActivity(models.Model):
-    """Tracks user’s engagement with specific artists"""
+    """Tracks a user's cumulative engagement with a specific artist."""
+
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.CASCADE,
@@ -105,8 +138,15 @@ class ArtistActivity(models.Model):
     last_played = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        unique_together = ("user", "artist")
+        verbose_name = "artist activity"
+        verbose_name_plural = "artist activities"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "artist"],
+                name="unique_user_artist_activity",
+            )
+        ]
         ordering = ["-last_played"]
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.user} listened to {self.artist.user.email} ({self.total_plays} plays)"

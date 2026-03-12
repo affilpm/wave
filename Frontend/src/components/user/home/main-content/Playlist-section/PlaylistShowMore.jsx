@@ -10,10 +10,10 @@ import api from "../../../../../api";
 const selectPlayerState = createSelector(
   [(state) => state.player], 
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue || [],
-    currentIndex: player.currentIndex || 0,
+    queueIndex: player.queueIndex || 0,
     currentPlaylistId: player.currentPlaylistId,
   })
 );
@@ -24,10 +24,13 @@ const PlaylistShowMorePage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const username = useSelector((state) => state.user.username);
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing';
+  const currentIndex = queueIndex;
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
   const [items, setItems] = useState([]);
@@ -40,10 +43,14 @@ const PlaylistShowMorePage = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const musiclistResponse = await api.get(`/api/home/playlist/?all_songs&page=${page}`);
-        setItems(musiclistResponse.data.results);
+        const musiclistResponse = await api.get(`/api/v1/home/playlist/?all_songs&page=${page}`);
+        const data = musiclistResponse.data.results || musiclistResponse.data || [];
+        const count = musiclistResponse.data.results ? musiclistResponse.data.count : data.length;
+        const pageSize = musiclistResponse.data.results ? (musiclistResponse.data.page_size || 20) : 20;
+
+        setItems(data);
         setHasNextPage(!!musiclistResponse.data.next);
-        setTotalPages(Math.ceil(musiclistResponse.data.count / musiclistResponse.data.page_size));
+        setTotalPages(Math.ceil(count / pageSize));
       } catch (error) {
         console.error("Error fetching playlist data:", error);
       } finally {

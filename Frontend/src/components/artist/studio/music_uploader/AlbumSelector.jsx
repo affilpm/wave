@@ -16,8 +16,9 @@ const AlbumSelector = ({ selectedAlbum, setSelectedAlbum, trackNumber, setTrackN
   useEffect(() => {
     const fetchAlbums = async () => {
       try {
-        const response = await api.get('/api/album/albums');
-        setAlbums(response.data);
+        const response = await api.get('/api/v1/album/albums');
+        const albumsData = response.data.results || (Array.isArray(response.data) ? response.data : []);
+        setAlbums(albumsData);
       } catch (err) {
         console.error('Error fetching albums:', err);
         toast.error('Failed to load albums');

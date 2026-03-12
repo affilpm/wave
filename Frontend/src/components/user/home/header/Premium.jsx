@@ -15,8 +15,9 @@ const Premium = () => {
     const fetchPlans = async () => {
       try {
         setLoading(true);
-        const response = await api.get('/api/premium/plans/');
-        setPlans(response.data);
+        const response = await api.get('/api/v1/premium/plans/');
+        const plansData = response.data.results || (Array.isArray(response.data) ? response.data : []);
+        setPlans(plansData);
         setError(null);
       } catch (err) {
         setError('Failed to load premium plans. Please try again later.');
@@ -58,7 +59,7 @@ const Premium = () => {
     }
 
     try {
-      const orderResponse = await api.post('/api/premium/create-order/', { 
+      const orderResponse = await api.post('/api/v1/premium/create-order/', { 
         plan_id: plan.id 
       });
       
@@ -73,7 +74,7 @@ const Premium = () => {
         order_id: order_id,
         handler: async (response) => {
           try {
-            const verifyResponse = await api.post('/api/premium/verify-payment/', {
+            const verifyResponse = await api.post('/api/v1/premium/verify-payment/', {
               payment_id: response.razorpay_payment_id,
               order_id: response.razorpay_order_id,
               signature: response.razorpay_signature

@@ -1,6 +1,6 @@
 // import React, { useState, useEffect, useRef } from 'react';
 // import AgoraRTC from 'agora-rtc-sdk-ng';
-// import { apiInstance } from '../../api';
+// import api from '../../api';
 // import { Play, Pause, ChevronLeft, User, Users, Maximize, Minimize, X, RefreshCw, ArrowLeft, Video, VideoOff, Mic, MicOff } from "lucide-react";
 // import { useNavigate } from 'react-router-dom';
 
@@ -196,7 +196,7 @@
 //     const jitter = Math.floor(Math.random() * 2000);
 //     await new Promise(resolve => setTimeout(resolve, jitter));
     
-//     const response = await apiInstance.api.post('/api/livestream/participant/heartbeat/', {
+//     const response = await api.api.post('/api/v1/livestream/participant/heartbeat/', {
 //       channel_name: selectedStream.channel_name
 //     });
     
@@ -236,7 +236,7 @@
 //   const fetchAvailableStreams = async () => {
 //     try {
 //       setIsLoading(true);
-//       const response = await apiInstance.api.get('/api/livestream/streams/');
+//       const response = await api.api.get('/api/v1/livestream/streams/');
       
 //       // Update the participant count of the selected stream if it exists
 //       if (selectedStream) {
@@ -299,7 +299,7 @@
 //         role: 'audience'  // Explicitly set role to audience
 //       };
       
-//       const response = await apiInstance.api.get('/api/livestream/token/', {
+//       const response = await api.api.get('/api/v1/livestream/token/', {
 //         params: params
 //       });
       
@@ -572,7 +572,7 @@
 //       // Update participant status in the backend
 //       if (selectedStream) {
 //         try {
-//           await apiInstance.api.post('/api/livestream/participant/leave/', {
+//           await api.api.post('/api/v1/livestream/participant/leave/', {
 //             channel_name: selectedStream.channel_name
 //           });
 //         } catch (err) {

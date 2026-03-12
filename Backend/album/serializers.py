@@ -14,7 +14,7 @@ class MusicSerializer(serializers.ModelSerializer):
     class Meta:
         model = Music
         fields = [
-            'id', 'name', 'cover_photo', 
+            'id', 'name', 'cover_photo', 'audio_file',
              'genres', 'release_date',
             'approval_status', 'duration', 'artist', 
             'artist_email', 'artist_full_name', 'artist_username',
@@ -43,8 +43,16 @@ class MusicSerializer(serializers.ModelSerializer):
         # Check the length of the filename
         file_name, file_extension = os.path.splitext(value.name)
         if len(file_name) > 250:
-            raise serializers.ValidationError("Ensure this filename has at most 100 characters.")
+            raise serializers.ValidationError("Ensure this filename has at most 250 characters.")
         return value
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        # Remove audio_file from nested music to prioritize HLS
+        representation.pop('audio_file', None)
+        if instance.cover_photo:
+            representation['cover_photo'] = instance.cover_photo.url
+        return representation
     
     
     
@@ -118,4 +126,12 @@ class AlbumSerializer(serializers.ModelSerializer):
             AlbumTrack.objects.create(album=instance, **track_data)
         
         return instance
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.cover_photo:
+            representation['cover_photo'] = instance.cover_photo.url
+        if instance.banner_img:
+            representation['banner_img'] = instance.banner_img.url
+        return representation
         

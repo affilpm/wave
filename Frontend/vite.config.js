@@ -23,6 +23,14 @@ export default defineConfig(({ mode }) => {
           ws: true,
           changeOrigin: true,
         },
+        '/api/v1': {
+          target: API_URL || 'http://localhost:8000',
+          changeOrigin: true,
+        },
+        '/media': {
+          target: API_URL || 'http://localhost:8000',
+          changeOrigin: true,
+        },
       },
       headers: {
         'Content-Security-Policy': `
@@ -43,7 +51,7 @@ export default defineConfig(({ mode }) => {
             https://*.agora.io https://*.sd-rtn.com
             https://web-2.statscollector.sd-rtn.com 
             https://statscollector-1.agora.io;
-          img-src 'self' https: data: blob: https://wavebuckt12.s3.amazonaws.com https://*.cloudfront.net;
+          img-src 'self' https: data: blob: http://localhost:8000 http://127.0.0.1:8000 https://wavebuckt12.s3.amazonaws.com https://*.cloudfront.net;
           media-src 'self' blob: data: ${API_URL} https://wavebuckt12.s3.amazonaws.com https://*.cloudfront.net;
           font-src 'self' data:;
           worker-src 'self' blob:;
@@ -53,5 +61,32 @@ export default defineConfig(({ mode }) => {
     optimizeDeps: {
       include: ['jwt-decode'],
     },
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks: {
+            vendor: [
+              'react',
+              'react-dom',
+              'react-router-dom',
+              '@reduxjs/toolkit',
+              'react-redux',
+              'axios'
+            ],
+            ui: [
+              '@chakra-ui/react',
+              '@mui/material',
+              'antd',
+              'shadcn-ui',
+              'framer-motion'
+            ],
+            media: [
+              'hls.js',
+              'howler',
+            ]
+          }
+        }
+      }
+    }
   };
 });

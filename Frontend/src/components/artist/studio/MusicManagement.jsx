@@ -45,7 +45,7 @@ const MusicManagement = () => {
       ...prevCache,
       [key]: {
         data: data.results || data,
-        totalPages: Math.ceil(data.count / 8),
+        totalPages: data.results ? Math.ceil(data.count / 8) : Math.ceil((data.length || 0) / 8),
         timestamp: Date.now()
       }
     }));
@@ -89,13 +89,14 @@ const MusicManagement = () => {
         page: currentPage
       };
 
-      const response = await api.get('/api/music/music/', { params });
+      const response = await api.get('/api/v1/music/music/', { params });
       
       updateCache(debouncedSearchTerm, currentPage, response.data);
       
       const musicData = Array.isArray(response.data) ? response.data : response.data.results || [];
+      const count = response.data.results ? response.data.count : musicData.length;
       setTracks(musicData);
-      setTotalPages(Math.ceil(response.data.count / 8));
+      setTotalPages(Math.ceil(count / 8));
       
     } catch (err) {
       setError('Failed to load tracks');
@@ -153,7 +154,7 @@ const MusicManagement = () => {
 
   const confirmDelete = async () => {
     try {
-      await api.delete(`/api/music/music/${selectedTrackId}/`);
+      await api.delete(`/api/v1/music/music/${selectedTrackId}/`);
       
       setTracks(tracks.filter((track) => track.id !== selectedTrackId));
       setCache(prevCache => {
@@ -186,7 +187,7 @@ const MusicManagement = () => {
 
   const toggleVisibility = async (trackId) => {
     try {
-      const response = await api.post(`/api/music/music/${trackId}/toggle_visibility/`);
+      const response = await api.post(`/api/v1/music/music/${trackId}/toggle_visibility/`);
       
       setTracks(tracks.map((track) =>
         track.id === trackId ? { ...track, is_public: response.data.is_public } : track

@@ -12,6 +12,9 @@ const initialState = {
 
 };
 
+/**
+ * Redux slice for managing user authentication and profile state.
+ */
 const userSlice = createSlice({
   name: 'user',
   initialState,
@@ -23,9 +26,8 @@ const userSlice = createSlice({
       state.first_name = action.payload.first_name;
       state.last_name = action.payload.last_name;
       state.image = action.payload.image || ''; 
-      state.isAuthenticated = true; // Set isAuthenticated to true when user data is set
+      state.isAuthenticated = true;
     },
-    
 
     updateUserProfile: (state, action) => {
       state.username = action.payload.username;
@@ -33,13 +35,13 @@ const userSlice = createSlice({
     },
     
     clearUserData: (state) => {
-      state.email = ''; // Reset to empty string
-      state.user_id= '',
-      state.username = ''; // Reset to empty string
-      state.first_name = ''; // Reset to empty string
-      state.last_name = ''; // Reset to empty string
-      state.image = ''; // Keep image as null
-      state.isAuthenticated = false; // Set isAuthenticated to false when clearing user data
+      state.email = '';
+      state.user_id = '';
+      state.username = '';
+      state.first_name = '';
+      state.last_name = '';
+      state.image = '';
+      state.isAuthenticated = false;
     },
   },
 });

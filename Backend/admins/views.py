@@ -1,465 +1,389 @@
-from rest_framework_simplejwt.views import TokenObtainPairView
-from django.contrib.auth import authenticate
-from rest_framework_simplejwt.tokens import RefreshToken
-from rest_framework import viewsets, filters, status
-from django_filters.rest_framework import DjangoFilterBackend
-from users.models import CustomUser
-from artists.models import Artist, ArtistVerificationStatus
-from .serializers import UserTableSerializer, UserStatusUpdateSerializer, RazorpayTransactionSerializer, RazorpayTransactionDetailSerializer
-from django.db import models
-from rest_framework.pagination import PageNumberPagination
-from rest_framework.filters import SearchFilter, OrderingFilter
-from django.db.models import Q
+"""
+Admin API views — dashboard stats, user management, artist verification,
+transaction management, and refunds.
+"""
+
+from __future__ import annotations
+
+import datetime
+import logging
+
 from django.conf import settings
-import razorpay
-from premium.models import RazorpayTransaction, UserSubscription, PremiumPlan
-from rest_framework.response import Response
-from rest_framework.views import APIView
-from rest_framework.decorators import api_view, permission_classes, action
+from django.contrib.auth import authenticate
+from django.db import models
+from django.db.models import Count, Q, Sum
 from django.utils import timezone
 from django.utils.timezone import now
-from listening_history.models import MusicPlayCount
-from artists.serializers import ArtistSerializer
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import filters, status, viewsets
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAdminUser
-from django.db.models import Sum, Count
-import datetime
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
+
+from admins.serializers import (
+    RazorpayTransactionDetailSerializer,
+    RazorpayTransactionSerializer,
+    UserStatusUpdateSerializer,
+    UserTableSerializer,
+)
+from artists.models import Artist, ArtistVerificationStatus
+from artists.serializers import ArtistSerializer
+from listening_history.models import MusicPlayCount
+from premium.models import PremiumPlan, RazorpayTransaction, UserSubscription
+from premium.services import PaymentService, SubscriptionService
+from users.models import CustomUser
+
+logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Pagination
+# ---------------------------------------------------------------------------
 
-#used for admin login
+class AdminPagination(PageNumberPagination):
+    """Shared pagination for admin views."""
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+
+class TransactionPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "limit"
+    max_page_size = 100
+
+
+# ---------------------------------------------------------------------------
+# Admin login
+# ---------------------------------------------------------------------------
+
 class AdminLoginView(TokenObtainPairView):
-
+    """Authenticate admin users and return JWT tokens."""
 
     def post(self, request, *args, **kwargs):
-        email = request.data.get('email')
-        password = request.data.get('password')
+        email = request.data.get("email")
+        password = request.data.get("password")
 
         user = authenticate(request, email=email, password=password)
 
         if user is not None and user.is_superuser:
             refresh = RefreshToken.for_user(user)
-
             return Response({
-                'refresh': str(refresh),
-                'access': str(refresh.access_token),
-                'isSuperuser': user.is_superuser,
-                'isActive': user.is_active,  
+                "refresh": str(refresh),
+                "access": str(refresh.access_token),
+                "isSuperuser": user.is_superuser,
+                "isActive": user.is_active,
             })
-        else:
-            return Response(
-                {"detail": "Incorrect email or password"},
-                status=status.HTTP_401_UNAUTHORIZED
-            )
-            
-            
-#used to list users
-User = CustomUser
+
+        return Response(
+            {"detail": "Incorrect email or password"},
+            status=status.HTTP_401_UNAUTHORIZED,
+        )
 
 
-class Pagination(PageNumberPagination):
-    page_size = 10
-    page_size_query_param = 'page_size'
-    max_page_size = 100      
-    
-class UserTableViewSet(viewsets.ModelViewSet):  
-    queryset = User.objects.filter(is_superuser=False)
+# ---------------------------------------------------------------------------
+# User management
+# ---------------------------------------------------------------------------
+
+class UserTableViewSet(viewsets.ModelViewSet):
+    """Admin CRUD for non-superuser accounts."""
+
+    queryset = CustomUser.objects.filter(is_superuser=False)
     serializer_class = UserTableSerializer
     permission_classes = [IsAdminUser]
-
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['is_active']
-    search_fields = ['email', 'first_name', 'last_name']
-    ordering_fields = ['created_at', 'email']
-    ordering = ['-created_at']
-    pagination_class = Pagination
-    
+    filterset_fields = ["is_active"]
+    search_fields = ["email", "first_name", "last_name"]
+    ordering_fields = ["created_at", "email"]
+    ordering = ["-created_at"]
+    pagination_class = AdminPagination
+
     def get_serializer_class(self):
-        if self.action in ['update', 'partial_update']:
+        if self.action in ("update", "partial_update"):
             return UserStatusUpdateSerializer
         return self.serializer_class
 
-
-    @action(detail=False, methods=['get'])
+    @action(detail=False, methods=["get"])
     def stats(self, request):
-        total_users = self.get_queryset().count()
-        active_users = self.get_queryset().filter(is_active=True).count()
-        artists = Artist.objects.filter(status='approved').count()
-
+        """Return aggregate user + artist counts."""
+        qs = self.get_queryset()
         return Response({
-            'total_users': total_users,
-            'active_users': active_users,
-            'artists': artists,
+            "total_users": qs.count(),
+            "active_users": qs.filter(is_active=True).count(),
+            "artists": Artist.objects.filter(
+                status=ArtistVerificationStatus.APPROVED,
+            ).count(),
         })
 
 
-    
-# ViewSet for managing artists
+# ---------------------------------------------------------------------------
+# Artist management (admin)
+# ---------------------------------------------------------------------------
+
 class ArtistViewSet(viewsets.ModelViewSet):
+    """Admin CRUD for artist profiles."""
+
     permission_classes = [IsAdminUser]
-
-    queryset = Artist.objects.all()
+    queryset = Artist.objects.select_related("user").prefetch_related("genres")
     serializer_class = ArtistSerializer
-    pagination_class = Pagination
+    pagination_class = AdminPagination
 
-
-    # Custom action for listing artists
-    @action(detail=False, methods=['GET'])
+    @action(detail=False, methods=["get"])
     def list_artists(self, request):
-        try:
-            artists = Artist.objects.all()
-            
-            # Apply pagination
-            page = self.paginate_queryset(artists)
-            if page is not None:
-                artist_data = [
-                    {
-                        'id': artist.id,
-                        'email': artist.user.email,
-                        'bio': artist.bio,
-                        'status': artist.status,
-                        'genre': ', '.join([genre.name for genre in artist.genres.all()]),
-                        'submitted_at': artist.submitted_at
-                    }
-                    for artist in page
-                ]
-                return self.get_paginated_response(artist_data)  
-            
-            # If pagination is not applied, return manually paginated response
-            artist_data = [
-                {
-                    'id': artist.id,
-                    'email': artist.user.email,
-                    'bio': artist.bio,
-                    'status': artist.status,
-                    'genre': ', '.join([genre.name for genre in artist.genres.all()]),
-                    'submitted_at': artist.submitted_at
-                }
-                for artist in artists
-            ]
+        """List artists with pagination and inline genre names."""
+        artists = self.get_queryset()
+        page = self.paginate_queryset(artists)
+        items = page if page is not None else artists
 
-            return Response({
-                'count': len(artist_data),  
-                'next': None,
-                'previous': None,
-                'results': artist_data  
-            }, status=200)
-        
-        except Exception as e:
-            return Response({'error': str(e)}, status=500)
+        data = [
+            {
+                "id": a.id,
+                "email": a.user.email,
+                "bio": a.bio,
+                "status": a.status,
+                "genre": ", ".join(g.name for g in a.genres.all()),
+                "submitted_at": a.submitted_at,
+            }
+            for a in items
+        ]
+        if page is not None:
+            return self.get_paginated_response(data)
+        return Response({"count": len(data), "next": None, "previous": None, "results": data})
 
-    # Custom action for updating artist status
-    @action(detail=True, methods=['POST'])
+    @action(detail=True, methods=["post"])
     def update_status(self, request, pk=None):
+        """Update an artist's verification status."""
         try:
             artist = Artist.objects.get(pk=pk)
-            new_status = request.data.get('status')
-
-            if not new_status:
-                return Response({'error': 'Status is required'}, status=400)
-
-            if new_status not in [status for status in ArtistVerificationStatus.values]:
-                return Response({'error': 'Invalid status'}, status=400)
-
-            artist.status = new_status
-            artist.save()
-            return Response({'status': artist.status}, status=200)
         except Artist.DoesNotExist:
-            return Response({'error': 'Artist not found'}, status=404)
+            return Response({"error": "Artist not found"}, status=status.HTTP_404_NOT_FOUND)
 
-                    
+        new_status = request.data.get("status")
+        if not new_status:
+            return Response({"error": "Status is required"}, status=status.HTTP_400_BAD_REQUEST)
+        if new_status not in ArtistVerificationStatus.values:
+            return Response({"error": "Invalid status"}, status=status.HTTP_400_BAD_REQUEST)
 
-class TransactionPagination(PageNumberPagination):
-    page_size = 10
-    page_size_query_param = 'limit'
-    max_page_size = 100
+        artist.status = new_status
+        artist.save(update_fields=["status", "updated_at"])
+        return Response({"status": artist.status})
+
+
+# ---------------------------------------------------------------------------
+# Transaction management
+# ---------------------------------------------------------------------------
 
 class AdminTransactionViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    Admin API endpoint for managing transactions
-    """
-    queryset = RazorpayTransaction.objects.all().order_by('-timestamp')
+    """Admin read-only viewset for Razorpay transactions + refund action."""
+
+    queryset = RazorpayTransaction.objects.select_related("user").order_by("-timestamp")
     serializer_class = RazorpayTransactionSerializer
     permission_classes = [IsAdminUser]
-
     pagination_class = TransactionPagination
-    filter_backends = [DjangoFilterBackend, SearchFilter, OrderingFilter]
-    filterset_fields = ['status']
-    search_fields = ['user__email', 'razorpay_payment_id', 'razorpay_order_id']
-    ordering_fields = ['timestamp', 'amount', 'status']
-    
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    filterset_fields = ["status"]
+    search_fields = ["user__email", "razorpay_payment_id", "razorpay_order_id"]
+    ordering_fields = ["timestamp", "amount", "status"]
+
     def get_serializer_class(self):
-        if self.action == 'retrieve':
+        if self.action == "retrieve":
             return RazorpayTransactionDetailSerializer
         return RazorpayTransactionSerializer
-    
+
     def get_queryset(self):
-        queryset = super().get_queryset()
-        
-        # Additional filtering options
-        status = self.request.query_params.get('status', None)
-        search = self.request.query_params.get('search', None)
-        
-        if status:
-            queryset = queryset.filter(status__iexact=status)
-        
+        qs = super().get_queryset()
+        search = self.request.query_params.get("search")
         if search:
-            queryset = queryset.filter(
-                Q(user__email__icontains=search) |
-                Q(razorpay_payment_id__icontains=search) |
-                Q(razorpay_order_id__icontains=search)
+            qs = qs.filter(
+                Q(user__email__icontains=search)
+                | Q(razorpay_payment_id__icontains=search)
+                | Q(razorpay_order_id__icontains=search)
             )
-            
-        return queryset
-    
-    @action(detail=True, methods=['post'])
+        return qs
+
+    @action(detail=True, methods=["post"])
     def refund(self, request, pk=None):
-        """
-        Process a refund for a transaction
-        """
-        transaction = self.get_object()
-        
-        # Check if transaction is already refunded
-        if transaction.status.lower() == 'refunded':
-            return Response(
-                {"detail": "Transaction has already been refunded."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Check if transaction is eligible for refund
-        if transaction.status.lower() not in ['captured', 'authorized']:
-            return Response(
-                {"detail": "Only captured or authorized transactions can be refunded."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        # Initialize Razorpay client
-        client = razorpay.Client(
-            auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET)
-        )
-        
+        """Process a refund via the PaymentService."""
+        txn = self.get_object()
+        success, message, refund_id = PaymentService.process_refund(txn, request.user.email)
+
+        if not success:
+            return Response({"detail": message}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Expire the user's subscription after refund
         try:
-            # Process refund through Razorpay
-            refund_data = client.payment.refund(
-                transaction.razorpay_payment_id, 
-                {
-                    "amount": int(float(transaction.amount) * 100),  # Convert to paise
-                    "notes": {
-                        "reason": "Admin requested refund",
-                        "admin_email": request.user.email
-                    }
-                }
-            )
-            
-            # Update transaction status
-            transaction.status = 'refunded'
-            transaction.save()
-            
-            # Check if this is associated with a subscription and update it
-            try:
-                subscription = UserSubscription.objects.get(user=transaction.user)
-                if subscription.is_active():
-                    subscription.status = 'expired'
-                    subscription.save()
-            except UserSubscription.DoesNotExist:
-                pass
-                
-            return Response({
-                "detail": "Refund processed successfully.",
-                "refund_id": refund_data.get('id')
-            })
-            
-        except Exception as e:
-            return Response(
-                {"detail": f"Refund failed: {str(e)}"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-            
-        
+            sub = UserSubscription.objects.get(user=txn.user)
+            SubscriptionService.expire_subscription(sub)
+        except UserSubscription.DoesNotExist:
+            pass
+
+        return Response({"detail": message, "refund_id": refund_id})
+
+
+# ---------------------------------------------------------------------------
+# Dashboard statistics
+# ---------------------------------------------------------------------------
 
 class TransactionStatsView(APIView):
-    """
-    Get statistics about transactions for admin dashboard
-    """
+    """Aggregate transaction statistics for the admin dashboard."""
+
     permission_classes = [IsAdminUser]
 
-    
-    def get(self, request):
-        # Get statistics
-        total_transactions = RazorpayTransaction.objects.count()
-        successful_transactions = RazorpayTransaction.objects.filter(
-            status__in=['captured', 'authorized']
-        ).count()
-        refunded_transactions = RazorpayTransaction.objects.filter(status='refunded').count()
-        failed_transactions = RazorpayTransaction.objects.filter(status='failed').count()
-        
-        # Calculate total revenue
-        total_revenue = RazorpayTransaction.objects.filter(
-            status__in=['captured', 'authorized']
-        ).exclude(status='refunded').aggregate(
-            total=models.Sum('amount')
-        )['total'] or 0
-        
-        # Get recent transactions
-        recent_transactions = RazorpayTransaction.objects.all().order_by('-timestamp')[:5]
-        recent_transactions_data = RazorpayTransactionSerializer(recent_transactions, many=True).data
-        
-        # Get statistics by plan
-        plans = PremiumPlan.objects.all()
-        plan_stats = []
-        
-        for plan in plans:
-            plan_subscriptions = UserSubscription.objects.filter(plan=plan).count()
-            plan_stats.append({
-                'name': plan.get_name_display(),
-                'subscriptions': plan_subscriptions,
-                'price': float(plan.price)
-            })
-            
+    def get(self, request) -> Response:
+        total = RazorpayTransaction.objects.count()
+        successful = RazorpayTransaction.objects.filter(status__in=["captured", "authorized"]).count()
+        refunded = RazorpayTransaction.objects.filter(status="refunded").count()
+        failed = RazorpayTransaction.objects.filter(status="failed").count()
+
+        revenue = (
+            RazorpayTransaction.objects.filter(status__in=["captured", "authorized"])
+            .exclude(status="refunded")
+            .aggregate(total=Sum("amount"))["total"]
+            or 0
+        )
+
+        recent = RazorpayTransaction.objects.order_by("-timestamp")[:5]
+        plan_stats = [
+            {
+                "name": plan.get_name_display(),
+                "subscriptions": UserSubscription.objects.filter(plan=plan).count(),
+                "price": float(plan.price),
+            }
+            for plan in PremiumPlan.objects.all()
+        ]
+
         return Response({
-            'total_transactions': total_transactions,
-            'successful_transactions': successful_transactions,
-            'refunded_transactions': refunded_transactions,
-            'failed_transactions': failed_transactions,
-            'total_revenue': float(total_revenue),
-            'recent_transactions': recent_transactions_data,
-            'plan_stats': plan_stats
+            "total_transactions": total,
+            "successful_transactions": successful,
+            "refunded_transactions": refunded,
+            "failed_transactions": failed,
+            "total_revenue": float(revenue),
+            "recent_transactions": RazorpayTransactionSerializer(recent, many=True).data,
+            "plan_stats": plan_stats,
         })
-        
-        
+
 
 class TransactionMonthlyStatsView(APIView):
-    """
-    Get monthly statistics for transactions
-    """
+    """Monthly transaction and revenue breakdown (last 6 months)."""
+
     permission_classes = [IsAdminUser]
 
-    
-    def get(self, request):
-        # Get statistics for the last 6 months
+    def get(self, request) -> Response:
         end_date = timezone.now()
-        start_date = end_date - timezone.timedelta(days=180)  # Approximately 6 months
-        
-        # Generate monthly data
+        start_date = end_date - timezone.timedelta(days=180)
+
         monthly_data = []
-        current_date = start_date
-        
-        while current_date <= end_date:
-            month_start = timezone.datetime(current_date.year, current_date.month, 1, tzinfo=timezone.utc)
-            if current_date.month == 12:
-                month_end = timezone.datetime(current_date.year + 1, 1, 1, tzinfo=timezone.utc) - timezone.timedelta(seconds=1)
+        current = start_date
+
+        while current <= end_date:
+            month_start = timezone.datetime(current.year, current.month, 1, tzinfo=timezone.utc)
+            if current.month == 12:
+                month_end = timezone.datetime(current.year + 1, 1, 1, tzinfo=timezone.utc) - timezone.timedelta(seconds=1)
             else:
-                month_end = timezone.datetime(current_date.year, current_date.month + 1, 1, tzinfo=timezone.utc) - timezone.timedelta(seconds=1)
-            
-            # Count transactions for this month
-            month_transactions = RazorpayTransaction.objects.filter(
-                timestamp__gte=month_start,
-                timestamp__lte=month_end
+                month_end = timezone.datetime(current.year, current.month + 1, 1, tzinfo=timezone.utc) - timezone.timedelta(seconds=1)
+
+            txns = RazorpayTransaction.objects.filter(
+                timestamp__gte=month_start, timestamp__lte=month_end,
             )
-            
-            # Calculate revenue for this month
-            month_revenue = month_transactions.filter(
-                status__in=['captured', 'authorized']
-            ).exclude(status='refunded').aggregate(
-                total=models.Sum('amount')
-            )['total'] or 0
-            
+            revenue = (
+                txns.filter(status__in=["captured", "authorized"])
+                .exclude(status="refunded")
+                .aggregate(total=Sum("amount"))["total"]
+                or 0
+            )
             monthly_data.append({
-                'month': month_start.strftime('%b %Y'),
-                'transactions': month_transactions.count(),
-                'revenue': float(month_revenue)
+                "month": month_start.strftime("%b %Y"),
+                "transactions": txns.count(),
+                "revenue": float(revenue),
             })
-            
-            # Move to next month
-            if current_date.month == 12:
-                current_date = current_date.replace(year=current_date.year + 1, month=1)
+
+            if current.month == 12:
+                current = current.replace(year=current.year + 1, month=1)
             else:
-                current_date = current_date.replace(month=current_date.month + 1)
-        
+                current = current.replace(month=current.month + 1)
+
         return Response(monthly_data)
 
 
+# ---------------------------------------------------------------------------
+# Simple stat endpoints
+# ---------------------------------------------------------------------------
+
+@api_view(["GET"])
+@permission_classes([IsAdminUser])
+def total_users(request) -> Response:
+    """Total registered user count."""
+    return Response({"total_users": CustomUser.objects.count()})
 
 
-@api_view(['GET'])
-@permission_classes([IsAdminUser]) 
-def total_users(request):
-    count = CustomUser.objects.count()
-    return Response({'total_users': count})
+@api_view(["GET"])
+@permission_classes([IsAdminUser])
+def total_premium_users(request) -> Response:
+    """Active premium subscriber count."""
+    count = UserSubscription.objects.filter(status="active").count()
+    return Response({"total_premium_users": count})
 
 
-
-@api_view(['GET'])
-@permission_classes([IsAdminUser]) 
-def total_premium_users(request):
-    count = UserSubscription.objects.filter(status='active').count()
-    return Response({'total_premium_users': count})
-
-
-
-
-@api_view(['GET'])
-@permission_classes([IsAdminUser]) 
-def total_premium_users_and_revenue(request):
+@api_view(["GET"])
+@permission_classes([IsAdminUser])
+def total_premium_users_and_revenue(request) -> Response:
+    """Current month premium subscribers and revenue."""
     today = now().date()
     start_of_month = today.replace(day=1)
     end_of_month = (start_of_month + datetime.timedelta(days=32)).replace(day=1) - datetime.timedelta(days=1)
-    
-    # Query to sum all transactions in the current month
-    total_revenue = RazorpayTransaction.objects.filter(
-        timestamp__date__gte=start_of_month,
-        timestamp__date__lte=end_of_month,
-        status="success"  # Filter only successful payments
-    ).aggregate(total=Sum('amount'))['total'] or 0.0
-    
-    # Count active premium users in the current month
-    active_users_count = UserSubscription.objects.filter(
-        status='active',
-        expires_at__gt=now()
-    ).count()
-    
-    return Response({
-        'month': today.strftime('%B %Y'),
-        'start_date': start_of_month.strftime('%Y-%m-%d'),
-        'end_date': end_of_month.strftime('%Y-%m-%d'),
-        'total_premium_users': active_users_count,
-        'total_revenue': total_revenue,
-        'currency': 'INR'  # Assuming INR as default from your model
-    })
-    
 
-@api_view(['GET'])
-@permission_classes([IsAdminUser]) 
-def top_5_songs(request):
-    # Aggregate play counts from completed sessions
-    top_songs = MusicPlayCount.objects.select_related(
-        'music',
-        'music__artist__user'
-        ).order_by('-total_plays')[:5]
-    
+    revenue = (
+        RazorpayTransaction.objects.filter(
+            timestamp__date__gte=start_of_month,
+            timestamp__date__lte=end_of_month,
+            status="success",
+        ).aggregate(total=Sum("amount"))["total"]
+        or 0.0
+    )
+    active_count = UserSubscription.objects.filter(
+        status="active", expires_at__gt=now(),
+    ).count()
+
+    return Response({
+        "month": today.strftime("%B %Y"),
+        "start_date": start_of_month.isoformat(),
+        "end_date": end_of_month.isoformat(),
+        "total_premium_users": active_count,
+        "total_revenue": revenue,
+        "currency": "INR",
+    })
+
+
+@api_view(["GET"])
+@permission_classes([IsAdminUser])
+def top_5_songs(request) -> Response:
+    """Top 5 tracks by play count."""
+    top = MusicPlayCount.objects.select_related(
+        "music", "music__artist__user",
+    ).order_by("-total_plays")[:5]
+
     data = [
         {
-        'name': play.music.name,
-        'play_count': play.total_plays,
-        'artist': play.music.artist.user.username
-        } 
-        for play in top_songs    
+            "name": p.music.name,
+            "play_count": p.total_plays,
+            "artist": p.music.artist.user.username,
+        }
+        for p in top
     ]
-    
-    print(data)
-    return Response(data)  
+    return Response(data)
 
 
-
-
-@api_view(['GET'])
-@permission_classes([IsAdminUser]) 
-def top_5_artists(request):
-    # Get top 5 artists based on follower count
-    top_artists = (
-        Artist.objects.annotate(follower_count=Count('followers'))
-        .order_by('-follower_count')[:5]
-        .values('id', 'user__username', 'bio', 'follower_count')  # Fetch artist details
+@api_view(["GET"])
+@permission_classes([IsAdminUser])
+def top_5_artists(request) -> Response:
+    """Top 5 artists by follower count."""
+    top = (
+        Artist.objects.annotate(follower_count=Count("followers"))
+        .order_by("-follower_count")[:5]
+        .values("id", "user__username", "bio", "follower_count")
     )
-    print(top_artists)
-    return Response(top_artists)
+    return Response(top)
