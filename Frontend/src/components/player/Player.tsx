@@ -16,7 +16,7 @@ import {
   setIsLiked,
   setQueue,
   removeFromQueue
-} from '../../store/slices/playerSlice';
+} from '../../slices/user/playerSlice';
 import { useAudioPlayer } from '../../hooks/useAudioPlayer';
 import { useDominantColor } from '../../hooks/useDominantColor';
 import { usePlayTracking } from '../../hooks/usePlayTracking';

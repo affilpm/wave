@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { PlayerState } from '../types/player';
-import { resume, pause, skipNext, skipPrevious, setCurrentTime } from '../store/slices/playerSlice';
+import { resume, pause, skipNext, skipPrevious, setCurrentTime } from '../slices/user/playerSlice';
 
 export const useMediaSession = (seekFn: (time: number) => void) => {
   const dispatch = useDispatch();

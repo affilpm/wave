@@ -1,4 +1,4 @@
-import { fetchStreamUrl } from '../store/slices/playerSlice';
+import { fetchStreamUrl } from '../slices/user/playerSlice';
 
 class PlayerMiddlewareState {
   constructor() {

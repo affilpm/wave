@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Search, Play, Pause, Loader } from 'lucide-react';
 import api from '../../../../api';
-import { setQueue, setCurrentMusic, setIsPlaying } from '../../../../store/slices/playerSlice';
+import { setQueue, setCurrentMusic, setIsPlaying } from '../../../../slices/user/playerSlice';
 
 const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
   const [searchQuery, setSearchQuery] = useState('');

@@ -8,7 +8,7 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
-} from "../../../../../store/slices/playerSlice";
+} from "../../../../../slices/user/playerSlice";
 
 const selectPlayerState = createSelector(
   [(state) => state.player],

@@ -9,7 +9,7 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
-} from "../../../../../store/slices/playerSlice";
+} from "../../../../../slices/user/playerSlice";
 
 // Define the same selector as in MusicSection
 const selectPlayerState = createSelector(

@@ -7,7 +7,7 @@ import {
   setQueue,
   clearQueue,
   setIsPlaying,
-} from "../../../../../store/slices/playerSlice";
+} from "../../../../../slices/user/playerSlice";
 import api from "../../../../../api";
 
 const ArtistSection = ({ title, items }) => {

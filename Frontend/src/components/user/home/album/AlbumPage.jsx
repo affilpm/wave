@@ -14,7 +14,7 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
-} from "../../../../store/slices/playerSlice";
+} from "../../../../slices/user/playerSlice";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(

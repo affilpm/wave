@@ -1,4 +1,4 @@
-import { setCurrentMusic, setIsPlaying, setQueue, clearQueue } from "../../../../../store/slices/playerSlice";
+import { setCurrentMusic, setIsPlaying, setQueue, clearQueue } from "../../../../../slices/user/playerSlice";
 import api from "../../../../../api";
 import { convertToSeconds } from "../../../../../utils/formatters";
 

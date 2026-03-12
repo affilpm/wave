@@ -10,7 +10,7 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
-} from '../../../../../store/slices/playerSlice';
+} from '../../../../../slices/user/playerSlice';
 import { convertToSeconds } from '../../../../../utils/formatters';
 import ProfileEditModal from './ProfileEditModal';
 

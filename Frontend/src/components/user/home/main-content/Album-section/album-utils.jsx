@@ -3,7 +3,7 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
-} from "../../../../../store/slices/playerSlice";
+} from "../../../../../slices/user/playerSlice";
 import api from "../../../../../api";
 
 // Utility function to convert duration to seconds (aligned with AlbumSection)

@@ -9,7 +9,7 @@ import {
   setQueue,
   clearQueue,
   setIsPlaying,
-} from "../../../../../store/slices/playerSlice";
+} from "../../../../../slices/user/playerSlice";
 import {
   formatDuration,
   convertToSeconds,

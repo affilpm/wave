@@ -8,7 +8,7 @@ import {
   setQueue,
   clearQueue,
   setIsPlaying,
-} from "../../../../../store/slices/playerSlice";
+} from "../../../../../slices/user/playerSlice";
 
 const ArtistsShowMorePage = () => {
   const location = useLocation();

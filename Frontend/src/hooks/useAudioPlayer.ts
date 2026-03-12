@@ -6,7 +6,7 @@ import {
   setCurrentTime,
   setDuration,
   skipNext,
-} from '../store/slices/playerSlice';
+} from '../slices/user/playerSlice';
 import { PlayerState } from '../types/player';
 
 export const useAudioPlayer = () => {

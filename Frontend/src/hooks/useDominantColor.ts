@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { FastAverageColor } from 'fast-average-color';
-import { setDominantColor } from '../store/slices/playerSlice';
+import { setDominantColor } from '../slices/user/playerSlice';
 import { PlayerState } from '../types/player';
 
 const fac = new FastAverageColor();

@@ -8,7 +8,7 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
-} from "../../../../../store/slices/playerSlice";
+} from "../../../../../slices/user/playerSlice";
 import api from '../../../../../api';
 import { formatDuration, convertToSeconds, convertToHrMinFormat } from '../../../../../utils/formatters';
 
