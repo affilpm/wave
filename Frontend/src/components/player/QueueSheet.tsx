@@ -106,7 +106,7 @@ const SortableTrackItem: React.FC<{
               <div className="absolute inset-0 bg-black/40 rounded-md flex items-center justify-center space-x-[2px]">
                 <div className={`w-[2px] bg-[var(--player-accent)] rounded-full ${isPlaying ? 'animate-[eq_0.8s_ease-in-out_infinite_alternate]' : 'h-[6px]'}`} style={{ height: isPlaying ? '3px' : '6px' }} />
                 <div className={`w-[2px] bg-[var(--player-accent)] rounded-full ${isPlaying ? 'animate-[eq_0.8s_ease-in-out_infinite_alternate-reverse]' : 'h-[10px]'}`} style={{ height: isPlaying ? '6px' : '10px' }} />
-                <div className={`w-[2px] bg-[var(--player-accent)] rounded-full ${isPlaying ? 'animate-[eq_0.8s_ease-in-out_infinite_alternate]' : 'h-[4px]'}`} style={{ height: isPlaying ? '12px' : '4px' }} style-delay="0.2s" />
+                <div className={`w-[2px] bg-[var(--player-accent)] rounded-full ${isPlaying ? 'animate-[eq_0.8s_ease-in-out_infinite_alternate]' : 'h-[4px]'}`} style={{ height: isPlaying ? '12px' : '4px', transitionDelay: '0.2s' }} />
               </div>
             )}
           </div>

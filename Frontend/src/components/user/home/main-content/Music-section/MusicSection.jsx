@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, Pause, ChevronLeft, ChevronRight, Shuffle } from "lucide-react";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { createSelector } from '@reduxjs/toolkit';
@@ -8,6 +8,7 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
+  toggleShufflePlay
 } from "../../../../../slices/user/playerSlice";
 
 const selectPlayerState = createSelector(
@@ -113,8 +114,7 @@ const MusicSection = ({ title, items }) => {
       }
 
       dispatch(clearQueue());
-      dispatch(setQueue(formattedTrack));
-      dispatch(setCurrentMusic(formattedTrack));
+      dispatch(setQueue({ tracks: formattedTracks, startIndex: index }));
       dispatch(setIsPlaying(true));
     },
     [
@@ -126,6 +126,11 @@ const MusicSection = ({ title, items }) => {
       prepareTrackForPlayer,
     ]
   );
+
+  const handleShufflePlay = useCallback(() => {
+    const formattedTracks = musiclistData.map(prepareTrackForPlayer);
+    dispatch(toggleShufflePlay(formattedTracks));
+  }, [musiclistData, prepareTrackForPlayer, dispatch]);
 
   const isItemPlaying = useCallback(
     (item) => {
@@ -156,7 +161,16 @@ const MusicSection = ({ title, items }) => {
   return (
     <section className="mb-8 relative">
       <div className="flex justify-between items-center mb-4 px-4">
-        <h2 className="text-2xl font-bold">{title}</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-2xl font-bold">{title}</h2>
+          <button
+            onClick={handleShufflePlay}
+            className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors group"
+            title="Shuffle Play"
+          >
+            <Shuffle className="w-5 h-5 text-gray-400 group-hover:text-white" />
+          </button>
+        </div>
         <button
           onClick={handleShowMore}
           className="text-sm text-gray-400 hover:text-white transition-colors"
@@ -196,7 +210,7 @@ const MusicSection = ({ title, items }) => {
         >
           <div className="flex gap-4 px-4">
             {musiclistData.map((item, index) => (
-              <div key={index} className="flex-none w-40">
+              <div key={item.id} className="flex-none w-40">
                 <div className="relative group">
                   <img
                     src={item.cover_photo}

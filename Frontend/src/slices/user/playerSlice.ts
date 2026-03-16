@@ -66,7 +66,7 @@ const initialState: PlayerState = {
   shuffleMode: false,
   repeatMode: 'off',
   isLiked: false,
-  dominantColor: '#3b82f6',
+  dominantColor: '#a855f7',
   isFullPlayerOpen: false,
   isQueueOpen: false,
   userQueue: [],
@@ -227,6 +227,9 @@ const playerSlice = createSlice({
       const tracks = Array.isArray(action.payload) ? action.payload : [action.payload];
       state.userQueue.push(...tracks);
       
+      // Update originalQueue to keep it persistent across shuffles
+      state.originalQueue.push(...tracks);
+      
       // Find where current userQueue ends in the active queue
       // We insert after the last userQueue item that is currently after queueIndex
       let insertIndex = state.queueIndex + 1;
@@ -241,6 +244,10 @@ const playerSlice = createSlice({
       if (!state.userQueue) state.userQueue = [];
       const track = action.payload;
       state.userQueue.unshift(track);
+      
+      // Also add to originalQueue (at the end or near current pos?)
+      // For playNext, we usually want it to stay in the set if shuffle is toggled
+      state.originalQueue.push(track);
       
       // Insert immediately after current track
       const insertIndex = state.queueIndex + 1;
@@ -280,6 +287,39 @@ const playerSlice = createSlice({
       state.currentTrack = null;
       state.status = 'idle';
       state.currentTime = 0;
+    },
+    
+    handleTrackEnd: (state) => {
+      if (state.queue.length === 0) return;
+
+      if (state.repeatMode === 'one') {
+        state.currentTime = 0;
+        state.status = 'loading'; // Trigger re-init/play
+        return;
+      }
+
+      // Default skip next logic
+      const isLastTrack = state.queueIndex === state.queue.length - 1;
+      
+      if (isLastTrack) {
+        if (state.repeatMode === 'all') {
+          state.queueIndex = 0;
+          state.currentTrack = state.queue[0];
+          state.currentTime = 0;
+          state.status = 'loading';
+        } else {
+          state.status = 'idle';
+          state.currentTime = 0;
+        }
+      } else {
+        state.queueIndex += 1;
+        state.currentTrack = state.queue[state.queueIndex];
+        state.currentTime = 0;
+        state.status = 'loading';
+        if (state.userQueue) {
+          state.userQueue = state.userQueue.filter(t => t.id !== state.currentTrack?.id);
+        }
+      }
     },
     
     skipNext: (state) => {
@@ -375,6 +415,25 @@ const playerSlice = createSlice({
           }
         }
       }
+    },
+
+    toggleShufflePlay: (state, action: PayloadAction<Track[]>) => {
+      const tracks = action.payload;
+      if (tracks.length === 0) return;
+
+      state.originalQueue = [...tracks];
+      state.userQueue = [];
+      state.shuffleMode = true;
+
+      const randomIndex = Math.floor(Math.random() * tracks.length);
+      const firstTrack = tracks[randomIndex];
+      const remaining = tracks.filter((_, i) => i !== randomIndex);
+      
+      state.queue = [firstTrack, ...shuffleArray(remaining)];
+      state.queueIndex = 0;
+      state.currentTrack = firstTrack;
+      state.status = 'loading';
+      state.currentTime = 0;
     },
     
     cycleRepeat: (state) => {
@@ -486,7 +545,9 @@ export const {
   skipNext,
   skipPrevious,
   toggleShuffle,
+  toggleShufflePlay,
   cycleRepeat,
+  handleTrackEnd,
   setDominantColor,
   toggleFullPlayer,
   toggleQueue,

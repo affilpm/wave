@@ -48,14 +48,18 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
       {/* Shuffle */}
       <motion.button
         onClick={onToggleShuffle}
-        className={`relative w-9 h-9 flex items-center justify-center transition-colors ${
-          shuffleMode ? 'text-[var(--player-accent)] opacity-100' : 'text-white opacity-40 hover:opacity-100'
+        className={`relative w-9 h-9 flex items-center justify-center transition-all ${
+          shuffleMode ? 'text-[var(--player-accent)] opacity-100' : 'text-white opacity-60 hover:opacity-100'
         }`}
+        style={{ transition: 'var(--player-accent-transition)' }}
         whileTap={{ scale: 0.85 }}
       >
         <Shuffle size={20} />
         {shuffleMode && (
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--player-accent)] shadow-[0_0_8px_var(--player-accent)]" />
+          <div 
+            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--player-accent)] shadow-[0_0_8px_var(--player-accent)]" 
+            style={{ transition: 'var(--player-accent-transition)' }}
+          />
         )}
       </motion.button>
 
@@ -96,17 +100,24 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
       {/* Repeat */}
       <motion.button
         onClick={onCycleRepeat}
-        className={`relative w-9 h-9 flex items-center justify-center transition-colors ${
-          repeatMode !== 'off' ? 'text-[var(--player-accent)] opacity-100' : 'text-white opacity-40 hover:opacity-100'
+        className={`relative w-9 h-9 flex items-center justify-center transition-all ${
+          repeatMode !== 'off' ? 'text-[var(--player-accent)] opacity-100' : 'text-white opacity-60 hover:opacity-100'
         }`}
+        style={{ transition: 'var(--player-accent-transition)' }}
         whileTap={{ scale: 0.85 }}
       >
         <Repeat size={20} />
         {repeatMode !== 'off' && (
-          <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--player-accent)] shadow-[0_0_8px_var(--player-accent)]" />
+          <div 
+            className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-[var(--player-accent)] shadow-[0_0_8px_var(--player-accent)]" 
+            style={{ transition: 'var(--player-accent-transition)' }}
+          />
         )}
         {repeatMode === 'one' && (
-          <div className="absolute top-[2px] right-[2px] bg-[var(--player-accent)] text-white text-[9px] font-bold w-[13px] h-[13px] flex items-center justify-center rounded-full scale-90 border border-black/20">
+          <div 
+            className="absolute top-[2px] right-[2px] bg-[var(--player-accent)] text-white text-[9px] font-bold w-[13px] h-[13px] flex items-center justify-center rounded-full scale-90 border border-black/20"
+            style={{ transition: 'var(--player-accent-transition)' }}
+          >
             1
           </div>
         )}

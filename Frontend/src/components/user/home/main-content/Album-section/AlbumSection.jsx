@@ -3,7 +3,9 @@ import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
-import { handleAlbumPlaybackAction } from "./album-utils";
+import { handleAlbumPlaybackAction, fetchAlbumTracks, prepareTrackForPlayer } from "./album-utils";
+import { toggleShufflePlay } from "../../../../../slices/user/playerSlice";
+import { Shuffle } from "lucide-react";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
@@ -63,6 +65,27 @@ const AlbumSection = memo(({ title, items }) => {
       }
     },
     [dispatch, currentMusicId, isPlaying, queue, currentIndex]
+  );
+
+  const handleShufflePlay = useCallback(
+    async (item, e) => {
+      e.stopPropagation();
+      setIsLoading((prev) => ({ ...prev, [item.id]: true }));
+      try {
+        const albumData = await fetchAlbumTracks(item.id);
+        if (albumData && albumData.tracks.length) {
+          const formattedTracks = albumData.tracks.map((track) =>
+            prepareTrackForPlayer(track, item.id, albumData.name)
+          );
+          dispatch(toggleShufflePlay(formattedTracks));
+        }
+      } catch (error) {
+        console.error("Shuffle error:", error);
+      } finally {
+        setIsLoading((prev) => ({ ...prev, [item.id]: false }));
+      }
+    },
+    [dispatch]
   );
 
   const isItemPlaying = useCallback(
@@ -147,40 +170,49 @@ const AlbumSection = memo(({ title, items }) => {
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
-                    <button
-                      className={`absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center ${
-                        isItemPlaying(item) ? "flex" : "hidden group-hover:flex"
-                      } shadow-xl hover:scale-105 transition-all focus:outline-none focus:ring-2 focus:ring-green-500`}
-                      onClick={(e) => handlePlay(item, e)}
-                      aria-label={isItemPlaying(item) ? `Pause ${item.name || "album"}` : `Play ${item.name || "album"}`}
-                      disabled={isLoading[item.id]}
-                    >
-                      {isLoading[item.id] ? (
-                        <svg
-                          className="w-6 h-6 animate-spin text-black"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8v8z"
-                          />
-                        </svg>
-                      ) : isItemPlaying(item) ? (
-                        <Pause className="w-6 h-6 text-black" />
-                      ) : (
-                        <Play className="w-6 h-6 text-black" />
-                      )}
-                    </button>
+                    <div className="absolute bottom-2 right-2 flex gap-2">
+                       <button
+                        className={`w-10 h-10 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full items-center justify-center hidden group-hover:flex shadow-xl transition-all`}
+                        onClick={(e) => handleShufflePlay(item, e)}
+                        title="Shuffle Play"
+                      >
+                        <Shuffle className="w-5 h-5 text-white" />
+                      </button>
+                      <button
+                        className={`w-12 h-12 bg-green-500 rounded-full items-center justify-center ${
+                          isItemPlaying(item) ? "flex" : "hidden group-hover:flex"
+                        } shadow-xl hover:scale-105 transition-all focus:outline-none focus:ring-2 focus:ring-green-500`}
+                        onClick={(e) => handlePlay(item, e)}
+                        aria-label={isItemPlaying(item) ? `Pause ${item.name || "album"}` : `Play ${item.name || "album"}`}
+                        disabled={isLoading[item.id]}
+                      >
+                        {isLoading[item.id] ? (
+                          <svg
+                            className="w-6 h-6 animate-spin text-black"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                          >
+                            <circle
+                              className="opacity-25"
+                              cx="12"
+                              cy="12"
+                              r="10"
+                              stroke="currentColor"
+                              strokeWidth="4"
+                            />
+                            <path
+                              className="opacity-75"
+                              fill="currentColor"
+                              d="M4 12a8 8 0 018-8v8z"
+                            />
+                          </svg>
+                        ) : isItemPlaying(item) ? (
+                          <Pause className="w-6 h-6 text-black" />
+                        ) : (
+                          <Play className="w-6 h-6 text-black" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="mt-2">

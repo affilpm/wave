@@ -5,6 +5,9 @@ import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import { useNavigate } from "react-router-dom";
 import { handlePlaybackAction } from "./playlist-utils";
+import { toggleShufflePlay } from "../../../../../slices/user/playerSlice";
+import { fetchPlaylistTracks } from "./playlist-utils";
+import { Shuffle } from "lucide-react";
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
@@ -52,6 +55,32 @@ const PlaylistSection = ({ title, items, onLengthChange }) => {
       });
     },
     [dispatch, currentMusicId, isPlaying, queue, currentIndex]
+  );
+
+  const handleShuffleClick = useCallback(
+    async (e, item) => {
+      e.stopPropagation();
+      const result = await fetchPlaylistTracks(item.id);
+      if (result && result.tracks) {
+        // We'll need to format them. Since handlePlaybackAction does formatting,
+        // let's just use it with a shuffle flag if it supported it. It doesn't.
+        // I'll manually format them here or update utils.
+        // For now, let's keep it simple: fetch and dispatch toggleShufflePlay.
+        // Note: fetchPlaylistTracks returns raw tracks.
+        // I'll just use a simplified formatting for shuffle play here.
+        const formatted = result.tracks.map(track => ({
+             id: Number(track.music_details?.id || track.id),
+             name: track.music_details?.name || track.name,
+             title: track.music_details?.name || track.name,
+             artist: track.music_details?.artist_username || track.artist,
+             audio_file: track.music_details?.audio_file || track.audio_file,
+             cover_photo: track.music_details?.cover_photo || track.cover_photo,
+             playlist_id: Number(item.id),
+        }));
+        dispatch(toggleShufflePlay(formatted));
+      }
+    },
+    [dispatch]
   );
 
   const handleScroll = (direction) => {
@@ -131,16 +160,25 @@ const PlaylistSection = ({ title, items, onLengthChange }) => {
                       className="w-40 h-40 object-cover rounded-md shadow-lg"
                     />
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
-                      <button
-                        className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
-                        onClick={(e) => handlePlayClick(e, item)}
-                      >
-                        {showPauseButton ? (
-                          <Pause className="w-6 h-6 text-black" />
-                        ) : (
-                          <Play className="w-6 h-6 text-black" />
-                        )}
-                      </button>
+                      <div className="absolute bottom-2 right-2 flex gap-2">
+                        <button
+                          className="w-10 h-10 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full items-center justify-center hidden group-hover:flex shadow-xl transition-all"
+                          onClick={(e) => handleShuffleClick(e, item)}
+                          title="Shuffle Play"
+                        >
+                          <Shuffle className="w-5 h-5 text-white" />
+                        </button>
+                        <button
+                          className="w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
+                          onClick={(e) => handlePlayClick(e, item)}
+                        >
+                          {showPauseButton ? (
+                            <Pause className="w-6 h-6 text-black" />
+                          ) : (
+                            <Play className="w-6 h-6 text-black" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                     <div className="absolute top-2 right-2">
                       <PlaylistSectionMenuModal

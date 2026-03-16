@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Play, Pause, Clock, Share2, Plus, Check, Heart } from "lucide-react";
+import { Play, Pause, Clock, Share2, Plus, Check, Heart, Shuffle } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
@@ -14,16 +14,17 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
+  toggleShufflePlay,
 } from "../../../../../slices/user/playerSlice";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue,
-    currentIndex: player.currentIndex,
+    queueIndex: player.queueIndex,
   })
 );
 
@@ -40,10 +41,13 @@ const SavedPlaylistPage = () => {
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
   const [currentPlaylistId, setCurrentPlaylistId] = useState(null);
 
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+  
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing';
 
   // Memoize tracks for stable props
   const stableTracks = useMemo(() => playlist?.tracks || [], [playlist]);
@@ -59,7 +63,7 @@ const SavedPlaylistPage = () => {
       });
       return false;
     }
-    const currentTrack = queue[currentIndex];
+    const currentTrackAtPos = queue[queueIndex];
     const isTrackInPlaylist = playlist.tracks.some(
       (track) => Number(track.music_details.id) === Number(currentMusicId)
     );
@@ -69,8 +73,8 @@ const SavedPlaylistPage = () => {
       currentMusicId,
     });
     return (
-      currentTrack &&
-      Number(currentTrack.id) === Number(currentMusicId) &&
+      currentTrackAtPos &&
+      Number(currentTrackAtPos.id) === Number(currentMusicId) &&
       isTrackInPlaylist
     );
   }, [playlist, currentMusicId, currentPlaylistId, queue, currentIndex]);
@@ -118,6 +122,14 @@ const SavedPlaylistPage = () => {
       dispatch(setIsPlaying(true));
     }
   }, [dispatch, isCurrentTrackFromPlaylist, isPlaying, playlist, stableTracks, prepareTrackForPlayer]);
+
+  // Handle shuffle play
+  const handleShufflePlay = useCallback(() => {
+    if (!stableTracks.length) return;
+    const formattedTracks = stableTracks.map(prepareTrackForPlayer);
+    dispatch(toggleShufflePlay(formattedTracks));
+    setCurrentPlaylistId(Number(playlist.id));
+  }, [dispatch, playlist, stableTracks, prepareTrackForPlayer]);
 
   // Handle play track
   const handlePlayTrack = useCallback(
@@ -380,6 +392,14 @@ const SavedPlaylistPage = () => {
           ) : (
             <Play className="h-5 w-5 sm:h-6 sm:w-6 text-black ml-0.5 sm:ml-1" />
           )}
+        </button>
+
+        <button
+          className="w-12 h-12 md:w-14 md:h-14 rounded-full border border-white/20 hover:bg-white/10 flex items-center justify-center transition-colors shadow-lg"
+          onClick={handleShufflePlay}
+          title="Shuffle Play"
+        >
+          <Shuffle className="h-5 w-5 md:h-6 md:w-6 text-white" />
         </button>
 
         <div className="flex items-center gap-4">

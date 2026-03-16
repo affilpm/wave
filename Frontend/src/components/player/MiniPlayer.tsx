@@ -96,17 +96,21 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
             <motion.button 
               onClick={onToggleShuffle} 
               whileTap={{ scale: 0.85 }} 
-              className={`relative flex items-center justify-center transition-colors ${
-                shuffleMode ? 'text-[var(--player-accent)] opacity-100' : 'text-white/40 hover:text-white/80'
+              className={`relative flex-shrink-0 flex items-center justify-center transition-all ${
+                shuffleMode ? 'text-[var(--player-accent)] opacity-100' : 'text-white opacity-60 hover:opacity-100'
               }`}
+              style={{ transition: 'var(--player-accent-transition)' }}
             >
               <Shuffle size={16} />
               {shuffleMode && (
-                <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-0.5 h-0.5 rounded-full bg-[var(--player-accent)]" />
+                <div 
+                  className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-0.5 h-0.5 rounded-full bg-[var(--player-accent)] shadow-[0_0_4px_var(--player-accent)]" 
+                  style={{ transition: 'var(--player-accent-transition)' }}
+                />
               )}
             </motion.button>
 
-            <button onClick={onPrev} className="text-white/80 hover:text-white transition-colors">
+            <button onClick={onPrev} className="flex-shrink-0 text-white/80 hover:text-white transition-colors">
               <SkipBack size={20} fill="currentColor" />
             </button>
             
@@ -119,7 +123,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
               {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
             </motion.button>
 
-            <button onClick={onNext} className="text-white/80 hover:text-white transition-colors">
+            <button onClick={onNext} className="flex-shrink-0 text-white/80 hover:text-white transition-colors">
               <SkipForward size={20} fill="currentColor" />
             </button>
 
@@ -127,16 +131,25 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
             <motion.button 
               onClick={onCycleRepeat} 
               whileTap={{ scale: 0.85 }} 
-              className={`relative flex items-center justify-center transition-colors ${
-                repeatMode !== 'off' ? 'text-[var(--player-accent)] opacity-100' : 'text-white/40 hover:text-white/80'
+              className={`relative flex-shrink-0 flex items-center justify-center transition-all ${
+                repeatMode !== 'off' ? 'text-[var(--player-accent)] opacity-100' : 'text-white opacity-60 hover:opacity-100'
               }`}
+              style={{ transition: 'var(--player-accent-transition)' }}
             >
               <Repeat size={16} />
               {repeatMode !== 'off' && (
-                <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-0.5 h-0.5 rounded-full bg-[var(--player-accent)]" />
+                <div 
+                  className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-0.5 h-0.5 rounded-full bg-[var(--player-accent)] shadow-[0_0_4px_var(--player-accent)]" 
+                  style={{ transition: 'var(--player-accent-transition)' }}
+                />
               )}
               {repeatMode === 'one' && (
-                <div className="absolute top-[-3px] right-[-3px] bg-[var(--player-accent)] text-white text-[7px] font-bold w-[10px] h-[10px] flex items-center justify-center rounded-full border border-black/20">1</div>
+                <div 
+                  className="absolute top-[-3px] right-[-3px] bg-[var(--player-accent)] text-white text-[7px] font-bold w-[10px] h-[10px] flex items-center justify-center rounded-full border border-black/20"
+                  style={{ transition: 'var(--player-accent-transition)' }}
+                >
+                  1
+                </div>
               )}
             </motion.button>
           </div>

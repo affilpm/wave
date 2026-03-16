@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Play, Pause, Clock, Share2, X, Heart } from "lucide-react";
+import { Play, Pause, Clock, Share2, X, Heart, Shuffle } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
@@ -18,6 +18,7 @@ import {
   setQueue,
   clearQueue,
   playNext,
+  toggleShufflePlay,
 } from "../../../../../slices/user/playerSlice";
 
 // Memoized selector for player state
@@ -116,6 +117,14 @@ const YourPlaylistPage = () => {
       dispatch(setIsPlaying(true));
     }
   }, [dispatch, isCurrentTrackFromPlaylist, isPlaying, playlist, stableTracks, prepareTrackForPlayer]);
+
+  // Handle shuffle play
+  const handleShufflePlay = useCallback(() => {
+    if (!stableTracks.length) return;
+    const formattedTracks = stableTracks.map(prepareTrackForPlayer);
+    dispatch(toggleShufflePlay(formattedTracks));
+    setCurrentPlaylistId(playlist.id);
+  }, [dispatch, playlist, stableTracks, prepareTrackForPlayer]);
 
   // Handle play track
   const handlePlayTrack = useCallback(
@@ -513,6 +522,14 @@ const YourPlaylistPage = () => {
           ) : (
             <Play className="h-5 w-5 md:h-6 md:w-6 text-black ml-0.5 md:ml-1" />
           )}
+        </button>
+
+        <button
+          className="w-12 h-12 md:w-14 md:h-14 rounded-full border border-white/20 hover:bg-white/10 flex items-center justify-center transition-colors shadow-lg"
+          onClick={handleShufflePlay}
+          title="Shuffle Play"
+        >
+          <Shuffle className="h-5 w-5 md:h-6 md:w-6 text-white" />
         </button>
         <button className="p-2 text-gray-400 hover:text-white transition-colors duration-200 ease-in-out">
           <Share2 className="h-5 w-5 md:h-6 md:w-6" />

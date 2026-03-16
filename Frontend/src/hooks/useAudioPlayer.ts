@@ -6,6 +6,7 @@ import {
   setCurrentTime,
   setDuration,
   skipNext,
+  handleTrackEnd,
 } from '../slices/user/playerSlice';
 import { PlayerState } from '../types/player';
 
@@ -28,10 +29,18 @@ export const useAudioPlayer = () => {
 
     const onTimeUpdate = () => dispatch(setCurrentTime(audio.currentTime));
     const onDurationChange = () => dispatch(setDuration(audio.duration));
-    const onEnded = () => dispatch(skipNext());
+    const onEnded = () => dispatch(handleTrackEnd());
     const onWaiting = () => dispatch(setStatus('buffering'));
     const onPlaying = () => dispatch(setStatus('playing'));
     const onPause = () => dispatch(setStatus('paused'));
+    const onError = (e: any) => {
+      // Ignore errors if they are caused by empty src (intentional during loading/reset)
+      if (!audio.src || audio.src === window.location.href || (status === 'loading' && audio.error?.code === 4)) {
+        return;
+      }
+      console.error("Audio element error:", audio.error);
+      dispatch(setStatus('paused'));
+    };
 
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('durationchange', onDurationChange);
@@ -39,6 +48,7 @@ export const useAudioPlayer = () => {
     audio.addEventListener('waiting', onWaiting);
     audio.addEventListener('playing', onPlaying);
     audio.addEventListener('pause', onPause);
+    audio.addEventListener('error', onError);
 
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
@@ -47,6 +57,7 @@ export const useAudioPlayer = () => {
       audio.removeEventListener('waiting', onWaiting);
       audio.removeEventListener('playing', onPlaying);
       audio.removeEventListener('pause', onPause);
+      audio.removeEventListener('error', onError);
       if (hlsRef.current) {
         hlsRef.current.destroy();
         hlsRef.current = null;
@@ -58,6 +69,37 @@ export const useAudioPlayer = () => {
   useEffect(() => {
     currentTrackIdRef.current = currentTrack?.id;
   }, [currentTrack?.id]);
+
+  /**
+   * Helper to attempt playback with retry logic and state synchronization
+   */
+  const attemptPlay = useCallback(async (retryCount = 1) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    try {
+      await audio.play();
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        // Likely a rapid track change, ignore
+        return;
+      }
+
+      if (error.name === 'NotAllowedError') {
+        // Auto-play blocked by browser. Must show "paused" so user can click Play.
+        dispatch(setStatus('paused'));
+        return;
+      }
+
+      if (retryCount > 0 && (error.name === 'NotReadableError' || error.name === 'NetworkError')) {
+        // Wait a bit before retrying
+        await new Promise(resolve => setTimeout(resolve, 500));
+        return attemptPlay(retryCount - 1);
+      }
+
+      dispatch(setStatus('paused'));
+    }
+  }, [dispatch]);
 
   // Handle track changes and HLS setup
   useEffect(() => {
@@ -88,11 +130,7 @@ export const useAudioPlayer = () => {
 
       setTimeout(() => {
         if (status === 'loading' || status === 'playing') {
-          audio.play().catch(e => {
-            if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') {
-              console.error("Playback failed", e);
-            }
-          });
+          attemptPlay();
         }
       }, 50);
     };
@@ -120,6 +158,8 @@ export const useAudioPlayer = () => {
       hls.on(Hls.Events.ERROR, (event, data) => {
         if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
           dispatch(setStatus('buffering'));
+        } else if (data.fatal) {
+           dispatch(setStatus('paused'));
         }
       });
       
@@ -141,27 +181,50 @@ export const useAudioPlayer = () => {
         hlsRef.current = null;
       }
     };
-  }, [currentTrack?.id, currentTrack?.hlsUrl, currentTrack?.hlsFailed, dispatch]); // Only re-init if core track identity or URL source changes
+  }, [currentTrack?.id, currentTrack?.hlsUrl, currentTrack?.hlsFailed, dispatch, attemptPlay]);
 
-  // Handle play/pause and specialized Command-based sync
+  // Handle play/pause sync and loading state
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio || !currentTrack) return;
 
-    if (status === 'playing' && audio.paused) {
-      audio.play().catch(e => { if (e.name !== 'AbortError' && e.name !== 'NotAllowedError') console.error("Failed to play", e); });
-    } else if (status === 'paused' && !audio.paused) {
-      audio.pause();
+    if (status === 'playing') {
+      if (audio.paused) {
+        attemptPlay();
+      }
+    } else if (status === 'paused') {
+      if (!audio.paused) {
+        audio.pause();
+      }
     } else if (status === 'loading') {
-       // If status just became loading but currentTrack is same (e.g. restart), seek to 0
-       if (Math.abs(audio.currentTime) > 0.1) {
-         audio.currentTime = 0;
-       }
+       // Reset and play for Loading state (important for Repeat One)
+       audio.currentTime = 0;
+       attemptPlay();
     } else if (status === 'idle') {
       audio.pause();
       audio.currentTime = 0;
     }
-  }, [status, currentTrack?.id]);
+  }, [status, currentTrack?.id, attemptPlay]);
+
+  // Periodic Stale Sync Check (Every 2 seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const audio = audioRef.current;
+      if (!audio || !currentTrack) return;
+
+      // If status says playing but audio is stalled/paused without intention
+      if (status === 'playing' && audio.paused && !audio.seeking && audio.readyState >= 2) {
+        attemptPlay();
+      }
+      
+      // If status says paused but audio is still playing
+      if (status === 'paused' && !audio.paused) {
+        audio.pause();
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [status, currentTrack, attemptPlay]);
 
   // Handle Volume and Mute
   useEffect(() => {

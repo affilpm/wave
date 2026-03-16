@@ -7,6 +7,7 @@ import {
   setQueue,
   clearQueue,
   setIsPlaying,
+  toggleShufflePlay
 } from "../../../../../slices/user/playerSlice";
 import api from "../../../../../api";
 
@@ -112,6 +113,22 @@ const ArtistSection = ({ title, items }) => {
     }
   };
 
+  const handleShufflePlay = async (artist, e) => {
+    e.stopPropagation();
+    try {
+      const songsResponse = await api.get(`/api/v1/music/artist/${artist.id}/`);
+      const songs = songsResponse.data.results || songsResponse.data;
+      if (songs && songs.length > 0) {
+        const formattedTracks = songs.map((song) =>
+          prepareTrackForPlayer(song, artist, currentUserId)
+        );
+        dispatch(toggleShufflePlay(formattedTracks));
+      }
+    } catch (error) {
+      console.error("Error shuffling artist songs:", error);
+    }
+  };
+
   // Handle artist click to navigate to artist page
   const handleArtistClick = (artistId) => {
     navigate(`/artist/${artistId}`);
@@ -204,18 +221,27 @@ const ArtistSection = ({ title, items }) => {
                     )}
                   </div>
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-full">
-                    <button
-                      className={`absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center ${
-                        isCurrentTrackFromArtist(artist.id) ? "flex" : "hidden group-hover:flex"
-                      } shadow-xl hover:scale-105 transition-all`}
-                      onClick={(e) => handlePlayArtist(artist, e)}
-                    >
-                      {isCurrentTrackFromArtist(artist.id) && isPlaying ? (
-                        <Pause className="w-6 h-6 text-black" />
-                      ) : (
-                        <Play className="w-6 h-6 text-black" />
-                      )}
-                    </button>
+                    <div className="absolute bottom-2 right-2 flex gap-2">
+                       <button
+                        className={`w-10 h-10 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full items-center justify-center hidden group-hover:flex shadow-xl transition-all`}
+                        onClick={(e) => handleShufflePlay(artist, e)}
+                        title="Shuffle Play"
+                      >
+                        <Shuffle className="w-5 h-5 text-white" />
+                      </button>
+                      <button
+                        className={`w-12 h-12 bg-green-500 rounded-full flex items-center justify-center ${
+                          isCurrentTrackFromArtist(artist.id) ? "flex" : "hidden group-hover:flex"
+                        } shadow-xl hover:scale-105 transition-all`}
+                        onClick={(e) => handlePlayArtist(artist, e)}
+                      >
+                        {isCurrentTrackFromArtist(artist.id) && isPlaying ? (
+                          <Pause className="w-6 h-6 text-black" />
+                        ) : (
+                          <Play className="w-6 h-6 text-black" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="mt-4 text-center">
