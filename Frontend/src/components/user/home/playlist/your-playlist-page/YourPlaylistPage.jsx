@@ -13,13 +13,9 @@ import {
   convertToHrMinFormat,
 } from "../../../../../utils/formatters";
 import {
-  setCurrentMusic,
-  setIsPlaying,
-  setQueue,
-  clearQueue,
-  playNext,
   toggleShufflePlay,
 } from "../../../../../slices/user/playerSlice";
+import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
@@ -29,6 +25,7 @@ const selectPlayerState = createSelector(
     status: player.status,
     queue: player.queue,
     queueIndex: player.queueIndex,
+    currentContext: player.currentContext,
   })
 );
 
@@ -46,7 +43,7 @@ const YourPlaylistPage = () => {
   const [currentPlaylistId, setCurrentPlaylistId] = useState(null);
   const [totalDuration, setTotalDuration] = useState("");
 
-  const { currentTrack, status, queue, queueIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
@@ -57,48 +54,18 @@ const YourPlaylistPage = () => {
   // Memoize tracks for stable props
   const stableTracks = useMemo(() => playlist?.tracks || [], [playlist]);
 
-  // Memoize isCurrentTrackFromPlaylist with debug logging
+  const context = useMemo(() => ({
+    type: 'playlist',
+    id: playlistId
+  }), [playlistId]);
+
+  // Memoize isCurrentTrackFromPlaylist
   const isCurrentTrackFromPlaylist = useMemo(() => {
-    if (!playlist?.tracks || !currentMusicId || currentPlaylistId !== playlist?.id) {
-      return false;
-    }
-    const trackAtIdx = queue[queueIndex];
-    const isTrackInPlaylist = playlist.tracks.some(
-      (track) => track.music_details.id === currentMusicId
-    );
-    
-    return (
-      trackAtIdx &&
-      trackAtIdx.id === currentMusicId &&
-      isTrackInPlaylist
-    );
-  }, [playlist, currentMusicId, currentPlaylistId, queue, queueIndex]);
+    const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
+    return isSameContext && stableTracks.some(track => track.music_details.id === currentMusicId);
+  }, [currentMusicId, currentContext, context, stableTracks]);
 
-  // Memoize track preparation
-  const prepareTrackForPlayer = useCallback(
-    (track) => ({
-      id: track.music_details.id,
-      name: track.music_details.name,
-      title: track.music_details.name,
-      artist: track.music_details.artist_username,
-      artist_full: track.music_details.artist_full_name,
-      album: track.music_details.album_name || playlist?.name || "Unknown Album",
-      cover_photo: track.music_details.cover_photo,
-      audio_file: track.music_details.audio_file,
-      duration: convertToSeconds(track.music_details.duration || "00:00:00"),
-      genre: track.music_details.genre || "",
-      year: track.music_details.release_date
-        ? new Date(track.music_details.release_date).getFullYear()
-        : null,
-      release_date: track.music_details.release_date,
-      track_number: track.track_number || 0,
-      yourplaylist_id: playlist?.id || null,
-      yourplaylist_name: playlist?.name || "Unknown Playlist",
-    }),
-    [playlist]
-  );
 
-  // Handle play playlist
   const handlePlayPlaylist = useCallback(() => {
     if (!stableTracks.length) return;
 
@@ -107,46 +74,48 @@ const YourPlaylistPage = () => {
       return;
     }
 
-    const formattedTracks = stableTracks.map(prepareTrackForPlayer);
+    const formattedTracks = prepareTracksForPlayer(stableTracks);
     dispatch(clearQueue());
-    dispatch(setQueue(formattedTracks));
-    setCurrentPlaylistId(playlist.id); // Set currentPlaylistId
-
-    if (formattedTracks.length > 0) {
-      dispatch(setCurrentMusic(formattedTracks[0]));
-      dispatch(setIsPlaying(true));
-    }
-  }, [dispatch, isCurrentTrackFromPlaylist, isPlaying, playlist, stableTracks, prepareTrackForPlayer]);
+    dispatch(setQueue({
+      tracks: formattedTracks,
+      startIndex: 0,
+      context: context
+    }));
+    setCurrentPlaylistId(playlist.id);
+    dispatch(setIsPlaying(true));
+  }, [dispatch, isCurrentTrackFromPlaylist, isPlaying, playlist, stableTracks, context]);
 
   // Handle shuffle play
   const handleShufflePlay = useCallback(() => {
     if (!stableTracks.length) return;
-    const formattedTracks = stableTracks.map(prepareTrackForPlayer);
+    const formattedTracks = prepareTracksForPlayer(stableTracks);
     dispatch(toggleShufflePlay(formattedTracks));
     setCurrentPlaylistId(playlist.id);
-  }, [dispatch, playlist, stableTracks, prepareTrackForPlayer]);
+  }, [dispatch, playlist, stableTracks]);
 
-  // Handle play track
   const handlePlayTrack = useCallback(
     (track, index) => {
-      const formattedTracks = stableTracks.map(prepareTrackForPlayer);
+      const formattedTracks = prepareTracksForPlayer(stableTracks);
       const formattedTrack = formattedTracks[index];
 
-      if (currentMusicId === formattedTrack.id && currentPlaylistId === playlist.id) {
+      const isSameSong = Number(currentMusicId) === Number(formattedTrack.id);
+      const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
+
+      if (isSameSong && isSameContext) {
         dispatch(setIsPlaying(!isPlaying));
         return;
       }
 
-      if (currentPlaylistId !== playlist.id) {
-        dispatch(clearQueue());
-        dispatch(setQueue(formattedTracks));
-        setCurrentPlaylistId(playlist.id); // Set currentPlaylistId
-      }
-
-      dispatch(setCurrentMusic(formattedTrack));
+      dispatch(clearQueue());
+      dispatch(setQueue({
+        tracks: formattedTracks,
+        startIndex: index,
+        context: context
+      }));
+      setCurrentPlaylistId(playlist.id);
       dispatch(setIsPlaying(true));
     },
-    [currentMusicId, currentPlaylistId, isPlaying, playlist, stableTracks, dispatch, prepareTrackForPlayer]
+    [currentMusicId, currentContext, context, isPlaying, playlist, stableTracks, dispatch]
   );
 
   // Handle edit playlist
@@ -155,12 +124,16 @@ const YourPlaylistPage = () => {
   const handleEditPlaylist = useCallback(
     (updatedPlaylist) => {
       setPlaylist(updatedPlaylist);
-      if (currentPlaylistId === updatedPlaylist.id && updatedPlaylist.tracks) {
-        const formattedTracks = updatedPlaylist.tracks.map(prepareTrackForPlayer);
-        dispatch(setQueue(formattedTracks));
+      const isSameContext = currentContext?.type === 'playlist' && String(currentContext?.id) === String(updatedPlaylist.id);
+      if (isSameContext && updatedPlaylist.tracks) {
+        const formattedTracks = prepareTracksForPlayer(updatedPlaylist.tracks);
+        dispatch(setQueue({
+          tracks: formattedTracks,
+          context: { type: 'playlist', id: updatedPlaylist.id }
+        }));
       }
     },
-    [currentPlaylistId, dispatch, prepareTrackForPlayer]
+    [currentContext, dispatch]
   );
 
   // Handle toggle privacy
@@ -208,26 +181,25 @@ const YourPlaylistPage = () => {
 
       await handleTracksUpdate();
 
-      if (currentPlaylistId === playlist.id) {
+      if (Number(currentPlaylistId) === Number(playlist.id)) {
+        const updatedTracks = stableTracks.filter(
+          (track) => track.music_details.id !== trackToRemove.id
+        );
+        const formattedTracks = prepareTracksForPlayer(updatedTracks);
+        
+        dispatch(setQueue({
+          tracks: formattedTracks,
+          context: { type: 'playlist', id: playlist.id }
+        }));
+
         if (currentMusicId === trackToRemove.id) {
-          const updatedTracks = stableTracks.filter(
-            (track) => track.music_details.id !== trackToRemove.id
-          );
-          if (updatedTracks.length > 0) {
-            const formattedTracks = updatedTracks.map(prepareTrackForPlayer);
-            dispatch(setQueue(formattedTracks));
+          if (formattedTracks.length > 0) {
             dispatch(playNext());
           } else {
             dispatch(clearQueue());
             dispatch(setIsPlaying(false));
-            setCurrentPlaylistId(null); // Reset currentPlaylistId
+            setCurrentPlaylistId(null);
           }
-        } else {
-          const updatedTracks = stableTracks.filter(
-            (track) => track.music_details.id !== trackToRemove.id
-          );
-          const formattedTracks = updatedTracks.map(prepareTrackForPlayer);
-          dispatch(setQueue(formattedTracks));
         }
       }
 
@@ -245,7 +217,6 @@ const YourPlaylistPage = () => {
     stableTracks,
     dispatch,
     playlistId,
-    prepareTrackForPlayer,
   ]);
 
   // Cancel remove track
@@ -254,19 +225,22 @@ const YourPlaylistPage = () => {
     setTrackToRemove(null);
   }, []);
 
-  // Handle tracks update
   const handleTracksUpdate = useCallback(async () => {
     try {
       const response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
       setPlaylist(response.data);
-      if (currentPlaylistId === response.data.id && response.data.tracks) {
-        const formattedTracks = response.data.tracks.map(prepareTrackForPlayer);
-        dispatch(setQueue(formattedTracks));
+      const isSameContext = currentContext?.type === 'playlist' && String(currentContext?.id) === String(response.data.id);
+      if (isSameContext && response.data.tracks) {
+        const formattedTracks = prepareTracksForPlayer(response.data.tracks);
+        dispatch(setQueue({
+          tracks: formattedTracks,
+          context: { type: 'playlist', id: response.data.id }
+        }));
       }
     } catch (err) {
       setError("Failed to refresh playlist");
     }
-  }, [currentPlaylistId, dispatch, playlistId, prepareTrackForPlayer]);
+  }, [currentContext, playlistId, dispatch]);
 
   // Calculate total duration
   useEffect(() => {
@@ -289,10 +263,9 @@ const YourPlaylistPage = () => {
       try {
         const response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
         setPlaylist(response.data);
-        // Initialize currentPlaylistId if the queue matches this playlist
         if (
-          queue.length > 0 &&
-          queue.some((track) => track.yourplaylist_id === response.data.id)
+          currentContext?.type === 'playlist' && 
+          String(currentContext?.id) === String(response.data.id)
         ) {
           setCurrentPlaylistId(response.data.id);
         }

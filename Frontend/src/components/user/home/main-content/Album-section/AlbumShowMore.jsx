@@ -14,7 +14,7 @@ const selectPlayerState = createSelector(
     status: player.status,
     queue: player.queue || [],
     queueIndex: player.queueIndex || 0,
-    currentPlaylistId: player.currentPlaylistId,
+    currentContext: player.currentContext,
   })
 );
 
@@ -23,7 +23,7 @@ const AlbumShowMorePage = () => {
   const { title } = location.state || {};
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { currentTrack, status, queue, queueIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
@@ -76,7 +76,7 @@ const AlbumShowMorePage = () => {
         await handleAlbumPlaybackAction({
           albumId: item.id,
           dispatch,
-          currentState: { currentMusicId, isPlaying, queue, currentIndex },
+          currentState: { currentTrack, status, queue, queueIndex, currentContext },
         });
       } catch (error) {
         console.error("Playback error:", error);
@@ -89,15 +89,10 @@ const AlbumShowMorePage = () => {
 
   const isItemPlaying = useCallback(
     (item) => {
-      const currentTrack = queue[currentIndex];
-      return (
-        currentTrack &&
-        currentTrack.id === currentMusicId &&
-        currentTrack.album === Number(item.id) &&
-        isPlaying
-      );
+      const isSameContext = currentContext?.type === 'album' && String(currentContext?.id) === String(item.id);
+      return isSameContext && isPlaying;
     },
-    [currentMusicId, isPlaying, queue, currentIndex]
+    [currentContext, isPlaying]
   );
 
   const handleScroll = useCallback((direction) => {

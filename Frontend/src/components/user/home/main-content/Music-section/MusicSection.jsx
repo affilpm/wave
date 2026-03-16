@@ -8,8 +8,10 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
-  toggleShufflePlay
+  toggleShufflePlay,
+  togglePlay
 } from "../../../../../slices/user/playerSlice";
+import { prepareTrackForPlayer, prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
@@ -23,7 +25,7 @@ const selectPlayerState = createSelector(
 
 const MusicSection = ({ title, items }) => {
   const dispatch = useDispatch();
-  const { currentTrack, status, queue, queueIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
@@ -68,53 +70,34 @@ const MusicSection = ({ title, items }) => {
     }
   }, []);
 
-  const prepareTrackForPlayer = useCallback(
-    (track) => ({
-      id: Number(track.id),
-      name: track.name,
-      title: track.name,
-      artist: track.artist?.user?.username || track.artist || 'Unknown Artist',
-      artist_full: track.artist_full || track.artist,
-      album: 'Single',
-      cover_photo: track.cover_photo || '/api/v1/placeholder/48/48',
-      audio_file: track.audio_file,
-      duration: track.duration || 0, // Assuming duration is in seconds or can be converted
-      genre: track.genre || '',
-      year: track.release_date ? new Date(track.release_date).getFullYear() : null,
-      release_date: track.release_date,
-      track_number: track.track_number || 0,
-      source: 'public_songs',
-    }),
-    [title]
-  );
+  const context = useMemo(() => ({
+    type: 'section',
+    id: title
+  }), [title]);
 
   const handlePlay = useCallback(
     (item, index, e) => {
       e.stopPropagation();
-      const formattedTracks = musiclistData.map(prepareTrackForPlayer);
+      const formattedTracks = prepareTracksForPlayer(musiclistData);
       const formattedTrack = formattedTracks[index];
 
-      console.log('handlePlay:', {
-        trackId: item.id,
-        currentMusicId,
-        isQueueFromSectionTracks,
-        isPlaying,
-        action:
-          Number(currentMusicId) === Number(formattedTrack.id) && isQueueFromSectionTracks
-            ? 'toggle'
-            : 'play new',
-      });
+      // Rebuild queue if:
+      // 1. Different song
+      // 2. OR Same song but different context (e.g. playing from a different section)
+      const isSameSong = Number(currentMusicId) === Number(formattedTrack.id);
+      const isSameContext = currentContext?.type === context.type && currentContext?.id === context.id;
 
-      if (
-        Number(currentMusicId) === Number(formattedTrack.id) &&
-        isQueueFromSectionTracks
-      ) {
-        dispatch(setIsPlaying(!isPlaying));
+      if (isSameSong && isSameContext) {
+        dispatch(togglePlay());
         return;
       }
-
+      
       dispatch(clearQueue());
-      dispatch(setQueue({ tracks: formattedTracks, startIndex: index }));
+      dispatch(setQueue({ 
+        tracks: formattedTracks, 
+        startIndex: index,
+        context: context
+      }));
       dispatch(setIsPlaying(true));
     },
     [
@@ -134,21 +117,10 @@ const MusicSection = ({ title, items }) => {
 
   const isItemPlaying = useCallback(
     (item) => {
-      const isPlayingThisItem =
-        Number(currentMusicId) === Number(item.id) &&
-        isCurrentTrackFromSectionTracks &&
-        isPlaying;
-      console.log('isItemPlaying:', {
-        itemId: item.id,
-        currentMusicId,
-        isCurrentTrackFromSectionTracks,
-        isPlaying,
-        isPlayingThisItem,
-      });
-      return isPlayingThisItem;
+      return Number(currentMusicId) === Number(item.id) && isPlaying;
     },
-    [currentMusicId, isCurrentTrackFromSectionTracks, isPlaying]
-  );
+    [currentMusicId, isPlaying]
+);
 
   const handleShowMore = useCallback(() => {
     navigate("/music-show-more", { state: { title } });

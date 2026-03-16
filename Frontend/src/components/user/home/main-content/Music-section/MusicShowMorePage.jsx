@@ -9,7 +9,9 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
+  togglePlay,
 } from "../../../../../slices/user/playerSlice";
+import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 
 // Define the same selector as in MusicSection
 const selectPlayerState = createSelector(
@@ -19,6 +21,7 @@ const selectPlayerState = createSelector(
     status: player.status,
     queue: player.queue,
     queueIndex: player.queueIndex,
+    currentContext: player.currentContext,
   })
 );
 
@@ -26,7 +29,7 @@ const MusicShowMorePage = () => {
   const location = useLocation();
   const { title } = location.state || {};
   const dispatch = useDispatch();
-  const { currentTrack, status, queue, queueIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
@@ -43,40 +46,16 @@ const MusicShowMorePage = () => {
   // Memoize the items to prevent unnecessary re-renders
   const musiclistData = useMemo(() => items || [], [items]);
 
-  // Check if the queue is from this page's tracks
-  const isQueueFromSectionTracks = useMemo(() => {
-    if (!queue.length) return false;
-    return queue.some((track) => track.source === 'public_songs');
-  }, [queue]);
+  const context = useMemo(() => ({
+    type: 'section_show_more',
+    id: title
+  }), [title]);
 
-  // Check if the current track is from this page's tracks
+  // Check if the current track is from this page's tracks AND context matches
   const isCurrentTrackFromSectionTracks = useMemo(() => {
-    if (!musiclistData.length || !currentMusicId || !isQueueFromSectionTracks) {
-      console.log('isCurrentTrackFromSectionTracks: Early return', {
-        hasTracks: !!musiclistData.length,
-        currentMusicId,
-        isQueueFromSectionTracks,
-        queueLength: queue.length,
-        currentIndex,
-      });
-      return false;
-    }
-    const currentTrack = queue[currentIndex];
-    const isTrackInTracks = musiclistData.some(
-      (track) => Number(track.id) === Number(currentMusicId)
-    );
-    console.log('isCurrentTrackFromSectionTracks: Result', {
-      currentTrackId: currentTrack?.id,
-      currentMusicId,
-      isTrackInTracks,
-      isPlaying,
-    });
-    return (
-      currentTrack &&
-      Number(currentTrack.id) === Number(currentMusicId) &&
-      isTrackInTracks
-    );
-  }, [musiclistData, currentMusicId, isQueueFromSectionTracks, queue, currentIndex]);
+    const isSameContext = currentContext?.type === context.type && currentContext?.id === context.id;
+    return isSameContext && Number(currentMusicId) === Number(queue[queueIndex]?.id);
+  }, [currentMusicId, queue, queueIndex, currentContext, context]);
 
   // Fetch data for the current page
   useEffect(() => {
@@ -101,85 +80,48 @@ const MusicShowMorePage = () => {
     fetchData();
   }, [page]);
 
-  // Prepare track for player, matching MusicSection's format
-  const prepareTrackForPlayer = useCallback(
-    (track) => ({
-      id: Number(track.id),
-      name: track.name,
-      title: track.name,
-      artist: track.artist?.user?.username || track.artist || 'Unknown Artist',
-      artist_full: track.artist_full || track.artist,
-      album: 'Single',
-      cover_photo: track.cover_photo || '/api/v1/placeholder/48/48',
-      audio_file: track.audio_file,
-      duration: track.duration || 0,
-      genre: track.genre || '',
-      year: track.release_date ? new Date(track.release_date).getFullYear() : null,
-      release_date: track.release_date,
-      track_number: track.track_number || 0,
-      source: 'public_songs',
-    }),
-    []
-  );
 
   // Handle play/pause, matching MusicSection's logic
   const handlePlay = useCallback(
     (item, index, e) => {
       e.stopPropagation();
-      const formattedTracks = musiclistData.map(prepareTrackForPlayer);
+      const formattedTracks = prepareTracksForPlayer(musiclistData);
       const formattedTrack = formattedTracks[index];
 
-      console.log('handlePlay:', {
-        trackId: item.id,
-        currentMusicId,
-        isQueueFromSectionTracks,
-        isPlaying,
-        action:
-          Number(currentMusicId) === Number(formattedTrack.id) && isQueueFromSectionTracks
-            ? 'toggle'
-            : 'play new',
-      });
+      const isSameSong = Number(currentMusicId) === Number(formattedTrack.id);
+      const isSameContext = currentContext?.type === context.type && currentContext?.id === context.id;
 
-      if (
-        Number(currentMusicId) === Number(formattedTrack.id) &&
-        isQueueFromSectionTracks
-      ) {
-        dispatch(setIsPlaying(!isPlaying));
+      if (isSameSong && isSameContext) {
+        dispatch(togglePlay());
         return;
       }
 
       dispatch(clearQueue());
-      dispatch(setQueue(formattedTracks));
-      dispatch(setCurrentMusic(formattedTrack));
+      dispatch(setQueue({ 
+        tracks: formattedTracks, 
+        startIndex: index,
+        context: context
+      }));
       dispatch(setIsPlaying(true));
     },
     [
       currentMusicId,
-      isQueueFromSectionTracks,
+      currentContext,
+      context,
       isPlaying,
       musiclistData,
       dispatch,
-      prepareTrackForPlayer,
     ]
   );
 
   // Check if an item is currently playing
   const isItemPlaying = useCallback(
     (item) => {
-      const isPlayingThisItem =
-        Number(currentMusicId) === Number(item.id) &&
-        isCurrentTrackFromSectionTracks &&
-        isPlaying;
-      console.log('isItemPlaying:', {
-        itemId: item.id,
-        currentMusicId,
-        isCurrentTrackFromSectionTracks,
-        isPlaying,
-        isPlayingThisItem,
-      });
-      return isPlayingThisItem;
+      const isSameSong = Number(currentMusicId) === Number(item.id);
+      const isSameContext = currentContext?.type === context.type && currentContext?.id === context.id;
+      return isSameSong && isSameContext && isPlaying;
     },
-    [currentMusicId, isCurrentTrackFromSectionTracks, isPlaying]
+    [currentMusicId, isPlaying, currentContext, context]
   );
 
   // Handle pagination

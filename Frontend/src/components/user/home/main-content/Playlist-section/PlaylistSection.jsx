@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import { handlePlaybackAction } from "./playlist-utils";
 import { toggleShufflePlay } from "../../../../../slices/user/playerSlice";
 import { fetchPlaylistTracks } from "./playlist-utils";
+import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 import { Shuffle } from "lucide-react";
 
 const selectPlayerState = createSelector(
@@ -16,6 +17,7 @@ const selectPlayerState = createSelector(
     status: player.status,
     queue: player.queue,
     queueIndex: player.queueIndex,
+    currentContext: player.currentContext,
   })
 );
 
@@ -25,7 +27,7 @@ const PlaylistSection = ({ title, items, onLengthChange }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const username = useSelector((state) => state.user.username);
-  const { currentTrack, status, queue, queueIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
@@ -51,10 +53,10 @@ const PlaylistSection = ({ title, items, onLengthChange }) => {
       await handlePlaybackAction({
         playlistId: item.id,
         dispatch,
-        currentState: { currentMusicId, isPlaying, queue, currentIndex },
+        currentState: { currentTrack, status, queue, queueIndex, currentContext },
       });
     },
-    [dispatch, currentMusicId, isPlaying, queue, currentIndex]
+    [dispatch, currentTrack, status, queue, queueIndex, currentContext]
   );
 
   const handleShuffleClick = useCallback(
@@ -62,21 +64,7 @@ const PlaylistSection = ({ title, items, onLengthChange }) => {
       e.stopPropagation();
       const result = await fetchPlaylistTracks(item.id);
       if (result && result.tracks) {
-        // We'll need to format them. Since handlePlaybackAction does formatting,
-        // let's just use it with a shuffle flag if it supported it. It doesn't.
-        // I'll manually format them here or update utils.
-        // For now, let's keep it simple: fetch and dispatch toggleShufflePlay.
-        // Note: fetchPlaylistTracks returns raw tracks.
-        // I'll just use a simplified formatting for shuffle play here.
-        const formatted = result.tracks.map(track => ({
-             id: Number(track.music_details?.id || track.id),
-             name: track.music_details?.name || track.name,
-             title: track.music_details?.name || track.name,
-             artist: track.music_details?.artist_username || track.artist,
-             audio_file: track.music_details?.audio_file || track.audio_file,
-             cover_photo: track.music_details?.cover_photo || track.cover_photo,
-             playlist_id: Number(item.id),
-        }));
+        const formatted = prepareTracksForPlayer(result.tracks);
         dispatch(toggleShufflePlay(formatted));
       }
     },
@@ -142,11 +130,9 @@ const PlaylistSection = ({ title, items, onLengthChange }) => {
           <div className="flex gap-4 px-4">
             {memoizedItems.map((item) => {
               // Determine if this playlist is currently playing
-              const isCurrentPlaylist = queue.some(
-                (track) => track.playlist_id === item.id
-              );
+              const isCurrentPlaylist = currentContext?.type === 'playlist' && String(currentContext?.id) === String(item.id);
               // Show pause button if this playlist is active and playing
-              const showPauseButton = isCurrentPlaylist && isPlaying && currentMusicId;
+              const showPauseButton = isCurrentPlaylist && isPlaying;
               return (
                 <div
                   key={item.id}

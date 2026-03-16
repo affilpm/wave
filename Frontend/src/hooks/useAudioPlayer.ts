@@ -9,6 +9,7 @@ import {
   handleTrackEnd,
 } from '../slices/user/playerSlice';
 import { PlayerState } from '../types/player';
+import throttle from 'lodash/throttle';
 
 export const useAudioPlayer = () => {
   const dispatch = useDispatch();
@@ -19,6 +20,7 @@ export const useAudioPlayer = () => {
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const isInitialLoadRef = useRef(true);
 
   // Initialize audio element if not present
   useEffect(() => {
@@ -27,7 +29,12 @@ export const useAudioPlayer = () => {
     }
     const audio = audioRef.current;
 
-    const onTimeUpdate = () => dispatch(setCurrentTime(audio.currentTime));
+    const onTimeUpdate = () => {
+      const time = audio.currentTime;
+      dispatch(setCurrentTime(time));
+      // Save to localStorage occasionally
+      savePlaybackPos(currentTrackIdRef.current, time);
+    };
     const onDurationChange = () => dispatch(setDuration(audio.duration));
     const onEnded = () => dispatch(handleTrackEnd());
     const onWaiting = () => dispatch(setStatus('buffering'));
@@ -238,8 +245,37 @@ export const useAudioPlayer = () => {
     if (audioRef.current) {
       audioRef.current.currentTime = seconds;
       dispatch(setCurrentTime(seconds));
+      savePlaybackPos(currentTrackIdRef.current, seconds);
     }
   }, [dispatch]);
+
+  // Throttled persistence helper
+  const savePlaybackPos = useCallback(
+    throttle((trackId: string | number | undefined, time: number) => {
+      if (!trackId) return;
+      try {
+        localStorage.setItem(`playback_pos_${trackId}`, String(time));
+      } catch (e) {
+        console.warn("Failed to save playback position", e);
+      }
+    }, 2000),
+    []
+  );
+
+  // Restore progress on mount/track change
+  useEffect(() => {
+    if (currentTrack && audioRef.current && isInitialLoadRef.current) {
+      const savedPos = localStorage.getItem(`playback_pos_${currentTrack.id}`);
+      if (savedPos) {
+        const time = parseFloat(savedPos);
+        if (time > 0 && time < (currentTrack.duration || Infinity)) {
+          audioRef.current.currentTime = time;
+          dispatch(setCurrentTime(time));
+        }
+      }
+      isInitialLoadRef.current = false;
+    }
+  }, [currentTrack?.id, dispatch]);
 
   return { audioRef, seek };
 };

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Search, Play, Pause, Loader } from 'lucide-react';
 import api from '../../../../api';
-import { setQueue, setCurrentMusic, setIsPlaying } from '../../../../slices/user/playerSlice';
+import { setQueue, setIsPlaying, togglePlay } from '../../../../slices/user/playerSlice';
+import { prepareTracksForPlayer } from '../../../../utils/trackUtils';
 
 const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -15,7 +16,7 @@ const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
   const searchResultsRef = useRef(null);
   
   // Get current playback state from Redux
-  const { currentTrack, status } = useSelector(state => state.player);
+  const { currentTrack, status, currentContext } = useSelector(state => state.player);
   const currentMusicId = currentTrack?.id;
   const isPlaying = status === 'playing';
   
@@ -76,27 +77,22 @@ const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
   };
 
   const handlePlayTrack = (track) => {
-    const isCurrentTrack = track.id === currentMusicId;
-    
-    if (isCurrentTrack) {
-      // Toggle play/pause for the current track
-      dispatch(setIsPlaying(!isPlaying));
+    const context = { type: 'search', id: searchQuery };
+    const isSameSong = Number(track.id) === Number(currentMusicId);
+    const isSameContext = currentContext?.type === context.type && currentContext?.id === context.id;
+
+    if (isSameSong && isSameContext) {
+      dispatch(togglePlay());
     } else {
-      // Set up queue with just this track
+      const formattedTrack = prepareTracksForPlayer([track])[0];
       dispatch(setQueue({
-        tracks: [track],
-        playlistId: null,
-        artistId: track.artist_id,
+        tracks: [formattedTrack],
+        startIndex: 0,
+        context: context
       }));
-      
-      // Set the track to play
-      dispatch(setCurrentMusic(track));
-      
-      // Start playing
       dispatch(setIsPlaying(true));
     }
-    
-    // Close search if it's in a modal
+
     if (onClose) onClose();
   };
 
@@ -112,7 +108,9 @@ const SearchComponent = ({ onClose, isHeaderSearch = false }) => {
 
   // Checks if a track is currently playing
   const isTrackPlaying = (trackId) => {
-    return isPlaying && currentMusicId === trackId;
+    const isSameSong = Number(trackId) === Number(currentMusicId);
+    const isSameContext = currentContext?.type === 'search' && currentContext?.id === searchQuery;
+    return isPlaying && isSameSong && isSameContext;
   };
 
   return (

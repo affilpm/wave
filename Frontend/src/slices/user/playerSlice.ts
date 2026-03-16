@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import api from '../../api';
-import { PlayerState, Track, PlayerStatus, RepeatMode } from '../../types/player';
+import { PlayerState, Track, PlayerStatus, RepeatMode, PlayerContext } from '../../types/player';
 
 export const fetchStreamUrl = createAsyncThunk(
   'player/fetchStreamUrl',
@@ -71,6 +71,7 @@ const initialState: PlayerState = {
   isQueueOpen: false,
   userQueue: [],
   history: [],
+  currentContext: null,
 };
 
 // Helper for Fisher-Yates shuffle
@@ -152,6 +153,16 @@ const playerSlice = createSlice({
       }
     },
     
+    togglePlay: (state) => {
+      if (state.currentTrack) {
+        if (state.status === 'playing' || state.status === 'buffering') {
+          state.status = 'paused';
+        } else {
+          state.status = 'playing';
+        }
+      }
+    },
+    
     stop: (state) => {
       state.status = 'idle';
       state.currentTime = 0;
@@ -180,19 +191,22 @@ const playerSlice = createSlice({
       state.isMuted = !state.isMuted;
     },
     
-    setQueue: (state, action: PayloadAction<{ tracks: Track[], startIndex?: number } | Track[]>) => {
+    setQueue: (state, action: PayloadAction<{ tracks: Track[], startIndex?: number, context?: PlayerContext } | Track[]>) => {
       let tracks: Track[] = [];
       let startIndex = 0;
+      let context: PlayerContext | null = null;
       
       if (Array.isArray(action.payload)) {
         tracks = action.payload;
       } else {
         tracks = action.payload.tracks || [];
         startIndex = action.payload.startIndex || 0;
+        context = action.payload.context || null;
       }
       
       state.originalQueue = [...tracks];
       state.userQueue = []; // Reset user manual queue when context changes
+      state.currentContext = context;
       
       if (state.shuffleMode) {
         if (tracks.length > 0) {
@@ -553,6 +567,7 @@ export const {
   toggleQueue,
   setIsLiked,
   playNext,
+  togglePlay,
   
   // Legacy
   clearCurrentMusic,

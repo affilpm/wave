@@ -8,9 +8,11 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
+  togglePlay
 } from "../../../../../slices/user/playerSlice";
 import api from '../../../../../api';
 import { formatDuration, convertToSeconds, convertToHrMinFormat } from '../../../../../utils/formatters';
+import { prepareTracksForPlayer } from '../../../../../utils/trackUtils';
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
@@ -19,12 +21,54 @@ const selectPlayerState = createSelector(
     status: player.status,
     queue: player.queue,
     queueIndex: player.queueIndex,
+    currentContext: player.currentContext,
   })
 );
 
+const TrackRow = ({ track, index, isPlaying, onPlay }) => {
+  return (
+    <tr className="group hover:bg-white/10 transition-colors">
+      <td className="py-3 pl-4">
+        <div className="flex items-center justify-center w-8 group">
+          <span className="group-hover:hidden">{index + 1}</span>
+          <button
+            className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
+            onClick={() => onPlay(track, index)}
+          >
+            {isPlaying ? (
+              <Pause className="h-4 w-4" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+      </td>
+      <td className="py-3 pl-3">
+        <div className="flex items-center gap-3">
+          <img
+            src={track.cover_photo}
+            alt={track.name}
+            className="w-10 h-10 rounded-md"
+          />
+          <span className="font-medium">{track.name}</span>
+        </div>
+      </td>
+      <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
+        {track.artist?.user?.username || 'Unknown Artist'}
+      </td>
+      <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
+        {new Date(track.release_date).toLocaleDateString()}
+      </td>
+      <td className="py-3 text-center text-gray-400 w-20">
+        {formatDuration(track.duration)}
+      </td>
+    </tr>
+  );
+};
+
 const GenrePage = () => {
   const dispatch = useDispatch();
-  const { currentTrack, status, queue, queueIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
@@ -50,28 +94,15 @@ const GenrePage = () => {
 
   const stableTracks = useMemo(() => tracks || [], [tracks]);
 
-  const isQueueFromGenreTracks = useMemo(() => {
-    if (!queue.length) return false;
-    return queue.some(
-      (track) => track.source === 'public_songs'
-    );
-  }, [queue]);
+  const context = useMemo(() => ({
+    type: 'genre',
+    id: genreId
+  }), [genreId]);
 
   const isCurrentTrackFromGenreTracks = useMemo(() => {
-    if (!stableTracks.length || !currentMusicId || !isQueueFromGenreTracks) {
-      return false;
-    }
-    const trackAtIdx = queue[queueIndex];
-    const isTrackInTracks = stableTracks.some(
-      (track) => Number(track.id) === Number(currentMusicId)
-    );
-    
-    return (
-      trackAtIdx &&
-      Number(trackAtIdx.id) === Number(currentMusicId) &&
-      isTrackInTracks
-    );
-  }, [stableTracks, currentMusicId, isQueueFromGenreTracks, queue, queueIndex]);
+    const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
+    return isSameContext && stableTracks.some(track => Number(track.id) === Number(currentMusicId));
+  }, [currentMusicId, stableTracks, currentContext, context]);
 
   useEffect(() => {
     const fetchGenreData = async () => {
@@ -101,50 +132,29 @@ const GenrePage = () => {
     fetchGenreData();
   }, [genreId, currentPage]);
 
-  const prepareTrackForPlayer = useCallback((track) => ({
-    id: Number(track.id),
-    name: track.name,
-    title: track.name,
-    artist: track.artist?.user?.username || 'Unknown Artist',
-    artist_full: track.artist?.full_name,
-    album: 'Single', // Added for similarity to Profile, assuming no album data
-    cover_photo: track.cover_photo || '/api/v1/placeholder/48/48',
-    audio_file: track.audio_file,
-    duration: convertToSeconds(track.duration || '00:00:00'),
-    genre: track.genre || '',
-    year: track.release_date ? new Date(track.release_date).getFullYear() : null,
-    release_date: track.release_date,
-    track_number: track.track_number || 0,
-    source: 'public_songs',
-  }), []);
 
   const handlePlayTrack = useCallback(
     (track, index) => {
-      const formattedTracks = stableTracks.map(prepareTrackForPlayer);
+      const formattedTracks = prepareTracksForPlayer(stableTracks);
       const formattedTrack = formattedTracks[index];
 
-      console.log('handlePlayTrack:', {
-        trackId: track.id,
-        currentMusicId,
-        isQueueFromGenreTracks,
-        isPlaying,
-        action: Number(currentMusicId) === Number(formattedTrack.id) && isQueueFromGenreTracks ? 'toggle' : 'play new',
-      });
+      const isSameSong = Number(currentMusicId) === Number(formattedTrack.id);
+      const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
 
-      if (
-        Number(currentMusicId) === Number(formattedTrack.id) &&
-        isQueueFromGenreTracks
-      ) {
-        dispatch(setIsPlaying(!isPlaying));
+      if (isSameSong && isSameContext) {
+        dispatch(togglePlay());
         return;
       }
 
       dispatch(clearQueue());
-      dispatch(setQueue(formattedTracks));
-      dispatch(setCurrentMusic(formattedTrack));
+      dispatch(setQueue({
+        tracks: formattedTracks,
+        startIndex: index,
+        context: context
+      }));
       dispatch(setIsPlaying(true));
     },
-    [currentMusicId, isQueueFromGenreTracks, isPlaying, stableTracks, dispatch, prepareTrackForPlayer]
+    [currentMusicId, currentContext, context, isPlaying, stableTracks, dispatch]
   );
 
   const handlePreviousPage = () => {
@@ -161,6 +171,12 @@ const GenrePage = () => {
     }
   };
 
+  const isTrackPlaying = useCallback((track) => {
+    const isSameSong = Number(currentMusicId) === Number(track.id);
+    const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
+    return isSameSong && isSameContext && isPlaying;
+  }, [currentMusicId, currentContext, context, isPlaying]);
+
   if (isLoading) {
     return (
       <div className="p-6 space-y-4">
@@ -169,64 +185,6 @@ const GenrePage = () => {
       </div>
     );
   }
-
-  const isTrackPlaying = (track) => {
-    const isPlayingThisTrack =
-      Number(currentMusicId) === Number(track.id) &&
-      isCurrentTrackFromGenreTracks &&
-      isPlaying;
-    console.log('isTrackPlaying:', {
-      trackId: track.id,
-      currentMusicId,
-      isCurrentTrackFromGenreTracks,
-      isPlaying,
-      isPlayingThisTrack,
-    });
-    return isPlayingThisTrack;
-  };
-
-  const TrackRow = ({ track, index }) => {
-    const currentlyPlaying = isTrackPlaying(track);
-
-    return (
-      <tr className="group hover:bg-white/10 transition-colors">
-        <td className="py-3 pl-4">
-          <div className="flex items-center justify-center w-8 group">
-            <span className="group-hover:hidden">{index + 1}</span>
-            <button
-              className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
-              onClick={() => handlePlayTrack(track, index)}
-            >
-              {currentlyPlaying ? (
-                <Pause className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-        </td>
-        <td className="py-3 pl-3">
-          <div className="flex items-center gap-3">
-            <img
-              src={track.cover_photo}
-              alt={track.name}
-              className="w-10 h-10 rounded-md"
-            />
-            <span className="font-medium">{track.name}</span>
-          </div>
-        </td>
-        <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
-          {track.artist?.user?.username || 'Unknown Artist'}
-        </td>
-        <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
-          {new Date(track.release_date).toLocaleDateString()}
-        </td>
-        <td className="py-3 text-center text-gray-400 w-20">
-          {formatDuration(track.duration)}
-        </td>
-      </tr>
-    );
-  };
 
   const genreStyle = genreIcons[genreData?.name] || { icon: <Music size={48} className="text-white" />, color: 'bg-gray-700' };
 
@@ -272,7 +230,13 @@ const GenrePage = () => {
           </thead>
           <tbody>
             {tracks.map((track, index) => (
-              <TrackRow key={track.id} track={track} index={index} />
+              <TrackRow 
+                key={track.id} 
+                track={track} 
+                index={index} 
+                isPlaying={isTrackPlaying(track)}
+                onPlay={handlePlayTrack}
+              />
             ))}
           </tbody>
         </table>

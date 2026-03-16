@@ -9,7 +9,9 @@ import {
   setQueue,
   clearQueue,
   setIsPlaying,
+  togglePlay
 } from "../../../../../slices/user/playerSlice";
+import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 import {
   formatDuration,
   convertToSeconds,
@@ -23,6 +25,7 @@ const selectPlayerState = createSelector(
     status: player.status,
     queue: player.queue,
     queueIndex: player.queueIndex,
+    currentContext: player.currentContext,
   })
 );
 
@@ -43,7 +46,7 @@ const ArtistDetailPage = () => {
   const [currentArtistId, setCurrentArtistId] = useState(null);
 
   const currentUserId = useSelector((state) => state.user_id);
-  const { currentTrack, status, queue, queueIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
@@ -122,101 +125,61 @@ const ArtistDetailPage = () => {
   // Memoize songs for stable props
   const stableSongs = useMemo(() => publicSongs || [], [publicSongs]);
 
-  // Memoize track preparation (aligned with AlbumPage)
-  const prepareTrackForPlayer = useCallback(
-    (song) => ({
-      id: Number(song.id),
-      name: song.title || song.name || "Unknown Track",
-      title: song.title || song.name || "Unknown Track",
-      artist: song.artist_username || artist?.username || "Unknown Artist",
-      artist_full:
-        song.artist_full_name ||
-        artist?.full_name ||
-        artist?.username ||
-        "Unknown Artist",
-      album: song.album_name || "Unknown Album",
-      cover_photo: song.cover_photo || null,
-      audio_file: song.audio_file,
-      duration: convertToSeconds(song.duration || "00:00:00"),
-      genre: song.genre || "",
-      year: song.release_date
-        ? new Date(song.release_date).getFullYear()
-        : null,
-      release_date: song.release_date || null,
-      track_number: song.track_number || 0,
-      album_id: Number(song.album_id) || null,
-      album_name: song.album_name || "Unknown Album",
-      artist_id: Number(artistId) || null,
-      added_by_user: currentUserId || null,
-      added_at: new Date().toISOString(),
-    }),
-    [artist, artistId, currentUserId]
-  );
+  const context = useMemo(() => ({
+    type: 'artist',
+    id: artistId
+  }), [artistId]);
 
-  // Memoize isCurrentTrackFromArtist (aligned with isCurrentTrackFromAlbum)
+  // Memoize isCurrentTrackFromArtist
   const isCurrentTrackFromArtist = useMemo(() => {
-    if (
-      !stableSongs.length ||
-      !currentMusicId ||
-      currentArtistId !== Number(artistId)
-    ) {
-      return false;
-    }
-    const currentTrack = queue[currentIndex];
-    const isTrackInArtistSongs = stableSongs.some(
-      (song) => Number(song.id) === Number(currentMusicId)
-    );
-    return (
-      currentTrack &&
-      Number(currentTrack.id) === Number(currentMusicId) &&
-      isTrackInArtistSongs
-    );
-  }, [stableSongs, currentMusicId, currentArtistId, queue, currentIndex, artistId]);
+    const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
+    return isSameContext && stableSongs.some(song => Number(song.id) === Number(currentMusicId));
+  }, [currentMusicId, stableSongs, currentContext, context]);
 
   // Handle play all songs (aligned with handlePlayAlbum)
   const handlePlayAll = useCallback(() => {
     if (!stableSongs.length) return;
 
     if (isCurrentTrackFromArtist) {
-      dispatch(setIsPlaying(!isPlaying));
+      dispatch(togglePlay());
       return;
     }
 
-    const formattedTracks = stableSongs.map(prepareTrackForPlayer);
+    const formattedTracks = prepareTracksForPlayer(stableSongs, artist, currentUserId);
     dispatch(clearQueue());
-    dispatch(setQueue(formattedTracks));
+    dispatch(setQueue({
+      tracks: formattedTracks,
+      startIndex: 0,
+      context: context
+    }));
     setCurrentArtistId(Number(artistId));
-
-    if (formattedTracks.length > 0) {
-      dispatch(setCurrentMusic(formattedTracks[0]));
-      dispatch(setIsPlaying(true));
-    }
-  }, [dispatch, isCurrentTrackFromArtist, isPlaying, artistId, stableSongs, prepareTrackForPlayer]);
+    dispatch(setIsPlaying(true));
+  }, [dispatch, isCurrentTrackFromArtist, isPlaying, artistId, stableSongs, context, artist, currentUserId]);
 
   // Handle play individual song 
   const handlePlaySong = useCallback(
     (song, index) => {
-      const formattedTracks = stableSongs.map(prepareTrackForPlayer);
+      const formattedTracks = prepareTracksForPlayer(stableSongs, artist, currentUserId);
       const formattedTrack = formattedTracks[index];
 
-      if (
-        Number(currentMusicId) === Number(formattedTrack.id) &&
-        currentArtistId === Number(artistId)
-      ) {
-        dispatch(setIsPlaying(!isPlaying));
+      const isSameSong = Number(currentMusicId) === Number(formattedTrack.id);
+      const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
+
+      if (isSameSong && isSameContext) {
+        dispatch(togglePlay());
         return;
       }
 
-      if (currentArtistId !== Number(artistId)) {
-        dispatch(clearQueue());
-        dispatch(setQueue(formattedTracks));
-        setCurrentArtistId(Number(artistId));
-      }
-
-      dispatch(setCurrentMusic(formattedTrack));
+      dispatch(clearQueue());
+      dispatch(setQueue({
+        tracks: formattedTracks,
+        startIndex: index,
+        context: context
+      }));
+      setCurrentArtistId(Number(artistId));
       dispatch(setIsPlaying(true));
     },
-    [currentMusicId, currentArtistId, isPlaying, artistId, stableSongs, dispatch, prepareTrackForPlayer]
+    [currentMusicId, currentContext, context, isPlaying, artistId, stableSongs, dispatch, artist, currentUserId]
   );
 
   // Toggle follow

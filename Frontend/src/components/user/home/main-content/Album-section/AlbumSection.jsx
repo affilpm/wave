@@ -3,7 +3,8 @@ import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
-import { handleAlbumPlaybackAction, fetchAlbumTracks, prepareTrackForPlayer } from "./album-utils";
+import { handleAlbumPlaybackAction, fetchAlbumTracks } from "./album-utils";
+import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 import { toggleShufflePlay } from "../../../../../slices/user/playerSlice";
 import { Shuffle } from "lucide-react";
 
@@ -15,6 +16,7 @@ const selectPlayerState = createSelector(
     status: player.status,
     queue: player.queue,
     queueIndex: player.queueIndex,
+    currentContext: player.currentContext,
   })
 );
 
@@ -24,7 +26,7 @@ const AlbumSection = memo(({ title, items }) => {
   const [isLoading, setIsLoading] = useState({}); 
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { currentTrack, status, queue, queueIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
@@ -52,10 +54,11 @@ const AlbumSection = memo(({ title, items }) => {
           albumId: item.id,
           dispatch,
           currentState: {
-            currentMusicId,
-            isPlaying,
+            currentTrack,
+            status,
             queue,
-            currentIndex,
+            queueIndex,
+            currentContext
           },
         });
       } catch (error) {
@@ -64,7 +67,7 @@ const AlbumSection = memo(({ title, items }) => {
         setIsLoading((prev) => ({ ...prev, [item.id]: false }));
       }
     },
-    [dispatch, currentMusicId, isPlaying, queue, currentIndex]
+    [dispatch, currentTrack, status, queue, queueIndex, currentContext]
   );
 
   const handleShufflePlay = useCallback(
@@ -74,9 +77,7 @@ const AlbumSection = memo(({ title, items }) => {
       try {
         const albumData = await fetchAlbumTracks(item.id);
         if (albumData && albumData.tracks.length) {
-          const formattedTracks = albumData.tracks.map((track) =>
-            prepareTrackForPlayer(track, item.id, albumData.name)
-          );
+          const formattedTracks = prepareTracksForPlayer(albumData.tracks);
           dispatch(toggleShufflePlay(formattedTracks));
         }
       } catch (error) {
@@ -90,15 +91,10 @@ const AlbumSection = memo(({ title, items }) => {
 
   const isItemPlaying = useCallback(
     (item) => {
-      const currentTrack = queue[currentIndex];
-      return (
-        currentTrack &&
-        currentTrack.id === currentMusicId &&
-        currentTrack.album === Number(item.id) && // Ensure Number comparison
-        isPlaying
-      );
+      const isSameContext = currentContext?.type === 'album' && String(currentContext?.id) === String(item.id);
+      return isSameContext && isPlaying;
     },
-    [currentMusicId, isPlaying, queue, currentIndex]
+    [currentContext, isPlaying]
   );
 
   const handleAlbumClick = useCallback((albumId) => {

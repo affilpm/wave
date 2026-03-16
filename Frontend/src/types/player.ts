@@ -16,6 +16,12 @@ export interface Track {
   [key: string]: any;
 }
 
+export interface PlayerContext {
+  type: string;
+  id: string | number;
+  [key: string]: any;
+}
+
 export type RepeatMode = 'off' | 'one' | 'all';
 
 export type PlayerStatus = 'idle' | 'loading' | 'playing' | 'paused' | 'buffering';
@@ -38,4 +44,5 @@ export interface PlayerState {
   isQueueOpen: boolean;
   userQueue: Track[]; // Tracks manually added by user
   history: Track[]; // Tracks already played
+  currentContext?: PlayerContext | null; // The context from which the current queue was loaded
 }

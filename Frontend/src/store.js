@@ -12,21 +12,26 @@ import playerMiddleware from './middleware/playerMiddleware';
 import { activityMiddleware } from './middleware/activityMiddleware';
 import equalizerReducer from './slices/user/equalizerSlice';
 
+const playerPersistConfig = {
+  key: 'player',
+  storage,
+  blacklist: ['currentTime', 'status'], // Don't persist time (handled manually) or transient status
+};
+
 const rootReducer = combineReducers({
   user: userReducer,
   admin: adminReducer,
   modal: modalReducer,
   playlists: playlistReducer,
   album: albumReducer,
-  player: playerReducer,   
+  player: persistReducer(playerPersistConfig, playerReducer),   
   equalizer: equalizerReducer,
 });
 
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['user', 'admin', 'album', 'player', 'equalizer'], 
-
+  whitelist: ['user', 'admin', 'album', 'equalizer'], // 'player' is now handled by its own persistReducer
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

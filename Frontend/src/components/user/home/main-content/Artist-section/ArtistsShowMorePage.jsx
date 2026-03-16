@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { createSelector } from "@reduxjs/toolkit";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { Play, Pause } from "lucide-react";
@@ -8,7 +9,9 @@ import {
   setQueue,
   clearQueue,
   setIsPlaying,
+  togglePlay
 } from "../../../../../slices/user/playerSlice";
+import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 
 const ArtistsShowMorePage = () => {
   const location = useLocation();
@@ -24,14 +27,14 @@ const ArtistsShowMorePage = () => {
       status: player.status,
       queue: player.queue,
       queueIndex: player.queueIndex,
+      currentContext: player.currentContext,
     })
   );
 
   // Use the selector
-  const { currentTrack, status, queue, queueIndex } = useSelector(selectPlayerState);
+  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(selectPlayerState);
   const currentMusicId = currentTrack?.id;
   const isPlaying = status === 'playing';
-  const currentIndex = queueIndex;
   const currentUserId = useSelector((state) => state.user_id);
 
   const [artists, setArtists] = useState([]);
@@ -56,45 +59,14 @@ const ArtistsShowMorePage = () => {
     return colors[index];
   };
 
-  // Prepare track for player (aligned with ArtistSection)
-  const prepareTrackForPlayer = useCallback(
-    (song, artist, userId) => ({
-      id: Number(song.id),
-      name: song.title || song.name || "Unknown Track",
-      title: song.title || song.name || "Unknown Track",
-      artist: artist?.username || "Unknown Artist",
-      artist_full: artist?.full_name || artist?.username || "Unknown Artist",
-      album: song.album_name || "Unknown Album",
-      cover_photo: song.cover_photo || null,
-      audio_file: song.audio_file,
-      duration: song.duration
-        ? Math.round(
-            song.duration
-              .split(":")
-              .reduce((acc, time, index) => acc + time * Math.pow(60, 2 - index), 0)
-          )
-        : 0,
-      genre: song.genre || "",
-      year: song.release_date ? new Date(song.release_date).getFullYear() : null,
-      release_date: song.release_date || null,
-      track_number: song.track_number || 0,
-      album_id: Number(song.album_id) || null,
-      album_name: song.album_name || "Unknown Album",
-      artist_id: Number(artist.id) || null,
-      added_by_user: userId || null,
-      added_at: new Date().toISOString(),
-    }),
-    []
-  );
 
-  // Check if the current track is from the artist
   const isCurrentTrackFromArtist = useCallback(
     (artistId) => {
-      if (!queue.length || !currentMusicId) return false;
-      const currentTrack = queue[currentIndex];
-      return currentTrack && Number(currentTrack.artist_id) === Number(artistId);
+      if (!currentTrack || !currentMusicId) return false;
+      const isSameContext = currentContext?.type === 'artist' && String(currentContext?.id) === String(artistId);
+      return isSameContext && Number(currentTrack.artist_id) === Number(artistId);
     },
-    [queue, currentMusicId, currentIndex]
+    [currentTrack, currentMusicId, currentContext]
   );
 
   useEffect(() => {
@@ -122,33 +94,25 @@ const ArtistsShowMorePage = () => {
   const handlePlayArtist = async (artist, e) => {
     e.stopPropagation();
     try {
-      // If this artist's track is already selected, toggle play/pause only
       if (isCurrentTrackFromArtist(artist.id)) {
-        dispatch(setIsPlaying(!isPlaying));
+        dispatch(togglePlay());
         return;
       }
 
-      // Fetch artist's songs only if switching to a new artist
+      const context = { type: 'artist', id: artist.id };
       const songsResponse = await api.get(`/api/v1/music/artist/${artist.id}/`);
       const songs = songsResponse.data.results || songsResponse.data;
 
       if (songs && songs.length > 0) {
-        // Format tracks
-        const formattedTracks = songs.map((song) =>
-          prepareTrackForPlayer(song, artist, currentUserId)
-        );
+        const formattedTracks = prepareTracksForPlayer(songs, artist, currentUserId);
 
-        // Clear queue and set new queue
         dispatch(clearQueue());
-        dispatch(setQueue(formattedTracks));
-
-        // Set the first song to play
-        if (formattedTracks.length > 0) {
-          dispatch(setCurrentMusic(formattedTracks[0]));
-          dispatch(setIsPlaying(true));
-        }
-      } else {
-
+        dispatch(setQueue({
+          tracks: formattedTracks,
+          startIndex: 0,
+          context: context
+        }));
+        dispatch(setIsPlaying(true));
       }
     } catch (error) {
       console.error("Error fetching artist songs:", error);

@@ -1,6 +1,6 @@
-import { setCurrentMusic, setIsPlaying, setQueue, clearQueue } from "../../../../../slices/user/playerSlice";
+import { setIsPlaying, setQueue, clearQueue, togglePlay } from "../../../../../slices/user/playerSlice";
 import api from "../../../../../api";
-import { convertToSeconds } from "../../../../../utils/formatters";
+import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 
 export const fetchPlaylistTracks = async (playlistId) => {
   try {
@@ -24,14 +24,12 @@ export const handlePlaybackAction = async ({
   currentState,
   startPlaying = true,
 }) => {
-  const { currentMusicId, isPlaying, queue, currentIndex } = currentState;
+  const { currentTrack, status, currentContext } = currentState;
+  const context = { type: 'playlist', id: playlistId };
+  const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
 
-  // Check if we're already playing this playlist
-  const isCurrentPlaylist = queue.length > 0 && queue.some((track) => Number(track.playlist_id) === Number(playlistId));
-
-  if (isCurrentPlaylist && currentMusicId) {
-    // Simply toggle play/pause if it's the same playlist
-    dispatch(setIsPlaying(!isPlaying));
+  if (isSameContext) {
+    dispatch(togglePlay());
     return;
   }
 
@@ -53,37 +51,16 @@ export const handlePlaybackAction = async ({
     }
   }
 
-  const prepareTrackForPlayer = (track) => ({
-    id: Number(track.music_details?.id || track.id),
-    name: track.music_details?.name || track.name,
-    title: track.music_details?.name || track.name,
-    artist: track.music_details?.artist_username || track.artist,
-    artist_full: track.music_details?.artist_full_name || track.artist_full,
-    album: track.music_details?.album_name || "Unknown Album",
-    cover_photo: track.music_details?.cover_photo || track.cover_photo,
-    audio_file: track.music_details?.audio_file || track.audio_file,
-    duration: track.music_details?.duration ? convertToSeconds(track.music_details.duration) : 0,
-    genre: track.music_details?.genre || "",
-    year: track.music_details?.release_date
-      ? new Date(track.music_details.release_date).getFullYear()
-      : null,
-    release_date: track.music_details?.release_date,
-    track_number: track.track_number || 0,
-    playlist_id: Number(playlistId),
-    playlist_name: resolvedPlaylistName,
-  });
+  const formattedTracks = prepareTracksForPlayer(playlistTracks);
 
-  const formattedTracks = playlistTracks.map(prepareTrackForPlayer);
-
-  // Clear existing queue before setting new one
   dispatch(clearQueue());
-  dispatch(setQueue(formattedTracks));
+  dispatch(setQueue({
+    tracks: formattedTracks,
+    startIndex: 0,
+    context: context
+  }));
 
-  // Set track and start playing immediately without timeout
-  if (formattedTracks.length > 0) {
-    dispatch(setCurrentMusic(formattedTracks[0]));
-    if (startPlaying) {
-      dispatch(setIsPlaying(true));
-    }
+  if (startPlaying) {
+    dispatch(setIsPlaying(true));
   }
 };

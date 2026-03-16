@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Play, Pause, Clock, Share2, Plus, Check } from "lucide-react";
+import { Play, Pause, Clock, Share2, Plus, Check, Shuffle } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
@@ -14,7 +14,10 @@ import {
   setIsPlaying,
   setQueue,
   clearQueue,
+  toggleShufflePlay,
+  togglePlay
 } from "../../../../slices/user/playerSlice";
+import { prepareTracksForPlayer } from "../../../../utils/trackUtils";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
@@ -24,6 +27,7 @@ const selectPlayerState = createSelector(
     status: player.status,
     queue: player.queue,
     queueIndex: player.queueIndex,
+    currentContext: player.currentContext,
   })
 );
 
@@ -40,7 +44,7 @@ const AlbumPage = () => {
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
   const [currentAlbumId, setCurrentAlbumId] = useState(null);
 
-  const { currentTrack, status, queue, queueIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
@@ -51,87 +55,67 @@ const AlbumPage = () => {
   // Memoize tracks for stable props
   const stableTracks = useMemo(() => album?.tracks || [], [album]);
 
+  const context = useMemo(() => ({
+    type: 'album',
+    id: albumId
+  }), [albumId]);
+
   // Memoize isCurrentTrackFromAlbum
-    const isCurrentTrackFromAlbum = useMemo(() => {
-      if (!album?.tracks || !currentMusicId || currentAlbumId !== album?.id) {
-        return false;
-      }
-      const currentTrackAtPos = queue[queueIndex];
-      const isTrackInAlbum = album.tracks.some(
-        (track) => Number(track.music_details.id) === Number(currentMusicId)
-      );
-      return (
-        currentTrackAtPos &&
-        Number(currentTrackAtPos.id) === Number(currentMusicId) &&
-        isTrackInAlbum
-      );
-    }, [album, currentMusicId, currentAlbumId, queue, queueIndex]);
+  const isCurrentTrackFromAlbum = useMemo(() => {
+    const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
+    return isSameContext && stableTracks.some(track => Number(track.music_details.id) === Number(currentMusicId));
+  }, [currentMusicId, stableTracks, currentContext, context]);
 
-  // Memoize track preparation
-  const prepareTrackForPlayer = useCallback(
-    (track) => ({
-      id: Number(track.music_details.id),
-      name: track.music_details.name,
-      title: track.music_details.name,
-      artist: track.music_details.artist_username,
-      artist_full: track.music_details.artist_full_name,
-      album: track.music_details.album_name || album?.name || "Unknown Album",
-      cover_photo: track.music_details.cover_photo,
-      audio_file: track.music_details.audio_file,
-      duration: convertToSeconds(track.music_details.duration || "00:00:00"),
-      genre: track.music_details.genre || "",
-      year: track.music_details.release_date
-        ? new Date(track.music_details.release_date).getFullYear()
-        : null,
-      release_date: track.music_details.release_date,
-      track_number: track.track_number || 0,
-      album_id: Number(album?.id) || null,
-      album_name: album?.name || "Unknown Album",
-    }),
-    [album]
-  );
 
-  // Handle play album
   const handlePlayAlbum = useCallback(() => {
     if (!stableTracks.length) return;
 
     if (isCurrentTrackFromAlbum) {
-      dispatch(setIsPlaying(!isPlaying));
+      dispatch(togglePlay());
       return;
     }
 
-    const formattedTracks = stableTracks.map(prepareTrackForPlayer);
+    const formattedTracks = prepareTracksForPlayer(stableTracks.map(t => t.music_details));
     dispatch(clearQueue());
-    dispatch(setQueue(formattedTracks));
+    dispatch(setQueue({
+      tracks: formattedTracks,
+      startIndex: 0,
+      context: context
+    }));
     setCurrentAlbumId(Number(album.id));
+    dispatch(setIsPlaying(true));
+  }, [dispatch, isCurrentTrackFromAlbum, isPlaying, album, stableTracks, context]);
 
-    if (formattedTracks.length > 0) {
-      dispatch(setCurrentMusic(formattedTracks[0]));
-      dispatch(setIsPlaying(true));
-    }
-  }, [dispatch, isCurrentTrackFromAlbum, isPlaying, album, stableTracks, prepareTrackForPlayer]);
+  const handleShufflePlay = useCallback(() => {
+    if (!stableTracks.length) return;
+    const formattedTracks = prepareTracksForPlayer(stableTracks.map(t => t.music_details));
+    dispatch(toggleShufflePlay(formattedTracks));
+    setCurrentAlbumId(Number(album.id));
+  }, [dispatch, album, stableTracks]);
 
-  // Handle play track
   const handlePlayTrack = useCallback(
     (track, index) => {
-      const formattedTracks = stableTracks.map(prepareTrackForPlayer);
+      const formattedTracks = prepareTracksForPlayer(stableTracks.map(t => t.music_details));
       const formattedTrack = formattedTracks[index];
 
-      if (Number(currentMusicId) === Number(formattedTrack.id) && currentAlbumId === Number(album.id)) {
-        dispatch(setIsPlaying(!isPlaying));
+      const isSameSong = Number(currentMusicId) === Number(formattedTrack.id);
+      const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
+
+      if (isSameSong && isSameContext) {
+        dispatch(togglePlay());
         return;
       }
 
-      if (currentAlbumId !== Number(album.id)) {
-        dispatch(clearQueue());
-        dispatch(setQueue(formattedTracks));
-        setCurrentAlbumId(Number(album.id));
-      }
-
-      dispatch(setCurrentMusic(formattedTrack));
+      dispatch(clearQueue());
+      dispatch(setQueue({
+        tracks: formattedTracks,
+        startIndex: index,
+        context: context
+      }));
+      setCurrentAlbumId(Number(album.id));
       dispatch(setIsPlaying(true));
     },
-    [currentMusicId, currentAlbumId, isPlaying, album, stableTracks, dispatch, prepareTrackForPlayer]
+    [currentMusicId, currentContext, context, isPlaying, album, stableTracks, dispatch]
   );
 
   // Check if album is in library
@@ -200,10 +184,10 @@ const AlbumPage = () => {
     fetchAlbum();
   }, [albumId, queue, checkLibraryStatus]);
 
-  // Mobile-optimized track component
   const TrackItem = React.memo(({ track, index }) => {
-    const isThisTrackPlaying = Number(currentMusicId) === Number(track.music_details.id) &&
-                              isCurrentTrackFromAlbum;
+    const isSameSong = Number(currentMusicId) === Number(track.music_details.id);
+    const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
+    const isThisTrackPlaying = isSameSong && isSameContext;
 
     return (
       <div
@@ -247,10 +231,10 @@ const AlbumPage = () => {
     );
   });
 
-  // Desktop track row component
   const TrackRow = React.memo(({ track, index }) => {
-    const isThisTrackPlaying = Number(currentMusicId) === Number(track.music_details.id) &&
-                              isCurrentTrackFromAlbum;
+    const isSameSong = Number(currentMusicId) === Number(track.music_details.id);
+    const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
+    const isThisTrackPlaying = isSameSong && isSameContext;
 
     return (
       <tr
@@ -372,6 +356,14 @@ const AlbumPage = () => {
           ) : (
             <Play className="h-5 w-5 sm:h-6 sm:w-6 text-black ml-0.5 sm:ml-1" />
           )}
+        </button>
+
+        <button
+          className="w-12 h-12 rounded-full border border-white/20 hover:bg-white/10 flex items-center justify-center transition-colors"
+          onClick={handleShufflePlay}
+          title="Shuffle Play"
+        >
+          <Shuffle className="h-5 w-5 text-white" />
         </button>
 
         <div className="flex items-center gap-4">
