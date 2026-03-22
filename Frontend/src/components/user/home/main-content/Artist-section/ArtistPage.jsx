@@ -1,30 +1,21 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Play, Pause, Clock, Share2 } from "lucide-react";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import api from "../../../../../api";
-import {
-  setCurrentMusic,
-  setQueue,
-  clearQueue,
-  setIsPlaying,
-  togglePlay
-} from "../../../../../slices/user/playerSlice";
 import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 import {
   formatDuration,
   convertToSeconds,
   convertToHrMinFormat,
 } from "../../../../../utils/formatters";
+import { usePlayCollection } from "../../../../../hooks/usePlayCollection";
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
     currentTrack: player.currentTrack,
-    status: player.status,
-    queue: player.queue,
-    queueIndex: player.queueIndex,
     currentContext: player.currentContext,
   })
 );
@@ -32,7 +23,10 @@ const selectPlayerState = createSelector(
 const ArtistDetailPage = () => {
   const { artistId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const dispatch = useDispatch();
+  
+  const autoPlayHandled = useRef(false);
 
   const [artist, setArtist] = useState(null);
   const [publicSongs, setPublicSongs] = useState([]);
@@ -43,16 +37,14 @@ const ArtistDetailPage = () => {
   const [followLoading, setFollowLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
-  const [currentArtistId, setCurrentArtistId] = useState(null);
 
   const currentUserId = useSelector((state) => state.user_id);
-  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
+  const { currentTrack, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
 
   const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing';
 
   // Check if viewing on mobile device
   useEffect(() => {
@@ -94,13 +86,6 @@ const ArtistDetailPage = () => {
           setIsFollowing(false);
         }
 
-        // Initialize currentArtistId if queue contains tracks from this artist
-        if (
-          queue.length > 0 &&
-          queue.some((track) => Number(track.artist_id) === Number(artistId))
-        ) {
-          setCurrentArtistId(Number(artistId));
-        }
       } catch (err) {
         console.error("Error fetching artist data:", err);
         setError("Failed to load artist information.");
@@ -109,7 +94,7 @@ const ArtistDetailPage = () => {
       }
     };
     fetchData();
-  }, [artistId, queue]);
+  }, [artistId]);
 
   // Calculate total duration
   useEffect(() => {
@@ -130,57 +115,43 @@ const ArtistDetailPage = () => {
     id: artistId
   }), [artistId]);
 
-  // Memoize isCurrentTrackFromArtist
-  const isCurrentTrackFromArtist = useMemo(() => {
-    const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
-    return isSameContext && stableSongs.some(song => Number(song.id) === Number(currentMusicId));
-  }, [currentMusicId, stableSongs, currentContext, context]);
+  // Prepare formatted tracks for the player
+  const formattedTracks = useMemo(
+    () => prepareTracksForPlayer(stableSongs, artist, currentUserId),
+    [stableSongs, artist, currentUserId]
+  );
 
-  // Handle play all songs (aligned with handlePlayAlbum)
-  const handlePlayAll = useCallback(() => {
-    if (!stableSongs.length) return;
-
-    if (isCurrentTrackFromArtist) {
-      dispatch(togglePlay());
-      return;
-    }
-
-    const formattedTracks = prepareTracksForPlayer(stableSongs, artist, currentUserId);
-    dispatch(clearQueue());
-    dispatch(setQueue({
-      tracks: formattedTracks,
-      startIndex: 0,
-      context: context
-    }));
-    setCurrentArtistId(Number(artistId));
-    dispatch(setIsPlaying(true));
-  }, [dispatch, isCurrentTrackFromArtist, isPlaying, artistId, stableSongs, context, artist, currentUserId]);
+  // Hook handles all play/pause/toggle/shuffle logic
+  const {
+    handlePlayCollection: handlePlayAll,
+    handlePlayTrackAtIndex,
+    handleShufflePlay,
+    isCollectionPlaying,
+    isCollectionActive: isCurrentTrackFromArtist,
+  } = usePlayCollection({ tracks: formattedTracks, context });
 
   // Handle play individual song 
   const handlePlaySong = useCallback(
-    (song, index) => {
-      const formattedTracks = prepareTracksForPlayer(stableSongs, artist, currentUserId);
-      const formattedTrack = formattedTracks[index];
-
-      const isSameSong = Number(currentMusicId) === Number(formattedTrack.id);
-      const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
-
-      if (isSameSong && isSameContext) {
-        dispatch(togglePlay());
-        return;
-      }
-
-      dispatch(clearQueue());
-      dispatch(setQueue({
-        tracks: formattedTracks,
-        startIndex: index,
-        context: context
-      }));
-      setCurrentArtistId(Number(artistId));
-      dispatch(setIsPlaying(true));
+    (_song, index) => {
+      handlePlayTrackAtIndex(index);
     },
-    [currentMusicId, currentContext, context, isPlaying, artistId, stableSongs, dispatch, artist, currentUserId]
+    [handlePlayTrackAtIndex]
   );
+
+  // Handle autoPlay from location state
+  useEffect(() => {
+    if (stableSongs.length > 0 && !autoPlayHandled.current) {
+      if (location.state?.autoPlay) {
+        if (location.state?.autoShuffle) {
+          handleShufflePlay();
+        } else {
+          handlePlayAll();
+        }
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+      autoPlayHandled.current = true;
+    }
+  }, [stableSongs.length, location.state, location.pathname, handlePlayAll, handleShufflePlay, navigate]);
 
   // Toggle follow
   const toggleFollow = async () => {
@@ -269,7 +240,7 @@ const ArtistDetailPage = () => {
           onClick={handlePlayAll}
           disabled={publicSongs.length === 0}
         >
-          {isPlaying && isCurrentTrackFromArtist ? (
+          {isCollectionPlaying ? (
             <Pause className="h-5 w-5 md:h-6 md:w-6 text-black" />
           ) : (
             <Play className="h-5 w-5 md:h-6 md:w-6 text-black ml-1" />
@@ -318,7 +289,7 @@ const ArtistDetailPage = () => {
                     const isThisTrackPlaying =
                       Number(currentMusicId) === Number(song.id) &&
                       isCurrentTrackFromArtist &&
-                      isPlaying;
+                      isCollectionPlaying;
                     return (
                       <tr
                         key={song.id}

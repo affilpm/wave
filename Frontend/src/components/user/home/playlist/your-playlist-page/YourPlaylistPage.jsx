@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Play, Pause, Clock, Share2, X, Heart, Shuffle } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import api from "../../../../../api";
@@ -13,18 +13,19 @@ import {
   convertToHrMinFormat,
 } from "../../../../../utils/formatters";
 import {
-  toggleShufflePlay,
+  setQueue,
+  clearQueue,
+  togglePlay,
+  setIsPlaying,
 } from "../../../../../slices/user/playerSlice";
 import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
+import { usePlayCollection } from "../../../../../hooks/usePlayCollection";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
     currentTrack: player.currentTrack,
-    status: player.status,
-    queue: player.queue,
-    queueIndex: player.queueIndex,
     currentContext: player.currentContext,
   })
 );
@@ -33,6 +34,8 @@ const YourPlaylistPage = () => {
   const dispatch = useDispatch();
   const { playlistId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoPlayHandled = useRef(false);
 
   const [playlist, setPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,16 +43,14 @@ const YourPlaylistPage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [trackToRemove, setTrackToRemove] = useState(null);
   const [showRemoveConfirmation, setShowRemoveConfirmation] = useState(false);
-  const [currentPlaylistId, setCurrentPlaylistId] = useState(null);
   const [totalDuration, setTotalDuration] = useState("");
 
-  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
+  const { currentTrack, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
 
   const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing';
 
   // Memoize tracks for stable props
   const stableTracks = useMemo(() => playlist?.tracks || [], [playlist]);
@@ -59,64 +60,42 @@ const YourPlaylistPage = () => {
     id: playlistId
   }), [playlistId]);
 
-  // Memoize isCurrentTrackFromPlaylist
-  const isCurrentTrackFromPlaylist = useMemo(() => {
-    const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
-    return isSameContext && stableTracks.some(track => track.music_details.id === currentMusicId);
-  }, [currentMusicId, currentContext, context, stableTracks]);
+  // Prepare formatted tracks for the player
+  const formattedTracks = useMemo(
+    () => prepareTracksForPlayer(stableTracks),
+    [stableTracks]
+  );
 
-
-  const handlePlayPlaylist = useCallback(() => {
-    if (!stableTracks.length) return;
-
-    if (isCurrentTrackFromPlaylist) {
-      dispatch(setIsPlaying(!isPlaying));
-      return;
-    }
-
-    const formattedTracks = prepareTracksForPlayer(stableTracks);
-    dispatch(clearQueue());
-    dispatch(setQueue({
-      tracks: formattedTracks,
-      startIndex: 0,
-      context: context
-    }));
-    setCurrentPlaylistId(playlist.id);
-    dispatch(setIsPlaying(true));
-  }, [dispatch, isCurrentTrackFromPlaylist, isPlaying, playlist, stableTracks, context]);
-
-  // Handle shuffle play
-  const handleShufflePlay = useCallback(() => {
-    if (!stableTracks.length) return;
-    const formattedTracks = prepareTracksForPlayer(stableTracks);
-    dispatch(toggleShufflePlay(formattedTracks));
-    setCurrentPlaylistId(playlist.id);
-  }, [dispatch, playlist, stableTracks]);
+  // Hook handles all play/pause/toggle/shuffle logic
+  const {
+    handlePlayCollection: handlePlayPlaylist,
+    handlePlayTrackAtIndex,
+    handleShufflePlay,
+    isCollectionPlaying,
+    isCollectionActive: isCurrentTrackFromPlaylist,
+  } = usePlayCollection({ tracks: formattedTracks, context });
 
   const handlePlayTrack = useCallback(
-    (track, index) => {
-      const formattedTracks = prepareTracksForPlayer(stableTracks);
-      const formattedTrack = formattedTracks[index];
-
-      const isSameSong = Number(currentMusicId) === Number(formattedTrack.id);
-      const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
-
-      if (isSameSong && isSameContext) {
-        dispatch(setIsPlaying(!isPlaying));
-        return;
-      }
-
-      dispatch(clearQueue());
-      dispatch(setQueue({
-        tracks: formattedTracks,
-        startIndex: index,
-        context: context
-      }));
-      setCurrentPlaylistId(playlist.id);
-      dispatch(setIsPlaying(true));
+    (_track, index) => {
+      handlePlayTrackAtIndex(index);
     },
-    [currentMusicId, currentContext, context, isPlaying, playlist, stableTracks, dispatch]
+    [handlePlayTrackAtIndex]
   );
+
+  // Handle autoPlay from location state
+  useEffect(() => {
+    if (stableTracks.length > 0 && !autoPlayHandled.current) {
+      if (location.state?.autoPlay) {
+        if (location.state?.autoShuffle) {
+          handleShufflePlay();
+        } else {
+          handlePlayPlaylist();
+        }
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+      autoPlayHandled.current = true;
+    }
+  }, [stableTracks.length, location.state, location.pathname, handlePlayPlaylist, handleShufflePlay, navigate]);
 
   // Handle edit playlist
   const handleEdit = useCallback(() => setIsEditModalOpen(true), []);
@@ -124,11 +103,10 @@ const YourPlaylistPage = () => {
   const handleEditPlaylist = useCallback(
     (updatedPlaylist) => {
       setPlaylist(updatedPlaylist);
-      const isSameContext = currentContext?.type === 'playlist' && String(currentContext?.id) === String(updatedPlaylist.id);
-      if (isSameContext && updatedPlaylist.tracks) {
-        const formattedTracks = prepareTracksForPlayer(updatedPlaylist.tracks);
+      if (isCurrentTrackFromPlaylist && updatedPlaylist.tracks) {
+        const updatedFormatted = prepareTracksForPlayer(updatedPlaylist.tracks);
         dispatch(setQueue({
-          tracks: formattedTracks,
+          tracks: updatedFormatted,
           context: { type: 'playlist', id: updatedPlaylist.id }
         }));
       }
@@ -152,9 +130,8 @@ const YourPlaylistPage = () => {
   const handleDelete = useCallback(async () => {
     if (window.confirm("Are you sure you want to delete this playlist?")) {
       try {
-        if (currentPlaylistId === playlist.id) {
+        if (isCurrentTrackFromPlaylist) {
           dispatch(clearQueue());
-          setCurrentPlaylistId(null); // Reset currentPlaylistId
         }
         await api.delete(`/api/v1/playlist/playlists/${playlistId}/`);
         navigate("/home");
@@ -162,7 +139,7 @@ const YourPlaylistPage = () => {
         setError("Failed to delete playlist");
       }
     }
-  }, [currentPlaylistId, dispatch, navigate, playlist, playlistId]);
+  }, [isCurrentTrackFromPlaylist, dispatch, navigate, playlistId]);
 
   // Handle remove track confirmation
   const confirmRemoveTrack = useCallback((trackId, trackName) => {
@@ -181,25 +158,19 @@ const YourPlaylistPage = () => {
 
       await handleTracksUpdate();
 
-      if (Number(currentPlaylistId) === Number(playlist.id)) {
+      if (isCurrentTrackFromPlaylist) {
         const updatedTracks = stableTracks.filter(
           (track) => track.music_details.id !== trackToRemove.id
         );
-        const formattedTracks = prepareTracksForPlayer(updatedTracks);
-        
-        dispatch(setQueue({
-          tracks: formattedTracks,
-          context: { type: 'playlist', id: playlist.id }
-        }));
+        const updatedFormatted = prepareTracksForPlayer(updatedTracks);
 
-        if (currentMusicId === trackToRemove.id) {
-          if (formattedTracks.length > 0) {
-            dispatch(playNext());
-          } else {
-            dispatch(clearQueue());
-            dispatch(setIsPlaying(false));
-            setCurrentPlaylistId(null);
-          }
+        if (updatedFormatted.length > 0) {
+          dispatch(setQueue({
+            tracks: updatedFormatted,
+            context: { type: 'playlist', id: playlist.id }
+          }));
+        } else {
+          dispatch(clearQueue());
         }
       }
 
@@ -211,7 +182,7 @@ const YourPlaylistPage = () => {
     }
   }, [
     trackToRemove,
-    currentPlaylistId,
+    isCurrentTrackFromPlaylist,
     currentMusicId,
     playlist,
     stableTracks,
@@ -229,18 +200,17 @@ const YourPlaylistPage = () => {
     try {
       const response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
       setPlaylist(response.data);
-      const isSameContext = currentContext?.type === 'playlist' && String(currentContext?.id) === String(response.data.id);
-      if (isSameContext && response.data.tracks) {
-        const formattedTracks = prepareTracksForPlayer(response.data.tracks);
+      if (isCurrentTrackFromPlaylist && response.data.tracks) {
+        const updatedFormatted = prepareTracksForPlayer(response.data.tracks);
         dispatch(setQueue({
-          tracks: formattedTracks,
+          tracks: updatedFormatted,
           context: { type: 'playlist', id: response.data.id }
         }));
       }
     } catch (err) {
       setError("Failed to refresh playlist");
     }
-  }, [currentContext, playlistId, dispatch]);
+  }, [isCurrentTrackFromPlaylist, playlistId, dispatch]);
 
   // Calculate total duration
   useEffect(() => {
@@ -263,12 +233,6 @@ const YourPlaylistPage = () => {
       try {
         const response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
         setPlaylist(response.data);
-        if (
-          currentContext?.type === 'playlist' && 
-          String(currentContext?.id) === String(response.data.id)
-        ) {
-          setCurrentPlaylistId(response.data.id);
-        }
       } catch (err) {
         setError("Failed to load playlist");
       } finally {
@@ -277,13 +241,13 @@ const YourPlaylistPage = () => {
     };
 
     fetchPlaylist();
-  }, [playlistId, queue]);
+  }, [playlistId]);
 
   // TrackRow component
   const TrackRow = React.memo(
     ({ track, index }) => {
       const isThisTrackPlaying = useMemo(
-        () => currentMusicId === track.music_details.id && isCurrentTrackFromPlaylist,
+        () => Number(currentMusicId) === Number(track.music_details.id) && isCurrentTrackFromPlaylist,
         [currentMusicId, isCurrentTrackFromPlaylist]
       );
 
@@ -303,7 +267,7 @@ const YourPlaylistPage = () => {
                   handlePlayTrack(track, index);
                 }}
               >
-                {isThisTrackPlaying && isPlaying ? (
+                {isThisTrackPlaying && isCollectionPlaying ? (
                   <Pause className="h-4 w-4" />
                 ) : (
                   <Play className="h-4 w-4" />
@@ -352,7 +316,7 @@ const YourPlaylistPage = () => {
   const TrackCard = React.memo(
     ({ track, index }) => {
       const isThisTrackPlaying = useMemo(
-        () => currentMusicId === track.music_details.id && isCurrentTrackFromPlaylist,
+        () => Number(currentMusicId) === Number(track.music_details.id) && isCurrentTrackFromPlaylist,
         [currentMusicId, isCurrentTrackFromPlaylist]
       );
 
@@ -371,7 +335,7 @@ const YourPlaylistPage = () => {
                 handlePlayTrack(track, index);
               }}
             >
-              {isThisTrackPlaying && isPlaying ? (
+              {isThisTrackPlaying && isCollectionPlaying ? (
                 <Pause className="h-4 w-4" />
               ) : (
                 <Play className="h-4 w-4" />
@@ -490,7 +454,7 @@ const YourPlaylistPage = () => {
           className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors duration-200 ease-in-out shadow-lg"
           onClick={handlePlayPlaylist}
         >
-          {isPlaying && isCurrentTrackFromPlaylist ? (
+          {isCollectionPlaying ? (
             <Pause className="h-5 w-5 md:h-6 md:w-6 text-black" />
           ) : (
             <Play className="h-5 w-5 md:h-6 md:w-6 text-black ml-0.5 md:ml-1" />

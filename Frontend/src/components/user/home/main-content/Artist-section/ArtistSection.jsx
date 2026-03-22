@@ -1,23 +1,33 @@
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
-  setCurrentMusic,
-  setQueue,
-  clearQueue,
-  setIsPlaying,
-  toggleShufflePlay,
   togglePlay
 } from "../../../../../slices/user/playerSlice";
-import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 import api from "../../../../../api";
 
-const ArtistSection = ({ title, items }) => {
+const ArtistSection = ({ title }) => {
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [artistlist, setArtistlist] = useState([]);
   const navigate = useNavigate();
   const dispatch = useDispatch();
+
+  useEffect(() => {
+    const fetchArtists = async () => {
+      try {
+        const response = await api.get(`/api/v1/home/artistlist/`);
+        setArtistlist(response.data.results || response.data || []);
+      } catch (error) {
+        console.error("Error fetching artist items:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchArtists();
+  }, []);
 
   // Selectors at top level
   const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
@@ -49,50 +59,18 @@ const ArtistSection = ({ title, items }) => {
     [currentTrack, currentMusicId, currentContext]
   );
 
-  const handlePlayArtist = async (artist, e) => {
+  const handlePlayArtist = (artist, e) => {
     e.stopPropagation();
-    try {
-      if (isCurrentTrackFromArtist(artist.id)) {
-        dispatch(togglePlay());
-        return;
-      }
-
-      const context = { type: 'artist', id: artist.id };
-      const songsResponse = await api.get(`/api/v1/music/artist/${artist.id}/`);
-      const songs = songsResponse.data.results || songsResponse.data;
-
-      if (songs && songs.length > 0) {
-        const formattedTracks = prepareTracksForPlayer(songs, artist, currentUserId);
-
-        dispatch(clearQueue());
-        dispatch(setQueue({
-          tracks: formattedTracks,
-          startIndex: 0,
-          context: context
-        }));
-        dispatch(setIsPlaying(true));
-      }
-    } catch (error) {
-      console.error("Error fetching artist songs:", error);
+    if (isCurrentTrackFromArtist(artist.id)) {
+      dispatch(togglePlay());
+    } else {
+      navigate(`/artist/${artist.id}`, { state: { autoPlay: true } });
     }
   };
 
-  const handleShufflePlay = async (artist, e) => {
+  const handleShufflePlay = (artist, e) => {
     e.stopPropagation();
-    try {
-      const songsResponse = await api.get(`/api/v1/music/artist/${artist.id}/`);
-      const songs = songsResponse.data.results || songsResponse.data;
-      if (songs && songs.length > 0) {
-        const formattedTracks = prepareTracksForPlayer(songs, artist, currentUserId);
-        const context = { type: 'artist', id: artist.id };
-        
-        // We might want to pass context to toggleShufflePlay too, but it doesn't support it yet.
-        // For now, it's fine as it usually starts a fresh shuffle.
-        dispatch(toggleShufflePlay(formattedTracks));
-      }
-    } catch (error) {
-      console.error("Error shuffling artist songs:", error);
-    }
+    navigate(`/artist/${artist.id}`, { state: { autoPlay: true, autoShuffle: true } });
   };
 
   // Handle artist click to navigate to artist page
@@ -122,6 +100,21 @@ const ArtistSection = ({ title, items }) => {
     const index = username ? username.charCodeAt(0) % colors.length : 0;
     return colors[index];
   };
+
+  if (loading) {
+    return (
+      <section className="mb-8 px-4">
+        <h2 className="text-2xl font-bold mb-4">{title}</h2>
+        <div className="flex gap-4 overflow-hidden">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex-none w-40 h-40 bg-gray-800 animate-pulse rounded-full" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (!artistlist.length) return null;
 
   return (
     <section className="mb-8 relative">
@@ -161,7 +154,7 @@ const ArtistSection = ({ title, items }) => {
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
           <div className="flex gap-4 px-4">
-            {items.map((artist) => (
+            {artistlist.map((artist) => (
               <div
                 key={artist.id}
                 className="flex-none w-40"

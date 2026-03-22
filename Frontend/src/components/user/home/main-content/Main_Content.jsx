@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import MusicSection from "./Music-section/MusicSection";
 import PlaylistSection from "./Playlist-section/PlaylistSection";
-import api from "../../../../api";
 import AlbumSection from "./Album-section/AlbumSection";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
@@ -21,7 +20,7 @@ const ShufflingDashboard = ({ children }) => {
   // Initialize sections and load saved stats
   useEffect(() => {
     const validSections = React.Children.toArray(children).filter(child => 
-      child && child.props && child.props.items && child.props.items.length > 0
+      child && child.props && child.props.title
     );
     setSections(validSections);
 
@@ -124,91 +123,12 @@ const ShufflingDashboard = ({ children }) => {
 
 // Dashboard component update
 const Main_Content = () => {
-  const [musiclistData, setMusiclistData] = useState([]);
-  const [playlistData, setPlaylistData] = useState([]);
-  const [AlbumlistData, setAlbumlistData] = useState([]);
-  const [recentlyPlayedData, setRecentlyPlayedData] = useState([]);
-  const [artistlist, setArtistlist] = useState([]);
-  // const [liveStreams, setLiveStreams] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const navigate = useNavigate();
-  const username = useSelector((state) => state.user.username);
-
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        const [
-          musiclistResponse, 
-          playlistResponse, 
-          albumlistResponse, 
-          // recentlyPlayedResponse, 
-          artistlistResponse,
-        ] = await Promise.all([
-          api.get(`/api/v1/home/musiclist/?top10=true`),
-          api.get("/api/v1/home/playlist/?top10=true"),
-          api.get("/api/v1/home/albumlist/?top10=true"),
-          // api.get("/api/v1/listening_history/recently-played/"),
-          api.get("/api/v1/home/artistlist/"),
-        ]);
-        
-        
-        setMusiclistData(musiclistResponse.data.results || musiclistResponse.data || []);
-        setPlaylistData(playlistResponse.data.results || playlistResponse.data || []);
-        setAlbumlistData(albumlistResponse.data.results || albumlistResponse.data || []);
-        setArtistlist(artistlistResponse.data.results || artistlistResponse.data || []);
-      } catch (err) {
-        setError("Failed to load data.");
-        console.error("Error fetching data:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-    
-
-  }, []);
-  
-  if (error) return <div className="text-white">{error}</div>;
-
   return (
     <ShufflingDashboard>
-
-     
-      {/* {recentlyPlayedData.length > 0 && (
-        <RecentlyPlayedSection
-          title="Recently Played"
-          items={recentlyPlayedData}
-        />
-      )} */}
-      {artistlist.length > 0 && (
-        <ArtistSection
-          title="Artists"
-          items={artistlist}
-        />
-      )}
-      {musiclistData.length > 0 && (
-        <MusicSection
-          title="Music"
-          items={musiclistData}
-        />
-      )}
-      {playlistData.length > 0 && (
-        <PlaylistSection
-          title="Playlists"
-          items={playlistData}
-        />
-      )}
-      {AlbumlistData.length > 0 && (
-        <AlbumSection
-          title="Album"
-          items={AlbumlistData}
-        />
-      )}
-
-
+      <ArtistSection title="Artists" />
+      <MusicSection title="Music" />
+      <PlaylistSection title="Playlists" />
+      <AlbumSection title="Album" />
     </ShufflingDashboard>
   );
 };

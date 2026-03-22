@@ -1,11 +1,10 @@
-import React, { useRef, useState, useCallback, memo } from "react";
+import React, { useRef, useState, useCallback, memo, useEffect } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
-import { handleAlbumPlaybackAction, fetchAlbumTracks } from "./album-utils";
-import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
-import { toggleShufflePlay } from "../../../../../slices/user/playerSlice";
+import { togglePlay } from "../../../../../slices/user/playerSlice";
+import api from "../../../../../api";
 import { Shuffle } from "lucide-react";
 
 // Memoized selector for player state
@@ -20,10 +19,11 @@ const selectPlayerState = createSelector(
   })
 );
 
-const AlbumSection = memo(({ title, items }) => {
+const AlbumSection = memo(({ title }) => {
   const scrollContainerRef = useRef(null);
-  const [showControls, setShowControls] = useState(false);
-  const [isLoading, setIsLoading] = useState({}); 
+  const [showControls, setShowControls] = useState(false); 
+  const [loading, setLoading] = useState(true);
+  const [albumlistData, setAlbumlistData] = useState([]);
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
@@ -33,6 +33,20 @@ const AlbumSection = memo(({ title, items }) => {
   const currentMusicId = currentTrack?.id;
   const isPlaying = status === 'playing';
   const currentIndex = queueIndex;
+
+  useEffect(() => {
+    const fetchAlbums = async () => {
+      try {
+        const response = await api.get(`/api/v1/home/albumlist/?top10=true`);
+        setAlbumlistData(response.data.results || response.data || []);
+      } catch (error) {
+        console.error("Error fetching album items:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAlbums();
+  }, []);
 
   const handleScroll = useCallback((direction) => {
     const container = scrollContainerRef.current;
@@ -46,47 +60,25 @@ const AlbumSection = memo(({ title, items }) => {
   }, []);
 
   const handlePlay = useCallback(
-    async (item, e) => {
+    (item, e) => {
       e.stopPropagation();
-      setIsLoading((prev) => ({ ...prev, [item.id]: true }));
-      try {
-        await handleAlbumPlaybackAction({
-          albumId: item.id,
-          dispatch,
-          currentState: {
-            currentTrack,
-            status,
-            queue,
-            queueIndex,
-            currentContext
-          },
-        });
-      } catch (error) {
-        console.error("Playback error:", error);
-      } finally {
-        setIsLoading((prev) => ({ ...prev, [item.id]: false }));
+      const isSameContext = currentContext?.type === 'album' && String(currentContext?.id) === String(item.id);
+      
+      if (isSameContext) {
+        dispatch(togglePlay());
+      } else {
+        navigate(`/album/${item.id}`, { state: { autoPlay: true } });
       }
     },
-    [dispatch, currentTrack, status, queue, queueIndex, currentContext]
+    [dispatch, currentContext, navigate]
   );
 
   const handleShufflePlay = useCallback(
-    async (item, e) => {
+    (item, e) => {
       e.stopPropagation();
-      setIsLoading((prev) => ({ ...prev, [item.id]: true }));
-      try {
-        const albumData = await fetchAlbumTracks(item.id);
-        if (albumData && albumData.tracks.length) {
-          const formattedTracks = prepareTracksForPlayer(albumData.tracks);
-          dispatch(toggleShufflePlay(formattedTracks));
-        }
-      } catch (error) {
-        console.error("Shuffle error:", error);
-      } finally {
-        setIsLoading((prev) => ({ ...prev, [item.id]: false }));
-      }
+      navigate(`/album/${item.id}`, { state: { autoPlay: true, autoShuffle: true } });
     },
-    [dispatch]
+    [navigate]
   );
 
   const isItemPlaying = useCallback(
@@ -104,6 +96,21 @@ const AlbumSection = memo(({ title, items }) => {
   const handleShowMore = useCallback(() => {
     navigate("/albums-show-more", { state: { title } });
   }, [navigate, title]);
+
+  if (loading) {
+    return (
+      <section className="mb-8 px-4">
+        <h2 className="text-2xl font-bold mb-4">{title}</h2>
+        <div className="flex gap-4 overflow-hidden">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex-none w-40 h-40 bg-gray-800 animate-pulse rounded-md" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (!albumlistData.length) return null;
 
   return (
     <section className="mb-8 relative" aria-label={`Album section: ${title}`}>
@@ -148,7 +155,7 @@ const AlbumSection = memo(({ title, items }) => {
           aria-label="Album list"
         >
           <div className="flex gap-4 px-4">
-            {items.map((item) => (
+            {albumlistData.map((item) => (
               <div
                 key={item.id} // Use item.id for uniqueness
                 className="flex-none w-40 cursor-pointer"
@@ -180,29 +187,8 @@ const AlbumSection = memo(({ title, items }) => {
                         } shadow-xl hover:scale-105 transition-all focus:outline-none focus:ring-2 focus:ring-green-500`}
                         onClick={(e) => handlePlay(item, e)}
                         aria-label={isItemPlaying(item) ? `Pause ${item.name || "album"}` : `Play ${item.name || "album"}`}
-                        disabled={isLoading[item.id]}
                       >
-                        {isLoading[item.id] ? (
-                          <svg
-                            className="w-6 h-6 animate-spin text-black"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                            />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8v8z"
-                            />
-                          </svg>
-                        ) : isItemPlaying(item) ? (
+                        {isItemPlaying(item) ? (
                           <Pause className="w-6 h-6 text-black" />
                         ) : (
                           <Play className="w-6 h-6 text-black" />

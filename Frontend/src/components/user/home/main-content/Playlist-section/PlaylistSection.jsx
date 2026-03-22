@@ -1,14 +1,14 @@
-import React, { useState, useRef, useCallback, useMemo } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import { useNavigate } from "react-router-dom";
-import { handlePlaybackAction } from "./playlist-utils";
-import { toggleShufflePlay } from "../../../../../slices/user/playerSlice";
-import { fetchPlaylistTracks } from "./playlist-utils";
-import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
+import {
+  togglePlay,
+} from "../../../../../slices/user/playerSlice";
 import { Shuffle } from "lucide-react";
+import api from "../../../../../api";
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
@@ -21,9 +21,11 @@ const selectPlayerState = createSelector(
   })
 );
 
-const PlaylistSection = ({ title, items, onLengthChange }) => {
+const PlaylistSection = ({ title }) => {
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [playlistData, setPlaylistData] = useState([]);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const username = useSelector((state) => state.user.username);
@@ -35,40 +37,60 @@ const PlaylistSection = ({ title, items, onLengthChange }) => {
   const isPlaying = status === 'playing';
   const currentIndex = queueIndex;
 
+  useEffect(() => {
+    const fetchPlaylists = async () => {
+      try {
+        const response = await api.get(`/api/v1/home/playlist/?top10=true`);
+        setPlaylistData(response.data.results || response.data || []);
+      } catch (error) {
+        console.error("Error fetching playlist items:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPlaylists();
+  }, []);
+
   const handlePlaylistClick = useCallback(
     (playlistId) => {
-      const playlist = items.find((item) => item.id === playlistId);
+      const playlist = playlistData.find((item) => item.id === playlistId);
       if (playlist && playlist.created_by === username) {
         navigate(`/playlist/${playlistId}`);
       } else {
         navigate(`/saved-playlist/${playlistId}`);
       }
     },
-    [items, navigate, username]
+    [playlistData, navigate, username]
   );
 
   const handlePlayClick = useCallback(
-    async (e, item) => {
+    (e, item) => {
       e.stopPropagation();
-      await handlePlaybackAction({
-        playlistId: item.id,
-        dispatch,
-        currentState: { currentTrack, status, queue, queueIndex, currentContext },
-      });
+      const isCurrentPlaylist = currentContext?.type === 'playlist' && String(currentContext?.id) === String(item.id);
+
+      if (isCurrentPlaylist) {
+        dispatch(togglePlay());
+      } else {
+        if (item.created_by === username) {
+          navigate(`/playlist/${item.id}`, { state: { autoPlay: true } });
+        } else {
+          navigate(`/saved-playlist/${item.id}`, { state: { autoPlay: true } });
+        }
+      }
     },
-    [dispatch, currentTrack, status, queue, queueIndex, currentContext]
+    [dispatch, currentContext, navigate, username]
   );
 
   const handleShuffleClick = useCallback(
-    async (e, item) => {
+    (e, item) => {
       e.stopPropagation();
-      const result = await fetchPlaylistTracks(item.id);
-      if (result && result.tracks) {
-        const formatted = prepareTracksForPlayer(result.tracks);
-        dispatch(toggleShufflePlay(formatted));
+      if (item.created_by === username) {
+        navigate(`/playlist/${item.id}`, { state: { autoPlay: true, autoShuffle: true } });
+      } else {
+        navigate(`/saved-playlist/${item.id}`, { state: { autoPlay: true, autoShuffle: true } });
       }
     },
-    [dispatch]
+    [navigate, username]
   );
 
   const handleScroll = (direction) => {
@@ -82,13 +104,24 @@ const PlaylistSection = ({ title, items, onLengthChange }) => {
     }
   };
 
-  const memoizedItems = useMemo(() => items, [items]);
-
   const handleShowMore = () => {
     navigate("/playlist-show-more", { state: { title } });
   };
 
-  if (!memoizedItems.length) return null;
+  if (loading) {
+    return (
+      <section className="mb-8 px-4">
+        <h2 className="text-2xl font-bold mb-4">{title}</h2>
+        <div className="flex gap-4 overflow-hidden">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex-none w-40 h-40 bg-gray-800 animate-pulse rounded-md" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (!playlistData.length) return null;
 
   return (
     <section className="mb-8 relative">
@@ -128,7 +161,7 @@ const PlaylistSection = ({ title, items, onLengthChange }) => {
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
           <div className="flex gap-4 px-4">
-            {memoizedItems.map((item) => {
+            {playlistData.map((item) => {
               // Determine if this playlist is currently playing
               const isCurrentPlaylist = currentContext?.type === 'playlist' && String(currentContext?.id) === String(item.id);
               // Show pause button if this playlist is active and playing

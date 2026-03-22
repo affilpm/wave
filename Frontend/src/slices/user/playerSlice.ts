@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import api from '../../api';
 import { PlayerState, Track, PlayerStatus, RepeatMode, PlayerContext } from '../../types/player';
+import { PLAYLISTS } from '../../constants/apiEndpoints';
 
 export const fetchStreamUrl = createAsyncThunk(
   'player/fetchStreamUrl',
@@ -53,6 +54,42 @@ export const fetchStreamUrl = createAsyncThunk(
   }
 );
 
+/**
+ * Toggles a track's liked status on the backend.
+ */
+export const toggleLike = createAsyncThunk(
+  'player/toggleLike',
+  async (musicId: string | number, { rejectWithValue }) => {
+    try {
+      const response = await api.post(PLAYLISTS.LIKE_SONGS, { music_id: musicId });
+      return { musicId, liked: response.data.liked };
+    } catch (err: any) {
+      return rejectWithValue(err.message || 'Failed to toggle like');
+    }
+  }
+);
+
+/**
+ * Fetches the user's "Liked Songs" playlist to populate the likedIds set.
+ */
+export const fetchLikedSongs = createAsyncThunk(
+  'player/fetchLikedSongs',
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await api.get('/api/v1/playlist/playlist-data/');
+      const playlists = Array.isArray(response.data) ? response.data : (response.data.results || []);
+      const likedPlaylist = playlists.find((p: any) => p.name === 'Liked Songs');
+      
+      if (!likedPlaylist) return [];
+      
+      // Return just the IDs
+      return likedPlaylist.tracks.map((t: any) => t.music_details.id);
+    } catch (err: any) {
+      return rejectWithValue(err.message || 'Failed to fetch liked songs');
+    }
+  }
+);
+
 const initialState: PlayerState = {
   currentTrack: null,
   queue: [],
@@ -66,6 +103,7 @@ const initialState: PlayerState = {
   shuffleMode: false,
   repeatMode: 'off',
   isLiked: false,
+  likedIds: {},
   dominantColor: '#a855f7',
   isFullPlayerOpen: false,
   isQueueOpen: false,
@@ -101,6 +139,7 @@ const playerSlice = createSlice({
 
       state.currentTrack = action.payload;
       state.status = 'loading';
+      state.isLiked = !!state.likedIds[Number(action.payload.id)];
       
       const exists = state.originalQueue.find(t => String(t.id) === String(action.payload.id));
       if (!exists) {
@@ -131,6 +170,7 @@ const playerSlice = createSlice({
         state.queueIndex = index;
         state.currentTrack = state.queue[index];
         state.status = 'loading';
+        state.isLiked = !!state.likedIds[Number(state.currentTrack.id)];
         state.currentTime = 0;
 
         // If played from queue, remove from userQueue if it was there
@@ -228,6 +268,7 @@ const playerSlice = createSlice({
         if (tracks.length > 0) {
           state.currentTrack = state.queue[state.queueIndex];
           state.status = 'loading';
+          state.isLiked = !!state.likedIds[Number(state.currentTrack.id)];
           state.currentTime = 0;
         } else {
           state.currentTrack = null;
@@ -285,6 +326,7 @@ const playerSlice = createSlice({
           }
           state.currentTrack = state.queue[state.queueIndex];
           state.status = 'loading';
+          state.isLiked = !!state.likedIds[Number(state.currentTrack.id)];
           state.currentTime = 0;
         } else if (state.queue.length === 0) {
           state.currentTrack = null;
@@ -321,6 +363,7 @@ const playerSlice = createSlice({
           state.currentTrack = state.queue[0];
           state.currentTime = 0;
           state.status = 'loading';
+          state.isLiked = !!state.likedIds[Number(state.currentTrack.id)];
         } else {
           state.status = 'idle';
           state.currentTime = 0;
@@ -330,6 +373,7 @@ const playerSlice = createSlice({
         state.currentTrack = state.queue[state.queueIndex];
         state.currentTime = 0;
         state.status = 'loading';
+        state.isLiked = state.currentTrack ? !!state.likedIds[Number(state.currentTrack.id)] : false;
         if (state.userQueue) {
           state.userQueue = state.userQueue.filter(t => t.id !== state.currentTrack?.id);
         }
@@ -360,6 +404,7 @@ const playerSlice = createSlice({
           state.currentTrack = state.queue[0];
           state.currentTime = 0;
           state.status = 'loading';
+          state.isLiked = !!state.likedIds[Number(state.currentTrack.id)];
         } else {
           state.status = 'idle';
           state.currentTime = 0;
@@ -369,6 +414,7 @@ const playerSlice = createSlice({
         state.currentTrack = state.queue[state.queueIndex];
         state.currentTime = 0;
         state.status = 'loading';
+        state.isLiked = state.currentTrack ? !!state.likedIds[Number(state.currentTrack.id)] : false;
 
         // If played a userQueue track, remove it from tracking
         state.userQueue = state.userQueue.filter(t => t.id !== state.currentTrack?.id);
@@ -390,12 +436,14 @@ const playerSlice = createSlice({
           state.currentTrack = state.queue[state.queueIndex];
           state.currentTime = 0;
           state.status = 'loading';
+          state.isLiked = !!state.likedIds[Number(state.currentTrack.id)];
         } else {
           if (state.repeatMode === 'all') {
             state.queueIndex = state.queue.length - 1;
             state.currentTrack = state.queue[state.queueIndex];
             state.currentTime = 0;
             state.status = 'loading';
+            state.isLiked = !!state.likedIds[Number(state.currentTrack.id)];
           } else {
             // First track, just restart it
             state.currentTime = 0;
@@ -493,6 +541,7 @@ const playerSlice = createSlice({
       }
       state.currentTrack = action.payload;
       state.status = 'loading';
+      state.isLiked = !!state.likedIds[Number(action.payload.id)];
       const exists = state.originalQueue.find(t => String(t.id) === String(action.payload.id));
       if (!exists) {
         state.originalQueue = [action.payload];
@@ -536,6 +585,24 @@ const playerSlice = createSlice({
         if (state.queueIndex !== -1 && state.queue[state.queueIndex]) {
           state.queue[state.queueIndex] = state.currentTrack;
         }
+      }
+    });
+    builder.addCase(toggleLike.fulfilled, (state, action) => {
+      const { musicId, liked } = action.payload;
+      state.likedIds[Number(musicId)] = liked;
+      if (state.currentTrack && Number(state.currentTrack.id) === Number(musicId)) {
+        state.isLiked = liked;
+      }
+    });
+    builder.addCase(fetchLikedSongs.fulfilled, (state, action) => {
+      const ids = action.payload;
+      state.likedIds = {};
+      ids.forEach((id: number) => {
+        state.likedIds[id] = true;
+      });
+      // Update current track isLiked flag
+      if (state.currentTrack) {
+        state.isLiked = !!state.likedIds[Number(state.currentTrack.id)];
       }
     });
   }

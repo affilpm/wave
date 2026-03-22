@@ -13,7 +13,8 @@ import {
   cycleRepeat,
   toggleFullPlayer,
   toggleQueue,
-  setIsLiked,
+  toggleLike,
+  fetchLikedSongs,
   setQueue,
   removeFromQueue
 } from '../../slices/user/playerSlice';
@@ -52,11 +53,14 @@ export const Player: React.FC = () => {
 
   // Fallback cleanup or global styles if needed
   useEffect(() => {
+    // Initial sync of liked songs
+    dispatch(fetchLikedSongs() as any);
+    
     // Ensuring basic variables exist if color hook hasn't run yet
     if (!document.documentElement.style.getPropertyValue('--player-accent')) {
       document.documentElement.style.setProperty('--player-accent', '#3b82f6');
     }
-  }, []);
+  }, [dispatch]);
 
   if (!currentTrack) {
     return null; // Don't render player at all if no track is playing
@@ -75,7 +79,7 @@ export const Player: React.FC = () => {
         onPlayPause={() => dispatch(isPlaying ? pause() : resume())}
         onNext={() => dispatch(skipNext())}
         onPrev={() => dispatch(skipPrevious())}
-        onToggleLike={() => dispatch(setIsLiked(!isLiked))}
+        onToggleLike={() => dispatch(toggleLike(currentTrack.id) as any)}
         onExpand={() => dispatch(toggleFullPlayer())}
         onSeek={seek}
         onToggleShuffle={() => dispatch(toggleShuffle())}
@@ -103,7 +107,7 @@ export const Player: React.FC = () => {
         onToggleMute={() => dispatch(toggleMute())}
         onToggleShuffle={() => dispatch(toggleShuffle())}
         onCycleRepeat={() => dispatch(cycleRepeat())}
-        onToggleLike={() => dispatch(setIsLiked(!isLiked))}
+        onToggleLike={() => dispatch(toggleLike(currentTrack.id) as any)}
         onToggleQueue={() => dispatch(toggleQueue())}
       />
 

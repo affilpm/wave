@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Play, Pause, Clock, Share2, Plus, Check, Shuffle } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import api from "../../../../api";
@@ -9,24 +9,14 @@ import {
   convertToSeconds,
   convertToHrMinFormat,
 } from "../../../../utils/formatters";
-import {
-  setCurrentMusic,
-  setIsPlaying,
-  setQueue,
-  clearQueue,
-  toggleShufflePlay,
-  togglePlay
-} from "../../../../slices/user/playerSlice";
 import { prepareTracksForPlayer } from "../../../../utils/trackUtils";
+import { usePlayCollection } from "../../../../hooks/usePlayCollection";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
     currentTrack: player.currentTrack,
-    status: player.status,
-    queue: player.queue,
-    queueIndex: player.queueIndex,
     currentContext: player.currentContext,
   })
 );
@@ -35,6 +25,8 @@ const AlbumPage = () => {
   const dispatch = useDispatch();
   const { albumId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoPlayHandled = useRef(false);
 
   const [album, setAlbum] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,15 +34,13 @@ const AlbumPage = () => {
   const [totalDuration, setTotalDuration] = useState("");
   const [isInLibrary, setIsInLibrary] = useState(false);
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
-  const [currentAlbumId, setCurrentAlbumId] = useState(null);
 
-  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
+  const { currentTrack, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
   
   const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing';
 
   // Memoize tracks for stable props
   const stableTracks = useMemo(() => album?.tracks || [], [album]);
@@ -60,63 +50,42 @@ const AlbumPage = () => {
     id: albumId
   }), [albumId]);
 
-  // Memoize isCurrentTrackFromAlbum
-  const isCurrentTrackFromAlbum = useMemo(() => {
-    const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
-    return isSameContext && stableTracks.some(track => Number(track.music_details.id) === Number(currentMusicId));
-  }, [currentMusicId, stableTracks, currentContext, context]);
+  // Prepare formatted tracks for the player
+  const formattedTracks = useMemo(
+    () => prepareTracksForPlayer(stableTracks.map(t => t.music_details)),
+    [stableTracks]
+  );
 
-
-  const handlePlayAlbum = useCallback(() => {
-    if (!stableTracks.length) return;
-
-    if (isCurrentTrackFromAlbum) {
-      dispatch(togglePlay());
-      return;
-    }
-
-    const formattedTracks = prepareTracksForPlayer(stableTracks.map(t => t.music_details));
-    dispatch(clearQueue());
-    dispatch(setQueue({
-      tracks: formattedTracks,
-      startIndex: 0,
-      context: context
-    }));
-    setCurrentAlbumId(Number(album.id));
-    dispatch(setIsPlaying(true));
-  }, [dispatch, isCurrentTrackFromAlbum, isPlaying, album, stableTracks, context]);
-
-  const handleShufflePlay = useCallback(() => {
-    if (!stableTracks.length) return;
-    const formattedTracks = prepareTracksForPlayer(stableTracks.map(t => t.music_details));
-    dispatch(toggleShufflePlay(formattedTracks));
-    setCurrentAlbumId(Number(album.id));
-  }, [dispatch, album, stableTracks]);
+  // Hook handles all play/pause/toggle/shuffle logic
+  const {
+    handlePlayCollection: handlePlayAlbum,
+    handlePlayTrackAtIndex,
+    handleShufflePlay,
+    isCollectionPlaying,
+    isCollectionActive: isCurrentTrackFromAlbum,
+  } = usePlayCollection({ tracks: formattedTracks, context });
 
   const handlePlayTrack = useCallback(
-    (track, index) => {
-      const formattedTracks = prepareTracksForPlayer(stableTracks.map(t => t.music_details));
-      const formattedTrack = formattedTracks[index];
-
-      const isSameSong = Number(currentMusicId) === Number(formattedTrack.id);
-      const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
-
-      if (isSameSong && isSameContext) {
-        dispatch(togglePlay());
-        return;
-      }
-
-      dispatch(clearQueue());
-      dispatch(setQueue({
-        tracks: formattedTracks,
-        startIndex: index,
-        context: context
-      }));
-      setCurrentAlbumId(Number(album.id));
-      dispatch(setIsPlaying(true));
+    (_track, index) => {
+      handlePlayTrackAtIndex(index);
     },
-    [currentMusicId, currentContext, context, isPlaying, album, stableTracks, dispatch]
+    [handlePlayTrackAtIndex]
   );
+  
+  // Handle autoPlay from location state
+  useEffect(() => {
+    if (stableTracks.length > 0 && !autoPlayHandled.current) {
+      if (location.state?.autoPlay) {
+        if (location.state?.autoShuffle) {
+          handleShufflePlay();
+        } else {
+          handlePlayAlbum();
+        }
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+      autoPlayHandled.current = true;
+    }
+  }, [stableTracks.length, location.state, location.pathname, handlePlayAlbum, handleShufflePlay, navigate]);
 
   // Check if album is in library
   const checkLibraryStatus = useCallback(async () => {
@@ -167,12 +136,6 @@ const AlbumPage = () => {
       try {
         const response = await api.get(`/api/v1/album/album-data/${albumId}/`);
         setAlbum(response.data);
-        if (
-          queue.length > 0 &&
-          queue.some((track) => Number(track.album_id) === Number(response.data.id))
-        ) {
-          setCurrentAlbumId(Number(response.data.id));
-        }
         checkLibraryStatus();
       } catch (err) {
         setError("Failed to load album");
@@ -182,7 +145,7 @@ const AlbumPage = () => {
     };
 
     fetchAlbum();
-  }, [albumId, queue, checkLibraryStatus]);
+  }, [albumId, checkLibraryStatus]);
 
   const TrackItem = React.memo(({ track, index }) => {
     const isSameSong = Number(currentMusicId) === Number(track.music_details.id);
@@ -201,7 +164,7 @@ const AlbumPage = () => {
             className="hidden group-hover:block"
             onClick={() => handlePlayTrack(track, index)}
           >
-            {isThisTrackPlaying && isPlaying ? (
+            {isThisTrackPlaying && isCollectionPlaying ? (
               <Pause className="h-4 w-4" />
             ) : (
               <Play className="h-4 w-4" />
@@ -249,7 +212,7 @@ const AlbumPage = () => {
               className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
               onClick={() => handlePlayTrack(track, index)}
             >
-              {isThisTrackPlaying && isPlaying ? (
+              {isThisTrackPlaying && isCollectionPlaying ? (
                 <Pause className="h-4 w-4" />
               ) : (
                 <Play className="h-4 w-4" />
@@ -351,7 +314,7 @@ const AlbumPage = () => {
           className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors shadow-lg"
           onClick={handlePlayAlbum}
         >
-          {isPlaying && isCurrentTrackFromAlbum ? (
+          {isCollectionPlaying ? (
             <Pause className="h-5 w-5 sm:h-6 sm:w-6 text-black" />
           ) : (
             <Play className="h-5 w-5 sm:h-6 sm:w-6 text-black ml-0.5 sm:ml-1" />

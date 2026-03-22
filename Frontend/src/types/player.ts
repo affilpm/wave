@@ -39,6 +39,7 @@ export interface PlayerState {
   shuffleMode: boolean;
   repeatMode: RepeatMode;
   isLiked: boolean;
+  likedIds: Record<number, boolean>;
   dominantColor: string;
   isFullPlayerOpen: boolean;
   isQueueOpen: boolean;

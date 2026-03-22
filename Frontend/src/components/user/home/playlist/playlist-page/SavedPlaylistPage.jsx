@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Play, Pause, Clock, Share2, Plus, Check, Heart, Shuffle } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import api from "../../../../../api";
@@ -9,19 +9,14 @@ import {
   convertToSeconds,
   convertToHrMinFormat,
 } from "../../../../../utils/formatters";
-import {
-  toggleShufflePlay,
-} from "../../../../../slices/user/playerSlice";
 import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
+import { usePlayCollection } from "../../../../../hooks/usePlayCollection";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
     currentTrack: player.currentTrack,
-    status: player.status,
-    queue: player.queue,
-    queueIndex: player.queueIndex,
     currentContext: player.currentContext,
   })
 );
@@ -30,6 +25,8 @@ const SavedPlaylistPage = () => {
   const dispatch = useDispatch();
   const { playlistId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoPlayHandled = useRef(false);
 
   const [playlist, setPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,15 +34,13 @@ const SavedPlaylistPage = () => {
   const [totalDuration, setTotalDuration] = useState("");
   const [isInLibrary, setIsInLibrary] = useState(false);
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
-  const [currentPlaylistId, setCurrentPlaylistId] = useState(null);
 
-  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
+  const { currentTrack, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
   
   const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing';
 
   // Memoize tracks for stable props
   const stableTracks = useMemo(() => playlist?.tracks || [], [playlist]);
@@ -55,63 +50,42 @@ const SavedPlaylistPage = () => {
     id: playlistId
   }), [playlistId]);
 
-  // Memoize isCurrentTrackFromPlaylist
-  const isCurrentTrackFromPlaylist = useMemo(() => {
-    const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
-    return isSameContext && stableTracks.some(track => Number(track.music_details.id) === Number(currentMusicId));
-  }, [currentMusicId, currentContext, context, stableTracks]);
+  // Prepare formatted tracks for the player
+  const formattedTracks = useMemo(
+    () => prepareTracksForPlayer(stableTracks),
+    [stableTracks]
+  );
 
-
-  const handlePlayPlaylist = useCallback(() => {
-    if (!stableTracks.length) return;
-
-    if (isCurrentTrackFromPlaylist) {
-      dispatch(setIsPlaying(!isPlaying));
-      return;
-    }
-
-    const formattedTracks = prepareTracksForPlayer(stableTracks);
-    dispatch(clearQueue());
-    dispatch(setQueue({
-      tracks: formattedTracks,
-      startIndex: 0,
-      context: context
-    }));
-    setCurrentPlaylistId(Number(playlist.id));
-    dispatch(setIsPlaying(true));
-  }, [dispatch, isCurrentTrackFromPlaylist, isPlaying, playlist, stableTracks, context]);
-
-  const handleShufflePlay = useCallback(() => {
-    if (!stableTracks.length) return;
-    const formattedTracks = prepareTracksForPlayer(stableTracks);
-    dispatch(toggleShufflePlay(formattedTracks));
-    setCurrentPlaylistId(Number(playlist.id));
-  }, [dispatch, playlist, stableTracks]);
+  // Hook handles all play/pause/toggle/shuffle logic
+  const {
+    handlePlayCollection: handlePlayPlaylist,
+    handlePlayTrackAtIndex,
+    handleShufflePlay,
+    isCollectionPlaying,
+    isCollectionActive: isCurrentTrackFromPlaylist,
+  } = usePlayCollection({ tracks: formattedTracks, context });
 
   const handlePlayTrack = useCallback(
-    (track, index) => {
-      const formattedTracks = prepareTracksForPlayer(stableTracks);
-      const formattedTrack = formattedTracks[index];
-
-      const isSameSong = Number(currentMusicId) === Number(formattedTrack.id);
-      const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
-
-      if (isSameSong && isSameContext) {
-        dispatch(setIsPlaying(!isPlaying));
-        return;
-      }
-
-      dispatch(clearQueue());
-      dispatch(setQueue({
-        tracks: formattedTracks,
-        startIndex: index,
-        context: context
-      }));
-      setCurrentPlaylistId(Number(playlist.id));
-      dispatch(setIsPlaying(true));
+    (_track, index) => {
+      handlePlayTrackAtIndex(index);
     },
-    [currentMusicId, currentContext, context, isPlaying, playlist, stableTracks, dispatch]
+    [handlePlayTrackAtIndex]
   );
+
+  // Handle autoPlay from location state
+  useEffect(() => {
+    if (stableTracks.length > 0 && !autoPlayHandled.current) {
+      if (location.state?.autoPlay) {
+        if (location.state?.autoShuffle) {
+          handleShufflePlay();
+        } else {
+          handlePlayPlaylist();
+        }
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+      autoPlayHandled.current = true;
+    }
+  }, [stableTracks.length, location.state, location.pathname, handlePlayPlaylist, handleShufflePlay, navigate]);
 
   // Check if playlist is in library
   const checkLibraryStatus = useCallback(async () => {
@@ -166,12 +140,6 @@ const SavedPlaylistPage = () => {
       try {
         const response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
         setPlaylist(response.data);
-        if (
-          currentContext?.type === 'playlist' && 
-          String(currentContext?.id) === String(response.data.id)
-        ) {
-          setCurrentPlaylistId(Number(response.data.id));
-        }
         checkLibraryStatus();
       } catch (err) {
         setError("Failed to load playlist");
@@ -181,7 +149,7 @@ const SavedPlaylistPage = () => {
     };
 
     fetchPlaylist();
-  }, [playlistId, queue, checkLibraryStatus]);
+  }, [playlistId, checkLibraryStatus]);
 
 
   // Mobile-optimized track component
@@ -197,11 +165,11 @@ const SavedPlaylistPage = () => {
       >
         <div className="flex items-center justify-center w-6 text-sm text-gray-400 mr-1">
           <span className="group-hover:hidden">{index + 1}</span>
-          <button
+           <button
             className="hidden group-hover:block"
             onClick={() => handlePlayTrack(track, index)}
           >
-            {isThisTrackPlaying && isPlaying ? (
+            {isThisTrackPlaying && isCollectionPlaying ? (
               <Pause className="h-4 w-4" />
             ) : (
               <Play className="h-4 w-4" />
@@ -249,7 +217,7 @@ const SavedPlaylistPage = () => {
               className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
               onClick={() => handlePlayTrack(track, index)}
             >
-              {isThisTrackPlaying && isPlaying ? (
+              {isThisTrackPlaying && isCollectionPlaying ? (
                 <Pause className="h-4 w-4" />
               ) : (
                 <Play className="h-4 w-4" />
@@ -345,7 +313,7 @@ const SavedPlaylistPage = () => {
           className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors shadow-lg"
           onClick={handlePlayPlaylist}
         >
-          {isPlaying && isCurrentTrackFromPlaylist ? (
+          {isCollectionPlaying ? (
             <Pause className="h-5 w-5 sm:h-6 sm:w-6 text-black" />
           ) : (
             <Play className="h-5 w-5 sm:h-6 sm:w-6 text-black ml-0.5 sm:ml-1" />
