@@ -25,7 +25,6 @@ api_v1_patterns: list = [
     path("library/", include("library.urls")),
     path("premium/", include("premium.urls")),
     path("listening-history/", include("listening_history.urls")),
-    path("livestream/", include("agora.urls")),
     path("", include("common.urls")),
 ]
 
@@ -44,7 +43,6 @@ urlpatterns: list = [
     path("api/library/", include("library.urls")),
     path("api/premium/", include("premium.urls")),
     path("api/listening-history/", include("listening_history.urls")),
-    path("api/livestream/", include("agora.urls")),
 ]
 
 # ---------------------------------------------------------------------------

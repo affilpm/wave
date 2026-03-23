@@ -11,6 +11,7 @@ import playerReducer from './slices/user/playerSlice';
 import playerMiddleware from './middleware/playerMiddleware';
 import { activityMiddleware } from './middleware/activityMiddleware';
 import equalizerReducer from './slices/user/equalizerSlice';
+import libraryReducer from './slices/user/librarySlice';
 
 const playerPersistConfig = {
   key: 'player',
@@ -26,12 +27,13 @@ const rootReducer = combineReducers({
   album: albumReducer,
   player: persistReducer(playerPersistConfig, playerReducer),   
   equalizer: equalizerReducer,
+  library: libraryReducer,
 });
 
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['user', 'admin', 'album', 'equalizer'], // 'player' is now handled by its own persistReducer
+  whitelist: ['user', 'admin', 'album', 'equalizer', 'library'], // 'player' is now handled by its own persistReducer
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

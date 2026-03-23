@@ -1,135 +1,164 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import MusicSection from "./Music-section/MusicSection";
-import PlaylistSection from "./Playlist-section/PlaylistSection";
-import AlbumSection from "./Album-section/AlbumSection";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useSelector } from "react-redux";
-import GenreDiscovery from "./Genre-section/GenreDiscovery";
-import { Shuffle } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-// import RecentlyPlayedSection from "./RecentlyPlayedSection";
-import ArtistSection from "./Artist-section/ArtistSection";
-// import LiveStreamSection from "../../../livestream/LiveStreamViewerApp";
-// import LivestreamViewerApp from "../../../livestream/LiveStreamViewerApp";
+import api from "../../../../api";
+import Section from "./Section";
 
-const ShufflingDashboard = ({ children }) => {
-  const [sections, setSections] = useState([]);
-  const [shuffleCount, setShuffleCount] = useState(0);
-  const [sectionStats, setSectionStats] = useState({});
-  
-  // Initialize sections and load saved stats
-  useEffect(() => {
-    const validSections = React.Children.toArray(children).filter(child => 
-      child && child.props && child.props.title
-    );
-    setSections(validSections);
+const getGreeting = () => {
+  const currentHour = new Date().getHours();
+  if (currentHour < 12) return "Good morning";
+  if (currentHour < 18) return "Good afternoon";
+  return "Good evening";
+};
 
-    // Load saved section statistics from localStorage
-    const savedStats = localStorage.getItem('sectionStats');
-    if (savedStats) {
-      setSectionStats(JSON.parse(savedStats));
-    } else {
-      // Initialize stats for each section
-      const initialStats = validSections.reduce((acc, section) => ({
-        ...acc,
-        [section.props.title]: {
-          views: 0,
-          lastInteraction: Date.now(),
-          weight: 1
-        }
-      }), {});
-      setSectionStats(initialStats);
-    }
-  }, [children]);
-
-  // Save stats to localStorage when they change
-  useEffect(() => {
-    localStorage.setItem('sectionStats', JSON.stringify(sectionStats));
-  }, [sectionStats]);
-
-  // Track section interaction
-  const trackSectionInteraction = useCallback((sectionTitle) => {
-    setSectionStats(prevStats => {
-      const currentStats = prevStats[sectionTitle] || { views: 0, weight: 1 };
-      return {
-        ...prevStats,
-        [sectionTitle]: {
-          views: currentStats.views + 1,
-          lastInteraction: Date.now(),
-          weight: Math.min(currentStats.weight + 0.2, 3)
-        }
-      };
-    });
-  }, []);
-
-  // Weighted shuffle algorithm
-  const shuffleSections = useCallback(() => {
-    setSections(currentSections => {
-      const weightedSections = currentSections.map(section => ({
-        section,
-        weight: sectionStats[section.props.title]?.weight || 1,
-        random: Math.random()
-      }));
-
-      weightedSections.sort((a, b) => {
-        const weightDiff = b.weight - a.weight;
-        return weightDiff !== 0 ? weightDiff : b.random - a.random;
-      });
-
-      return weightedSections.map(({ section }) => section);
-    });
-    setShuffleCount(prev => prev + 1);
-  }, [sectionStats]);
-
-  // Auto-shuffle timer - runs every 5 minutes
-  useEffect(() => {
-    const timer = setInterval(shuffleSections, 300000);
-    return () => clearInterval(timer);
-  }, [shuffleSections]);
-
-  // Wrap each section with interaction tracking
-  const wrappedSections = useMemo(() => {
-    return sections.map(section => (
-      <motion.div
-        key={`${section.props.title}-${shuffleCount}`}
-        layout
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        transition={{
-          type: "spring",
-          stiffness: 500,
-          damping: 50,
-          mass: 1
-        }}
-        className="mb-8"
-        onViewportEnter={() => trackSectionInteraction(section.props.title)}
-      >
-        {section}
-      </motion.div>
-    ));
-  }, [sections, shuffleCount, trackSectionInteraction]);
-
+// A quick and small card for the top "Recently Played" grid
+const MiniCard = ({ item }) => {
   return (
-    <div className="flex-1 p-2">
-      <AnimatePresence mode="popLayout">
-        {wrappedSections}
-      </AnimatePresence>
-
-      <GenreDiscovery />
+    <div className="flex items-center bg-white/5 hover:bg-white/20 transition-all rounded-md overflow-hidden cursor-pointer group">
+      <img
+        src={item.cover_photo || item.image || item.cover || '/default-cover.png'}
+        alt={item.name}
+        className="w-16 h-16 object-cover shadow-[4px_0_10px_rgba(0,0,0,0.3)]"
+      />
+      <div className="flex-1 px-4 font-bold text-white truncate">
+        {item.name}
+      </div>
     </div>
   );
 };
 
-// Dashboard component update
 const Main_Content = () => {
+  const [loading, setLoading] = useState(true);
+  const [greeting, setGreeting] = useState(getGreeting());
+  
+  // Data pieces
+  const [trendingMusic, setTrendingMusic] = useState([]);
+  const [topMixes, setTopMixes] = useState([]);
+  const [popularAlbums, setPopularAlbums] = useState([]);
+  const [recentlyPlayed, setRecentlyPlayed] = useState([]);
+
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Update greeting just in case
+    setGreeting(getGreeting());
+
+    // Fetch Home page data
+    const fetchHomeData = async () => {
+      setLoading(true);
+      try {
+        const [musicRes, playlistRes, albumRes, recentRes] = await Promise.allSettled([
+          api.get("/api/v1/home/musiclist/?top10=true"),
+          api.get("/api/v1/home/playlist/?top10=true"),
+          api.get("/api/v1/home/albumlist/?top10=true"),
+          api.get("/api/v1/listening_history/recently-played/")
+        ]);
+
+        if (musicRes.status === "fulfilled") {
+           setTrendingMusic(musicRes.value.data.results || musicRes.value.data || []);
+        }
+        if (playlistRes.status === "fulfilled") {
+           setTopMixes(playlistRes.value.data.results || playlistRes.value.data || []);
+        }
+        if (albumRes.status === "fulfilled") {
+           setPopularAlbums(albumRes.value.data.results || albumRes.value.data || []);
+        }
+        if (recentRes.status === "fulfilled") {
+          // Normalize recent tracks if they have 'music_id' instead of 'id'
+          const rawRecent = Array.isArray(recentRes.value.data) 
+            ? recentRes.value.data 
+            : (recentRes.value.data?.results || []);
+          const recent = rawRecent.map(track => ({
+             ...track,
+             id: track.music_id || track.id,
+             name: track.title || track.name
+          }));
+          setRecentlyPlayed(recent);
+        }
+
+      } catch (error) {
+        console.error("Error fetching home data", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchHomeData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex-1 p-8 text-white space-y-8 animate-pulse">
+        <div className="h-10 bg-gray-800 w-1/4 rounded-md mb-8"></div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-12">
+          {[...Array(6)].map((_, i) => (
+             <div key={i} className="h-16 bg-gray-800 rounded-md"></div>
+          ))}
+        </div>
+        <div className="h-6 bg-gray-800 w-1/5 rounded-md mb-4"></div>
+        <div className="flex gap-4">
+           {[...Array(5)].map((_, i) => (
+             <div key={i} className="w-44 h-60 bg-gray-800 rounded-lg shrink-0"></div>
+           ))}
+        </div>
+      </div>
+    );
+  }
+
+  // Pick top 6 or top 8 for the mini-grid greeting section
+  const miniGridItems = recentlyPlayed.slice(0, 6);
+  // Fallback to trending music if recently played is empty
+  const displayItems = miniGridItems.length > 0 ? miniGridItems : trendingMusic.slice(0, 6);
+
   return (
-    <ShufflingDashboard>
-      <ArtistSection title="Artists" />
-      <MusicSection title="Music" />
-      <PlaylistSection title="Playlists" />
-      <AlbumSection title="Album" />
-    </ShufflingDashboard>
+    <div className="flex-1 p-4 md:p-8 bg-gradient-to-b from-[#1e1e1e] to-black min-h-full pb-24">
+      
+      {/* Greeting and Mini Grid */}
+      <section className="mb-10">
+        <h1 className="text-3xl font-extrabold text-white mb-6 antialiased tracking-tight">
+          {greeting}
+        </h1>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
+          {displayItems.map((item, idx) => (
+            <MiniCard key={item.id || idx} item={item} />
+          ))}
+        </div>
+      </section>
+
+      {/* Main Sections */}
+      {recentlyPlayed.length > 0 && (
+         <Section 
+            title="Recently Played" 
+            items={recentlyPlayed} 
+            type="music"
+         />
+      )}
+      
+      <Section 
+        title="Trending Now" 
+        items={trendingMusic} 
+        type="music"
+        onShowAll={() => navigate("/musiclist")}
+      />
+      
+      {topMixes.length > 0 && (
+        <Section 
+          title="Your Top Mixes" 
+          items={topMixes} 
+          type="playlist"
+          onShowAll={() => navigate("/playlist-show-more", { state: { title: "Your Top Mixes" } })}
+        />
+      )}
+      
+      {popularAlbums.length > 0 && (
+        <Section 
+          title="Popular Albums" 
+          items={popularAlbums} 
+          type="album"
+          onShowAll={() => navigate("/albums-show-more", { state: { title: "Popular Albums" } })}
+        />
+      )}
+      
+    </div>
   );
 };
 

@@ -27,4 +27,3 @@ home
 library
 premium
 listening_history
-livestream

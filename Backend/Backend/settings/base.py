@@ -74,7 +74,6 @@ LOCAL_APPS: list[str] = [
     "library",
     "premium",
     "listening_history",
-    "agora",
 ]
 
 INSTALLED_APPS: list[str] = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -105,7 +104,6 @@ MIDDLEWARE: list[str] = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
     "csp.middleware.CSPMiddleware",
-    "agora.middleware.LivestreamCleanupMiddleware",
 ]
 
 # ---------------------------------------------------------------------------

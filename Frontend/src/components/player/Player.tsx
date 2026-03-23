@@ -13,11 +13,10 @@ import {
   cycleRepeat,
   toggleFullPlayer,
   toggleQueue,
-  toggleLike,
-  fetchLikedSongs,
   setQueue,
   removeFromQueue
 } from '../../slices/user/playerSlice';
+import { toggleLike, fetchLikedSongs } from '../../slices/user/librarySlice';
 import { useAudioPlayer } from '../../hooks/useAudioPlayer';
 import { useDominantColor } from '../../hooks/useDominantColor';
 import { usePlayTracking } from '../../hooks/usePlayTracking';
@@ -41,7 +40,12 @@ export const Player: React.FC = () => {
   const repeatMode = useSelector((state: { player: PlayerState }) => state.player.repeatMode);
   const isFullPlayerOpen = useSelector((state: { player: PlayerState }) => state.player.isFullPlayerOpen);
   const isQueueOpen = useSelector((state: { player: PlayerState }) => state.player.isQueueOpen);
-  const isLiked = useSelector((state: { player: PlayerState }) => state.player.isLiked);
+  
+  // Use librarySlice for global liked songs state
+  const isLiked = useSelector((state: any) => {
+    if (!currentTrack?.id) return false;
+    return (state.library?.likedSongs || []).includes(currentTrack.id);
+  });
 
   const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
 

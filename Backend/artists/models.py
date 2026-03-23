@@ -67,11 +67,6 @@ class Artist(models.Model):
         """Return ``True`` if this artist's application has been approved."""
         return self.status == ArtistVerificationStatus.APPROVED
 
-    @property
-    def has_active_stream(self) -> bool:
-        """Return ``True`` if this artist currently has an active livestream."""
-        return self.hosted_streams.filter(status="active").exists()
-
 
 class Follow(models.Model):
     """Records that a user follows a particular artist."""

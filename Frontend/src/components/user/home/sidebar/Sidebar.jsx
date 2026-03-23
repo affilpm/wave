@@ -1,144 +1,77 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import { Search, Plus, Library, Heart, ChevronLeft, X } from 'lucide-react';
 import CreatePlaylistModal from '../playlist/CreatePlaylistModal';
-import api from '../../../../api';
 import YourPlaylistSection from './YourPlaylistSection';
 import SavedPlaylistSection from './SavedPlaylistSection';
 import FollowedArtistsSection from './FollowedArtistsSection';
+import { 
+  fetchLibraryData, 
+  selectOwnPlaylists, 
+  selectSavedPlaylists, 
+  selectFollowedArtists, 
+  selectLikedSongs,
+  addOwnPlaylist,
+  removeOwnPlaylist,
+  updateOwnPlaylist,
+  toggleSavedPlaylistOptimistic
+} from '../../../../slices/user/librarySlice';
 
 const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
   // State for managing the search query in the library
   const [librarySearchQuery, setLibrarySearchQuery] = useState('');
-
-  // State for managing user's own playlists (including "Liked Songs")
-  const [ownPlaylists, setOwnPlaylists] = useState([
-    { 
-      name: 'Liked Songs', 
-      icon: <Heart className="h-6 w-6" />, 
-      image: null,
-      gradient: 'bg-gradient-to-br from-purple-600 to-purple-900',
-      songCount: 123,
-      type: 'Playlist'
-    }
-  ]);      
-
-  // State for managing playlists added to the library
-  const [libraryPlaylists, setLibraryPlaylists] = useState([]);
   
-  // State for managing followed artists
-  const [followedArtists, setFollowedArtists] = useState([]);
-
   // State for modal visibility (create playlist)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  // Loading and error state for playlist fetching
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-
   const navigate = useNavigate();
+  const dispatch = useDispatch();
+
+  const globalOwnPlaylists = useSelector(selectOwnPlaylists);
+  const libraryPlaylists = useSelector(selectSavedPlaylists);
+  const rawFollowedArtists = useSelector(selectFollowedArtists);
+  const likedSongs = useSelector(selectLikedSongs);
+  const { isLoading, error } = useSelector(state => state.library);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        // Fetch user's own playlists
-        const ownPlaylistsResponse = await api.get('/api/v1/playlist/playlist-data/');
-        const ownData = Array.isArray(ownPlaylistsResponse.data) ? ownPlaylistsResponse.data : (ownPlaylistsResponse.data.results || []);
-        
-        // First, remove "Liked Songs" from the response data if it exists
-        const regularPlaylists = ownData.filter(
-          playlist => playlist.name !== 'Liked Songs'
-        );
+    dispatch(fetchLibraryData());
+  }, [dispatch]);
 
-        // Format regular playlists
-        const formattedOwnPlaylists = regularPlaylists.map(playlist => ({
-          id: playlist.id,
-          name: playlist.name,
-          icon: null,
-          image: playlist.cover_photo || "/api/v1/placeholder/40/40",
-          songCount: playlist.tracks?.length || 0,
-          type: 'Playlist',
-          description: playlist.description,
-          is_public: playlist.is_public
-        }));
-  
-        // Find and format Liked Songs playlist if it exists
-        const likedSongsPlaylist = ownData.find(
-          playlist => playlist.name === 'Liked Songs'
-        );
-  
-        if (likedSongsPlaylist) {
-          const likedSongs = {
-            id: likedSongsPlaylist.id,
-            name: 'Liked Songs',
-            icon: <Heart className="h-6 w-6 text-pink-500" />,
-            image: likedSongsPlaylist.cover_photo || "/api/v1/placeholder/40/40",
-            songCount: likedSongsPlaylist.tracks?.length || 0,
-            type: 'Playlist',
-            description: likedSongsPlaylist.description,
-            is_public: likedSongsPlaylist.is_public,
-          };
-          
-          setOwnPlaylists([likedSongs, ...formattedOwnPlaylists]);
-        } else {
-          setOwnPlaylists(formattedOwnPlaylists);
-        }
+  const ownPlaylists = useMemo(() => {
+    // Filter out potential Liked Songs from backend to avoid duplicates
+    const regularPlaylists = globalOwnPlaylists.filter(p => p.name !== 'Liked Songs').map(playlist => ({
+      id: playlist.id,
+      name: playlist.name,
+      icon: null,
+      image: playlist.cover_photo || playlist.image || "/api/v1/placeholder/40/40",
+      songCount: playlist.tracks?.length || playlist.songCount || 0,
+      type: 'Playlist',
+      description: playlist.description,
+      is_public: playlist.is_public
+    }));
 
-        // Fetch library playlists
-        const libraryPlaylistsResponse = await api.get('/api/v1/library/playlists/');
-        const libraryData = Array.isArray(libraryPlaylistsResponse.data) ? libraryPlaylistsResponse.data : (libraryPlaylistsResponse.data.results || []);
-        
-        const formattedLibraryPlaylists = libraryData.map(playlist => ({
-          id: playlist.id,
-          name: playlist.name,
-          icon: null,
-          image: playlist.cover_photo || "/api/v1/placeholder/40/40",
-          songCount: playlist.tracks?.length || 0,
-          type: 'Added Playlist',
-          description: playlist.description,
-          is_public: playlist.is_public
-        }));
-  
-        setLibraryPlaylists(formattedLibraryPlaylists);
-        
-        // Fetch followed artists
-        const followingResponse = await api.get('/api/v1/artists/me/following/');
-        const followingData = Array.isArray(followingResponse.data) ? followingResponse.data : (followingResponse.data.results || []);
-        
-        if (followingData.length > 0) {
-          // Extract artist data from the follow relationships
-          const artistsData = followingData.map(follow => follow.artist);
-          setFollowedArtists(artistsData);
-        }
-  
-      } catch (err) {
-        console.error('Error fetching data:', err);
-        setError('Failed to load library data');
-      } finally {
-        setIsLoading(false);
-      }
+    const likedSongsPlaylist = {
+      id: 'liked-songs',
+      name: 'Liked Songs',
+      icon: <Heart className="h-6 w-6 text-pink-500" />,
+      image: "/api/v1/placeholder/40/40", // Fallback if no cover
+      gradient: 'bg-gradient-to-br from-purple-600 to-purple-900', // for UI
+      songCount: likedSongs.length,
+      type: 'Playlist',
     };
-  
-    fetchData();
-  }, []);
+
+    return [likedSongsPlaylist, ...regularPlaylists];
+  }, [globalOwnPlaylists, likedSongs.length]);
+
+  const followedArtists = useMemo(() => {
+    return rawFollowedArtists.map(f => f.artist || f);
+  }, [rawFollowedArtists]);
 
   // Handle the creation of a new playlist
   const handleCreatePlaylist = (newPlaylist) => {
-    setOwnPlaylists(prevPlaylists => [...prevPlaylists, {
-      id: newPlaylist.id,
-      name: newPlaylist.name,
-      icon: null,
-      image: newPlaylist.cover_photo || "/api/v1/placeholder/40/40",
-      songCount: 0,
-      type: 'Playlist',
-      description: newPlaylist.description,
-      is_public: newPlaylist.is_public
-    }]);
-
-    // Close the modal after creating a playlist
+    dispatch(addOwnPlaylist(newPlaylist));
     setIsCreateModalOpen(false);
-    
-    // On mobile, close the sidebar after creating a playlist
     if (isMobile) {
       toggleSidebar();
     }
@@ -168,29 +101,21 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
 
   // Handle updates to a playlist
   const handlePlaylistUpdate = (updatedPlaylist) => {
-    setOwnPlaylists(prevPlaylists => 
-      prevPlaylists.map(playlist => 
-        playlist.id === updatedPlaylist.id ? {
-          ...playlist,
-          name: updatedPlaylist.name,
-          description: updatedPlaylist.description,
-          image: updatedPlaylist.cover_photo || playlist.image,
-          is_public: updatedPlaylist.is_public
-        } : playlist
-      )
-    );
+    dispatch(updateOwnPlaylist(updatedPlaylist));
   };
 
   // Handle deletion of a playlist
   const handlePlaylistDelete = (playlistId) => {
-    setOwnPlaylists(prevPlaylists => 
-      prevPlaylists.filter(playlist => playlist.id !== playlistId)
-    );
+    dispatch(removeOwnPlaylist(playlistId));
     navigate('/home'); // Redirect after deletion
     // On mobile, close the sidebar after deletion
     if (isMobile) {
       toggleSidebar();
     }
+  };
+  
+  const handleSavedPlaylistDelete = (playlist) => {
+    dispatch(toggleSavedPlaylistOptimistic(playlist));
   };
 
   return (
@@ -289,7 +214,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
               <SavedPlaylistSection
                 playlists={filteredLibraryPlaylists}
                 isSidebarExpanded={isSidebarExpanded || isMobile}
-                setLibraryPlaylists={setLibraryPlaylists}
+                onSavedPlaylistDelete={handleSavedPlaylistDelete}
               />
             )}
           </>

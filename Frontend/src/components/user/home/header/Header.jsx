@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { 
-  Search, ChevronLeft, ChevronRight, Home, Video, X, 
+  Search, ChevronLeft, ChevronRight, Home, X, 
   Menu, Bell, Headphones, Settings, UserCircle
 } from 'lucide-react';
 import { useArtistStatus } from '../../../../hooks/useArtistStatus';
@@ -197,14 +197,6 @@ const Header = ({ toggleMobileSidebar }) => {
             <span className="text-sm lg:text-base font-medium">Home</span>
           </button>
           
-          {/* <button 
-            className="flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors"
-            onClick={() => handleNavigation('/livestreams')}
-          >
-            <Video className="h-5 w-5 lg:h-6 lg:w-6" />
-            <span className="text-sm lg:text-base font-medium">Livestream</span>
-          </button> */}
-          
           {/* Desktop Search Component */}
           <div className="flex-1 mx-2 lg:mx-4 max-w-md">
             <SearchComponent isHeaderSearch={true} />
@@ -215,19 +207,12 @@ const Header = ({ toggleMobileSidebar }) => {
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Mobile action buttons */}
           <div className="md:hidden flex items-center gap-1">
-            {/* Home and Livestream buttons for mobile */}
+            {/* Home button for mobile */}
             <button 
               className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-900 hover:bg-gray-800"
               onClick={() => handleNavigation('/home')}
             >
               <Home className="h-4 w-4" />
-            </button>
-
-            <button 
-              className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-900 hover:bg-gray-800"
-              onClick={() => handleNavigation('/livestreams')}
-            >
-              <Video className="h-4 w-4" />
             </button>
             
             {/* Search toggle on mobile */}
@@ -330,7 +315,6 @@ const Header = ({ toggleMobileSidebar }) => {
           </div>
           {[
             { name: 'Home', icon: <Home className="h-4 w-4" />, path: '/home' },
-            { name: 'Livestream', icon: <Video className="h-4 w-4" />, path: '/livestreams' },
             { name: 'Now Playing', icon: <Headphones className="h-4 w-4" />, path: '/player' },
             { name: 'Profile', icon: <UserCircle className="h-4 w-4" />, path: '/profile' },
             { name: 'Settings', icon: <Settings className="h-4 w-4" />, path: '/settings' }

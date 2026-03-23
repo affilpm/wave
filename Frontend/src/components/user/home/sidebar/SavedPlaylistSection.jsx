@@ -4,7 +4,7 @@ import api from "../../../../api";
 import SavedPlaylistSectionMenuModal from "./SavedPlaylistSectionMenuModal";
 import { useNavigate } from "react-router-dom";
 
-const SavedPlaylistSection = ({ playlists, isSidebarExpanded, setLibraryPlaylists }) => {
+const SavedPlaylistSection = ({ playlists, isSidebarExpanded, onSavedPlaylistDelete }) => {
     const navigate = useNavigate();
   
     const handleMenuAction = async (action, playlist) => {
@@ -13,7 +13,7 @@ const SavedPlaylistSection = ({ playlists, isSidebarExpanded, setLibraryPlaylist
           await api.post('/api/v1/library/remove-playlist/', {
             playlist_id: playlist.id
           });
-          setLibraryPlaylists(prev => prev.filter(p => p.id !== playlist.id));
+          onSavedPlaylistDelete(playlist);
         } catch (error) {
           console.error('Error removing playlist:', error);
         }

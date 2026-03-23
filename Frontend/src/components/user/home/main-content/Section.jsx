@@ -1,0 +1,125 @@
+import React, { useRef, useState, useCallback, useMemo } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import TrackCard from "./TrackCard";
+import { useSelector, shallowEqual } from "react-redux";
+import { createSelector } from '@reduxjs/toolkit';
+import { usePlayCollection } from "../../../../hooks/usePlayCollection";
+import { prepareTracksForPlayer } from "../../../../utils/trackUtils";
+
+const selectPlayerState = createSelector(
+  [(state) => state.player],
+  (player) => ({
+    currentTrack: player.currentTrack,
+    status: player.status,
+    queue: player.queue,
+    queueIndex: player.queueIndex,
+    currentContext: player.currentContext,
+  })
+);
+
+const Section = ({ title, items, onShowAll, type = 'music' }) => {
+  const { currentTrack, status, currentContext } = useSelector(selectPlayerState, shallowEqual);
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing';
+
+  const scrollContainerRef = useRef(null);
+  const [showControls, setShowControls] = useState(false);
+
+  const context = useMemo(() => ({ type: 'section', id: title }), [title]);
+  
+  const formattedTracks = useMemo(() => 
+    (type === 'music' && items?.length) ? prepareTracksForPlayer(items) : [],
+    [items, type]
+  );
+
+  const {
+    handlePlayTrackAtIndex,
+    handleShufflePlay: handleSectionShufflePlay,
+    isCollectionActive
+  } = usePlayCollection({ tracks: formattedTracks, context });
+
+  const handleScroll = useCallback((direction) => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      const scrollAmount = 400;
+      container.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth',
+      });
+    }
+  }, []);
+
+  const handlePlay = (item, index, e) => {
+    e.stopPropagation();
+    if (type === 'music') {
+      handlePlayTrackAtIndex(index);
+    }
+  };
+
+  const isItemPlaying = useCallback((item) => {
+    if (type === 'music') {
+      return Number(currentMusicId) === Number(item.id) && isPlaying && isCollectionActive;
+    } else {
+      // For albums and playlists
+      return currentContext?.type === type && String(currentContext?.id) === String(item.id) && isPlaying;
+    }
+  }, [currentMusicId, isPlaying, isCollectionActive, type, currentContext]);
+
+  if (!items || !items.length) return null;
+
+  return (
+    <section className="mb-8 relative px-4 text-white">
+      <div className="flex justify-between items-end mb-4 group/header">
+        <h2 className="text-2xl font-bold hover:underline cursor-pointer transition-all">{title}</h2>
+        {onShowAll && (
+          <button
+            onClick={onShowAll}
+            className="text-sm font-bold text-neutral-400 hover:text-white uppercase tracking-wider transition-colors opacity-0 group-hover/header:opacity-100"
+          >
+            Show all
+          </button>
+        )}
+      </div>
+
+      <div
+        className="relative group/scroll"
+        onMouseEnter={() => setShowControls(true)}
+        onMouseLeave={() => setShowControls(false)}
+      >
+        {/* Scroll Controls */}
+        <button
+          onClick={() => handleScroll('left')}
+          className={`absolute -left-4 top-1/2 z-10 w-10 h-10 bg-black/80 text-white rounded-full flex items-center justify-center transform -translate-y-1/2 transition-all duration-300 hover:scale-105 ${showControls ? 'opacity-100' : 'opacity-0'} shadow-xl disabled:opacity-0`}
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </button>
+
+        <button
+          onClick={() => handleScroll('right')}
+          className={`absolute -right-4 top-1/2 z-10 w-10 h-10 bg-black/80 text-white rounded-full flex items-center justify-center transform -translate-y-1/2 transition-all duration-300 hover:scale-105 ${showControls ? 'opacity-100' : 'opacity-0'} shadow-xl disabled:opacity-0`}
+        >
+          <ChevronRight className="h-6 w-6" />
+        </button>
+
+        <div
+          ref={scrollContainerRef}
+          className="flex overflow-x-auto scrollbar-hide py-2"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          {items.map((item, index) => (
+            <TrackCard 
+              key={item.id} 
+              item={item} 
+              index={index} 
+              type={type}
+              isPlaying={isItemPlaying(item)}
+              onPlayPlayable={handlePlay}
+            />
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default Section;
