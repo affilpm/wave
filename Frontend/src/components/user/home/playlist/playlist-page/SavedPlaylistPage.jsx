@@ -4,6 +4,8 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import api from "../../../../../api";
+import { LIBRARY } from "../../../../../constants/apiEndpoints";
+import { toggleSavedPlaylistOptimistic } from "../../../../../slices/user/librarySlice";
 import {
   formatDuration,
   convertToSeconds,
@@ -90,7 +92,7 @@ const SavedPlaylistPage = () => {
   // Check if playlist is in library
   const checkLibraryStatus = useCallback(async () => {
     try {
-      const response = await api.get(`/api/v1/library/library/check-playlist/${playlistId}/`);
+      const response = await api.get(LIBRARY.CHECK_PLAYLIST(playlistId));
       setIsInLibrary(response.data.is_in_library);
     } catch (error) {
       console.error("Failed to check library status:", error);
@@ -103,21 +105,36 @@ const SavedPlaylistPage = () => {
       return;
     }
 
+    const playlistData = {
+      id: Number(playlistId),
+      name: playlist?.name,
+      image: playlist?.cover_photo,
+      cover_photo: playlist?.cover_photo,
+      songCount: playlist?.tracks?.length || 0,
+      created_by_username: playlist?.created_by_username,
+    };
+
+    // Optimistic update — update sidebar immediately
+    const wasInLibrary = isInLibrary;
+    setIsInLibrary(!wasInLibrary);
+    dispatch(toggleSavedPlaylistOptimistic(playlistData));
+
     try {
       setIsLibraryLoading(true);
-      if (isInLibrary) {
-        await api.post('/api/v1/library/remove-playlist/', { playlist_id: playlistId });
-        setIsInLibrary(false);
+      if (wasInLibrary) {
+        await api.post(LIBRARY.REMOVE_PLAYLIST, { playlist_id: playlistId });
       } else {
-        await api.post('/api/v1/library/library/add-playlist/', { playlist_id: playlistId });
-        setIsInLibrary(true);
+        await api.post(LIBRARY.ADD_PLAYLIST, { playlist_id: playlistId });
       }
     } catch (error) {
-      console.error("Failed to update library:", error);
+      console.error("Failed to update library:", error?.response?.data || error);
+      // Revert optimistic update on failure
+      setIsInLibrary(wasInLibrary);
+      dispatch(toggleSavedPlaylistOptimistic(playlistData));
     } finally {
       setIsLibraryLoading(false);
     }
-  }, [isInLibrary, playlist, playlistId]);
+  }, [isInLibrary, playlist, playlistId, dispatch]);
 
   // Calculate total duration
   useEffect(() => {

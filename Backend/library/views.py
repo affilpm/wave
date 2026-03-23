@@ -1,5 +1,5 @@
 """
-Library API views — manage saved playlists in the user's library.
+Library API views — manage saved playlists and albums in the user's library.
 """
 
 from __future__ import annotations
@@ -13,7 +13,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from library.models import Library
-from library.serializers import LibraryPlaylistSerializer, PlaylistDetailSerializer
+from library.serializers import LibraryAlbumSerializer, LibraryPlaylistSerializer, PlaylistDetailSerializer
+from music.models import Album
 from playlist.models import Playlist
 from playlist.serializers import PlaylistSerializer
 
@@ -40,12 +41,16 @@ class PlaylistViewSet(viewsets.ModelViewSet):
 
 class LibraryViewSet(viewsets.ViewSet):
     """
-    Manage the authenticated user's playlist library.
+    Manage the authenticated user's playlist and album library.
 
-    Actions: list, check, add, remove playlists.
+    Actions: list, check, add, remove playlists and albums.
     """
 
     permission_classes = [permissions.IsAuthenticated]
+
+    # -----------------------------------------------------------------------
+    # Playlist actions
+    # -----------------------------------------------------------------------
 
     @action(detail=False, methods=["get"], url_path="playlists")
     def get_library_playlists(self, request):
@@ -113,6 +118,73 @@ class LibraryViewSet(viewsets.ViewSet):
 
         library.playlists.remove(playlist)
         return Response({"message": "Playlist removed from library successfully"})
+
+    # -----------------------------------------------------------------------
+    # Album actions
+    # -----------------------------------------------------------------------
+
+    @action(detail=False, methods=["get"], url_path="albums")
+    def get_library_albums(self, request):
+        """Return all albums saved in the user's library."""
+        library = get_object_or_404(Library, user=request.user)
+        albums = (
+            library.albums.all()
+            .select_related("artist", "artist__user")
+            .prefetch_related("albumtrack_set")
+        )
+        return Response(LibraryAlbumSerializer(albums, many=True).data)
+
+    @action(detail=False, methods=["get"], url_path=r"check-album/(?P<album_id>[^/.]+)")
+    def check_album_in_library(self, request, album_id=None):
+        """Check whether an album is in the user's library."""
+        library = get_object_or_404(Library, user=request.user)
+        return Response({
+            "is_in_library": library.albums.filter(id=album_id).exists(),
+        })
+
+    @action(detail=False, methods=["post"], url_path="add-album")
+    def add_album(self, request):
+        """Save an album to the user's library."""
+        album_id = request.data.get("album_id")
+        if not album_id:
+            return Response(
+                {"error": "album_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        library, _ = Library.objects.get_or_create(user=request.user)
+        album = get_object_or_404(Album, id=album_id)
+
+        if library.albums.filter(id=album.id).exists():
+            return Response(
+                {"error": "Album is already in your library"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        library.albums.add(album)
+        return Response({"message": "Album added to library successfully"})
+
+    @action(detail=False, methods=["post"], url_path="remove-album")
+    def remove_album(self, request):
+        """Remove an album from the user's library."""
+        album_id = request.data.get("album_id")
+        if not album_id:
+            return Response(
+                {"error": "album_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        library = get_object_or_404(Library, user=request.user)
+        album = get_object_or_404(Album, id=album_id)
+
+        if not library.albums.filter(id=album.id).exists():
+            return Response(
+                {"error": "Album is not in your library"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        library.albums.remove(album)
+        return Response({"message": "Album removed from library successfully"})
 
 
 # ---------------------------------------------------------------------------

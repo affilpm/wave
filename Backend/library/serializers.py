@@ -66,3 +66,28 @@ class LibraryPlaylistSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'is_public', 'cover_photo',
             'created_by_details', 'tracks', 'created_at', 'updated_at'
         ]
+
+
+class LibraryAlbumSerializer(serializers.Serializer):
+    """Serializer for albums saved in the user's library."""
+
+    id = serializers.IntegerField(source='pk')
+    name = serializers.CharField()
+    cover_photo = serializers.SerializerMethodField()
+    artist_username = serializers.SerializerMethodField()
+    tracks_count = serializers.SerializerMethodField()
+    release_date = serializers.DateTimeField()
+    description = serializers.CharField()
+
+    def get_cover_photo(self, obj):
+        if obj.cover_photo:
+            return obj.cover_photo.url
+        return None
+
+    def get_artist_username(self, obj):
+        if obj.artist and obj.artist.user:
+            return obj.artist.user.username
+        return None
+
+    def get_tracks_count(self, obj):
+        return obj.albumtrack_set.count()

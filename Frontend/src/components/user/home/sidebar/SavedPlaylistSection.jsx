@@ -1,6 +1,7 @@
 import React, {useState, useRef} from "react";
 import { Search, Plus, Library, Heart, Music, ChevronLeft, MoreVertical, Share2, Delete, Edit } from 'lucide-react';
 import api from "../../../../api";
+import { LIBRARY } from "../../../../constants/apiEndpoints";
 import SavedPlaylistSectionMenuModal from "./SavedPlaylistSectionMenuModal";
 import { useNavigate } from "react-router-dom";
 
@@ -10,7 +11,7 @@ const SavedPlaylistSection = ({ playlists, isSidebarExpanded, onSavedPlaylistDel
     const handleMenuAction = async (action, playlist) => {
       if (action === 'delete') {
         try {
-          await api.post('/api/v1/library/remove-playlist/', {
+          await api.post(LIBRARY.REMOVE_PLAYLIST, {
             playlist_id: playlist.id
           });
           onSavedPlaylistDelete(playlist);

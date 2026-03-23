@@ -2,20 +2,25 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { Search, Plus, Library, Heart, ChevronLeft, X } from 'lucide-react';
+import api from '../../../../api';
+import { LIBRARY } from '../../../../constants/apiEndpoints';
 import CreatePlaylistModal from '../playlist/CreatePlaylistModal';
 import YourPlaylistSection from './YourPlaylistSection';
 import SavedPlaylistSection from './SavedPlaylistSection';
+import SavedAlbumsSection from './SavedAlbumsSection';
 import FollowedArtistsSection from './FollowedArtistsSection';
 import { 
   fetchLibraryData, 
   selectOwnPlaylists, 
   selectSavedPlaylists, 
+  selectSavedAlbums,
   selectFollowedArtists, 
   selectLikedSongs,
   addOwnPlaylist,
   removeOwnPlaylist,
   updateOwnPlaylist,
-  toggleSavedPlaylistOptimistic
+  toggleSavedPlaylistOptimistic,
+  toggleSavedAlbumOptimistic
 } from '../../../../slices/user/librarySlice';
 
 const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
@@ -30,6 +35,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
 
   const globalOwnPlaylists = useSelector(selectOwnPlaylists);
   const libraryPlaylists = useSelector(selectSavedPlaylists);
+  const savedAlbums = useSelector(selectSavedAlbums);
   const rawFollowedArtists = useSelector(selectFollowedArtists);
   const likedSongs = useSelector(selectLikedSongs);
   const { isLoading, error } = useSelector(state => state.library);
@@ -89,6 +95,10 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
   const filteredFollowedArtists = followedArtists.filter(artist =>
     artist && artist.username && artist.username.toLowerCase().includes(librarySearchQuery.toLowerCase())
   );
+  
+  const filteredSavedAlbums = savedAlbums.filter(album =>
+    album && album.name && album.name.toLowerCase().includes(librarySearchQuery.toLowerCase())
+  );
 
   // Handle navigation to a specific playlist
   const handlePlaylistClick = (playlistId) => {
@@ -116,6 +126,18 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
   
   const handleSavedPlaylistDelete = (playlist) => {
     dispatch(toggleSavedPlaylistOptimistic(playlist));
+  };
+
+  const handleSavedAlbumRemove = async (album) => {
+    // Optimistic update — remove from sidebar immediately
+    dispatch(toggleSavedAlbumOptimistic(album));
+    try {
+      await api.post(LIBRARY.REMOVE_ALBUM, { album_id: album.id });
+    } catch (error) {
+      // Revert on failure
+      dispatch(toggleSavedAlbumOptimistic(album));
+      console.error('Error removing album from library:', error);
+    }
   };
 
   return (
@@ -206,6 +228,15 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
               <FollowedArtistsSection 
                 artists={filteredFollowedArtists}
                 isSidebarExpanded={isSidebarExpanded || isMobile}
+              />
+            )}
+
+            {/* Section for saved albums */}
+            {filteredSavedAlbums.length > 0 && (
+              <SavedAlbumsSection
+                albums={filteredSavedAlbums}
+                isSidebarExpanded={isSidebarExpanded || isMobile}
+                onSavedAlbumRemove={handleSavedAlbumRemove}
               />
             )}
             

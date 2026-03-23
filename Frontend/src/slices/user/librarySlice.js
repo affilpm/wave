@@ -1,6 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import api from '../../api';
-import { PLAYLISTS } from '../../constants/apiEndpoints';
+import { PLAYLISTS, LIBRARY } from '../../constants/apiEndpoints';
 
 // Async thunks for API calls
 export const fetchLikedSongs = createAsyncThunk(
@@ -25,16 +25,30 @@ export const fetchLibraryData = createAsyncThunk(
   'library/fetchLibraryData',
   async (_, { rejectWithValue }) => {
     try {
-      const [ownRes, savedRes, followingRes] = await Promise.all([
+      const results = await Promise.allSettled([
         api.get('/api/v1/playlist/playlist-data/'),
-        api.get('/api/v1/library/playlists/'),
-        api.get('/api/v1/artists/me/following/')
+        api.get(LIBRARY.PLAYLISTS),
+        api.get('/api/v1/artists/me/following/'),
+        api.get('/api/v1/library/library/albums/'),
       ]);
+
+      const extractData = (result) => {
+        if (result.status === 'fulfilled') {
+          return result.value?.data || [];
+        }
+        return [];
+      };
+
+      const ownData = extractData(results[0]);
+      const savedData = extractData(results[1]);
+      const followingData = extractData(results[2]);
+      const albumsData = extractData(results[3]);
       
       return {
-        ownPlaylists: Array.isArray(ownRes.data) ? ownRes.data : (ownRes.data.results || []),
-        savedPlaylists: Array.isArray(savedRes.data) ? savedRes.data : (savedRes.data.results || []),
-        followedArtists: Array.isArray(followingRes.data) ? followingRes.data : (followingRes.data.results || [])
+        ownPlaylists: Array.isArray(ownData) ? ownData : (ownData.results || []),
+        savedPlaylists: Array.isArray(savedData) ? savedData : (savedData.results || []),
+        followedArtists: Array.isArray(followingData) ? followingData : (followingData.results || []),
+        savedAlbums: Array.isArray(albumsData) ? albumsData : (albumsData.results || []),
       };
     } catch (error) {
        return rejectWithValue(error.response?.data || error.message);
@@ -81,6 +95,7 @@ const initialState = {
   playlists: [], // array of playlist objects containing track arrays
   ownPlaylists: [], 
   savedPlaylists: [], 
+  savedAlbums: [],
   followedArtists: [],
   recentlyPlayed: [],
   isLoading: false,
@@ -185,6 +200,15 @@ const librarySlice = createSlice({
       } else {
         state.followedArtists.push(artist); // Might need a shape { id: ..., artist: { ... } } if the API wraps it
       }
+    },
+    toggleSavedAlbumOptimistic: (state, action) => {
+      const album = action.payload;
+      const exists = state.savedAlbums.find(a => a.id === album.id);
+      if (exists) {
+        state.savedAlbums = state.savedAlbums.filter(a => a.id !== album.id);
+      } else {
+        state.savedAlbums.push(album);
+      }
     }
   },
   extraReducers: (builder) => {
@@ -212,6 +236,7 @@ const librarySlice = createSlice({
         state.ownPlaylists = action.payload.ownPlaylists;
         state.savedPlaylists = action.payload.savedPlaylists;
         state.followedArtists = action.payload.followedArtists;
+        state.savedAlbums = action.payload.savedAlbums || [];
       })
       .addCase(fetchLibraryData.rejected, (state, action) => {
         state.isLoading = false;
@@ -249,7 +274,8 @@ export const {
   removeOwnPlaylist,
   updateOwnPlaylist,
   toggleSavedPlaylistOptimistic,
-  toggleFollowArtistOptimistic
+  toggleFollowArtistOptimistic,
+  toggleSavedAlbumOptimistic
 } = librarySlice.actions;
 
 export default librarySlice.reducer;
@@ -268,6 +294,7 @@ export const selectPlaylistTracks = (state, playlistId) => {
 };
 export const selectOwnPlaylists = (state) => state.library?.ownPlaylists || [];
 export const selectSavedPlaylists = (state) => state.library?.savedPlaylists || [];
+export const selectSavedAlbums = (state) => state.library?.savedAlbums || [];
 export const selectFollowedArtists = (state) => state.library?.followedArtists || [];
 
 // Compound Action for Optimistic Update

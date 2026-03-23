@@ -132,7 +132,7 @@ export const LIBRARY = {
   PLAYLISTS:          `${API_VERSION}/library/library/playlists/`,
   CHECK_PLAYLIST:     (id) => `${API_VERSION}/library/library/check-playlist/${id}/`,
   ADD_PLAYLIST:       `${API_VERSION}/library/library/add_playlist/`,
-  REMOVE_PLAYLIST:    `${API_VERSION}/library/library/remove_playlist/`,
+  REMOVE_PLAYLIST:    `${API_VERSION}/library/remove-playlist/`,
   CHECK_ALBUM:        (id) => `${API_VERSION}/library/library/check-album/${id}/`,
   ADD_ALBUM:          `${API_VERSION}/library/library/add-album/`,
   REMOVE_ALBUM:       `${API_VERSION}/library/remove-album/`,

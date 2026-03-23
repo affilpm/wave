@@ -4,6 +4,7 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import api from "../../../../api";
+import { LIBRARY } from "../../../../constants/apiEndpoints";
 import {
   formatDuration,
   convertToSeconds,
@@ -11,6 +12,7 @@ import {
 } from "../../../../utils/formatters";
 import { prepareTracksForPlayer } from "../../../../utils/trackUtils";
 import { usePlayCollection } from "../../../../hooks/usePlayCollection";
+import { toggleSavedAlbumOptimistic } from "../../../../slices/user/librarySlice";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
@@ -90,7 +92,7 @@ const AlbumPage = () => {
   // Check if album is in library
   const checkLibraryStatus = useCallback(async () => {
     try {
-      const response = await api.get(`/api/v1/library/check-album/${albumId}/`);
+      const response = await api.get(LIBRARY.CHECK_ALBUM(albumId));
       setIsInLibrary(response.data.is_in_library);
     } catch (error) {
       console.error("Failed to check library status:", error);
@@ -99,21 +101,29 @@ const AlbumPage = () => {
 
   // Toggle album in library
   const handleToggleLibrary = useCallback(async () => {
+    const albumData = { id: Number(albumId), name: album?.name, cover_photo: album?.cover_photo, artist_username: album?.artist_username };
+    
+    // Optimistic update — update sidebar immediately
+    const wasInLibrary = isInLibrary;
+    setIsInLibrary(!wasInLibrary);
+    dispatch(toggleSavedAlbumOptimistic(albumData));
+    
     try {
       setIsLibraryLoading(true);
-      if (isInLibrary) {
-        await api.post('/api/v1/library/remove-album/', { album_id: albumId });
-        setIsInLibrary(false);
+      if (wasInLibrary) {
+        await api.post(LIBRARY.REMOVE_ALBUM, { album_id: albumId });
       } else {
-        await api.post('/api/v1/library/library/add-album/', { album_id: albumId });
-        setIsInLibrary(true);
+        await api.post(LIBRARY.ADD_ALBUM, { album_id: albumId });
       }
     } catch (error) {
-      console.error("Failed to update library:", error);
+      console.error("Failed to update library:", error?.response?.data || error);
+      // Revert optimistic update on failure
+      setIsInLibrary(wasInLibrary);
+      dispatch(toggleSavedAlbumOptimistic(albumData));
     } finally {
       setIsLibraryLoading(false);
     }
-  }, [isInLibrary, albumId]);
+  }, [isInLibrary, albumId, album, dispatch]);
 
   // Calculate total duration
   useEffect(() => {
@@ -334,7 +344,7 @@ const AlbumPage = () => {
             <Share2 className="h-5 w-5 sm:h-6 sm:w-6" />
           </button>
 
-          {/* <button
+          <button
             className={`group p-1 border-2 rounded-full w-8 h-8 flex items-center justify-center 
               transition-all duration-200 transform hover:scale-105
               ${isInLibrary
@@ -350,7 +360,7 @@ const AlbumPage = () => {
             ) : (
               <Plus className="h-5 w-5 text-gray-400 group-hover:text-white transition-colors" />
             )}
-          </button> */}
+          </button>
         </div>
       </div>
 
