@@ -50,12 +50,11 @@ class MusicSerializer(serializers.ModelSerializer):
     
 class PlaylistTrackSerializer(serializers.ModelSerializer):
     music_details = MusicSerializer(source='music', read_only=True)
-    created_at = serializers.DateTimeField(read_only=True)
     
     class Meta:
         model = PlaylistTrack
-        fields = ['track_number', 'music_details', 'created_at']
-        read_only_fields = ['id', 'created_at']
+        fields = ['track_number', 'music_details']
+        read_only_fields = ['id']
         
         
 class PlaylistTrackViewSet(viewsets.ModelViewSet):
@@ -121,6 +120,12 @@ class PlaylistSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError("You already have a playlist with this name.")
                 
         return value
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.cover_photo:
+            representation['cover_photo'] = instance.cover_photo.url
+        return representation
     
     
     

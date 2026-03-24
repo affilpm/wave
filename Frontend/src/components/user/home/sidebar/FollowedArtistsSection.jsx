@@ -24,6 +24,7 @@ const FollowedArtistsSection = ({ artists, isSidebarExpanded }) => {
   
   const getColor = (username) => {
     // Generate a consistent color index based on the username
+    if (!username) return 'bg-gray-500';
     const index = username.charCodeAt(0) % colors.length;
     return colors[index];
   };
@@ -34,45 +35,50 @@ const FollowedArtistsSection = ({ artists, isSidebarExpanded }) => {
         <h3 className="px-2 py-3 text-sm font-semibold text-gray-400">Followed Artists</h3>
       )}
       <div className={`space-y-1 ${isSidebarExpanded ? 'text-base' : 'text-xs'}`}>
-        {artists.map((artist) => (
-          <div
-            key={artist.id}
-            onClick={() => handleArtistClick(artist.id)}
-            className="group"
-          >
-            <div className={`
-              flex items-center gap-3 p-2 cursor-pointer rounded-md 
-              hover:bg-white/10 transition-colors
-              ${isSidebarExpanded ? 'text-gray-400 hover:text-white' : 'text-gray-500 justify-center'}
-            `}>
-              {artist.profile_photo ? (
-                <img
-                  src={`${artist.profile_photo}`}
-                  alt={artist.username}
-                  className={`rounded-full object-cover ${
-                    isSidebarExpanded ? 'w-12 h-12' : 'w-10 h-10'
-                  }`}
-                />
-              ) : (
-                <div
-                  className={`flex items-center justify-center rounded-full ${getColor(artist.username)} ${
-                    isSidebarExpanded ? 'w-12 h-12' : 'w-10 h-10'
-                  }`}
-                >
-                  {artist.username.charAt(0).toUpperCase()}
-                </div>
-              )}
-              {isSidebarExpanded && (
-                <div className="flex flex-col min-w-0 flex-1">
-                  <span className="truncate font-medium text-white">{artist.username}</span>
-                  <span className="text-sm text-gray-400 truncate">
-                    Artist
-                  </span>
-                </div>
-              )}
+        {artists.map((artist) => {
+          if (!artist) return null;
+          const username = artist.username || 'User';
+          
+          return (
+            <div
+              key={artist.id}
+              onClick={() => handleArtistClick(artist.id)}
+              className="group"
+            >
+              <div className={`
+                flex items-center gap-3 p-2 cursor-pointer rounded-md 
+                hover:bg-white/10 transition-colors
+                ${isSidebarExpanded ? 'text-gray-400 hover:text-white' : 'text-gray-500 justify-center'}
+              `}>
+                {artist.profile_photo ? (
+                  <img
+                    src={`${artist.profile_photo}`}
+                    alt={username}
+                    className={`rounded-full object-cover ${
+                      isSidebarExpanded ? 'w-12 h-12' : 'w-10 h-10'
+                    }`}
+                  />
+                ) : (
+                  <div
+                    className={`flex items-center justify-center rounded-full ${getColor(username)} ${
+                      isSidebarExpanded ? 'w-12 h-12' : 'w-10 h-10'
+                    }`}
+                  >
+                    {username.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                {isSidebarExpanded && (
+                  <div className="flex flex-col min-w-0 flex-1">
+                    <span className="truncate font-medium text-white">{username}</span>
+                    <span className="text-sm text-gray-400 truncate">
+                      Artist
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );

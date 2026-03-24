@@ -1,10 +1,13 @@
 import React, { useRef, useState, useCallback, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import TrackCard from "./TrackCard";
-import { useSelector, shallowEqual } from "react-redux";
+import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from '@reduxjs/toolkit';
 import { usePlayCollection } from "../../../../hooks/usePlayCollection";
 import { prepareTracksForPlayer } from "../../../../utils/trackUtils";
+import { setQueue, setIsPlaying } from "../../../../slices/user/playerSlice";
+import api from "../../../../api";
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
@@ -18,6 +21,8 @@ const selectPlayerState = createSelector(
 );
 
 const Section = ({ title, items, onShowAll, type = 'music' }) => {
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
   const { currentTrack, status, currentContext } = useSelector(selectPlayerState, shallowEqual);
   const currentMusicId = currentTrack?.id;
   const isPlaying = status === 'playing';
@@ -49,21 +54,59 @@ const Section = ({ title, items, onShowAll, type = 'music' }) => {
     }
   }, []);
 
-  const handlePlay = (item, index, e) => {
+  const handlePlay = async (item, index, e) => {
     e.stopPropagation();
     if (type === 'music') {
       handlePlayTrackAtIndex(index);
+    } else if (type === 'album' || type === 'playlist') {
+      // Toggle play/pause if this is already the active context
+      const isActiveCollection = currentContext?.type === type && String(currentContext?.id) === String(item.id);
+      if (isActiveCollection) {
+        dispatch(setIsPlaying(!isPlaying));
+        return;
+      }
+
+      try {
+        const endpoint = type === 'album' 
+          ? `/api/v1/album/album-data/${item.id}/`
+          : `/api/v1/playlist/playlists/${item.id}/`;
+        
+        const response = await api.get(endpoint);
+        const data = response.data;
+        
+        // Normalize track list based on type
+        const rawTracks = type === 'album' 
+          ? data.tracks.map((t) => t.music_details) 
+          : data.tracks;
+          
+        const formattedTracks = prepareTracksForPlayer(rawTracks);
+
+        if (formattedTracks.length > 0) {
+          dispatch(setQueue({
+            tracks: formattedTracks,
+            startIndex: 0,
+            context: { type, id: item.id }
+          }));
+          dispatch(setIsPlaying(true));
+        }
+      } catch (error) {
+        console.error(`Error playing ${type}:`, error);
+      }
+    } else if (type === 'artist') {
+      // For artists, we still navigate for now as playing "all" tracks requires more complex logic
+      navigate(`/artist/${item.id}`, { state: { autoPlay: true } });
     }
   };
 
   const isItemPlaying = useCallback((item) => {
     if (type === 'music') {
-      return Number(currentMusicId) === Number(item.id) && isPlaying && isCollectionActive;
+      // Show as playing if the ID matches and player is active, regardless of context
+      return Number(currentMusicId) === Number(item.id) && isPlaying;
     } else {
-      // For albums and playlists
+      // For albums and playlists, we still care about the context matching
       return currentContext?.type === type && String(currentContext?.id) === String(item.id) && isPlaying;
     }
-  }, [currentMusicId, isPlaying, isCollectionActive, type, currentContext]);
+  }, [currentMusicId, isPlaying, type, currentContext]);
 
   if (!items || !items.length) return null;
 

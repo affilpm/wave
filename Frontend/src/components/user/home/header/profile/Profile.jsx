@@ -14,6 +14,7 @@ import {
 import { convertToSeconds } from '../../../../../utils/formatters';
 import { prepareTracksForPlayer } from '../../../../../utils/trackUtils';
 import ProfileEditModal from './ProfileEditModal';
+import { ARTISTS, USERS, PLAYLISTS, MUSIC } from '../../../../../constants/apiEndpoints';
 
 // Memoized selector for player state 
 const selectPlayerState = createSelector(
@@ -59,9 +60,8 @@ const Profile = () => {
 
   // Memoize isCurrentTrackFromArtistSongs
   const isCurrentTrackFromArtistSongs = useMemo(() => {
-    const isSameContext = currentContext?.type === songsContext.type && currentContext?.id === songsContext.id;
-    return isSameContext && stableSongs.some((song) => Number(song.id) === Number(currentMusicId));
-  }, [stableSongs, currentMusicId, currentContext, songsContext]);
+    return stableSongs.some((song) => Number(song.id) === Number(currentMusicId));
+  }, [stableSongs, currentMusicId]);
 
 
   const handleSongPlay = useCallback(
@@ -70,9 +70,8 @@ const Profile = () => {
       const formattedSong = formattedSongs[index];
 
       const isSameSong = Number(currentMusicId) === Number(formattedSong.id);
-      const isSameContext = currentContext?.type === songsContext.type && currentContext?.id === songsContext.id;
 
-      if (isSameSong && isSameContext) {
+      if (isSameSong) {
         dispatch(setIsPlaying(!isPlaying));
         return;
       }
@@ -121,23 +120,26 @@ const Profile = () => {
   // Fetch user data
   const fetchUserData = async () => {
     try {
-      const artistStatusResponse = await api.get('/api/v1/artists/check-artist-status/');
+      const artistStatusResponse = await api.get(ARTISTS.CHECK_STATUS);
       setIsArtist(artistStatusResponse.data.is_artist);
       setArtistId(artistStatusResponse.data.artist_id);
-
-      const response = await api.get('/api/v1/users/user');
+      
+      const response = await api.get(USERS.PROFILE);
       setUsername(response.data.username);
       setProfilePhoto(response.data.profile_photo);
-
-      const playlistsResponse = await api.get('/api/v1/playlist/public_playlist_data/');
-      setPlaylists(playlistsResponse.data);
-
+      
+      const playlistsResponse = await api.get(PLAYLISTS.PUBLIC_DATA);
+      const pData = playlistsResponse.data;
+      const playlistArr = Array.isArray(pData) ? pData : Array.isArray(pData?.results) ? pData.results : [];
+      setPlaylists(playlistArr);
+      
       if (artistStatusResponse.data.is_artist) {
-        const songsResponse = await api.get('/api/v1/music/public-songs/');
-        setPublicSongs(songsResponse.data);
+        const songsResponse = await api.get(MUSIC.PUBLIC_SONGS);
+        const sData = songsResponse.data;
+        setPublicSongs(Array.isArray(sData) ? sData : sData.results || []);
       }
-
-      const followingResponse = await api.get('/api/v1/artists/me/following-count/');
+      
+      const followingResponse = await api.get(ARTISTS.FOLLOWING_COUNT);
       setUserFollowingCount(followingResponse.data.following_count);
 
       setLoading(false);
@@ -152,7 +154,7 @@ const Profile = () => {
     if (artistId) {
       const fetchArtistFollowerCount = async () => {
         try {
-          const artistResponse = await api.get(`/api/v1/artists/${artistId}/followers-count/`);
+          const artistResponse = await api.get(ARTISTS.FOLLOWERS_COUNT(artistId));
           setArtistFollowerCount(artistResponse.data.followers_count);
         } catch (error) {
           console.error('Error fetching artist follower count:', error);
@@ -172,11 +174,11 @@ const Profile = () => {
     console.log('Player state changed:', {
       currentMusicId,
       isPlaying,
-      isQueueFromArtistSongs,
+      isCurrentTrackFromArtistSongs,
       queueLength: queue.length,
-      currentIndex,
+      queueIndex,
     });
-  }, [currentMusicId, isPlaying, isQueueFromArtistSongs, queue, currentIndex]);
+  }, [currentMusicId, isPlaying, isCurrentTrackFromArtistSongs, queue, queueIndex]);
 
   // Handle profile save
   const handleSaveProfile = async (newUsername, imageFile) => {
@@ -204,9 +206,8 @@ const Profile = () => {
 
   const isTrackPlaying = useCallback((song) => {
     const isSameSong = Number(currentMusicId) === Number(song.id);
-    const isSameContext = currentContext?.type === songsContext.type && currentContext?.id === songsContext.id;
-    return isSameSong && isSameContext && isPlaying;
-  }, [currentMusicId, songsContext, currentContext, isPlaying]);
+    return isSameSong && isPlaying;
+  }, [currentMusicId, isPlaying]);
 
   const handlePlaylistNavigate = (playlistId) => {
     navigate(`/playlist/${playlistId}`);
@@ -214,14 +215,14 @@ const Profile = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-900">
+      <div className="flex h-full items-center justify-center bg-transparent">
         <div className="text-white">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-neutral-900 to-black text-white p-4 md:p-6">
+    <div className="w-full h-full text-white p-4 md:p-6 bg-transparent">
       <div className="max-w-5xl mx-auto">
         {/* Profile Header */}
         <div className="flex items-center gap-4 mb-8">
@@ -259,7 +260,7 @@ const Profile = () => {
               {username}
             </h1>
             <div className="mt-2 flex gap-3 text-xs text-gray-100">
-              <span>{playlists.filter((p) => p.is_public).length} Public Playlists</span>•
+              <span>{(Array.isArray(playlists) ? playlists : []).filter((p) => p.is_public).length} Public Playlists</span>•
               {isArtist && (
                 <>
                   <span>{publicSongs.length} Public Songs</span>•
@@ -316,7 +317,7 @@ const Profile = () => {
           <section>
             <h2 className="text-xl font-bold mb-4">Public Playlists</h2>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-              {playlists
+              {(Array.isArray(playlists) ? playlists : [])
                 .filter((p) => p.is_public)
                 .map((playlist) => (
                   <div

@@ -80,6 +80,8 @@ export const MUSIC = {
   VERIFICATION:       `${API_VERSION}/music/music-verification/`,
   APPROVE:            (id) => `${API_VERSION}/music/music-verification/${id}/approve/`,
   REJECT:             (id) => `${API_VERSION}/music/music-verification/${id}/reject/`,
+  PUBLIC_SONGS:       `${API_VERSION}/music/public-songs/`,
+  SONGS_BY_ARTIST:    (id) => `${API_VERSION}/music/artist/${id}/`,
 };
 
 // ---------------------------------------------------------------------------
@@ -158,6 +160,8 @@ export const PREMIUM = {
 // ---------------------------------------------------------------------------
 export const LISTENING = {
   RECORD:             (id) => `${API_VERSION}/listening-history/record-activity/${id}/`,
+  RECENTLY_PLAYED:    `${API_VERSION}/listening-history/recently-played/`,
+  JUMP_BACK_IN:       `${API_VERSION}/listening-history/jump-back-in/`,
 };
 
 export default {

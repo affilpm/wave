@@ -55,16 +55,21 @@ class LibraryViewSet(viewsets.ViewSet):
     @action(detail=False, methods=["get"], url_path="playlists")
     def get_library_playlists(self, request):
         """Return all playlists saved in the user's library."""
-        library = get_object_or_404(Library, user=request.user)
+        library, _ = Library.objects.get_or_create(user=request.user)
         playlists = library.playlists.all().prefetch_related(
-            "tracks", "tracks__artist", "tracks__album",
+            "playlisttrack_set",
+            "playlisttrack_set__music",
+            "playlisttrack_set__music__artist",
+            "playlisttrack_set__music__artist__user",
+            "playlisttrack_set__music__albumtrack_set",
+            "playlisttrack_set__music__albumtrack_set__album",
         )
         return Response(LibraryPlaylistSerializer(playlists, many=True).data)
 
     @action(detail=False, methods=["get"], url_path=r"check-playlist/(?P<playlist_id>[^/.]+)")
     def check_playlist_in_library(self, request, playlist_id=None):
         """Check whether a playlist is in the user's library."""
-        library = get_object_or_404(Library, user=request.user)
+        library, _ = Library.objects.get_or_create(user=request.user)
         return Response({
             "is_in_library": library.playlists.filter(id=playlist_id).exists(),
         })
@@ -107,7 +112,7 @@ class LibraryViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        library = get_object_or_404(Library, user=request.user)
+        library, _ = Library.objects.get_or_create(user=request.user)
         playlist = get_object_or_404(Playlist, id=playlist_id)
 
         if not library.playlists.filter(id=playlist.id).exists():
@@ -126,7 +131,7 @@ class LibraryViewSet(viewsets.ViewSet):
     @action(detail=False, methods=["get"], url_path="albums")
     def get_library_albums(self, request):
         """Return all albums saved in the user's library."""
-        library = get_object_or_404(Library, user=request.user)
+        library, _ = Library.objects.get_or_create(user=request.user)
         albums = (
             library.albums.all()
             .select_related("artist", "artist__user")
@@ -137,7 +142,7 @@ class LibraryViewSet(viewsets.ViewSet):
     @action(detail=False, methods=["get"], url_path=r"check-album/(?P<album_id>[^/.]+)")
     def check_album_in_library(self, request, album_id=None):
         """Check whether an album is in the user's library."""
-        library = get_object_or_404(Library, user=request.user)
+        library, _ = Library.objects.get_or_create(user=request.user)
         return Response({
             "is_in_library": library.albums.filter(id=album_id).exists(),
         })
@@ -174,7 +179,7 @@ class LibraryViewSet(viewsets.ViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        library = get_object_or_404(Library, user=request.user)
+        library, _ = Library.objects.get_or_create(user=request.user)
         album = get_object_or_404(Album, id=album_id)
 
         if not library.albums.filter(id=album.id).exists():

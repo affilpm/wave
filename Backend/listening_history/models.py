@@ -121,6 +121,68 @@ class RecentlyPlayed(models.Model):
         return f"{self.user} recently played {self.music.name}"
 
 
+class ListeningHistory(models.Model):
+    """
+    Detailed listening history with context tracking.
+    Ensures one record per (user, track) with play count and context.
+    """
+
+    class SourceType(models.TextChoices):
+        PLAYLIST = "playlist", "Playlist"
+        ALBUM = "album", "Album"
+        ARTIST = "artist", "Artist"
+        SINGLE = "single", "Single"
+        SEARCH = "search", "Search"
+        RECOMMENDATION = "recommendation", "Recommendation"
+
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="listening_histories",
+    )
+    track = models.ForeignKey(
+        "music.Music",
+        on_delete=models.CASCADE,
+        related_name="listening_histories",
+    )
+    album = models.ForeignKey(
+        "music.Album",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="listening_histories",
+    )
+    artist = models.ForeignKey(
+        "artists.Artist",
+        on_delete=models.CASCADE,
+        related_name="listening_histories",
+    )
+    
+    source_type = models.CharField(
+        max_length=20,
+        choices=SourceType.choices,
+        default=SourceType.SINGLE,
+    )
+    source_id = models.CharField(max_length=255, null=True, blank=True)
+    
+    last_played_at = models.DateTimeField(auto_now=True)
+    play_count = models.PositiveIntegerField(default=1)
+
+    class Meta:
+        verbose_name = "listening history"
+        verbose_name_plural = "listening histories"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "track"],
+                name="unique_user_track_history",
+            )
+        ]
+        ordering = ["-last_played_at"]
+
+    def __str__(self) -> str:
+        return f"{self.user} - {self.track.name} ({self.play_count} plays)"
+
+
 class ArtistActivity(models.Model):
     """Tracks a user's cumulative engagement with a specific artist."""
 

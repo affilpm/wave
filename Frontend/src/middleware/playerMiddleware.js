@@ -142,10 +142,14 @@ const createRetryHandler = (store, scheduleFetch) => {
     if (!error || !musicId) return;
 
     const shouldRetry = [
-      'TOKEN_EXPIRED',
       'NETWORK_ERROR', 
       'SERVER_ERROR'
     ].includes(error.type);
+
+    // Explicitly do not retry on rate limits or auth failures
+    if (error.type === 'RATE_LIMITED' || error.type === 'UNAUTHORIZED' || error.type === 'API_ERROR') {
+      return;
+    }
 
     if (!shouldRetry) return;
 

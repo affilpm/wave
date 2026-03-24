@@ -45,7 +45,10 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
   }, [dispatch]);
 
   const ownPlaylists = useMemo(() => {
-    // Filter out potential Liked Songs from backend to avoid duplicates
+    // Find the actual Liked Songs playlist object from the backend
+    const likedPlaylistObj = globalOwnPlaylists.find(p => p.name === 'Liked Songs');
+    
+    // Filter out potential Liked Songs from backend to avoid duplicates in the main list
     const regularPlaylists = globalOwnPlaylists.filter(p => p.name !== 'Liked Songs').map(playlist => ({
       id: playlist.id,
       name: playlist.name,
@@ -58,7 +61,8 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
     }));
 
     const likedSongsPlaylist = {
-      id: 'liked-songs',
+      // Use the actual ID from the backend if available, otherwise fall back to string slug
+      id: likedPlaylistObj?.id || 'liked-songs',
       name: 'Liked Songs',
       icon: <Heart className="h-6 w-6 text-pink-500" />,
       image: "/api/v1/placeholder/40/40", // Fallback if no cover
@@ -88,7 +92,16 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
     playlist.name.toLowerCase().includes(librarySearchQuery.toLowerCase())
   );
   
-  const filteredLibraryPlaylists = libraryPlaylists.filter(playlist =>
+  const mappedLibraryPlaylists = useMemo(() => {
+    return libraryPlaylists.map(playlist => ({
+      ...playlist,
+      image: playlist.cover_photo || playlist.image || "/api/v1/placeholder/40/40",
+      songCount: playlist.tracks?.length || playlist.songCount || 0,
+      type: 'Playlist'
+    }));
+  }, [libraryPlaylists]);
+
+  const filteredLibraryPlaylists = mappedLibraryPlaylists.filter(playlist =>
     playlist.name.toLowerCase().includes(librarySearchQuery.toLowerCase())
   );
   

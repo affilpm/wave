@@ -46,6 +46,15 @@ export const fetchStreamUrl = createAsyncThunk(
       if (err.name === 'CanceledError' || err.name === 'AbortError' || signal?.aborted) {
         return rejectWithValue({ type: 'ABORTED', message: 'Request cancelled' });
       }
+
+      const status = err.response?.status;
+      if (status === 429) {
+         return rejectWithValue({ type: 'RATE_LIMITED', message: 'Too many requests' });
+      }
+      if (status === 401) {
+         return rejectWithValue({ type: 'UNAUTHORIZED', message: 'Please login again' });
+      }
+
       return rejectWithValue({ 
         type: 'API_ERROR', 
         message: err.message || 'Unknown error occurred' 
@@ -580,8 +589,10 @@ const playerSlice = createSlice({
       }
     });
     builder.addCase(fetchStreamUrl.rejected, (state, action) => {
-      if (state.currentTrack && state.currentTrack.id === action.meta.arg) {
+      if (state.currentTrack && String(state.currentTrack.id) === String(action.meta.arg)) {
+        state.status = 'idle'; // Stop the loading spinner
         state.currentTrack.hlsFailed = true;
+        
         if (state.queueIndex !== -1 && state.queue[state.queueIndex]) {
           state.queue[state.queueIndex] = state.currentTrack;
         }

@@ -309,3 +309,30 @@ export const toggleLike = (trackId) => (dispatch) => {
      // dispatch(revertLikeOptimistic(trackId));
   });
 };
+
+export const toggleFollowArtistApi = createAsyncThunk(
+  'library/toggleFollowArtistApi',
+  async ({ artistId, isFollowed }, { rejectWithValue }) => {
+    try {
+      const method = isFollowed ? 'delete' : 'post';
+      const response = await api[method](`/api/v1/artists/${artistId}/follow/`);
+      return { artistId, isFollowed, data: response.data };
+    } catch (error) {
+      return rejectWithValue({ artistId, isFollowed, error: error.response?.data || error.message });
+    }
+  }
+);
+
+export const toggleFollowArtist = (artist) => (dispatch, getState) => {
+  const state = getState();
+  const followedArtists = selectFollowedArtists(state);
+  const isFollowed = followedArtists.some(a => (a.artist?.id || a.id) === artist.id);
+
+  // 1. Optimistically update UI
+  dispatch(toggleFollowArtistOptimistic(artist));
+
+  // 2. Fire API request
+  dispatch(toggleFollowArtistApi({ artistId: artist.id, isFollowed })).catch((err) => {
+    // revert is handled by extraReducers or the thunk's rejection
+  });
+};

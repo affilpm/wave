@@ -66,10 +66,10 @@ const HomePage = () => {
   const actualPlayerHeight = PLAYER_HEIGHT;
 
   return (
-    <div className="h-screen flex flex-col bg-gradient-to-b from-gray-900 to-black text-white">
+    <div className="h-screen flex flex-col bg-black text-white">
       
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-gradient-to-b from-gray-900 to-black/40">
+      <div className="sticky top-0 z-20 bg-black/95 backdrop-blur-md">
         <Header toggleMobileSidebar={toggleMobileSidebar} />
       </div>
 
@@ -120,12 +120,10 @@ const HomePage = () => {
         )}
 
         {/* Main Content Area with space for player */}
-        <main className="flex-1 overflow-y-auto scrollbar-hidden">
-          <div className="px-2 md:px-4 pt-2 pb-8">
-            <Outlet /> 
-            {/* Extra bottom padding to ensure content doesn't get hidden */}
-            <div className="h-12" />
-          </div>
+        <main className="flex-1 overflow-y-auto scrollbar-hidden bg-gradient-to-b from-indigo-900/10 via-black to-black">
+          <Outlet /> 
+          {/* Extra bottom padding to ensure content doesn't get hidden */}
+          <div className="h-12" />
         </main>
       </div>
 

@@ -273,6 +273,15 @@ class PlaylistViewSet(viewsets.ModelViewSet):
         next_num = (last.track_number + 1) if last else 1
         PlaylistTrack.objects.create(playlist=liked_playlist, music_id=music_id, track_number=next_num)
         return Response({"status": "Track added to Liked Songs", "liked": True}, status=status.HTTP_201_CREATED)
+    @action(detail=False, methods=["get"], url_path="me/liked-songs")
+    def liked_songs_detail(self, request):
+        """Retrieve the full user's Liked Songs playlist directly."""
+        liked = Playlist.objects.filter(created_by=request.user, name="Liked Songs").first()
+        if not liked:
+            return Response({"error": "Liked Songs playlist not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+        serializer = self.get_serializer(liked)
+        return Response(serializer.data)
 
 
 # ---------------------------------------------------------------------------

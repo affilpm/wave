@@ -43,7 +43,7 @@ export default defineConfig(({ mode }) => {
           connect-src 'self'
             ${API_URL}
             ${API_W}
-            ws://localhost:* wss://localhost:* http://localhost:* https://localhost:*
+            ws://localhost:* wss://localhost:* http://localhost:* https://localhost:* http://127.0.0.1:* ws://127.0.0.1:*
             https://*.cloudfront.net
             wss://*.razorpay.com
             wss://*.agora.io wss://*.sd-rtn.com

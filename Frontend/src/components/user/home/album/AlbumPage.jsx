@@ -288,7 +288,7 @@ const AlbumPage = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 via-black to-black text-white pb-24 sm:pb-28">
+    <div className="flex flex-col text-white pb-24 sm:pb-28">
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 p-4 sm:p-6 pt-6">
         <div className="w-36 h-36 sm:w-48 sm:h-48 flex-shrink-0 shadow-xl">

@@ -231,7 +231,13 @@ const YourPlaylistPage = () => {
   useEffect(() => {
     const fetchPlaylist = async () => {
       try {
-        const response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
+        let response;
+        if (playlistId === 'liked-songs') {
+           // Use the dedicated "me/liked-songs" endpoint for better efficiency
+           response = await api.get('/api/v1/playlist/playlists/me/liked-songs/');
+        } else {
+           response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
+        }
         setPlaylist(response.data);
       } catch (err) {
         setError("Failed to load playlist");
@@ -403,7 +409,7 @@ const YourPlaylistPage = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 via-black to-black text-white pb-24 md:pb-28">
+    <div className="flex flex-col text-white pb-24 md:pb-28">
       <div className="flex flex-col items-center md:items-start md:flex-row md:items-end gap-4 md:gap-6 p-4 md:p-6">
         <div className="relative group w-36 h-36 md:w-48 md:h-48 flex-shrink-0">
           {playlist.name === "Liked Songs" ? (
