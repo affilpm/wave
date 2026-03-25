@@ -76,7 +76,7 @@ const ArtistsShowMorePage = () => {
         const artistsResponse = await api.get(`/api/v1/home/artistshowmore/?page=${page}`);
         const data = artistsResponse.data.results || artistsResponse.data || [];
         const count = artistsResponse.data.results ? artistsResponse.data.count : data.length;
-        const pageSize = artistsResponse.data.page_size || 20;
+        const pageSize = artistsResponse.data.page_size || 10;
 
         setArtists(data);
         setHasNextPage(!!artistsResponse.data.next);

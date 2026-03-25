@@ -115,9 +115,10 @@ const GenrePage = () => {
         const tracksData = tracksResponse.data.results || tracksResponse.data || [];
         const count = tracksResponse.data.results ? tracksResponse.data.count : tracksData.length;
         
+        const pageSize = tracksResponse.data.page_size || 10;
         setGenreData(genreData);
         setTracks(tracksData);
-        setTotalPages(Math.ceil(count / 10));
+        setTotalPages(Math.ceil(count / pageSize));
 
         const seconds = tracksData.reduce((acc, track) =>
           acc + convertToSeconds(track.duration), 0);

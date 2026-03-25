@@ -46,7 +46,7 @@ const PlaylistShowMorePage = () => {
         const musiclistResponse = await api.get(`/api/v1/home/playlist/?all_songs&page=${page}`);
         const data = musiclistResponse.data.results || musiclistResponse.data || [];
         const count = musiclistResponse.data.results ? musiclistResponse.data.count : data.length;
-        const pageSize = musiclistResponse.data.results ? (musiclistResponse.data.page_size || 20) : 20;
+        const pageSize = musiclistResponse.data.results ? (musiclistResponse.data.page_size || 10) : 10;
 
         setItems(data);
         setHasNextPage(!!musiclistResponse.data.next);

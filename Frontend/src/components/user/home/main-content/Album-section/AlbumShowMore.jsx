@@ -46,7 +46,7 @@ const AlbumShowMorePage = () => {
         const response = await api.get(`/api/v1/home/albumlist/?all_songs&page=${page}`);
         const data = response.data.results || response.data || [];
         const count = response.data.results ? response.data.count : data.length;
-        const pageSize = response.data.results ? (response.data.page_size || 20) : 20;
+        const pageSize = response.data.results ? (response.data.page_size || 10) : 10;
 
         setItems(data);
         setHasNextPage(!!response.data.next);

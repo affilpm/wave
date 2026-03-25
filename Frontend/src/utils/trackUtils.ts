@@ -8,13 +8,15 @@ export const prepareTrackForPlayer = (track: any, artist?: any, userId?: string 
   const baseTrack = track.music_details || track;
   
   // Extract artist name
-  const artistName = baseTrack.artist?.user?.username || 
+  const artistName = baseTrack.artist_username || 
+                    baseTrack.artist?.user?.username || 
                     baseTrack.artist?.username || 
                     baseTrack.artist || 
                     artist?.username || 
                     'Unknown Artist';
 
-  const artistFullName = baseTrack.artist?.full_name || 
+  const artistFullName = baseTrack.artist_full_name || 
+                        baseTrack.artist?.full_name || 
                         baseTrack.artist_full || 
                         artist?.full_name || 
                         artist?.username || 
