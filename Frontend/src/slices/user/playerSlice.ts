@@ -191,7 +191,7 @@ const playerSlice = createSlice({
     },
     
     pause: (state) => {
-      if (state.status === 'playing' || state.status === 'buffering') {
+      if (state.status === 'playing' || state.status === 'buffering' || state.status === 'loading') {
         state.status = 'paused';
       }
     },
@@ -204,7 +204,7 @@ const playerSlice = createSlice({
     
     togglePlay: (state) => {
       if (state.currentTrack) {
-        if (state.status === 'playing' || state.status === 'buffering') {
+        if (state.status === 'playing' || state.status === 'buffering' || state.status === 'loading') {
           state.status = 'paused';
         } else {
           state.status = 'playing';

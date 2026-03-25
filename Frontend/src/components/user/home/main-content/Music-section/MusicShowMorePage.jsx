@@ -35,7 +35,7 @@ const MusicShowMorePage = () => {
   );
   
   const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing';
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);

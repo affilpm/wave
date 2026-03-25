@@ -24,7 +24,7 @@ const MusicSection = ({ title }) => {
     shallowEqual
   );
   const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing';
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
   const [loading, setLoading] = useState(true);

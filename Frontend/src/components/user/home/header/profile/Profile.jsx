@@ -48,7 +48,7 @@ const Profile = () => {
   );
 
   const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing';
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
 
   // Memoize public songs for stable props
   const stableSongs = useMemo(() => publicSongs || [], [publicSongs]);

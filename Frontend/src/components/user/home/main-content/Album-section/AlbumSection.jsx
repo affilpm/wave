@@ -31,7 +31,7 @@ const AlbumSection = memo(({ title }) => {
     shallowEqual
   );
   const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing';
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
   const currentIndex = queueIndex;
 
   useEffect(() => {

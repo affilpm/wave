@@ -28,7 +28,7 @@ const AlbumShowMorePage = () => {
     shallowEqual
   );
   const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing';
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
   const currentIndex = queueIndex;
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);

@@ -58,7 +58,7 @@ export const usePlayCollection = ({
     shallowEqual
   );
 
-  const isPlaying = status === 'playing';
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
 
   // Is THIS collection the one currently loaded in the player?
   const isCollectionActive = useMemo(() => {

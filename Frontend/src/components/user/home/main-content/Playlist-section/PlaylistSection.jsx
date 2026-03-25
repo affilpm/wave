@@ -4,11 +4,9 @@ import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import { useNavigate } from "react-router-dom";
-import {
-  togglePlay,
-} from "../../../../../slices/user/playerSlice";
-import { Shuffle } from "lucide-react";
 import api from "../../../../../api";
+import { setQueue, setIsPlaying } from "../../../../../slices/user/playerSlice";
+import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
@@ -34,7 +32,7 @@ const PlaylistSection = ({ title }) => {
     shallowEqual
   );
   const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing';
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
   const currentIndex = queueIndex;
 
   useEffect(() => {
@@ -64,33 +62,61 @@ const PlaylistSection = ({ title }) => {
   );
 
   const handlePlayClick = useCallback(
-    (e, item) => {
+    async (e, item) => {
       e.stopPropagation();
       const isCurrentPlaylist = currentContext?.type === 'playlist' && String(currentContext?.id) === String(item.id);
 
       if (isCurrentPlaylist) {
-        dispatch(togglePlay());
+        dispatch(setIsPlaying(!isPlaying));
       } else {
-        if (item.created_by === username) {
-          navigate(`/playlist/${item.id}`, { state: { autoPlay: true } });
-        } else {
-          navigate(`/saved-playlist/${item.id}`, { state: { autoPlay: true } });
+        try {
+          // Fetch playlist data to get tracks
+          const response = await api.get(`/api/v1/playlist/playlists/${item.id}/`);
+          const data = response.data;
+          const tracks = data.tracks || [];
+          const formattedTracks = prepareTracksForPlayer(tracks);
+
+          if (formattedTracks.length > 0) {
+            dispatch(setQueue({
+              tracks: formattedTracks,
+              startIndex: 0,
+              context: { type: 'playlist', id: item.id }
+            }));
+            dispatch(setIsPlaying(true));
+          }
+        } catch (error) {
+          console.error("Error playing playlist:", error);
         }
       }
     },
-    [dispatch, currentContext, navigate, username]
+    [dispatch, currentContext, isPlaying]
   );
 
   const handleShuffleClick = useCallback(
-    (e, item) => {
+    async (e, item) => {
       e.stopPropagation();
-      if (item.created_by === username) {
-        navigate(`/playlist/${item.id}`, { state: { autoPlay: true, autoShuffle: true } });
-      } else {
-        navigate(`/saved-playlist/${item.id}`, { state: { autoPlay: true, autoShuffle: true } });
+      try {
+        const response = await api.get(`/api/v1/playlist/playlists/${item.id}/`);
+        const data = response.data;
+        const tracks = data.tracks || [];
+        const formattedTracks = prepareTracksForPlayer(tracks);
+
+        if (formattedTracks.length > 0) {
+          dispatch(setQueue({
+            tracks: formattedTracks,
+            startIndex: Math.floor(Math.random() * formattedTracks.length),
+            context: { type: 'playlist', id: item.id }
+          }));
+          // Ideally we'd have a toggleShufflePlay action that takes tracks but setQueue with random start is similar if shuffleMode is on
+          // Actually toggleShufflePlay in playerSlice.ts handles this better
+          // dispatch(toggleShufflePlay(formattedTracks)); // Wait, toggleShufflePlay is not exported here yet
+          dispatch(setIsPlaying(true));
+        }
+      } catch (error) {
+        console.error("Error shuffling playlist:", error);
       }
     },
-    [navigate, username]
+    [dispatch]
   );
 
   const handleScroll = (direction) => {

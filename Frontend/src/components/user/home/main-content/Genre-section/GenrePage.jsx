@@ -74,7 +74,7 @@ const GenrePage = () => {
   );
   
   const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing';
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
   const [genreData, setGenreData] = useState(null);
   const [tracks, setTracks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);

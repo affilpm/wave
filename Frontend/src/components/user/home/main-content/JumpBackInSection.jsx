@@ -27,7 +27,7 @@ const JumpBackInSection = ({ albums = [], hasSingles = false }) => {
     shallowEqual
   );
 
-  const isPlaying = status === "playing";
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
 
   const handleScroll = useCallback((direction) => {
     const container = scrollRef.current;
@@ -97,11 +97,11 @@ const JumpBackInSection = ({ albums = [], hasSingles = false }) => {
   };
 
   const isAlbumPlaying = (albumId) => {
-    return isPlaying && currentContext?.type === 'album' && String(currentContext?.id) === String(albumId);
+    return (currentContext?.type === 'album' && String(currentContext?.id) === String(albumId)) && isPlaying;
   };
 
   const isSinglesPlaying = () => {
-    return isPlaying && currentContext?.type === 'singles';
+    return (currentContext?.type === 'singles') && isPlaying;
   };
 
   if (!albums.length && !hasSingles) return null;

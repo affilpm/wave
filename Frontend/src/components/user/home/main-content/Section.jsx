@@ -25,7 +25,7 @@ const Section = ({ title, items, onShowAll, type = 'music' }) => {
   const dispatch = useDispatch();
   const { currentTrack, status, currentContext } = useSelector(selectPlayerState, shallowEqual);
   const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing';
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
 
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);

@@ -34,7 +34,7 @@ const ArtistsShowMorePage = () => {
   // Use the selector
   const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(selectPlayerState);
   const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing';
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
   const currentUserId = useSelector((state) => state.user_id);
 
   const [artists, setArtists] = useState([]);

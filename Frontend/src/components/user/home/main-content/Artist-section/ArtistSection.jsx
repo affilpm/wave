@@ -33,7 +33,7 @@ const ArtistSection = ({ title }) => {
   const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     (state) => state.player
   );
-  const isPlaying = status === 'playing';
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
   const currentMusicId = currentTrack?.id;
   const currentUserId = useSelector((state) => state.user_id);
 
