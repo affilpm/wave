@@ -173,8 +173,14 @@ const createRetryHandler = (store, scheduleFetch) => {
 };
 
 const createActionHandlers = (scheduleFetch, handleRetry) => ({
-  'persist/REHYDRATE': () => {
+  'persist/REHYDRATE': (action, playerState) => {
     middlewareState.isRehydrated = true;
+    const musicId = playerState.currentTrack?.id;
+    if (musicId) {
+      // Re-fetch URL on reload as it might be expired
+      middlewareState.lastFetchedMusicId = null;
+      scheduleFetch(musicId, true);
+    }
   },
 
   'player/playTrack': (action, playerState) => {

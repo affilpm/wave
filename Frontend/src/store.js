@@ -1,6 +1,6 @@
 // store.js
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
-import { persistStore, persistReducer, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER } from 'redux-persist';
+import { persistStore, persistReducer, createTransform, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER } from 'redux-persist';
 import storage from 'redux-persist/lib/storage';
 import userReducer from './slices/user/userSlice';
 import adminReducer from './slices/admin/adminSlice';
@@ -14,10 +14,30 @@ import equalizerReducer from './slices/user/equalizerSlice';
 import libraryReducer from './slices/user/librarySlice';
 import listeningHistoryReducer from './slices/user/listeningHistorySlice';
 
+const playerFilter = createTransform(
+  // transform state on its way to being serialized and persisted.
+  (inboundState, key) => {
+    if (key === 'player') {
+      return {
+        ...inboundState,
+        currentTrack: inboundState.currentTrack ? {
+          ...inboundState.currentTrack,
+          hlsUrl: null,
+          audio_file: null,
+        } : null,
+      };
+    }
+    return inboundState;
+  },
+  // transform state being rehydrated
+  (outboundState, key) => outboundState,
+);
+
 const playerPersistConfig = {
   key: 'player',
   storage,
   blacklist: ['currentTime', 'status'], // Don't persist time (handled manually) or transient status
+  transforms: [playerFilter],
 };
 
 const rootReducer = combineReducers({
