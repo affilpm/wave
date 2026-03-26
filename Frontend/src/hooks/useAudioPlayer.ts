@@ -134,6 +134,12 @@ export const useAudioPlayer = () => {
     const startPlaying = () => {
       // Final check: is this still the track Redux wants to play?
       if (currentTrackIdRef.current !== trackIdAtStart) return;
+      
+      // Don't auto-play on the very first load (rehydration)
+      if (isInitialLoadRef.current) {
+        dispatch(setStatus('paused'));
+        return;
+      }
 
       setTimeout(() => {
         if (status === 'loading' || status === 'playing') {
@@ -157,8 +163,12 @@ export const useAudioPlayer = () => {
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (currentTrackIdRef.current === trackIdAtStart) {
-          startPlaying();
-          dispatch(setStatus('playing'));
+          if (isInitialLoadRef.current) {
+            dispatch(setStatus('paused'));
+          } else {
+            startPlaying();
+            dispatch(setStatus('playing'));
+          }
         }
       });
 
@@ -173,13 +183,21 @@ export const useAudioPlayer = () => {
     } else if (currentTrack.hlsUrl && audio.canPlayType('application/vnd.apple.mpegurl')) {
       audio.src = currentTrack.hlsUrl;
       audio.load();
-      startPlaying();
-      dispatch(setStatus('playing'));
+      if (isInitialLoadRef.current) {
+        dispatch(setStatus('paused'));
+      } else {
+        startPlaying();
+        dispatch(setStatus('playing'));
+      }
     } else if (currentTrack.hlsFailed && currentTrack.audio_file) {
       audio.src = currentTrack.audio_file;
       audio.load();
-      startPlaying();
-      dispatch(setStatus('playing'));
+      if (isInitialLoadRef.current) {
+        dispatch(setStatus('paused'));
+      } else {
+        startPlaying();
+        dispatch(setStatus('playing'));
+      }
     }
 
     return () => {
