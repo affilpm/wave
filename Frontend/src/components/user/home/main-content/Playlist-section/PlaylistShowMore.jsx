@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
-import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, Pause } from "lucide-react";
 import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
 import { handlePlaybackAction } from "./playlist-utils";
 import api from "../../../../../api";
@@ -31,8 +31,6 @@ const PlaylistShowMorePage = () => {
   const currentMusicId = currentTrack?.id;
   const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
   const currentIndex = queueIndex;
-  const scrollContainerRef = useRef(null);
-  const [showControls, setShowControls] = useState(false);
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(1);
@@ -85,17 +83,6 @@ const PlaylistShowMorePage = () => {
     [dispatch, currentMusicId, isPlaying, queue, currentIndex]
   );
 
-  const handleScroll = (direction) => {
-    const container = scrollContainerRef.current;
-    if (container) {
-      const scrollAmount = 300;
-      container.scrollBy({
-        left: direction === "left" ? -scrollAmount : scrollAmount,
-        behavior: "smooth",
-      });
-    }
-  };
-
   const memoizedItems = useMemo(() => items, [items]);
 
   const handleNextPage = () => setPage((prev) => prev + 1);
@@ -112,27 +99,7 @@ const PlaylistShowMorePage = () => {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">{title}</h2>
       </div>
-      <div
-        className="relative"
-        onMouseEnter={() => setShowControls(true)}
-        onMouseLeave={() => setShowControls(false)}
-      >
-        {showControls && (
-          <>
-            <button
-              onClick={() => handleScroll("left")}
-              className="absolute left-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2 transition-transform hover:scale-110"
-            >
-              <ChevronLeft className="h-6 w-6" />
-            </button>
-            <button
-              onClick={() => handleScroll("right")}
-              className="absolute right-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2 transition-transform hover:scale-110"
-            >
-              <ChevronRight className="h-6 w-6" />
-            </button>
-          </>
-        )}
+      <div className="relative">
         <div className="px-4">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
             {memoizedItems.map((item) => {
