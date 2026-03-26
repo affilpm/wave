@@ -79,7 +79,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
                 {currentTrack.name || currentTrack.title || 'Unknown Track'}
               </span>
               <span className="text-[12px] text-white/50 truncate">
-                {currentTrack.artist.username || 'Unknown Artist'}
+                {currentTrack.artist || currentTrack.artist_full || 'Unknown Artist'}
               </span>
             </div>
           </div>
