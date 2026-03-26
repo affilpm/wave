@@ -21,6 +21,14 @@ export const useAudioPlayer = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
   const isInitialLoadRef = useRef(true);
+  const rehydratedTrackIdRef = useRef<string | number | null>(null);
+
+  // Mark the initial track as rehydrated on mount
+  useEffect(() => {
+    if (isInitialLoadRef.current && currentTrack?.id) {
+      rehydratedTrackIdRef.current = currentTrack.id;
+    }
+  }, []);
 
   // Initialize audio element if not present
   useEffect(() => {
@@ -135,8 +143,8 @@ export const useAudioPlayer = () => {
       // Final check: is this still the track Redux wants to play?
       if (currentTrackIdRef.current !== trackIdAtStart) return;
       
-      // Don't auto-play on the very first load (rehydration)
-      if (isInitialLoadRef.current) {
+      // Don't auto-play if this is the rehydrated track
+      if (rehydratedTrackIdRef.current === trackIdAtStart) {
         dispatch(setStatus('paused'));
         return;
       }
@@ -163,7 +171,8 @@ export const useAudioPlayer = () => {
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         if (currentTrackIdRef.current === trackIdAtStart) {
-          if (isInitialLoadRef.current) {
+          // Check if this is still the rehydrated track
+          if (rehydratedTrackIdRef.current === trackIdAtStart) {
             dispatch(setStatus('paused'));
           } else {
             startPlaying();
@@ -183,7 +192,7 @@ export const useAudioPlayer = () => {
     } else if (currentTrack.hlsUrl && audio.canPlayType('application/vnd.apple.mpegurl')) {
       audio.src = currentTrack.hlsUrl;
       audio.load();
-      if (isInitialLoadRef.current) {
+      if (rehydratedTrackIdRef.current === trackIdAtStart) {
         dispatch(setStatus('paused'));
       } else {
         startPlaying();
@@ -192,7 +201,7 @@ export const useAudioPlayer = () => {
     } else if (currentTrack.hlsFailed && currentTrack.audio_file) {
       audio.src = currentTrack.audio_file;
       audio.load();
-      if (isInitialLoadRef.current) {
+      if (rehydratedTrackIdRef.current === trackIdAtStart) {
         dispatch(setStatus('paused'));
       } else {
         startPlaying();
@@ -214,6 +223,10 @@ export const useAudioPlayer = () => {
     if (!audio || !currentTrack) return;
 
     if (status === 'playing') {
+      // If user explicitly plays, clear rehydration lock
+      if (rehydratedTrackIdRef.current === currentTrack.id) {
+        rehydratedTrackIdRef.current = null;
+      }
       if (audio.paused) {
         attemptPlay();
       }
@@ -222,6 +235,10 @@ export const useAudioPlayer = () => {
         audio.pause();
       }
     } else if (status === 'loading') {
+       // Also clear lock on new explicit loads
+       if (rehydratedTrackIdRef.current && rehydratedTrackIdRef.current !== currentTrack.id) {
+         rehydratedTrackIdRef.current = null;
+       }
        // Reset and play for Loading state (important for Repeat One)
        audio.currentTime = 0;
        attemptPlay();

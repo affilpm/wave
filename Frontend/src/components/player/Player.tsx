@@ -48,6 +48,7 @@ export const Player: React.FC = () => {
   });
 
   const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
+  const isLoading = status === 'loading' || status === 'buffering';
 
   // Instantiate hooks
   const { seek } = useAudioPlayer();
@@ -75,6 +76,7 @@ export const Player: React.FC = () => {
       <MiniPlayer
         currentTrack={currentTrack}
         isPlaying={isPlaying}
+        isLoading={isLoading}
         isLiked={isLiked}
         currentTime={currentTime}
         duration={duration}
@@ -95,6 +97,7 @@ export const Player: React.FC = () => {
         isOpen={isFullPlayerOpen}
         currentTrack={currentTrack}
         isPlaying={isPlaying}
+        isLoading={isLoading}
         isLiked={isLiked}
         currentTime={currentTime}
         duration={duration}

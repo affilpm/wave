@@ -1,10 +1,11 @@
 import React, { useRef } from 'react';
 import { motion } from 'framer-motion';
 import { RepeatMode } from '../../types/player';
-import { Shuffle, Repeat, SkipBack, SkipForward, Play, Pause } from 'lucide-react';
+import { Shuffle, Repeat, SkipBack, SkipForward, Play, Pause, Loader2 } from 'lucide-react';
 
 interface PlayerControlsProps {
   isPlaying: boolean;
+  isLoading?: boolean;
   shuffleMode: boolean;
   repeatMode: RepeatMode;
   onPlayPause: () => void;
@@ -16,6 +17,7 @@ interface PlayerControlsProps {
 
 export const PlayerControls: React.FC<PlayerControlsProps> = ({
   isPlaying,
+  isLoading,
   shuffleMode,
   repeatMode,
   onPlayPause,
@@ -80,8 +82,11 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
         className="w-16 h-16 flex items-center justify-center bg-white text-black rounded-full shadow-[inset_0_-2px_4px_rgba(0,0,0,0.1)]"
         whileTap={{ scale: 0.90 }}
         transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+        disabled={isLoading}
       >
-        {isPlaying ? (
+        {isLoading ? (
+          <Loader2 size={32} className="animate-spin" />
+        ) : isPlaying ? (
           <Pause size={32} fill="currentColor" />
         ) : (
           <Play size={32} fill="currentColor" className="ml-1" />

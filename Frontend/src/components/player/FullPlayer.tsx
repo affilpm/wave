@@ -11,6 +11,7 @@ interface FullPlayerProps {
   isOpen: boolean;
   currentTrack: Track;
   isPlaying: boolean;
+  isLoading?: boolean;
   isLiked: boolean;
   currentTime: number;
   duration: number;
@@ -35,6 +36,7 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
   isOpen,
   currentTrack,
   isPlaying,
+  isLoading,
   isLiked,
   currentTime,
   duration,
@@ -170,6 +172,7 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
 
               <PlayerControls
                 isPlaying={isPlaying}
+                isLoading={isLoading}
                 shuffleMode={shuffleMode}
                 repeatMode={repeatMode}
                 onPlayPause={onPlayPause}

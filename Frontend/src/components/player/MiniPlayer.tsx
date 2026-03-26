@@ -1,12 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Play, Pause, SkipBack, SkipForward, ChevronUp, Heart, Shuffle, Repeat, ListMusic } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, ChevronUp, Heart, Shuffle, Repeat, ListMusic, Loader2 } from 'lucide-react';
 import { Track, RepeatMode } from '../../types/player';
 import { ProgressBar } from './ProgressBar';
 
 interface MiniPlayerProps {
   currentTrack: Track;
   isPlaying: boolean;
+  isLoading?: boolean;
   isLiked: boolean;
   currentTime: number;
   duration: number;
@@ -26,6 +27,7 @@ interface MiniPlayerProps {
 export const MiniPlayer: React.FC<MiniPlayerProps> = ({
   currentTrack,
   isPlaying,
+  isLoading,
   isLiked,
   currentTime,
   duration,
@@ -77,7 +79,7 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
                 {currentTrack.name || currentTrack.title || 'Unknown Track'}
               </span>
               <span className="text-[12px] text-white/50 truncate">
-                {currentTrack.artist || 'Unknown Artist'}
+                {currentTrack.artist.username || 'Unknown Artist'}
               </span>
             </div>
           </div>
@@ -119,8 +121,15 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
               className="w-8 h-8 flex items-center justify-center bg-white text-black rounded-full shadow-md shrink-0"
               whileTap={{ scale: 0.88 }}
               transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+              disabled={isLoading}
             >
-              {isPlaying ? <Pause size={16} fill="currentColor" /> : <Play size={16} fill="currentColor" className="ml-0.5" />}
+              {isLoading ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : isPlaying ? (
+                <Pause size={16} fill="currentColor" />
+              ) : (
+                <Play size={16} fill="currentColor" className="ml-0.5" />
+              )}
             </motion.button>
 
             <button onClick={onNext} className="flex-shrink-0 text-white/80 hover:text-white transition-colors">
