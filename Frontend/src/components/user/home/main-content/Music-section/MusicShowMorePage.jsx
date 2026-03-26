@@ -136,12 +136,12 @@ const MusicShowMorePage = () => {
     <div className="flex-1 p-2">
       <section className="mb-8 relative">
         <h2 className="text-2xl p-2 font-bold mb-4">{title}</h2>
-        <div className="overflow-x-auto scrollbar-hidden">
-          <div className="flex flex-wrap gap-6">
+        <div className="p-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
             {musiclistData.map((item, index) => (
               <div
                 key={index}
-                className="bg-gray-800/30 rounded-lg p-4 hover:bg-gray-800/60 transition-all cursor-pointer group flex-none w-40"
+                className="bg-gray-800/30 rounded-lg p-4 hover:bg-gray-800/60 transition-all cursor-pointer group w-full"
               >
                 <div className="relative">
                   <img

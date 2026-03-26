@@ -134,16 +134,16 @@ const ArtistsShowMorePage = () => {
     <div className="flex-1 p-2">
       <section className="mb-8 relative">
         <h2 className="text-2xl p-2 font-bold mb-4">{title || "Artists"}</h2>
-        <div className="overflow-x-auto scrollbar-hidden">
-          <div className="flex flex-wrap gap-6">
+        <div className="p-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
             {artists.map((artist) => (
               <div
                 key={artist.id}
-                className="flex-none w-40"
+                className="w-full cursor-pointer group"
                 onClick={() => handleArtistClick(artist.id)}
               >
                 <div className="relative group">
-                  <div className="w-40 h-40 rounded-full overflow-hidden">
+                  <div className="aspect-square rounded-full overflow-hidden">
                     {artist.profile_photo ? (
                       <img
                         src={artist.profile_photo}
@@ -182,24 +182,28 @@ const ArtistsShowMorePage = () => {
                 </div>
               </div>
             ))}
-          </div>
         </div>
-        <div className="flex justify-between mt-4 items-center">
-          <button
-            className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50"
-            onClick={handlePrevPage}
-            disabled={page === 1}
-          >
-            Previous
-          </button>
-          <button
-            className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50"
-            onClick={handleNextPage}
-            disabled={!hasNextPage}
-          >
-            Next
-          </button>
-        </div>
+      </div>
+
+      <div className="flex justify-between items-center mt-8 px-4">
+        <button
+          className="text-sm text-gray-400 hover:text-white transition-colors bg-gray-700 py-2 px-4 rounded-full disabled:opacity-50 font-medium"
+          onClick={handlePrevPage}
+          disabled={page === 1}
+        >
+          Previous
+        </button>
+        <span className="text-gray-400 text-sm">
+          Page {page} {totalPages > 0 && `of ${totalPages}`}
+        </span>
+        <button
+          className="text-sm text-gray-400 hover:text-white transition-colors bg-gray-700 py-2 px-4 rounded-full disabled:opacity-50 font-medium"
+          onClick={handleNextPage}
+          disabled={!hasNextPage}
+        >
+          Next
+        </button>
+      </div>
       </section>
     </div>
   );

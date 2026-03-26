@@ -111,22 +111,6 @@ const PlaylistShowMorePage = () => {
     <section className="mb-8 relative p-4">
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">{title}</h2>
-        <div className="flex gap-2">
-          <button
-            className="text-sm text-gray-400 hover:text-white transition-colors bg-gray-700 py-1 px-3 rounded disabled:opacity-50"
-            onClick={handlePrevPage}
-            disabled={page === 1}
-          >
-            Previous
-          </button>
-          <button
-            className="text-sm text-gray-400 hover:text-white transition-colors bg-gray-700 py-1 px-3 rounded disabled:opacity-50"
-            onClick={handleNextPage}
-            disabled={!hasNextPage}
-          >
-            Next
-          </button>
-        </div>
       </div>
       <div
         className="relative"
@@ -149,12 +133,8 @@ const PlaylistShowMorePage = () => {
             </button>
           </>
         )}
-        <div
-          ref={scrollContainerRef}
-          className="overflow-x-auto scrollbar-hide"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-        >
-          <div className="flex gap-4 px-4">
+        <div className="px-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
             {memoizedItems.map((item) => {
               const isCurrentPlaylist = queue.some(
                 (track) => track.playlist_id === item.id
@@ -163,7 +143,7 @@ const PlaylistShowMorePage = () => {
               return (
                 <div
                   key={item.id}
-                  className="flex-none w-40"
+                  className="cursor-pointer group w-full"
                   onClick={() => handlePlaylistClick(item.id)}
                 >
                   <div className="relative group">
@@ -207,6 +187,26 @@ const PlaylistShowMorePage = () => {
             })}
           </div>
         </div>
+      </div>
+
+      <div className="flex justify-between items-center mt-8 px-4">
+        <button
+          className="text-sm text-gray-400 hover:text-white transition-colors bg-gray-700 py-2 px-4 rounded-full disabled:opacity-50 font-medium"
+          onClick={handlePrevPage}
+          disabled={page === 1}
+        >
+          Previous
+        </button>
+        <span className="text-gray-400 text-sm">
+          Page {page} {totalPages > 0 && `of ${totalPages}`}
+        </span>
+        <button
+          className="text-sm text-gray-400 hover:text-white transition-colors bg-gray-700 py-2 px-4 rounded-full disabled:opacity-50 font-medium"
+          onClick={handleNextPage}
+          disabled={!hasNextPage}
+        >
+          Next
+        </button>
       </div>
     </section>
   );
