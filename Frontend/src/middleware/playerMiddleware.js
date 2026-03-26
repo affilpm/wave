@@ -271,6 +271,14 @@ export const playerMiddleware = (store) => {
     const state = store.getState();
     const playerState = state?.player;
 
+    // Proactive check: If we have a track but no URL, schedule a fetch
+    if (playerState?.currentTrack && 
+        !playerState.currentTrack.hlsUrl && 
+        !playerState.currentTrack.hlsFailed && 
+        middlewareState.isRehydrated) {
+      scheduleFetch(playerState.currentTrack.id);
+    }
+
     const handler = actionHandlers[action.type];
     if (handler && playerState) {
       try {
