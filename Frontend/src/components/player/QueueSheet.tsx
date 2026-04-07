@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
 import { PlayerState, Track } from '../../types/player';
@@ -118,8 +119,29 @@ const SortableTrackItem: React.FC<{
             <span className={`text-[14px] truncate ${isCurrent ? 'text-[var(--player-accent)]' : 'text-white'}`}>
               {track.name || track.title || 'Unknown Track'}
             </span>
-            <span className="text-[12px] text-white/50 truncate">
-              {track.artist || 'Unknown Artist'}
+            <span className="text-[12px] text-white/50 truncate" onClick={(e) => e.stopPropagation()}>
+              {track.artist_id ? (
+                <Link 
+                  to={`/artist/${track.artist_id}`}
+                  className="hover:underline hover:text-white transition-colors"
+                >
+                  {track.artist}
+                </Link>
+              ) : (
+                track.artist || 'Unknown Artist'
+              )}
+              {track.album && (
+                <>
+                  { " • " }
+                  {track.album_id ? (
+                    <Link to={`/album/${track.album_id}`} className="hover:underline hover:text-white transition-colors">
+                      {track.album}
+                    </Link>
+                  ) : (
+                    track.album
+                  )}
+                </>
+              )}
             </span>
           </div>
         </div>

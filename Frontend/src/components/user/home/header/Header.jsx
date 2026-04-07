@@ -190,11 +190,19 @@ const Header = ({ toggleMobileSidebar }) => {
         {/* Center Section - Home & Livestream - Hidden on mobile */}
         <div className="hidden md:flex items-center justify-center gap-4 lg:gap-8 max-w-3xl flex-1">
           <button 
-            className="flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors"
+            className={`flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors ${location.pathname === '/home' ? 'text-white' : 'text-gray-400'}`}
             onClick={() => handleNavigation('/home')}
           >
             <Home className="h-5 w-5 lg:h-6 lg:w-6" />
             <span className="text-sm lg:text-base font-medium">Home</span>
+          </button>
+
+          <button 
+            className={`flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors ${location.pathname === '/discover' ? 'text-white' : 'text-gray-400'}`}
+            onClick={() => handleNavigation('/discover')}
+          >
+            <Search className="h-5 w-5 lg:h-6 lg:w-6" />
+            <span className="text-sm lg:text-base font-medium">Discover</span>
           </button>
           
           {/* Desktop Search Component */}
@@ -315,6 +323,7 @@ const Header = ({ toggleMobileSidebar }) => {
           </div>
           {[
             { name: 'Home', icon: <Home className="h-4 w-4" />, path: '/home' },
+            { name: 'Discover', icon: <Search className="h-4 w-4" />, path: '/discover' },
             { name: 'Now Playing', icon: <Headphones className="h-4 w-4" />, path: '/player' },
             { name: 'Profile', icon: <UserCircle className="h-4 w-4" />, path: '/profile' },
             { name: 'Settings', icon: <Settings className="h-4 w-4" />, path: '/settings' }

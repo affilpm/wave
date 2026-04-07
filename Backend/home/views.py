@@ -176,11 +176,7 @@ class ArtistOnlyView(APIView):
         except Artist.DoesNotExist:
             return Response({"error": "Artist not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        if artist.user == request.user:
-            return Response(
-                {"error": "You cannot view your own artist data."},
-                status=status.HTTP_403_FORBIDDEN,
-            )
+
         if not artist.musical_works.filter(is_public=True).exists():
             return Response(
                 {"error": "This artist has no public tracks."},
@@ -192,8 +188,7 @@ class ArtistOnlyView(APIView):
     @staticmethod
     def _list_artists(request) -> Response:
         artists = (
-            Artist.objects.exclude(user=request.user)
-            .filter(musical_works__is_public=True)
+            Artist.objects.filter(musical_works__is_public=True)
             .select_related("user")
             .distinct()[:10]
         )
@@ -215,8 +210,7 @@ class ArtistListView(APIView):
             return ArtistOnlyView._single_artist(ArtistOnlyView(), request, artist_id)
 
         artists = (
-            Artist.objects.exclude(user=request.user)
-            .filter(musical_works__is_public=True)
+            Artist.objects.filter(musical_works__is_public=True)
             .select_related("user")
             .distinct()
         )

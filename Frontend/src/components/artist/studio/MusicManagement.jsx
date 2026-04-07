@@ -3,7 +3,7 @@ import { Trash2, Eye, EyeOff, Search, AlertCircle, Tag } from 'lucide-react';
 import api from '../../../api';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 
 const MusicManagement = () => {
   const [tracks, setTracks] = useState([]);

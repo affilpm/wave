@@ -7,17 +7,28 @@ import os
 
 class MusicSerializer(serializers.ModelSerializer):
     artist_email = serializers.SerializerMethodField()
-    artist_full_name = serializers.SerializerMethodField()
     artist_username = serializers.SerializerMethodField()
+    artist_id = serializers.SerializerMethodField()
+    album_name = serializers.SerializerMethodField()
+    album_id = serializers.SerializerMethodField()
     
     class Meta:
         model = Music
         fields = [
             'id', 'name', 'cover_photo', 'release_date',
             'approval_status', 'duration', 'artist', 
-            'artist_email', 'artist_full_name',
-            'artist_username', 'is_public',
+            'artist_email',
+            'artist_username', 'artist_id', 'is_public',
+            'album_name', 'album_id',
         ]
+
+    def get_album_name(self, obj):
+        album = obj.albums.first()
+        return album.name if album else "Single"
+
+    def get_album_id(self, obj):
+        album = obj.albums.first()
+        return album.id if album else None
 
     def get_artist_email(self, obj):
         # Assuming the artist field is related to the User model
@@ -26,12 +37,11 @@ class MusicSerializer(serializers.ModelSerializer):
     def get_artist_username(self, obj):
         # Assuming the artist field is related to the User model
         return obj.artist.user.username if obj.artist and obj.artist.user else None
+
+    def get_artist_id(self, obj):
+        return obj.artist.id if obj.artist else None
     
-    def get_artist_full_name(self, obj):
-        # Combine first name and last name
-        if obj.artist and obj.artist.user:
-            return f"{obj.artist.user.first_name} {obj.artist.user.last_name}".strip()
-        return None
+
     
     def validate_cover_photo(self, value):
         # Check the length of the filename

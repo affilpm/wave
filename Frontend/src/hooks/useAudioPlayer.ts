@@ -10,6 +10,7 @@ import {
 } from '../slices/user/playerSlice';
 import { PlayerState } from '../types/player';
 import throttle from 'lodash/throttle';
+import { toast } from 'react-toastify';
 
 export const useAudioPlayer = () => {
   const dispatch = useDispatch();
@@ -54,6 +55,13 @@ export const useAudioPlayer = () => {
         return;
       }
       console.error("Audio element error:", audio.error);
+      
+      if (audio.error?.code === 2) { // 2 = MEDIA_ERR_NETWORK
+         toast.error("Network error during playback. You may be rate limited.");
+      } else if (audio.error?.code === 4 && status === 'playing') {
+         toast.error("Format not supported or stream unavailable.");
+      }
+      
       dispatch(setStatus('paused'));
     };
 
@@ -184,8 +192,27 @@ export const useAudioPlayer = () => {
       hls.on(Hls.Events.ERROR, (event, data) => {
         if (data.details === Hls.ErrorDetails.BUFFER_STALLED_ERROR) {
           dispatch(setStatus('buffering'));
-        } else if (data.fatal) {
-           dispatch(setStatus('paused'));
+        } else {
+          // If the network request was aborted mid-flight due to track skip, ignore it
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR && data.details === 'manifestLoadError' && data.fatal === false) {
+             // Often happens during spam clicking, let it pass
+          }
+
+          // Aggressive catch for 429 simply by checking if the structure contains 429
+          const stringified = JSON.stringify({ r: data.response, n: data.networkDetails, x: (data as any).xhr });
+          if (stringified.includes('429')) {
+            toast.error("You are switching tracks too fast! Please wait a moment.", { toastId: 'rate-limit', autoClose: 3000 });
+            dispatch(setStatus('paused'));
+            return;
+          }
+
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR && data.fatal) {
+             toast.error("Network error during playback.", { toastId: 'net-err' });
+          }
+
+          if (data.fatal) {
+            dispatch(setStatus('paused'));
+          }
         }
       });
       

@@ -174,9 +174,7 @@ const Main_Content = () => {
   // Normalize recently played tracks for the Section component
   // IMPORTANT: artist from API is a nested object — extract the name string
   const recentTracks = recentlyPlayed.map(entry => {
-    const artistName = entry.artist?.first_name
-      ? `${entry.artist.first_name} ${entry.artist.last_name || ''}`.trim()
-      : entry.artist?.username || 'Unknown Artist';
+    const artistName = entry.artist?.username || 'Unknown Artist';
 
     return {
       ...entry.track,
@@ -221,7 +219,7 @@ const Main_Content = () => {
       )}
       
       <Section 
-        title="Trending Now" 
+        title="Music" 
         items={trendingMusic} 
         type="music"
         onShowAll={() => navigate("/musiclist")}
@@ -229,25 +227,25 @@ const Main_Content = () => {
       
       {topMixes.length > 0 && (
         <Section 
-          title="Your Top Mixes" 
+          title="Playlists" 
           items={topMixes} 
           type="playlist"
-          onShowAll={() => navigate("/playlist-show-more", { state: { title: "Your Top Mixes" } })}
+          onShowAll={() => navigate("/playlist-show-more", { state: { title: "Playlists" } })}
         />
       )}
       
       {popularAlbums.length > 0 && (
         <Section 
-          title="Popular Albums" 
+          title="Albums" 
           items={popularAlbums} 
           type="album"
-          onShowAll={() => navigate("/albums-show-more", { state: { title: "Popular Albums" } })}
+          onShowAll={() => navigate("/albums-show-more", { state: { title: "Albums" } })}
         />
       )}
 
       {discoveryArtists.length > 0 && (
         <Section 
-          title="Discovery Artists" 
+          title="Artists" 
           items={discoveryArtists} 
           type="artist"
           onShowAll={() => navigate("/artists-show-more")}

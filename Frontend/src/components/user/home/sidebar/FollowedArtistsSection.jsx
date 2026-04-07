@@ -32,7 +32,7 @@ const FollowedArtistsSection = ({ artists, isSidebarExpanded }) => {
   return (
     <>
       {isSidebarExpanded && (
-        <h3 className="px-2 py-3 text-sm font-semibold text-gray-400">Followed Artists</h3>
+        <h3 className="px-2 py-3 text-sm font-semibold text-gray-400">Artists</h3>
       )}
       <div className={`space-y-1 ${isSidebarExpanded ? 'text-base' : 'text-xs'}`}>
         {artists.map((artist) => {

@@ -3,7 +3,7 @@ import { useDispatch } from 'react-redux';
 import { Music, Image as ImageIcon, X, ChevronDown, ChevronUp, Search,  Edit2 } from 'lucide-react';
 import api from '../../../../api';
 import { openModal, closeModal } from '../../../../slices/artist/modalSlice'; // Import actions
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 import AlbumSelector from './AlbumSelector';
 // import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import { toast } from 'react-toastify';
@@ -611,6 +611,7 @@ const formatAudioFileName = () => {
       }
     }, [files.cover]);
     const isFormValid = () => {
+      const isAlbumValid = selectedAlbum ? !!trackNumber : true;
       return (
         files.audio && 
         // !fileErrors.audio &&
@@ -624,8 +625,7 @@ const formatAudioFileName = () => {
         formData.selectedGenres.length > 0 &&
         formData.selectedGenres.every(id => id && id !== 'undefined') &&
         formData.releaseDate &&
-        selectedAlbum &&
-        trackNumber &&
+        isAlbumValid &&
         !isReservedWord(formData.name)
       );
     };

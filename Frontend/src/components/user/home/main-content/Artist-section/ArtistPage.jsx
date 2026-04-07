@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { Play, Pause, Clock, Share2 } from "lucide-react";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
@@ -277,7 +277,7 @@ const ArtistDetailPage = () => {
                   <th className="font-normal py-2 md:py-3 w-10 md:w-12 pl-2 md:pl-4">#</th>
                   <th className="font-normal text-left py-2 md:py-3 pl-2 md:pl-3">Title</th>
                   <th className="font-normal text-left py-2 md:py-3 hidden md:table-cell pl-3">
-                    Added
+                    Album
                   </th>
                   <th className="font-normal text-center py-2 md:py-3 w-16 md:w-20">
                     <Clock className="h-4 w-4 inline" />
@@ -338,7 +338,17 @@ const ArtistDetailPage = () => {
                           </div>
                         </td>
                         <td className="py-2 md:py-3 pl-3 hidden md:table-cell text-gray-400">
-                          {song.release_date}
+                          {song.album_id ? (
+                            <Link 
+                              to={`/album/${song.album_id}`} 
+                              className="hover:underline hover:text-white transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {song.album_name}
+                            </Link>
+                          ) : (
+                            "Single"
+                          )}
                         </td>
                         <td className="py-2 md:py-3 text-center text-gray-400 text-xs md:text-sm w-16 md:w-20">
                           {formatDuration(song.duration)}

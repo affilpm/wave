@@ -45,11 +45,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
   }, [dispatch]);
 
   const ownPlaylists = useMemo(() => {
-    // Find the actual Liked Songs playlist object from the backend
-    const likedPlaylistObj = globalOwnPlaylists.find(p => p.name === 'Liked Songs');
-    
-    // Filter out potential Liked Songs from backend to avoid duplicates in the main list
-    const regularPlaylists = globalOwnPlaylists.filter(p => p.name !== 'Liked Songs').map(playlist => ({
+    return globalOwnPlaylists.filter(p => p.name !== 'Liked Songs').map(playlist => ({
       id: playlist.id,
       name: playlist.name,
       icon: null,
@@ -59,19 +55,19 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
       description: playlist.description,
       is_public: playlist.is_public
     }));
+  }, [globalOwnPlaylists]);
 
-    const likedSongsPlaylist = {
-      // Use the actual ID from the backend if available, otherwise fall back to string slug
+  const likedSongsPlaylist = useMemo(() => {
+    const likedPlaylistObj = globalOwnPlaylists.find(p => p.name === 'Liked Songs');
+    return {
       id: likedPlaylistObj?.id || 'liked-songs',
       name: 'Liked Songs',
       icon: <Heart className="h-6 w-6 text-pink-500" />,
-      image: "/api/v1/placeholder/40/40", // Fallback if no cover
-      gradient: 'bg-gradient-to-br from-purple-600 to-purple-900', // for UI
+      image: "/api/v1/placeholder/40/40",
+      gradient: 'bg-gradient-to-br from-purple-600 to-purple-900',
       songCount: likedSongs.length,
       type: 'Playlist',
     };
-
-    return [likedSongsPlaylist, ...regularPlaylists];
   }, [globalOwnPlaylists, likedSongs.length]);
 
   const followedArtists = useMemo(() => {
@@ -226,9 +222,37 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
           <div className="text-red-400 text-center py-4">{error}</div>
         ) : (
           <>
+            {/* Pinned Liked Songs */}
+            {likedSongsPlaylist.name.toLowerCase().includes(librarySearchQuery.toLowerCase()) && (
+              <div className="mb-2">
+                <div 
+                  onClick={() => handlePlaylistClick(likedSongsPlaylist.id)}
+                  className={`
+                    flex items-center gap-3 p-2 cursor-pointer rounded-md 
+                    hover:bg-white/10 transition-colors
+                    ${(isSidebarExpanded || isMobile) ? 'text-gray-400 hover:text-white' : 'text-gray-500 justify-center'}
+                  `}
+                >
+                  <div className={`flex items-center justify-center rounded-md ${
+                    (isSidebarExpanded || isMobile) ? `w-12 h-12 ${likedSongsPlaylist.gradient}` : 'w-10 h-10 bg-gray-700'
+                  }`}>
+                    {likedSongsPlaylist.icon}
+                  </div>
+                  {(isSidebarExpanded || isMobile) && (
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="truncate font-medium text-white">{likedSongsPlaylist.name}</span>
+                      <span className="text-sm text-gray-400 truncate">
+                        Playlist • {likedSongsPlaylist.songCount} songs
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Section for user-created playlists */}
             <YourPlaylistSection 
-              title="Your Playlists" 
+              title="Playlists" 
               playlists={filteredOwnPlaylists}
               isSidebarExpanded={isSidebarExpanded || isMobile}
               onPlaylistClick={handlePlaylistClick}

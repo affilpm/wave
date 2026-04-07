@@ -5,13 +5,27 @@ from artists.models import Artist
 
 class Music_ListSerializer(serializers.ModelSerializer):
     artist = serializers.SerializerMethodField()
+    artist_id = serializers.SerializerMethodField()
+    album_name = serializers.SerializerMethodField()
+    album_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Music
-        fields = ['id', 'name', 'artist', 'cover_photo']
+        fields = ['id', 'name', 'artist', 'artist_id', 'cover_photo', 'album_name', 'album_id']
 
     def get_artist(self, obj):
         return obj.artist.user.username
+
+    def get_artist_id(self, obj):
+        return obj.artist.id if obj.artist else None
+        
+    def get_album_name(self, obj):
+        album = obj.albums.first()
+        return album.name if album else "Single"
+
+    def get_album_id(self, obj):
+        album = obj.albums.first()
+        return album.id if album else None
     
 
 
@@ -47,31 +61,23 @@ class ArtistSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source='user.email', read_only=True)
     username = serializers.EmailField(source='user.username', read_only=True)
     
-    first_name = serializers.CharField(source='user.first_name', read_only=True)
-    last_name = serializers.CharField(source='user.last_name', read_only=True)
     profile_photo = serializers.ImageField(source='user.profile_photo', read_only=True, allow_null=True, required=False)
     
     
     class Meta:
         model = Artist
-        fields = ['id', 'email', 'first_name', 'last_name', 'bio', 'status', 'profile_photo', 'username', 'submitted_at', 'updated_at']
+        fields = ['id', 'email', 'bio', 'status', 'profile_photo', 'username', 'submitted_at', 'updated_at']
         read_only_fields = ['status', 'submitted_at', 'updated_at']
 
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
 
-        # Check if the request object is available
-        request = self.context.get('request', None)
-        
-        # Check if profile_photo exists and construct the full URL
-        if hasattr(instance.user, 'profile_photo') and instance.user.profile_photo:
-            if instance.user.profile_photo:
-                profile_photo_url = instance.user.profile_photo.url
-                representation['profile_photo'] = profile_photo_url
-            else:
-                representation['profile_photo'] = instance.user.profile_photo.url  # Return the relative URL if no request
+        profile_photo = getattr(instance.user, "profile_photo", None)
+
+        if profile_photo:
+            representation["profile_photo"] = profile_photo.url
         else:
-            representation['profile_photo'] = None  # Return null if no profile photo set
-        
+            representation["profile_photo"] = None
+
         return representation

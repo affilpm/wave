@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Play, Pause, SkipBack, SkipForward, ChevronUp, Heart, Shuffle, Repeat, ListMusic, Loader2 } from 'lucide-react';
 import { Track, RepeatMode } from '../../types/player';
@@ -92,8 +93,29 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
               <span className="text-[14px] font-semibold text-white truncate">
                 {currentTrack.name || currentTrack.title || 'Unknown Track'}
               </span>
-              <span className="text-[12px] text-white/50 truncate">
-                {currentTrack.artist || currentTrack.artist_full || 'Unknown Artist'}
+              <span className="text-[12px] text-white/50 truncate" onClick={(e) => e.stopPropagation()}>
+                {currentTrack.artist_id ? (
+                  <Link 
+                    to={`/artist/${currentTrack.artist_id}`}
+                    className="hover:underline hover:text-white transition-colors"
+                  >
+                    {currentTrack.artist}
+                  </Link>
+                ) : (
+                  currentTrack.artist || currentTrack.artist_full || 'Unknown Artist'
+                )}
+                {currentTrack.album && (
+                  <>
+                    { " • " }
+                    {currentTrack.album_id ? (
+                      <Link to={`/album/${currentTrack.album_id}`} className="hover:underline hover:text-white transition-colors">
+                        {currentTrack.album}
+                      </Link>
+                    ) : (
+                      currentTrack.album
+                    )}
+                  </>
+                )}
               </span>
             </div>
           </div>

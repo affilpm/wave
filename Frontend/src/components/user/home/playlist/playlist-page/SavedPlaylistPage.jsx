@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Play, Pause, Clock, Share2, Plus, Check, Heart, Shuffle } from "lucide-react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import api from "../../../../../api";
@@ -258,7 +258,13 @@ const SavedPlaylistPage = () => {
           {track.music_details.artist_full_name}
         </td>
         <td className="py-3 pl-6 hidden md:table-cell text-gray-400">
-          {new Date(track.music_details.release_date).toLocaleDateString()}
+          {track.music_details.album_id ? (
+            <Link to={`/album/${track.music_details.album_id}`} className="hover:underline hover:text-white transition-colors">
+              {track.music_details.album_name}
+            </Link>
+          ) : (
+            "Single"
+          )}
         </td>
         <td className="py-3 text-center text-gray-400 w-20">
           {formatDuration(track.music_details.duration)}
@@ -382,7 +388,7 @@ const SavedPlaylistPage = () => {
                   Artist
                 </th>
                 <th className="font-normal text-left py-3 pl-6 hidden md:table-cell">
-                  Release Date
+                  Album
                 </th>
                 <th className="font-normal text-center py-3 w-20">
                   <Clock className="h-4 w-4 inline" />

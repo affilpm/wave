@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Play, Pause, Clock, Share2, Plus, Check, Shuffle } from "lucide-react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import api from "../../../../api";
@@ -193,7 +193,17 @@ const AlbumPage = () => {
             {track.music_details.name}
           </div>
           <div className="text-xs text-gray-400 truncate">
-            {track.music_details.artist_full_name}
+            {track.music_details.artist_id ? (
+              <Link 
+                to={`/artist/${track.music_details.artist_id}`}
+                className="hover:underline hover:text-white transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {track.music_details.artist_username}
+              </Link>
+            ) : (
+              track.music_details.artist_username
+            )}
           </div>
         </div>
 
@@ -243,7 +253,17 @@ const AlbumPage = () => {
           </div>
         </td>
         <td className="py-3 pl-6 hidden md:table-cell text-gray-400">
-          {track.music_details.artist_full_name}
+          {track.music_details.artist_id ? (
+            <Link 
+              to={`/artist/${track.music_details.artist_id}`}
+              className="hover:underline hover:text-white transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {track.music_details.artist_username}
+            </Link>
+          ) : (
+            track.music_details.artist_username
+          )}
         </td>
         <td className="py-3 pl-6 hidden md:table-cell text-gray-400">
           {new Date(track.music_details.release_date).toLocaleDateString()}
@@ -308,7 +328,17 @@ const AlbumPage = () => {
           </h1>
           <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-gray-300 text-xs sm:text-sm">
             <span>
-              By <span className="text-white">{album.artist_username}</span>
+              By{" "}
+              {album.artist_id ? (
+                <Link 
+                  to={`/artist/${album.artist_id}`}
+                  className="text-white hover:underline transition-colors"
+                >
+                  {album.artist_username}
+                </Link>
+              ) : (
+                <span className="text-white">{album.artist_username}</span>
+              )}
             </span>
             <span className="hidden sm:inline">•</span>
             <span>{album.tracks?.length || 0} songs</span>

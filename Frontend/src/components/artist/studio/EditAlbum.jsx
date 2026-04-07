@@ -3,7 +3,7 @@ import { AlertCircle, X, ImageIcon } from 'lucide-react';
 import Cropper from 'react-easy-crop';
 import api from '../../../api';
 import albumService from '../../../services/artist/albumService';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 import { v4 as uuidv4 } from 'uuid';  
 
 const MIN_IMAGE_SIZE = 500;

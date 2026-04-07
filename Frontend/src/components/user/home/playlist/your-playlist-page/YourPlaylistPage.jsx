@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Play, Pause, Clock, Share2, X, Heart, Shuffle } from "lucide-react";
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import api from "../../../../../api";
@@ -291,8 +291,28 @@ const YourPlaylistPage = () => {
               <span className="font-medium">{track.music_details.name}</span>
             </div>
           </td>
-          <td className="py-3 pl-6 pr-4 text-gray-400">{track.music_details.artist_username}</td>
-          <td className="py-3 pl-6 pr-4 text-gray-400">{track.music_details.release_date}</td>
+          <td className="py-3 pl-6 pr-4 text-gray-400">
+            {track.music_details.artist_id ? (
+              <Link 
+                to={`/artist/${track.music_details.artist_id}`}
+                className="hover:underline hover:text-white transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {track.music_details.artist_username}
+              </Link>
+            ) : (
+              track.music_details.artist_username
+            )}
+          </td>
+          <td className="py-3 pl-6 pr-4 text-gray-400">
+            {track.music_details.album_id ? (
+              <Link to={`/album/${track.music_details.album_id}`} className="hover:underline hover:text-white transition-colors">
+                {track.music_details.album_name}
+              </Link>
+            ) : (
+              "Single"
+            )}
+          </td>
           <td className="py-3 text-center text-gray-400 w-20">
             {formatDuration(track.music_details.duration)}
           </td>
@@ -356,7 +376,17 @@ const YourPlaylistPage = () => {
           <div className="flex-1 min-w-0">
             <div className="font-medium truncate">{track.music_details.name}</div>
             <div className="text-sm text-gray-400 truncate">
-              {track.music_details.artist_username}
+              {track.music_details.artist_id ? (
+                <Link 
+                  to={`/artist/${track.music_details.artist_id}`}
+                  className="hover:underline hover:text-white transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {track.music_details.artist_username}
+                </Link>
+              ) : (
+                track.music_details.artist_username
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -495,7 +525,7 @@ const YourPlaylistPage = () => {
                 <th className="font-normal py-3 w-12 pl-4">#</th>
                 <th className="font-normal text-left py-3 pl-6">Title</th>
                 <th className="font-normal text-left py-3 pl-6 pr-4">Artist</th>
-                <th className="font-normal text-left py-3 pl-6 pr-4">Added</th>
+                <th className="font-normal text-left py-3 pl-6 pr-4">Album</th>
                 <th className="font-normal text-center py-3 w-20">
                   <Clock className="h-4 w-4 inline" />
                 </th>

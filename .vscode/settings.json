@@ -14,5 +14,19 @@
   "python.analysis.autoSearchPaths": true,
   "python.analysis.diagnosticMode": "workspace",
   "python.analysis.useLibraryCodeForTypes": true,
-  "python.terminal.activateEnvInCurrentTerminal": true
+  "python.terminal.activateEnvInCurrentTerminal": true,
+  "cursorpyright.analysis.autoSearchPaths": true,
+  "cursorpyright.analysis.diagnosticMode": "workspace",
+  "cursorpyright.analysis.extraPaths": [
+    "${workspaceFolder}/Backend",
+    "${workspaceFolder}/Backend/users",
+    "${workspaceFolder}/Backend/artists",
+    "${workspaceFolder}/Backend/music",
+    "${workspaceFolder}/Backend/album",
+    "${workspaceFolder}/Backend/admins",
+    "${workspaceFolder}/Backend/premium",
+    "${workspaceFolder}/Backend/playlist",
+    "${workspaceFolder}/Backend/common"
+  ],
+  "cursorpyright.analysis.useLibraryCodeForTypes": true
 }

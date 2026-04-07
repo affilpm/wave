@@ -7,18 +7,22 @@ from users.models import CustomUser
 class MusicInPlaylistSerializer(serializers.ModelSerializer):
     artist_name = serializers.CharField(source='artist.user.username', read_only=True)
     album_name = serializers.SerializerMethodField()
+    album_id = serializers.SerializerMethodField()
     
     class Meta:
         model = Music
         fields = [
             'id', 'name', 'duration', 'artist_name', 
-            'album_name', 'cover_photo',
+            'album_name', 'album_id', 'cover_photo',
         ]
 
     def get_album_name(self, obj):
-        # Music has no direct album FK, it's M2M via AlbumTrack
-        album_track = obj.albumtrack_set.first()
-        return album_track.album.name if album_track else None
+        album = obj.albums.first()
+        return album.name if album else "Single"
+
+    def get_album_id(self, obj):
+        album = obj.albums.first()
+        return album.id if album else None
 
 
 # Playlist Detail Serializer with tracks
@@ -43,15 +47,20 @@ class PlaylistCreatorSerializer(serializers.ModelSerializer):
 class MusicDetailsSerializer(serializers.ModelSerializer):
     artist_name = serializers.CharField(source='artist.user.username', read_only=True)
     album_name = serializers.SerializerMethodField()
+    album_id = serializers.SerializerMethodField()
     album_cover = serializers.SerializerMethodField()
     
     class Meta:
         model = Music
-        fields = ['id', 'name', 'duration', 'artist_name', 'album_name', 'album_cover']
+        fields = ['id', 'name', 'duration', 'artist_name', 'album_name', 'album_id', 'album_cover']
 
     def get_album_name(self, obj):
-        album_track = obj.albumtrack_set.first()
-        return album_track.album.name if album_track else None
+        album = obj.albums.first()
+        return album.name if album else "Single"
+
+    def get_album_id(self, obj):
+        album = obj.albums.first()
+        return album.id if album else None
 
     def get_album_cover(self, obj):
         album_track = obj.albumtrack_set.first()

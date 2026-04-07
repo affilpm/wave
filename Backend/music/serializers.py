@@ -87,7 +87,7 @@ class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'username', 'first_name', 'last_name']
+        fields = ['id', 'email', 'username']
     
     
     
@@ -107,13 +107,23 @@ class ArtistSerializer(serializers.ModelSerializer):
 class MusicDataSerializer(serializers.ModelSerializer):
     artist = ArtistSerializer()  
     duration = serializers.DurationField(required=False)
+    album_name = serializers.SerializerMethodField()
+    album_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Music
         fields = [
             'id', 'name', 'cover_photo', 'audio_file', 'release_date',
-            'duration', 'artist'
+            'duration', 'artist', 'album_name', 'album_id'
         ]
+
+    def get_album_name(self, obj):
+        album = obj.albums.first()
+        return album.name if album else "Single"
+
+    def get_album_id(self, obj):
+        album = obj.albums.first()
+        return album.id if album else None
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)

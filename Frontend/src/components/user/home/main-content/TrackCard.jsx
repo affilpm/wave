@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Play, Pause, Heart } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { selectIsLiked, toggleLike, selectFollowedArtists, toggleFollowArtist } from "../../../../slices/user/librarySlice";
 import AvatarFallback from "../../../common/AvatarFallback";
 
@@ -97,7 +97,37 @@ const TrackCard = ({ item, index, isPlaying, onPlayPlayable, type = 'music' }) =
         <div className="flex items-start justify-between mb-1">
           <div className="flex-1 truncate pr-2">
             <h3 className="font-bold text-base text-white truncate">{item.name || item.username || item.first_name}</h3>
-            {!isArtist && <p className="text-sm text-neutral-400 truncate">{artistName}</p>}
+            {!isArtist && (
+              <p className="text-sm text-neutral-400 truncate">
+                {item.artist_id ? (
+                  <Link 
+                    to={`/artist/${item.artist_id}`}
+                    className="hover:underline hover:text-white transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {artistName}
+                  </Link>
+                ) : (
+                  artistName
+                )}
+                {type === 'music' && item.album_name && (
+                  <>
+                    { " • " }
+                    {item.album_id ? (
+                      <Link 
+                        to={`/album/${item.album_id}`} 
+                        className="hover:underline hover:text-white transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {item.album_name}
+                      </Link>
+                    ) : (
+                      item.album_name
+                    )}
+                  </>
+                )}
+              </p>
+            )}
             {isArtist && <p className="text-sm text-neutral-400 uppercase tracking-wider text-xs font-semibold">Artist</p>}
           </div>
           

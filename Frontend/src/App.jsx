@@ -35,6 +35,7 @@ const ArtistsShowMorePage = lazy(() => import('./components/user/home/main-conte
 const AlbumPage = lazy(() => import('./components/user/home/album/AlbumPage'));
 const GenrePage = lazy(() => import('./components/user/home/main-content/Genre-section/GenrePage'));
 const ArtistPage = lazy(() => import('./components/user/home/main-content/Artist-section/ArtistPage'));
+const DiscoverPage = lazy(() => import('./pages/user/DiscoverPage'));
 
 // Artist Studio
 const StudioPage = lazy(() => import('./pages/artist/StudioPage'));
@@ -94,6 +95,7 @@ function App() {
               <Route path="/" element={<HomePage />}>
                 <Route index element={<Navigate to="/home" replace />} />
                 <Route path="/home" element={<Main_Content />} />
+                <Route path="/discover" element={<DiscoverPage />} />
                 <Route path="/playlist/:playlistId" element={<YourPlaylistPage />} />
                 <Route path="/saved-playlist/:playlistId" element={<SavedPlaylistPage />} />
                 <Route path="/music-show-more" element={<MusicShowMorePage />} />

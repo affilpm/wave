@@ -33,7 +33,7 @@ const SavedPlaylistSection = ({ playlists, isSidebarExpanded, onSavedPlaylistDel
     return (
       <>
         {isSidebarExpanded && (
-          <h3 className="px-2 py-3 text-sm font-semibold text-gray-400">Saved Playlists</h3>
+          <h3 className="px-2 py-3 text-sm font-semibold text-gray-400">Playlists</h3>
         )}
         <div className={`space-y-1 ${isSidebarExpanded ? 'text-base' : 'text-xs'}`}>
           {playlists.map((playlist) => (

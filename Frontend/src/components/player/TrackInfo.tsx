@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Heart, MoreHorizontal } from 'lucide-react';
 import { Track } from '../../types/player';
@@ -19,7 +20,31 @@ export const TrackInfo: React.FC<TrackInfoProps> = ({ track, isLiked, onToggleLi
           {track.name || track.title || 'Unknown'}
         </h2>
         <p className="text-[17px] text-white/55 truncate">
-          {track.artist || 'Unknown Artist'}
+          {track.artist_id ? (
+            <Link 
+              to={`/artist/${track.artist_id}`}
+              className="hover:underline hover:text-white transition-colors"
+            >
+              {track.artist}
+            </Link>
+          ) : (
+            track.artist || 'Unknown Artist'
+          )}
+          {track.album && (
+            <>
+              { " • " }
+              {track.album_id ? (
+                <Link 
+                  to={`/album/${track.album_id}`} 
+                  className="hover:underline hover:text-white transition-colors"
+                >
+                  {track.album}
+                </Link>
+              ) : (
+                track.album
+              )}
+            </>
+          )}
         </p>
       </div>
 
