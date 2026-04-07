@@ -39,6 +39,7 @@ const ArtistDetailPage = () => {
   const [followersCount, setFollowersCount] = useState(0);
 
   const currentUserId = useSelector((state) => state.user_id);
+  const currentUsername = useSelector((state) => state.user?.username);
   const { currentTrack, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
@@ -247,17 +248,19 @@ const ArtistDetailPage = () => {
           )}
         </button>
 
-        <button
-          className={`px-4 py-2 text-sm md:text-base md:px-6 md:py-2 font-semibold rounded-full border ${
-            isFollowing 
-              ? "bg-white text-black border-white hover:bg-transparent hover:text-white" 
-              : "text-white border-gray-400 hover:border-white"
-          } transition-colors`}
-          onClick={toggleFollow}
-          disabled={followLoading}
-        >
-          {followLoading ? "Processing..." : isFollowing ? "Following" : "Follow"}
-        </button>
+        {!(artist?.username === currentUsername) && (
+          <button
+            className={`px-4 py-2 text-sm md:text-base md:px-6 md:py-2 font-semibold rounded-full border ${
+              isFollowing 
+                ? "bg-white text-black border-white hover:bg-transparent hover:text-white" 
+                : "text-white border-gray-400 hover:border-white"
+            } transition-colors`}
+            onClick={toggleFollow}
+            disabled={followLoading}
+          >
+            {followLoading ? "Processing..." : isFollowing ? "Following" : "Follow"}
+          </button>
+        )}
 
         <button className="p-2 text-gray-400 hover:text-white transition-colors">
           <Share2 className="h-5 w-5 md:h-6 md:w-6" />

@@ -1,9 +1,11 @@
-import React, { useMemo } from "react";
-import { Play, Pause, Heart } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { Play, Pause, Heart, Plus, Check } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, Link } from "react-router-dom";
-import { selectIsLiked, toggleLike, selectFollowedArtists, toggleFollowArtist } from "../../../../slices/user/librarySlice";
+import { selectIsLiked, toggleLike, selectFollowedArtists, toggleFollowArtist, selectSavedAlbums, selectSavedPlaylists, toggleSavedAlbumOptimistic, toggleSavedPlaylistOptimistic } from "../../../../slices/user/librarySlice";
 import AvatarFallback from "../../../common/AvatarFallback";
+import api from "../../../../api";
+import { LIBRARY } from "../../../../constants/apiEndpoints";
 
 const TrackCard = ({ item, index, isPlaying, onPlayPlayable, type = 'music' }) => {
   const dispatch = useDispatch();
@@ -19,6 +21,67 @@ const TrackCard = ({ item, index, isPlaying, onPlayPlayable, type = 'music' }) =
 
   // Use Redux selector to check if this track is liked
   const isLiked = useSelector((state) => selectIsLiked(state, item.id));
+
+  const savedAlbums = useSelector(selectSavedAlbums);
+  const savedPlaylists = useSelector(selectSavedPlaylists);
+  const [isLibraryLoading, setIsLibraryLoading] = useState(false);
+
+  const isSaved = useMemo(() => {
+    if (type === 'album') {
+      return savedAlbums.some(a => a.id === item.id);
+    } else if (type === 'playlist') {
+      return savedPlaylists.some(p => p.id === item.id);
+    }
+    return false;
+  }, [type, item.id, savedAlbums, savedPlaylists]);
+
+  const handleToggleLibrary = async (e) => {
+    e.stopPropagation();
+    if (type === 'album') {
+      const albumData = { id: item.id, name: item.name, cover_photo: item.cover_photo || item.image, artist_username: item.artist_username || item.author };
+      const wasInLibrary = isSaved;
+      dispatch(toggleSavedAlbumOptimistic(albumData));
+      
+      try {
+        setIsLibraryLoading(true);
+        if (wasInLibrary) {
+          await api.post(LIBRARY.REMOVE_ALBUM, { album_id: item.id });
+        } else {
+          await api.post(LIBRARY.ADD_ALBUM, { album_id: item.id });
+        }
+      } catch (error) {
+        console.error("Failed to update library:", error);
+        dispatch(toggleSavedAlbumOptimistic(albumData));
+      } finally {
+        setIsLibraryLoading(false);
+      }
+    } else if (type === 'playlist') {
+      if (item.created_by === username) return;
+      const playlistData = {
+        id: item.id,
+        name: item.name,
+        cover_photo: item.cover_photo || item.image,
+        created_by_username: item.created_by_username || item.creator_username || item.created_by,
+        songCount: item.tracks?.length || 0
+      };
+      const wasInLibrary = isSaved;
+      dispatch(toggleSavedPlaylistOptimistic(playlistData));
+      
+      try {
+        setIsLibraryLoading(true);
+        if (wasInLibrary) {
+          await api.post(LIBRARY.REMOVE_PLAYLIST, { playlist_id: item.id });
+        } else {
+          await api.post(LIBRARY.ADD_PLAYLIST, { playlist_id: item.id });
+        }
+      } catch (error) {
+        console.error("Failed to update library:", error);
+        dispatch(toggleSavedPlaylistOptimistic(playlistData));
+      } finally {
+        setIsLibraryLoading(false);
+      }
+    }
+  };
 
   const handleLike = (e) => {
     e.stopPropagation();
@@ -134,16 +197,32 @@ const TrackCard = ({ item, index, isPlaying, onPlayPlayable, type = 'music' }) =
           {type === 'music' && (
             <button 
               onClick={handleLike}
-              className="text-neutral-400 hover:text-white mt-1 transition-colors"
+              className="text-neutral-400 hover:text-white mt-1 transition-colors relative z-10"
             >
               <Heart 
                 className={`w-5 h-5 transition-transform hover:scale-110 active:scale-90 ${isLiked ? 'fill-green-500 text-green-500' : ''}`} 
               />
             </button>
           )}
+          
+          {(type === 'album' || (type === 'playlist' && item.created_by !== username)) && (
+            <button 
+              onClick={handleToggleLibrary}
+              disabled={isLibraryLoading}
+              className={`mt-1 flex items-center justify-center transition-all duration-200 transform hover:scale-105 relative z-10 ${isSaved ? "text-green-500" : "text-neutral-400 hover:text-white"}`}
+            >
+              {isLibraryLoading ? (
+                <div className="h-5 w-5 border-2 border-t-transparent border-current rounded-full animate-spin"></div>
+              ) : isSaved ? (
+                <Check className="w-5 h-5" />
+              ) : (
+                <Plus className="w-5 h-5" />
+              )}
+            </button>
+          )}
         </div>
 
-        {isArtist && (
+        {isArtist && item.username !== username && (
           <button
             onClick={handleFollow}
             className={`mt-2 w-full py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
