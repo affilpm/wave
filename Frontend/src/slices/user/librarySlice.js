@@ -215,9 +215,11 @@ const librarySlice = createSlice({
     builder
       .addCase(fetchLikedSongs.pending, (state) => {
         state.isLoading = true;
+        state.error = null;
       })
       .addCase(fetchLikedSongs.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.error = null;
         // action.payload is already an array of track IDs from the thunk
         if (Array.isArray(action.payload)) {
            state.likedSongs = action.payload;
@@ -230,9 +232,11 @@ const librarySlice = createSlice({
 
       .addCase(fetchLibraryData.pending, (state) => {
         state.isLoading = true;
+        state.error = null; // Clear any previous errors
       })
       .addCase(fetchLibraryData.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.error = null; // Clear error on success
         state.ownPlaylists = action.payload.ownPlaylists;
         state.savedPlaylists = action.payload.savedPlaylists;
         state.followedArtists = action.payload.followedArtists;

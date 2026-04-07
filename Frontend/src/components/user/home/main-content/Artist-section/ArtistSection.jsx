@@ -1,11 +1,12 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
-import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, Pause, ChevronLeft, ChevronRight, Shuffle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
   togglePlay
 } from "../../../../../slices/user/playerSlice";
 import api from "../../../../../api";
+import AvatarFallback from "../../../common/AvatarFallback";
 
 const ArtistSection = ({ title }) => {
   const scrollContainerRef = useRef(null);
@@ -20,6 +21,7 @@ const ArtistSection = ({ title }) => {
       try {
         const response = await api.get(`/api/v1/home/artistlist/`);
         setArtistlist(response.data.results || response.data || []);
+
       } catch (error) {
         console.error("Error fetching artist items:", error);
       } finally {
@@ -83,24 +85,6 @@ const ArtistSection = ({ title }) => {
     navigate("/artists-show-more", { state: { title } });
   };
 
-  // Color array for profile placeholder
-  const colors = [
-    "bg-red-500",
-    "bg-blue-500",
-    "bg-green-500",
-    "bg-yellow-500",
-    "bg-purple-500",
-    "bg-pink-500",
-    "bg-indigo-500",
-    "bg-teal-500",
-  ];
-
-  // Get color based on username
-  const getColor = (username) => {
-    const index = username ? username.charCodeAt(0) % colors.length : 0;
-    return colors[index];
-  };
-
   if (loading) {
     return (
       <section className="mb-8 px-4">
@@ -161,24 +145,24 @@ const ArtistSection = ({ title }) => {
                 onClick={() => handleArtistClick(artist.id)}
               >
                 <div className="relative group">
-                  <div className="w-40 h-40 rounded-full overflow-hidden">
-                    {artist.profile_photo ? (
-                      <img
-                        src={artist.profile_photo}
-                        alt={artist.name}
-                        className="w-full h-full object-cover transform transition-transform group-hover:scale-105"
+                    <div className="w-40 h-40 rounded-full overflow-hidden">
+                      {artist.profile_photo && !artist.profile_photo.includes('default') ? (
+                        <img
+                          src={artist.profile_photo}
+                          alt={artist.username}
+                          className="w-full h-full object-cover transform transition-transform group-hover:scale-105"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextSibling.style.display = 'flex';
+                          }}
+                        />
+                      ) : null}
+                      <AvatarFallback 
+                        username={artist.username}
+                        className="w-full h-full text-xl transform transition-transform group-hover:scale-105 rounded-full"
+                        style={{ display: (artist.profile_photo && !artist.profile_photo.includes('default')) ? 'none' : 'flex' }}
                       />
-                    ) : (
-                      <div
-                        className={`w-full h-full flex items-center justify-center ${getColor(
-                          artist.username
-                        )} text-xl font-bold text-white transform transition-transform group-hover:scale-105`}
-                      >
-                        {artist.username?.charAt(0).toUpperCase()}
-                        {artist.username?.charAt(artist.username.length - 1).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
+                    </div>
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-full">
                     <div className="absolute bottom-2 right-2 flex gap-2">
                        <button

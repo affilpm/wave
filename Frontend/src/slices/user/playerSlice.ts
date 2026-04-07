@@ -580,7 +580,9 @@ const playerSlice = createSlice({
         state.currentTrack = {
           ...state.currentTrack,
           hlsUrl: action.payload.url,
-          artworkUrl: action.payload.cover_photo || state.currentTrack.artworkUrl
+          artworkUrl: action.payload.cover_photo || state.currentTrack.artworkUrl,
+          artist: action.payload.artist || state.currentTrack.artist,
+          name: action.payload.name || state.currentTrack.name
         };
         // Also update in queue 
         if (state.queueIndex !== -1 && state.queue[state.queueIndex]) {

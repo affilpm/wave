@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { Play, Pause, SkipBack, SkipForward, ChevronUp, Heart, Shuffle, Repeat, ListMusic, Loader2 } from 'lucide-react';
 import { Track, RepeatMode } from '../../types/player';
 import { ProgressBar } from './ProgressBar';
+import AvatarFallback from '../common/AvatarFallback';
 
 interface MiniPlayerProps {
   currentTrack: Track;
@@ -68,12 +69,25 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
             className="flex items-center space-x-3 cursor-pointer overflow-hidden"
             onClick={onExpand}
           >
-            <motion.img 
-              layoutId="player-artwork"
-              src={artworkUrl} 
-              alt="Artwork" 
-              className="w-10 h-10 rounded-lg object-cover shadow-[0_4px_16px_rgba(0,0,0,0.5)] bg-white/10 shrink-0"
-            />
+            <div className="relative w-10 h-10 shrink-0">
+              {artworkUrl && !artworkUrl.includes('default-cover.png') ? (
+                <motion.img 
+                  layoutId="player-artwork"
+                  src={artworkUrl} 
+                  alt="Artwork" 
+                  className="w-full h-full rounded-lg object-cover shadow-[0_4px_16px_rgba(0,0,0,0.5)] bg-white/10"
+                  onError={(e: any) => {
+                    e.target.style.display = 'none';
+                    e.target.nextSibling.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <AvatarFallback 
+                name={currentTrack.name || currentTrack.title}
+                className="w-full h-full rounded-lg text-sm"
+                style={{ display: (artworkUrl && !artworkUrl.includes('default-cover.png')) ? 'none' : 'flex' }}
+              />
+            </div>
             <div className="flex flex-col truncate pr-2">
               <span className="text-[14px] font-semibold text-white truncate">
                 {currentTrack.name || currentTrack.title || 'Unknown Track'}

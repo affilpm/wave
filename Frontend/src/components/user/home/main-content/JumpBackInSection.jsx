@@ -5,6 +5,7 @@ import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import api from "../../../../api";
 import { prepareTracksForPlayer } from "../../../../utils/trackUtils";
 import { setQueue, setIsPlaying } from "../../../../slices/user/playerSlice";
+import AvatarFallback from "../../../common/AvatarFallback";
 import { createSelector } from '@reduxjs/toolkit';
 
 const selectPlayerState = createSelector(
@@ -145,10 +146,21 @@ const JumpBackInSection = ({ albums = [], hasSingles = false }) => {
               className="group relative shrink-0 w-44 rounded-lg bg-white/5 hover:bg-white/10 transition-all duration-300 cursor-pointer overflow-hidden"
             >
               <div className="relative aspect-square">
-                <img
-                  src={album.cover_photo || '/default-cover.png'}
-                  alt={album.name}
-                  className="w-full h-full object-cover"
+                {album.cover_photo && !album.cover_photo.toString().includes('default-cover.png') ? (
+                  <img
+                    src={album.cover_photo}
+                    alt={album.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      e.target.nextSibling.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <AvatarFallback 
+                  name={album.name}
+                  className="w-full h-full"
+                  style={{ display: (album.cover_photo && !album.cover_photo.toString().includes('default-cover.png')) ? 'none' : 'flex' }}
                 />
                 {/* Play button overlay */}
                 <div className={`absolute bottom-2 right-2 transition-all duration-300 ${isAlbumPlaying(album.id) ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0'}`}>

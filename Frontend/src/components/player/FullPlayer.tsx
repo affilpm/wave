@@ -6,6 +6,7 @@ import { TrackInfo } from './TrackInfo';
 import { ProgressBar } from './ProgressBar';
 import { VolumeSlider } from './VolumeSlider';
 import { ListMusic, Airplay } from 'lucide-react';
+import AvatarFallback from '../common/AvatarFallback';
 
 interface FullPlayerProps {
   isOpen: boolean;
@@ -72,14 +73,22 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
         rotationRef.current += delta * 0.01125;
         rotationRef.current %= 360;
         
-        const el = document.getElementById('full-player-artwork');
-        if (el) {
-          el.style.transform = `rotate(${rotationRef.current}deg) scale(1.04)`;
+        const artEl = document.getElementById('full-player-artwork');
+        const fbEl = document.getElementById('full-player-fallback');
+        if (artEl) {
+          artEl.style.transform = `rotate(${rotationRef.current}deg) scale(1.04)`;
+        }
+        if (fbEl) {
+          fbEl.style.transform = `rotate(${rotationRef.current}deg) scale(1.04)`;
         }
       } else {
-        const el = document.getElementById('full-player-artwork');
-        if (el) {
-          el.style.transform = `rotate(${rotationRef.current}deg) scale(1.0)`;
+        const artEl = document.getElementById('full-player-artwork');
+        const fbEl = document.getElementById('full-player-fallback');
+        if (artEl) {
+          artEl.style.transform = `rotate(${rotationRef.current}deg) scale(1.0)`;
+        }
+        if (fbEl) {
+          fbEl.style.transform = `rotate(${rotationRef.current}deg) scale(1.0)`;
         }
       }
       lastTimeRef.current = time;
@@ -142,16 +151,32 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
                   boxShadow: '0 40px 100px rgba(0,0,0,0.65), 0 0 0 0.5px rgba(255,255,255,0.05)'
                 }}
               >
-                <motion.img
-                  id="full-player-artwork"
-                  key={currentTrack.id} // Forces re-render on track change for the track change transition
-                  src={artworkUrl}
-                  alt="Artwork"
-                  className="w-full h-full object-cover origin-center"
-                  initial={{ x: 40, opacity: 0, scale: 0.95 }}
-                  animate={{ x: 0, opacity: 1, scale: isPlaying ? 1.04 : 1.0 }}
-                  exit={{ x: -40, opacity: 0, scale: 0.94 }}
-                  transition={{ duration: 0.4, ease: "easeOut" }}
+                {artworkUrl && !artworkUrl.includes('default-cover.png') ? (
+                  <motion.img
+                    id="full-player-artwork"
+                    key={currentTrack.id}
+                    src={artworkUrl}
+                    alt="Artwork"
+                    className="w-full h-full object-cover origin-center shadow-2xl"
+                    initial={{ x: 40, opacity: 0, scale: 0.95 }}
+                    animate={{ x: 0, opacity: 1, scale: isPlaying ? 1.04 : 1.0 }}
+                    exit={{ x: -40, opacity: 0, scale: 0.94 }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
+                    onError={(e: any) => {
+                      e.target.style.display = 'none';
+                      const fb = document.getElementById('full-player-fallback');
+                      if (fb) fb.style.display = 'flex';
+                    }}
+                  />
+                ) : null}
+                <AvatarFallback 
+                  name={currentTrack.name || currentTrack.title}
+                  className="w-full h-full text-8xl"
+                  style={{ 
+                    display: (artworkUrl && !artworkUrl.includes('default-cover.png')) ? 'none' : 'flex',
+                    transform: isPlaying ? `rotate(${rotationRef.current}deg) scale(1.04)` : `rotate(${rotationRef.current}deg) scale(1.0)`
+                  }}
+                  id="full-player-fallback"
                 />
               </motion.div>
             </div>

@@ -6,8 +6,9 @@ import Section from "./Section";
 import JumpBackInSection from "./JumpBackInSection";
 import { Play, Pause } from "lucide-react";
 import { fetchRecentlyPlayed, fetchJumpBackIn } from "../../../../slices/user/listeningHistorySlice";
-import { setQueue, setIsPlaying } from "../../../../slices/user/playerSlice";
+import { setIsPlaying, setQueue } from "../../../../slices/user/playerSlice";
 import { prepareTracksForPlayer } from "../../../../utils/trackUtils";
+import AvatarFallback from "../../../common/AvatarFallback";
 
 const getGreeting = () => {
   const currentHour = new Date().getHours();
@@ -24,7 +25,7 @@ const MiniCard = ({ item }) => {
   // For listening history items, extract track info
   const track = item?.track || item;
   const name = track?.name || 'Unknown';
-  const cover = track?.cover_photo || item?.album?.cover_photo || item?.cover_photo || item?.image || '/default-cover.png';
+  const cover = track?.cover_photo || item?.album?.cover_photo || item?.cover_photo || item?.image;
   
   const isPlaying = status === 'playing' && String(currentTrack?.id) === String(track?.id);
 
@@ -59,10 +60,21 @@ const MiniCard = ({ item }) => {
       onClick={handlePlay}
     >
       <div className="relative w-16 h-16 shrink-0 shadow-[4px_0_10px_rgba(0,0,0,0.3)]">
-        <img
-          src={cover}
-          alt={name}
-          className="w-full h-full object-cover"
+        {cover && !cover.toString().includes('default-cover.png') ? (
+          <img
+            src={cover}
+            alt={name}
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'flex';
+            }}
+          />
+        ) : null}
+        <AvatarFallback 
+          name={name}
+          className="w-full h-full"
+          style={{ display: (cover && !cover.toString().includes('default-cover.png')) ? 'none' : 'flex' }}
         />
         <div className={`absolute inset-0 flex items-center justify-center bg-black/40 transition-opacity ${isPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
            {isPlaying ? <Pause className="h-6 w-6 text-white fill-white" /> : <Play className="h-6 w-6 text-white fill-white" />}

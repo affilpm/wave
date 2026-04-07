@@ -368,7 +368,7 @@ class MusicStreamingView(APIView):
             "user_preferred_quality": preferred_quality,
             "url": streaming_url,
             "name": music.name,
-            "artist": music.artist.user.email,
+            "artist": music.artist.user.username,
             "quality_matched": quality_served == preferred_quality,
             "cover_photo": cover_photo_url,
         })

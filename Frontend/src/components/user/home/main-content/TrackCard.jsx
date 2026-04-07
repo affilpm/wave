@@ -3,6 +3,7 @@ import { Play, Pause, Heart } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { selectIsLiked, toggleLike, selectFollowedArtists, toggleFollowArtist } from "../../../../slices/user/librarySlice";
+import AvatarFallback from "../../../common/AvatarFallback";
 
 const TrackCard = ({ item, index, isPlaying, onPlayPlayable, type = 'music' }) => {
   const dispatch = useDispatch();
@@ -58,10 +59,22 @@ const TrackCard = ({ item, index, isPlaying, onPlayPlayable, type = 'music' }) =
       onClick={handleCardClick}
     >
       <div className={`relative w-full aspect-square mb-4 ${isArtist ? 'px-2' : ''}`}>
-        <img
-          src={typeof coverSrc === 'string' ? coverSrc : '/default-cover.png'}
-          alt={item.name || item.username}
-          className={`w-full h-full object-cover shadow-lg group-hover:shadow-xl transition-all duration-300 ${isArtist ? 'rounded-full' : 'rounded-md'}`}
+        {coverSrc && !coverSrc.toString().includes('default-cover.png') ? (
+          <img
+            src={coverSrc}
+            alt={item.name || item.username}
+            className={`w-full h-full object-cover shadow-lg group-hover:shadow-xl transition-all duration-300 ${isArtist ? 'rounded-full' : 'rounded-md'}`}
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'flex';
+            }}
+          />
+        ) : null}
+        <AvatarFallback 
+          name={item.name}
+          username={item.username || item.first_name}
+          className={`w-full h-full text-2xl ${isArtist ? 'rounded-full' : 'rounded-md'}`}
+          style={{ display: (coverSrc && !coverSrc.toString().includes('default-cover.png')) ? 'none' : 'flex' }}
         />
         {/* Play Button Overlay (Hidden for artists usually, or used to play top tracks) */}
         {!isArtist && (
