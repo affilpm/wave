@@ -11,6 +11,7 @@ import {
   convertToHrMinFormat,
 } from "../../../../../utils/formatters";
 import { usePlayCollection } from "../../../../../hooks/usePlayCollection";
+import { toggleFollowArtist, selectFollowedArtists } from "../../../../../slices/user/librarySlice";
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
@@ -33,10 +34,14 @@ const ArtistDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [totalDuration, setTotalDuration] = useState("");
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [followLoading, setFollowLoading] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
+
+  const followedArtists = useSelector(selectFollowedArtists);
+  const isFollowing = useMemo(() => {
+    if (!artistId) return false;
+    return followedArtists.some(f => (f.artist?.id || f.id) === Number(artistId));
+  }, [followedArtists, artistId]);
 
   const currentUserId = useSelector((state) => state.user_id);
   const currentUsername = useSelector((state) => state.user?.username);
@@ -75,18 +80,7 @@ const ArtistDetailPage = () => {
         const followersCountResponse = await api.get(`/api/v1/artists/${artistId}/followers-count/`);
         setFollowersCount(followersCountResponse.data.followers_count);
 
-        // Check if current user is following this artist
-        try {
-          const userFollowingResponse = await api.get(`/api/v1/artists/me/following/`);
-          const isFollowingArtist = userFollowingResponse.data.some(
-            (follow) => follow.artist.id === Number(artistId)
-          );
-          setIsFollowing(isFollowingArtist);
-        } catch (err) {
-          console.error("Error checking follow status:", err);
-          setIsFollowing(false);
-        }
-
+        // Follow status is now handled by Redux selector 'isFollowing'
       } catch (err) {
         console.error("Error fetching artist data:", err);
         setError("Failed to load artist information.");
@@ -155,23 +149,14 @@ const ArtistDetailPage = () => {
   }, [stableSongs.length, location.state, location.pathname, handlePlayAll, handleShufflePlay, navigate]);
 
   // Toggle follow
-  const toggleFollow = async () => {
-    setFollowLoading(true);
-    try {
-      if (isFollowing) {
-        await api.delete(`/api/v1/artists/${artistId}/follow/`);
-        setIsFollowing(false);
-        setFollowersCount((prevCount) => prevCount - 1);
-      } else {
-        await api.post(`/api/v1/artists/${artistId}/follow/`);
-        setIsFollowing(true);
-        setFollowersCount((prevCount) => prevCount + 1);
-      }
-    } catch (error) {
-      console.error("Error toggling follow:", error);
-    } finally {
-      setFollowLoading(false);
-    }
+  const toggleFollow = () => {
+    if (!artist) return;
+    
+    // Dispatch Redux action for global state (sidebar)
+    dispatch(toggleFollowArtist(artist));
+    
+    // Update local followers count for immediate UI feedback
+    setFollowersCount((prevCount) => isFollowing ? prevCount - 1 : prevCount + 1);
   };
 
   // Get color for profile placeholder
@@ -256,9 +241,8 @@ const ArtistDetailPage = () => {
                 : "text-white border-gray-400 hover:border-white"
             } transition-colors`}
             onClick={toggleFollow}
-            disabled={followLoading}
           >
-            {followLoading ? "Processing..." : isFollowing ? "Following" : "Follow"}
+            {isFollowing ? "Following" : "Follow"}
           </button>
         )}
 
