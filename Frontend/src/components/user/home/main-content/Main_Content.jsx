@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import api from "../../../../api";
 import Section from "./Section";
 import JumpBackInSection from "./JumpBackInSection";
-import { Play, Pause } from "lucide-react";
+import { Play, Pause, Plus, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { fetchRecentlyPlayed, fetchJumpBackIn } from "../../../../slices/user/listeningHistorySlice";
 import { setIsPlaying, setQueue } from "../../../../slices/user/playerSlice";
+import { 
+  selectIsLiked, 
+  toggleLike 
+} from "../../../../slices/user/librarySlice";
 import { prepareTracksForPlayer } from "../../../../utils/trackUtils";
 import AvatarFallback from "../../../common/AvatarFallback";
 
@@ -22,7 +27,11 @@ const MiniCard = ({ item, type = 'music' }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { currentTrack, status, currentContext } = useSelector((state) => state.player);
-  
+  const username = useSelector((state) => state.user?.username);
+  const isLiked = useSelector((state) => selectIsLiked(state, item.id));
+
+
+
   // Extract info based on type
   const track = type === 'music' ? (item?.track || item) : null;
   const name = type === 'music' ? (track?.name || 'Unknown') : (item?.name || item?.username || 'Unknown');
@@ -130,9 +139,31 @@ const MiniCard = ({ item, type = 'music' }) => {
         <div className={`absolute inset-0 flex items-center justify-center bg-black/40 transition-opacity ${isPlaying ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
            <button 
               onClick={handlePlayButton} 
-              className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center hover:scale-105 hover:bg-green-400 transition-all shadow-md"
+              className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center hover:scale-105 hover:bg-green-400 active:scale-95 transition-all shadow-md overflow-hidden"
            >
-             {isPlaying ? <Pause className="h-5 w-5 text-black fill-black" /> : <Play className="h-5 w-5 text-black fill-black ml-0.5" />}
+             <AnimatePresence mode="wait">
+               {isPlaying ? (
+                 <motion.div
+                   key="pause"
+                   initial={{ scale: 0.5, opacity: 0 }}
+                   animate={{ scale: 1, opacity: 1 }}
+                   exit={{ scale: 0.5, opacity: 0 }}
+                   transition={{ duration: 0.2 }}
+                 >
+                   <Pause className="h-5 w-5 text-black fill-black" />
+                 </motion.div>
+               ) : (
+                 <motion.div
+                   key="play"
+                   initial={{ scale: 0.5, opacity: 0 }}
+                   animate={{ scale: 1, opacity: 1 }}
+                   exit={{ scale: 0.5, opacity: 0 }}
+                   transition={{ duration: 0.2 }}
+                 >
+                   <Play className="h-5 w-5 text-black fill-black ml-0.5" />
+                 </motion.div>
+               )}
+             </AnimatePresence>
            </button>
         </div>
       </div>

@@ -1,32 +1,25 @@
 import React, {useState, useRef} from "react";
-import { Search, Plus, Library, Heart, Music, ChevronLeft, MoreVertical, Share2, Delete, Edit } from 'lucide-react';
+import { Search, Plus, Library, Heart, Music, ChevronLeft, Check } from 'lucide-react';
 import api from "../../../../api";
 import { LIBRARY } from "../../../../constants/apiEndpoints";
-import SavedPlaylistSectionMenuModal from "./SavedPlaylistSectionMenuModal";
 import { useNavigate } from "react-router-dom";
 
 const SavedPlaylistSection = ({ playlists, isSidebarExpanded, onSavedPlaylistDelete }) => {
     const navigate = useNavigate();
   
-    const handleMenuAction = async (action, playlist) => {
-      if (action === 'delete') {
-        try {
-          await api.post(LIBRARY.REMOVE_PLAYLIST, {
-            playlist_id: playlist.id
-          });
-          onSavedPlaylistDelete(playlist);
-        } catch (error) {
-          console.error('Error removing playlist:', error);
-        }
+    const handleRemove = async (e, playlist) => {
+      e.stopPropagation();
+      try {
+        await api.post(LIBRARY.REMOVE_PLAYLIST, {
+          playlist_id: playlist.id
+        });
+        onSavedPlaylistDelete(playlist);
+      } catch (error) {
+        console.error('Error removing playlist:', error);
       }
     };
   
     const handlePlaylistClick = (e, id) => {
-      // If the click target or its parent is the modal button, don't navigate
-      if (e.target.closest('.playlist-manager-button')) {
-        e.stopPropagation();
-        return;
-      }
       navigate(`/saved-playlist/${id}`);
     };
 
@@ -71,12 +64,13 @@ const SavedPlaylistSection = ({ playlists, isSidebarExpanded, onSavedPlaylistDel
                       </span>
                     </div>
 
-                    <div className="playlist-manager-button">
-                      <SavedPlaylistSectionMenuModal 
-                        playlist={playlist}
-                        handleMenuAction={handleMenuAction}
-                      />
-                    </div>
+                    <button 
+                      onClick={(e) => handleRemove(e, playlist)}
+                      className="p-1.5 opacity-0 group-hover:opacity-100 text-green-500 hover:scale-110 active:scale-95 transition-all rounded-full flex items-center justify-center"
+                      title="Remove from Library"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
                   </>
                 )}
               </div>

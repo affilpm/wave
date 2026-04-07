@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import { Play, Pause, Heart, Plus, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, Link } from "react-router-dom";
 import { selectIsLiked, toggleLike, selectFollowedArtists, toggleFollowArtist, selectSavedAlbums, selectSavedPlaylists, toggleSavedAlbumOptimistic, toggleSavedPlaylistOptimistic } from "../../../../slices/user/librarySlice";
@@ -143,15 +144,33 @@ const TrackCard = ({ item, index, isPlaying, onPlayPlayable, type = 'music' }) =
         {!isArtist && (
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all rounded-md flex items-end justify-end p-2 opacity-0 group-hover:opacity-100 duration-300">
             <button
-              className={`w-12 h-12 bg-green-500 rounded-full flex items-center justify-center transform translate-y-4 group-hover:translate-y-0 shadow-lg hover:scale-105 hover:bg-green-400 transition-all duration-300 ${isPlaying ? 'opacity-100 translate-y-0' : ''}`}
+              className={`w-12 h-12 bg-green-500 rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-90 hover:bg-green-400 transition-all duration-300 overflow-hidden ${isPlaying ? 'opacity-100 translate-y-0' : 'transform translate-y-4 group-hover:translate-y-0 opacity-0 group-hover:opacity-100'}`}
               onClick={handlePlayClick}
               aria-label={isPlaying ? "Pause" : "Play"}
             >
-              {isPlaying ? (
-                <Pause className="w-6 h-6 text-black fill-current" />
-              ) : (
-                <Play className="w-6 h-6 text-black fill-current ml-1" />
-              )}
+              <AnimatePresence mode="wait">
+                {isPlaying ? (
+                  <motion.div
+                    key="pause"
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Pause className="w-6 h-6 text-black fill-current" />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="play"
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Play className="w-6 h-6 text-black fill-current ml-1" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </button>
           </div>
         )}

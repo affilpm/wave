@@ -1,7 +1,7 @@
 import React from "react";
-import { Disc3, MoreVertical, Trash2 } from 'lucide-react';
+import { Disc3, Check, Plus } from 'lucide-react';
 import { useNavigate } from "react-router-dom";
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 
 const SavedAlbumsSection = ({ albums, isSidebarExpanded, onSavedAlbumRemove }) => {
   const navigate = useNavigate();
@@ -58,12 +58,16 @@ const SavedAlbumsSection = ({ albums, isSidebarExpanded, onSavedAlbumRemove }) =
                     </span>
                   </div>
 
-                  <div className="album-menu-button">
-                    <AlbumMenuButton 
-                      album={album}
-                      onRemove={onSavedAlbumRemove}
-                    />
-                  </div>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSavedAlbumRemove(album);
+                    }}
+                    className="p-1.5 opacity-0 group-hover:opacity-100 text-green-500 hover:scale-110 active:scale-95 transition-all rounded-full flex items-center justify-center"
+                    title="Remove from Library"
+                  >
+                    <Check className="h-4 w-4" />
+                  </button>
                 </>
               )}
             </div>
@@ -74,50 +78,6 @@ const SavedAlbumsSection = ({ albums, isSidebarExpanded, onSavedAlbumRemove }) =
   );
 };
 
-// Simple context menu for album actions
-const AlbumMenuButton = ({ album, onRemove }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef(null);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setIsOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  return (
-    <div className="relative" ref={menuRef}>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          setIsOpen(!isOpen);
-        }}
-        className="p-1 opacity-0 group-hover:opacity-100 hover:bg-white/10 rounded-full transition-all"
-      >
-        <MoreVertical className="h-4 w-4 text-gray-400" />
-      </button>
-
-      {isOpen && (
-        <div className="absolute right-0 top-8 z-50 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 min-w-[180px]">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove(album);
-              setIsOpen(false);
-            }}
-            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-400 hover:bg-white/10 transition-colors"
-          >
-            <Trash2 className="h-4 w-4" />
-            Remove from Library
-          </button>
-        </div>
-      )}
-    </div>
-  );
-};
 
 export default SavedAlbumsSection;

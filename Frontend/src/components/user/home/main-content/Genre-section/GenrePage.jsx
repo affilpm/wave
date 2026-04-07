@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Play, Pause, Clock, Shuffle, Share2, Music, Headphones, Radio, Mic, Guitar, Stars } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useDispatch, useSelector, shallowEqual } from 'react-redux';
 import { createSelector } from '@reduxjs/toolkit';
 import {
@@ -34,14 +35,32 @@ const TrackRow = ({ track, index, isPlaying, isCurrent, onPlay }) => {
             <>
               <span className={`group-hover:hidden ${isCurrent ? 'text-green-500' : ''}`}>{index + 1}</span>
               <button
-                className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
+                className="hidden group-hover:flex p-1 hover:text-white text-gray-400 active:scale-90 transition-transform"
                 onClick={(e) => { e.stopPropagation(); onPlay(track, index); }}
               >
-                {isCurrent && isPlaying ? (
-                  <Pause className="h-4 w-4" />
-                ) : (
-                  <Play className="h-4 w-4" />
-                )}
+                <AnimatePresence mode="wait">
+                  {isCurrent && isPlaying ? (
+                    <motion.div
+                      key="pause-inner"
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      <Pause className="h-4 w-4 fill-current" />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="play-inner"
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      <Play className="h-4 w-4 fill-current ml-0.5" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </button>
             </>
           )}
@@ -230,15 +249,33 @@ const GenrePage = () => {
       {/* Play / Shuffle / Share controls */}
       <div className="flex items-center justify-center md:justify-start gap-4 p-4 md:px-6">
         <button
-          className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-green-500 hover:bg-green-400 hover:scale-105 flex items-center justify-center transition-all duration-200 ease-in-out shadow-lg"
+          className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-green-500 hover:bg-green-400 hover:scale-105 active:scale-95 flex items-center justify-center transition-all duration-200 ease-in-out shadow-lg overflow-hidden"
           onClick={handlePlayGenre}
           title={isCollectionPlaying ? 'Pause' : 'Play'}
         >
-          {isCollectionPlaying ? (
-            <Pause className="h-5 w-5 md:h-6 md:w-6 text-black" />
-          ) : (
-            <Play className="h-5 w-5 md:h-6 md:w-6 text-black ml-0.5 md:ml-1" />
-          )}
+          <AnimatePresence mode="wait">
+            {isCollectionPlaying ? (
+              <motion.div
+                key="pause"
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Pause className="h-5 w-5 md:h-6 md:w-6 text-black fill-black" />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="play"
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Play className="h-5 w-5 md:h-6 md:w-6 text-black fill-black ml-0.5 md:ml-1" />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </button>
 
         <button

@@ -2,8 +2,13 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
-import { Play, Pause } from "lucide-react";
-import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
+import { Play, Pause, Plus, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  selectSavedPlaylists, 
+  toggleSavedPlaylistOptimistic 
+} from "../../../../../slices/user/librarySlice";
+import { LIBRARY } from "../../../../../constants/apiEndpoints";
 import { handlePlaybackAction } from "./playlist-utils";
 import api from "../../../../../api";
 
@@ -23,7 +28,7 @@ const PlaylistShowMorePage = () => {
   const { title } = location.state || {};
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const username = useSelector((state) => state.user.username);
+  const username = useSelector((state) => state.user?.username);
   const { currentTrack, status, queue, queueIndex } = useSelector(
     selectPlayerState,
     shallowEqual
@@ -88,6 +93,36 @@ const PlaylistShowMorePage = () => {
   const handleNextPage = () => setPage((prev) => prev + 1);
   const handlePrevPage = () => setPage((prev) => Math.max(prev - 1, 1));
 
+  const savedPlaylists = useSelector(selectSavedPlaylists);
+  const [isLibraryLoading, setIsLibraryLoading] = useState(null);
+
+  const handleToggleLibrary = async (e, item) => {
+    e.stopPropagation();
+    const isSaved = savedPlaylists.some(p => p.id === item.id);
+    const playlistData = {
+      id: item.id,
+      name: item.name,
+      cover_photo: item.cover_photo,
+      created_by_username: item.created_by_username || item.created_by,
+    };
+    
+    dispatch(toggleSavedPlaylistOptimistic(playlistData));
+    
+    try {
+      setIsLibraryLoading(item.id);
+      if (isSaved) {
+        await api.post(LIBRARY.REMOVE_PLAYLIST, { playlist_id: item.id });
+      } else {
+        await api.post(LIBRARY.ADD_PLAYLIST, { playlist_id: item.id });
+      }
+    } catch (error) {
+      console.error("Failed to update library:", error);
+      dispatch(toggleSavedPlaylistOptimistic(playlistData));
+    } finally {
+      setIsLibraryLoading(null);
+    }
+  };
+
   if (loading) {
     return <div className="p-4 text-white">Loading...</div>;
   }
@@ -120,24 +155,53 @@ const PlaylistShowMorePage = () => {
                       className="w-40 h-40 object-cover rounded-md shadow-lg"
                     />
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
+                      {/* Library Toggle (Plus/Check) */}
+                      {item.created_by !== username && (
+                        <div className={`absolute top-2 right-2 transition-opacity duration-300 ${savedPlaylists.some(p => p.id === item.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                          <button 
+                            onClick={(e) => handleToggleLibrary(e, item)}
+                            disabled={isLibraryLoading === item.id}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all bg-black/40 backdrop-blur-md hover:scale-110 active:scale-95 ${savedPlaylists.some(p => p.id === item.id) ? "text-green-500" : "text-white"}`}
+                          >
+                            {isLibraryLoading === item.id ? (
+                              <div className="h-4 w-4 border-2 border-t-transparent border-current rounded-full animate-spin"></div>
+                            ) : savedPlaylists.some(p => p.id === item.id) ? (
+                              <Check className="w-4 h-4" />
+                            ) : (
+                              <Plus className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      )}
+
                       <button
-                        className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
+                        className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 active:scale-90 transition-all overflow-hidden"
                         onClick={(e) => handlePlayClick(e, item)}
                       >
-                        {showPauseButton ? (
-                          <Pause className="w-6 h-6 text-black" />
-                        ) : (
-                          <Play className="w-6 h-6 text-black" />
-                        )}
+                        <AnimatePresence mode="wait">
+                          {showPauseButton ? (
+                            <motion.div
+                              key="pause"
+                              initial={{ scale: 0.5, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0.5, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <Pause className="w-6 h-6 text-black fill-black" />
+                            </motion.div>
+                          ) : (
+                            <motion.div
+                              key="play"
+                              initial={{ scale: 0.5, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0.5, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              <Play className="w-6 h-6 text-black fill-black ml-1" />
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
                       </button>
-                    </div>
-                    <div className="absolute top-2 right-2">
-                      <PlaylistSectionMenuModal
-                        playlist={{
-                          id: item.id,
-                          name: item.name,
-                        }}
-                      />
                     </div>
                   </div>
                   <div className="mt-2">

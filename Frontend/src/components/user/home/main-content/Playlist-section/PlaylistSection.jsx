@@ -1,10 +1,15 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
-import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
+import { Play, Pause, ChevronLeft, ChevronRight, Shuffle, Plus, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import { useNavigate } from "react-router-dom";
 import api from "../../../../../api";
+import { 
+  selectSavedPlaylists, 
+  toggleSavedPlaylistOptimistic 
+} from "../../../../../slices/user/librarySlice";
+import { LIBRARY } from "../../../../../constants/apiEndpoints";
 import { setQueue, setIsPlaying } from "../../../../../slices/user/playerSlice";
 import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 
@@ -26,7 +31,7 @@ const PlaylistSection = ({ title }) => {
   const [playlistData, setPlaylistData] = useState([]);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const username = useSelector((state) => state.user.username);
+  const username = useSelector((state) => state.user?.username);
   const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
@@ -119,6 +124,36 @@ const PlaylistSection = ({ title }) => {
     [dispatch]
   );
 
+  const savedPlaylists = useSelector(selectSavedPlaylists);
+  const [isLibraryLoading, setIsLibraryLoading] = useState(null);
+
+  const handleToggleLibrary = async (e, item) => {
+    e.stopPropagation();
+    const isSaved = savedPlaylists.some(p => p.id === item.id);
+    const playlistData = {
+      id: item.id,
+      name: item.name,
+      cover_photo: item.cover_photo,
+      created_by_username: item.created_by_username || item.created_by,
+    };
+    
+    dispatch(toggleSavedPlaylistOptimistic(playlistData));
+    
+    try {
+      setIsLibraryLoading(item.id);
+      if (isSaved) {
+        await api.post(LIBRARY.REMOVE_PLAYLIST, { playlist_id: item.id });
+      } else {
+        await api.post(LIBRARY.ADD_PLAYLIST, { playlist_id: item.id });
+      }
+    } catch (error) {
+      console.error("Failed to update library:", error);
+      dispatch(toggleSavedPlaylistOptimistic(playlistData));
+    } finally {
+      setIsLibraryLoading(null);
+    }
+  };
+
   const handleScroll = (direction) => {
     const container = scrollContainerRef.current;
     if (container) {
@@ -205,33 +240,62 @@ const PlaylistSection = ({ title }) => {
                       className="w-40 h-40 object-cover rounded-md shadow-lg"
                     />
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
+                      {/* Library Toggle (Plus/Check) */}
+                      {item.created_by !== username && (
+                        <div className={`absolute top-2 right-2 transition-opacity duration-300 ${savedPlaylists.some(p => p.id === item.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                          <button 
+                            onClick={(e) => handleToggleLibrary(e, item)}
+                            disabled={isLibraryLoading === item.id}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all bg-black/40 backdrop-blur-md hover:scale-110 active:scale-95 ${savedPlaylists.some(p => p.id === item.id) ? "text-green-500" : "text-white"}`}
+                          >
+                            {isLibraryLoading === item.id ? (
+                              <div className="h-4 w-4 border-2 border-t-transparent border-current rounded-full animate-spin"></div>
+                            ) : savedPlaylists.some(p => p.id === item.id) ? (
+                              <Check className="w-4 h-4" />
+                            ) : (
+                              <Plus className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      )}
+
                       <div className="absolute bottom-2 right-2 flex gap-2">
                         <button
-                          className="w-10 h-10 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full items-center justify-center hidden group-hover:flex shadow-xl transition-all"
+                          className="w-10 h-10 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full items-center justify-center hidden group-hover:flex shadow-xl transition-all active:scale-90"
                           onClick={(e) => handleShuffleClick(e, item)}
                           title="Shuffle Play"
                         >
                           <Shuffle className="w-5 h-5 text-white" />
                         </button>
                         <button
-                          className="w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
+                          className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 active:scale-90 transition-all overflow-hidden"
                           onClick={(e) => handlePlayClick(e, item)}
                         >
-                          {showPauseButton ? (
-                            <Pause className="w-6 h-6 text-black" />
-                          ) : (
-                            <Play className="w-6 h-6 text-black" />
-                          )}
+                          <AnimatePresence mode="wait">
+                            {showPauseButton ? (
+                              <motion.div
+                                key="pause"
+                                initial={{ scale: 0.5, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.5, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <Pause className="w-6 h-6 text-black fill-black" />
+                              </motion.div>
+                            ) : (
+                              <motion.div
+                                key="play"
+                                initial={{ scale: 0.5, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.5, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <Play className="w-6 h-6 text-black fill-black ml-1" />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
                         </button>
                       </div>
-                    </div>
-                    <div className="absolute top-2 right-2">
-                      <PlaylistSectionMenuModal
-                        playlist={{
-                          id: item.id,
-                          name: item.name,
-                        }}
-                      />
                     </div>
                   </div>
                   <div className="mt-2">

@@ -20,7 +20,8 @@ import {
   removeOwnPlaylist,
   updateOwnPlaylist,
   toggleSavedPlaylistOptimistic,
-  toggleSavedAlbumOptimistic
+  toggleSavedAlbumOptimistic,
+  toggleFollowArtist
 } from '../../../../slices/user/librarySlice';
 
 const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
@@ -149,6 +150,10 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
     }
   };
 
+  const handleFollowToggle = (artist) => {
+    dispatch(toggleFollowArtist(artist));
+  };
+
   return (
     <div className="h-full flex flex-col bg-black">
       {/* Header Section */}
@@ -265,6 +270,7 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
               <FollowedArtistsSection 
                 artists={filteredFollowedArtists}
                 isSidebarExpanded={isSidebarExpanded || isMobile}
+                onToggleFollow={handleFollowToggle}
               />
             )}
 

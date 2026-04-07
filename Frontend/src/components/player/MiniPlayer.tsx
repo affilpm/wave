@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Play, Pause, SkipBack, SkipForward, ChevronUp, Heart, Shuffle, Repeat, ListMusic, Loader2 } from 'lucide-react';
 import { Track, RepeatMode } from '../../types/player';
 import { ProgressBar } from './ProgressBar';
@@ -154,18 +154,44 @@ export const MiniPlayer: React.FC<MiniPlayerProps> = ({
             
             <motion.button 
               onClick={onPlayPause}
-              className="w-8 h-8 flex items-center justify-center bg-white text-black rounded-full shadow-md shrink-0"
+              className="w-8 h-8 flex items-center justify-center bg-white text-black rounded-full shadow-md shrink-0 overflow-hidden"
               whileTap={{ scale: 0.88 }}
               transition={{ type: 'spring', stiffness: 400, damping: 25 }}
               disabled={isLoading}
             >
-              {isLoading ? (
-                <Loader2 size={16} className="animate-spin" />
-              ) : isPlaying ? (
-                <Pause size={16} fill="currentColor" />
-              ) : (
-                <Play size={16} fill="currentColor" className="ml-0.5" />
-              )}
+              <AnimatePresence mode="wait">
+                {isLoading ? (
+                  <motion.div
+                    key="loader"
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Loader2 size={16} className="animate-spin" />
+                  </motion.div>
+                ) : isPlaying ? (
+                  <motion.div
+                    key="pause"
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Pause size={16} fill="currentColor" />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="play"
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Play size={16} fill="currentColor" className="ml-0.5" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </motion.button>
 
             <button onClick={onNext} className="flex-shrink-0 text-white/80 hover:text-white transition-colors">

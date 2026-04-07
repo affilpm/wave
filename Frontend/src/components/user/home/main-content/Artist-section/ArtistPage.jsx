@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import { Play, Pause, Clock, Share2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import api from "../../../../../api";
@@ -222,15 +223,33 @@ const ArtistDetailPage = () => {
       {/* Action Buttons */}
       <div className="flex items-center justify-center md:justify-start gap-3 md:gap-4 p-4 md:p-6">
         <button
-          className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors"
+          className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-green-500 hover:bg-green-400 active:scale-95 flex items-center justify-center transition-all shadow-lg overflow-hidden"
           onClick={handlePlayAll}
           disabled={publicSongs.length === 0}
         >
-          {isCollectionPlaying ? (
-            <Pause className="h-5 w-5 md:h-6 md:w-6 text-black" />
-          ) : (
-            <Play className="h-5 w-5 md:h-6 md:w-6 text-black ml-1" />
-          )}
+          <AnimatePresence mode="wait">
+            {isCollectionPlaying ? (
+              <motion.div
+                key="pause"
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Pause className="h-5 w-5 md:h-6 md:w-6 text-black fill-black" />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="play"
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Play className="h-5 w-5 md:h-6 md:w-6 text-black fill-black ml-1" />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </button>
 
         {!(artist?.username === currentUsername) && (
@@ -289,17 +308,35 @@ const ArtistDetailPage = () => {
                           <div className="flex items-center justify-center w-6 md:w-8 group">
                             <span className="group-hover:hidden text-xs md:text-sm">{index + 1}</span>
                             <button
-                              className="hidden group-hover:block p-1 hover:text-white text-gray-400"
+                              className="hidden group-hover:block p-1 hover:text-white text-gray-400 active:scale-90 transition-transform"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handlePlaySong(song, index);
                               }}
                             >
-                              {isThisTrackPlaying ? (
-                                <Pause className="h-3 w-3 md:h-4 md:w-4" />
-                              ) : (
-                                <Play className="h-3 w-3 md:h-4 md:w-4" />
-                              )}
+                              <AnimatePresence mode="wait">
+                                {isThisTrackPlaying ? (
+                                  <motion.div
+                                    key="pause-inner"
+                                    initial={{ scale: 0.5, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0.5, opacity: 0 }}
+                                    transition={{ duration: 0.15 }}
+                                  >
+                                    <Pause className="h-3 w-3 md:h-4 md:w-4 fill-current" />
+                                  </motion.div>
+                                ) : (
+                                  <motion.div
+                                    key="play-inner"
+                                    initial={{ scale: 0.5, opacity: 0 }}
+                                    animate={{ scale: 1, opacity: 1 }}
+                                    exit={{ scale: 0.5, opacity: 0 }}
+                                    transition={{ duration: 0.15 }}
+                                  >
+                                    <Play className="h-3 w-3 md:h-4 md:w-4 fill-current ml-0.5" />
+                                  </motion.div>
+                                )}
+                              </AnimatePresence>
                             </button>
                           </div>
                         </td>

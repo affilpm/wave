@@ -1,8 +1,14 @@
 import React, { useRef, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Play, Pause, Music2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, Pause, Music2, ChevronLeft, ChevronRight, Plus, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
+import { 
+  selectSavedAlbums, 
+  toggleSavedAlbumOptimistic 
+} from "../../../../slices/user/librarySlice";
 import api from "../../../../api";
+import { LIBRARY } from "../../../../constants/apiEndpoints";
 import { prepareTracksForPlayer } from "../../../../utils/trackUtils";
 import { setQueue, setIsPlaying } from "../../../../slices/user/playerSlice";
 import AvatarFallback from "../../../common/AvatarFallback";
@@ -105,6 +111,36 @@ const JumpBackInSection = ({ albums = [], hasSingles = false }) => {
     return (currentContext?.type === 'singles') && isPlaying;
   };
 
+  const savedAlbums = useSelector(selectSavedAlbums);
+  const [isLibraryLoading, setIsLibraryLoading] = useState(null); // ID of the album loading
+
+  const handleToggleLibrary = async (e, album) => {
+    e.stopPropagation();
+    const isSaved = savedAlbums.some(a => a.id === album.id);
+    const albumData = { 
+      id: album.id, 
+      name: album.name, 
+      cover_photo: album.cover_photo, 
+      artist_username: album.artist_username 
+    };
+    
+    dispatch(toggleSavedAlbumOptimistic(albumData));
+    
+    try {
+      setIsLibraryLoading(album.id);
+      if (isSaved) {
+        await api.post(LIBRARY.REMOVE_ALBUM, { album_id: album.id });
+      } else {
+        await api.post(LIBRARY.ADD_ALBUM, { album_id: album.id });
+      }
+    } catch (error) {
+      console.error("Failed to update library:", error);
+      dispatch(toggleSavedAlbumOptimistic(albumData));
+    } finally {
+      setIsLibraryLoading(null);
+    }
+  };
+
   if (!albums.length && !hasSingles) return null;
 
   return (
@@ -162,17 +198,52 @@ const JumpBackInSection = ({ albums = [], hasSingles = false }) => {
                   className="w-full h-full"
                   style={{ display: (album.cover_photo && !album.cover_photo.toString().includes('default-cover.png')) ? 'none' : 'flex' }}
                 />
+                {/* Library Toggle */}
+                <div className={`absolute top-2 right-2 transition-all duration-300 ${savedAlbums.some(a => a.id === album.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                  <button 
+                    onClick={(e) => handleToggleLibrary(e, album)}
+                    disabled={isLibraryLoading === album.id}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center transition-all bg-black/40 backdrop-blur-md hover:scale-110 active:scale-95 ${savedAlbums.some(a => a.id === album.id) ? "text-green-500" : "text-white"}`}
+                  >
+                    {isLibraryLoading === album.id ? (
+                      <div className="h-4 w-4 border-2 border-t-transparent border-current rounded-full animate-spin"></div>
+                    ) : savedAlbums.some(a => a.id === album.id) ? (
+                      <Check className="w-4 h-4" />
+                    ) : (
+                      <Plus className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+
                 {/* Play button overlay */}
                 <div className={`absolute bottom-2 right-2 transition-all duration-300 ${isAlbumPlaying(album.id) ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0'}`}>
                   <button 
                     onClick={(e) => handlePlayAlbum(e, album)}
-                    className="w-12 h-12 bg-green-500 hover:bg-green-400 hover:scale-105 rounded-full flex items-center justify-center shadow-xl transition-all"
+                    className="w-12 h-12 bg-green-500 hover:bg-green-400 hover:scale-105 active:scale-90 rounded-full flex items-center justify-center shadow-xl transition-all overflow-hidden"
                   >
-                    {isAlbumPlaying(album.id) ? (
-                      <Pause className="h-5 w-5 text-black fill-black" />
-                    ) : (
-                      <Play className="h-5 w-5 text-black fill-black ml-0.5" />
-                    )}
+                    <AnimatePresence mode="wait">
+                      {isAlbumPlaying(album.id) ? (
+                        <motion.div
+                          key="pause"
+                          initial={{ scale: 0.5, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.5, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <Pause className="h-5 w-5 text-black fill-black" />
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="play"
+                          initial={{ scale: 0.5, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.5, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <Play className="h-5 w-5 text-black fill-black ml-0.5" />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </button>
                 </div>
               </div>
@@ -195,13 +266,31 @@ const JumpBackInSection = ({ albums = [], hasSingles = false }) => {
                 <div className={`absolute bottom-2 right-2 transition-all duration-300 ${isSinglesPlaying() ? 'opacity-100 translate-y-0' : 'opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0'}`}>
                   <button 
                     onClick={handlePlaySingles}
-                    className="w-12 h-12 bg-green-500 hover:bg-green-400 hover:scale-105 rounded-full flex items-center justify-center shadow-xl transition-all"
+                    className="w-12 h-12 bg-green-500 hover:bg-green-400 hover:scale-105 active:scale-90 rounded-full flex items-center justify-center shadow-xl transition-all overflow-hidden"
                   >
-                    {isSinglesPlaying() ? (
-                      <Pause className="h-5 w-5 text-black fill-black" />
-                    ) : (
-                      <Play className="h-5 w-5 text-black fill-black ml-0.5" />
-                    )}
+                    <AnimatePresence mode="wait">
+                      {isSinglesPlaying() ? (
+                        <motion.div
+                          key="pause"
+                          initial={{ scale: 0.5, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.5, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <Pause className="h-5 w-5 text-black fill-black" />
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="play"
+                          initial={{ scale: 0.5, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.5, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <Play className="h-5 w-5 text-black fill-black ml-0.5" />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </button>
                 </div>
               </div>

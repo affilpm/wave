@@ -1,8 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Music } from 'lucide-react';
+import { Music, Check } from 'lucide-react';
 
-const FollowedArtistsSection = ({ artists, isSidebarExpanded }) => {
+const FollowedArtistsSection = ({ artists, isSidebarExpanded, onToggleFollow }) => {
   const navigate = useNavigate();
 
   // Function to handle navigation to artist page
@@ -68,12 +68,24 @@ const FollowedArtistsSection = ({ artists, isSidebarExpanded }) => {
                   </div>
                 )}
                 {isSidebarExpanded && (
-                  <div className="flex flex-col min-w-0 flex-1">
-                    <span className="truncate font-medium text-white">{username}</span>
-                    <span className="text-sm text-gray-400 truncate">
-                      Artist
-                    </span>
-                  </div>
+                  <>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="truncate font-medium text-white">{username}</span>
+                      <span className="text-sm text-gray-400 truncate">
+                        Artist
+                      </span>
+                    </div>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleFollow(artist);
+                      }}
+                      className="p-1.5 opacity-0 group-hover:opacity-100 text-green-500 hover:scale-110 active:scale-95 transition-all rounded-full flex items-center justify-center"
+                      title="Unfollow Artist"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                  </>
                 )}
               </div>
             </div>
