@@ -297,49 +297,57 @@ const ArtistDetailPage = () => {
                       isCurrentTrackFromArtist &&
                       isCollectionPlaying;
                     return (
-                      <tr
-                        key={song.id}
-                        className={`group hover:bg-white/10 transition-colors ${
-                          isThisTrackPlaying ? "bg-white/20" : ""
-                        }`}
-                        onClick={() => handlePlaySong(song, index)}
-                      >
-                        <td className="py-2 md:py-3 pl-2 md:pl-4">
+                        <tr
+                          key={song.id}
+                          className={`group hover:bg-white/10 transition-colors cursor-pointer ${
+                            isThisTrackPlaying ? "bg-white/5" : ""
+                          }`}
+                          onClick={() => handlePlaySong(song, index)}
+                        >
                           <div className="flex items-center justify-center w-6 md:w-8 group">
-                            <span className="group-hover:hidden text-xs md:text-sm">{index + 1}</span>
-                            <button
-                              className="hidden group-hover:block p-1 hover:text-white text-gray-400 active:scale-90 transition-transform"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handlePlaySong(song, index);
-                              }}
-                            >
-                              <AnimatePresence mode="wait">
-                                {isThisTrackPlaying ? (
-                                  <motion.div
-                                    key="pause-inner"
-                                    initial={{ scale: 0.5, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    exit={{ scale: 0.5, opacity: 0 }}
-                                    transition={{ duration: 0.15 }}
-                                  >
-                                    <Pause className="h-3 w-3 md:h-4 md:w-4 fill-current" />
-                                  </motion.div>
-                                ) : (
-                                  <motion.div
-                                    key="play-inner"
-                                    initial={{ scale: 0.5, opacity: 0 }}
-                                    animate={{ scale: 1, opacity: 1 }}
-                                    exit={{ scale: 0.5, opacity: 0 }}
-                                    transition={{ duration: 0.15 }}
-                                  >
-                                    <Play className="h-3 w-3 md:h-4 md:w-4 fill-current ml-0.5" />
-                                  </motion.div>
-                                )}
-                              </AnimatePresence>
-                            </button>
+                            {isThisTrackPlaying ? (
+                              <div className="flex items-center gap-0.5">
+                                <span className="w-0.5 h-2 md:h-3 bg-green-500 rounded-full animate-pulse"></span>
+                                <span className="w-0.5 h-3 md:h-4 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.15s' }}></span>
+                                <span className="w-0.5 h-1.5 md:h-2 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.3s' }}></span>
+                              </div>
+                            ) : (
+                              <>
+                                <span className={`group-hover:hidden text-xs md:text-sm ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{index + 1}</span>
+                                <button
+                                  className="hidden group-hover:block p-1 hover:text-white text-gray-400 active:scale-90 transition-transform"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handlePlaySong(song, index);
+                                  }}
+                                >
+                                  <AnimatePresence mode="wait">
+                                    {isThisTrackPlaying ? (
+                                      <motion.div
+                                        key="pause-inner"
+                                        initial={{ scale: 0.5, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        exit={{ scale: 0.5, opacity: 0 }}
+                                        transition={{ duration: 0.15 }}
+                                      >
+                                        <Pause className="h-3 w-3 md:h-4 md:w-4 fill-current" />
+                                      </motion.div>
+                                    ) : (
+                                      <motion.div
+                                        key="play-inner"
+                                        initial={{ scale: 0.5, opacity: 0 }}
+                                        animate={{ scale: 1, opacity: 1 }}
+                                        exit={{ scale: 0.5, opacity: 0 }}
+                                        transition={{ duration: 0.15 }}
+                                      >
+                                        <Play className="h-3 w-3 md:h-4 md:w-4 fill-current ml-0.5" />
+                                      </motion.div>
+                                    )}
+                                  </AnimatePresence>
+                                </button>
+                              </>
+                            )}
                           </div>
-                        </td>
                         <td className="py-2 md:py-3 pl-2 md:pl-3">
                           <div className="flex items-center gap-2 md:gap-3">
                             <img

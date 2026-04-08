@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Play, Pause, Clock, Share2, X, Heart, Shuffle } from "lucide-react";
 import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import api from "../../../../../api";
@@ -259,26 +260,58 @@ const YourPlaylistPage = () => {
 
       return (
         <tr
-          className={`group hover:bg-white/10 transition-colors duration-200 ease-in-out ${
-            isThisTrackPlaying ? "bg-white/20" : ""
+          className={`group hover:bg-white/10 transition-colors duration-200 ease-in-out cursor-pointer ${
+            isThisTrackPlaying ? "bg-white/5" : ""
           }`}
+          onClick={(e) => {
+            e.stopPropagation();
+            handlePlayTrack(track, index);
+          }}
         >
           <td className="py-3 pl-4">
             <div className="flex items-center justify-center w-8">
-              <span className="group-hover:hidden">{index + 1}</span>
-              <button
-                className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePlayTrack(track, index);
-                }}
-              >
-                {isThisTrackPlaying && isCollectionPlaying ? (
-                  <Pause className="h-4 w-4" />
-                ) : (
-                  <Play className="h-4 w-4" />
-                )}
-              </button>
+              {isThisTrackPlaying && isCollectionPlaying ? (
+                <div className="flex items-center gap-0.5">
+                  <span className="w-0.5 h-3 bg-green-500 rounded-full animate-pulse"></span>
+                  <span className="w-0.5 h-4 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.15s' }}></span>
+                  <span className="w-0.5 h-2 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.3s' }}></span>
+                </div>
+              ) : (
+                <>
+                  <span className={`group-hover:hidden ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{index + 1}</span>
+                  <button
+                    className="hidden group-hover:flex p-1 hover:text-white text-gray-400 active:scale-90 transition-transform"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handlePlayTrack(track, index);
+                    }}
+                  >
+                    <AnimatePresence mode="wait">
+                      {isThisTrackPlaying && isCollectionPlaying ? (
+                        <motion.div
+                          key="pause-inner"
+                          initial={{ scale: 0.5, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.5, opacity: 0 }}
+                          transition={{ duration: 0.15 }}
+                        >
+                          <Pause className="h-4 w-4 fill-current" />
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="play-inner"
+                          initial={{ scale: 0.5, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.5, opacity: 0 }}
+                          transition={{ duration: 0.15 }}
+                        >
+                          <Play className="h-4 w-4 fill-current ml-0.5" />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </button>
+                </>
+              )}
             </div>
           </td>
           <td className="py-3 pl-6">
@@ -288,7 +321,7 @@ const YourPlaylistPage = () => {
                 alt={track.music_details.name}
                 className="w-10 h-10 rounded-md"
               />
-              <span className="font-medium">{track.music_details.name}</span>
+              <span className={`font-medium ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{track.music_details.name}</span>
             </div>
           </td>
           <td className="py-3 pl-6 pr-4 text-gray-400">
@@ -348,25 +381,57 @@ const YourPlaylistPage = () => {
 
       return (
         <div
-          className={`group flex items-center p-3 border-b border-gray-800 gap-3 ${
-            isThisTrackPlaying ? "bg-white/20" : ""
+          className={`group flex items-center p-3 border-b border-gray-800 gap-3 cursor-pointer ${
+            isThisTrackPlaying ? "bg-white/5" : ""
           } hover:bg-white/10 transition-colors duration-200 ease-in-out`}
+          onClick={(e) => {
+            e.stopPropagation();
+            handlePlayTrack(track, index);
+          }}
         >
           <div className="w-6 text-center text-sm text-gray-400">
-            <span className="group-hover:hidden">{index + 1}</span>
-            <button
-              className="hidden group-hover:block"
-              onClick={(e) => {
-                e.stopPropagation();
-                handlePlayTrack(track, index);
-              }}
-            >
-              {isThisTrackPlaying && isCollectionPlaying ? (
-                <Pause className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-            </button>
+            {isThisTrackPlaying && isCollectionPlaying ? (
+              <div className="flex items-center gap-0.5 justify-center">
+                <span className="w-0.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
+                <span className="w-0.5 h-3.5 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.15s' }}></span>
+                <span className="w-0.5 h-1.5 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.3s' }}></span>
+              </div>
+            ) : (
+              <>
+                <span className={`group-hover:hidden ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{index + 1}</span>
+                <button
+                  className="hidden group-hover:block p-1 hover:text-white text-gray-400 active:scale-90 transition-transform mx-auto"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handlePlayTrack(track, index);
+                  }}
+                >
+                  <AnimatePresence mode="wait">
+                    {isThisTrackPlaying && isCollectionPlaying ? (
+                      <motion.div
+                        key="pause-mobile"
+                        initial={{ scale: 0.5, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.5, opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <Pause className="h-4 w-4 fill-current" />
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="play-mobile"
+                        initial={{ scale: 0.5, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 0.5, opacity: 0 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <Play className="h-4 w-4 fill-current ml-0.5" />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </button>
+              </>
+            )}
           </div>
           <img
             src={track.music_details.cover_photo || "/api/v1/placeholder/40/40"}
@@ -374,7 +439,7 @@ const YourPlaylistPage = () => {
             className="w-10 h-10 rounded-md"
           />
           <div className="flex-1 min-w-0">
-            <div className="font-medium truncate">{track.music_details.name}</div>
+            <div className={`font-medium truncate ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{track.music_details.name}</div>
             <div className="text-sm text-gray-400 truncate">
               {track.music_details.artist_id ? (
                 <Link 
