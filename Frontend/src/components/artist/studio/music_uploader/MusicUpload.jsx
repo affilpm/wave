@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import { Music, Image as ImageIcon, X, ChevronDown, ChevronUp, Search,  Edit2 } from 'lucide-react';
 import api from '../../../../api';
-import { openModal, closeModal } from '../../../../slices/artist/modalSlice'; // Import actions
+import { openModal, closeModal } from '../../../../slices/artist/modalSlice';
 import debounce from 'lodash/debounce';
 import AlbumSelector from './AlbumSelector';
-// import ReactCrop, { centerCrop, makeAspectCrop } from 'react-image-crop';
 import { toast } from 'react-toastify';
 import ImageCropper from './ImageCropper';
 import ResizeImage from './RezizeImage';
@@ -51,7 +50,6 @@ const MusicUpload = () => {
     const [focusedGenreIndex, setFocusedGenreIndex] = useState(-1);
     const [sortOrder, setSortOrder] = useState('asc');
 
-
     const [showCropper, setShowCropper] = useState(false);
     const [originalImage, setOriginalImage] = useState(null);
     const dispatch = useDispatch()
@@ -65,13 +63,11 @@ const MusicUpload = () => {
     const [zoom, setZoom] = useState(1);
     const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
-
     const [albums, setAlbums] = useState([]);
     const [selectedAlbum, setSelectedAlbum] = useState('');
     const [trackNumber, setTrackNumber] = useState('');
 
     
-    // Create a debounced function to check track name
     const checkTrackName = debounce(async (name) => {
       if (!name) {
         setNameValidation({ isChecking: false, error: null });
@@ -97,57 +93,47 @@ const MusicUpload = () => {
           error: 'Error checking track name'
         });
       }
-    }, 500); // 500ms delay
+    }, 500);
   
-
-
     const isValidTrackName = (name) => {
-      const invalidChars = /[<>:"/\\|?*]/; // Regex to check for invalid characters
+      const invalidChars = /[<>:"/\\|?*]/;
       return !invalidChars.test(name);
     };
-
 
     const reservedWords = ["default", "untitled"];
     const isReservedWord = (name) => reservedWords.includes(name.toLowerCase());
 
     const handleInputChange = (e) => {
       const { name, value } = e.target;
-      const trimmedValue = value.replace(/\s/g, ''); // Remove all spaces forcefully
+      const trimmedValue = value.replace(/\s/g, '');
       
-      // Update form data with the trimmed value (no spaces)
       setFormData((prev) => ({ ...prev, [name]: trimmedValue }));
     
-      // Track name validation
       if (name === 'name') {
-        // Validation for empty value
         if (trimmedValue === "") {
           setNameValidation({
             error: "Track name cannot be empty.",
             isChecking: false,
           });
         }
-        // Validate length (3-30 characters)
         else if (trimmedValue.length < 3 || trimmedValue.length > 30) {
           setNameValidation({
             error: "Track name must be between 3 and 30 characters.",
             isChecking: false,
           });
         }
-        // Disallow special characters
         else if (!isValidTrackName(trimmedValue)) {
           setNameValidation({
             error: "Track name contains invalid characters.",
             isChecking: false,
           });
         }
-        // Disallow reserved words
         else if (isReservedWord(trimmedValue)) {
           setNameValidation({
             error: "This track name is reserved.",
             isChecking: false,
           });
         } else {
-          // If the track name passes all checks, clear errors and check for duplicates
           checkTrackName(trimmedValue);
           setNameValidation({
             error: "",
@@ -157,19 +143,12 @@ const MusicUpload = () => {
       }
     };
 
-    
-  
-    // Cancel debounced function on unmount
     useEffect(() => {
       return () => {
         checkTrackName.cancel();
       };
     }, []);
   
-
-
-  
-    // Fetch genres from backend with authenticated request
     useEffect(() => {
       const fetchGenres = async () => {
         try {
@@ -187,11 +166,6 @@ const MusicUpload = () => {
   
       fetchGenres();
     }, []);
-  
-
-  
-
-  
   
     const handleGenreSelect = (genreId) => {
       setFormData(prev => {
@@ -214,19 +188,21 @@ const MusicUpload = () => {
       const genre = genres.find(g => g.value === genreId);
       return genre ? genre.label : '';
     };
-  
 
-
-
-
-    
-
+    // ✅ FIX: resetImageInput now also clears fileErrors.cover
+    const resetImageInput = () => {
+      setImageInputKey(Date.now());
+      setFiles(prev => ({ ...prev, cover: null }));
+      setCoverPreview(null);
+      setOriginalImage(null);
+      setShowCropper(false);
+      setFileErrors(prev => ({ ...prev, cover: null })); // 👈 this was missing
+    };
 
     const handleFileChange = async (e, type) => {
       const file = e.target.files[0];
       if (file) {
         if (type === 'audio') {
-          // Audio file validation
           try {
             const allowedAudioTypes = ['audio/mpeg', 'audio/wav', 'audio/aac', 'audio/mp3', 'audio/x-wav'];
             
@@ -242,55 +218,37 @@ const MusicUpload = () => {
               throw new Error('Audio file must be smaller than 10MB');
             }
             
-            // Generate a unique filename
             const generateUniqueFileName = (originalName) => {
-              // Get file extension
               const extension = originalName.split('.').pop();
-              
-              // Create unique identifier
               const timestamp = new Date().getTime();
               const randomString = Math.random().toString(36).substring(2, 15);
-              
-              // Combine to create unique filename
               return `${timestamp}_${randomString}.${extension}`;
             };
 
-            // Generate unique filename
             const uniqueFileName = generateUniqueFileName(file.name);
-
-            // Create a new File object with the unique filename
             const uniqueFile = new File([file], uniqueFileName, {
               type: file.type,
               lastModified: file.lastModified
             });
             
-            // Clear errors and set the file
-            setFileErrors((prev) => ({
-              ...prev,
-              audio: null,
-            }));
-            setFiles((prev) => ({ 
-              ...prev, 
-              [type]: uniqueFile 
-            }));
+            setFileErrors((prev) => ({ ...prev, audio: null }));
+            setFiles((prev) => ({ ...prev, [type]: uniqueFile }));
             
           } catch (error) {
             console.error('Audio processing error:', error);
-            setFileErrors((prev) => ({
-              ...prev,
-              audio: error.message,
-            }));
+            setFileErrors((prev) => ({ ...prev, audio: error.message }));
             toast.error(error.message);
             
-            // Reset audio input
             const audioInput = document.getElementById('audio-upload');
             if (audioInput) {
               audioInput.value = '';
             }
           }
         } else if (type === 'cover') {
+          // ✅ FIX: Always clear the cover error at the very start of a new attempt
+          setFileErrors((prev) => ({ ...prev, cover: null }));
+
           try {
-            // Validate image file type
             if (!file.type.startsWith('image/')) {
               throw new Error('Please select an image file');
             }
@@ -304,7 +262,6 @@ const MusicUpload = () => {
               throw new Error('Image must be smaller than 5MB');
             }
   
-            // Create a promise to get image dimensions
             const getDimensions = new Promise((resolve, reject) => {
               const img = new Image();
               const objectUrl = URL.createObjectURL(file);
@@ -324,12 +281,10 @@ const MusicUpload = () => {
   
             const dimensions = await getDimensions;
   
-            // Check if image is too large
             if (dimensions.width > MAX_IMAGE_SIZE || dimensions.height > MAX_IMAGE_SIZE) {
               throw new Error(`Image must be no larger than ${MAX_IMAGE_SIZE}x${MAX_IMAGE_SIZE} pixels`);
             }
   
-            // Handle small images
             if (dimensions.width < MIN_IMAGE_SIZE || dimensions.height < MIN_IMAGE_SIZE) {
               const willResize = window.confirm(
                 `Image is smaller than ${MIN_IMAGE_SIZE}x${MIN_IMAGE_SIZE} pixels. Would you like to automatically resize it? This may affect image quality.`
@@ -337,22 +292,15 @@ const MusicUpload = () => {
   
               if (willResize) {
                 const resized = await ResizeImage(file);
-                console.log('Resized image details:', {
-                  width: resized.width,
-                  height: resized.height,
-                  size: resized.file.size
-                });
-                
                 setOriginalImage(resized.url);
                 setShowCropper(true);
-                // toast.success('Image has been resized successfully');
                 return;
               } else {
                 throw new Error(`Please select an image at least ${MIN_IMAGE_SIZE}x${MIN_IMAGE_SIZE} pixels`);
               }
             }
   
-            // Handle normal sized images
+            // Normal sized image — open cropper
             const reader = new FileReader();
             reader.onload = (e) => {
               setOriginalImage(e.target.result);
@@ -362,23 +310,17 @@ const MusicUpload = () => {
   
           } catch (error) {
             console.error('Image processing error:', error);
-            setFileErrors((prev) => ({
-              ...prev,
-              cover: error.message
-            }));
+            setFileErrors((prev) => ({ ...prev, cover: error.message }));
             toast.error(error.message);
             resetImageInput();
+            return;
           }
         } else {
-          // Handle other file types (audio, video)
           setFiles((prev) => ({ ...prev, [type]: file }));
         }
       }
     };
 
-    
-
-  
     const handleCropSave = async () => {
       if (!croppedAreaPixels || !originalImage) return;
   
@@ -391,7 +333,6 @@ const MusicUpload = () => {
           image.onload = resolve;
         });
   
-        // Set fixed output dimensions
         canvas.width = TARGET_SIZE;
         canvas.height = TARGET_SIZE;
   
@@ -410,7 +351,7 @@ const MusicUpload = () => {
   
         canvas.toBlob((blob) => {
           if (blob) {
-            const uniqueId = uuidv4();  // Generate a unique ID
+            const uniqueId = uuidv4();
             const croppedFile = new File([blob], `cropped-cover-${Date.now()}-${uniqueId}.jpg`, {
               type: 'image/jpeg',
               lastModified: Date.now(),
@@ -420,6 +361,7 @@ const MusicUpload = () => {
             setCoverPreview(previewUrl);
             setFiles((prev) => ({ ...prev, cover: croppedFile }));
             setShowCropper(false);
+            setFileErrors((prev) => ({ ...prev, cover: null }));
           }
         }, 'image/jpeg', 0.95);
       } catch (error) {
@@ -427,17 +369,6 @@ const MusicUpload = () => {
         toast.error('Failed to crop image. Please try again.');
       }
     };
-  
-    const resetImageInput = () => {
-      setImageInputKey(Date.now());
-      setFiles(prev => ({ ...prev, cover: null }));
-      setCoverPreview(null);
-      setOriginalImage(null);
-      setShowCropper(false);
-    };
-  
-    
-
 
     const handleDragOver = (e) => {
       e.preventDefault();
@@ -446,46 +377,29 @@ const MusicUpload = () => {
     
     const handleDragLeave = () => setDragActive(false);
     
-  const handleDrop = (e) => {
-  e.preventDefault();
-  setDragActive(false);
+    const handleDrop = (e) => {
+      e.preventDefault();
+      setDragActive(false);
 
-  const file = Array.from(e.dataTransfer.files)[0];
-  if (file) {
-    if (file.type.startsWith('audio/')) {
-      handleFileChange({ target: { files: [file] } }, 'audio');
-    } else {
-      setFileErrors((prev) => ({
-        ...prev,
-        audio: 'Please select a valid audio file',
-      }));
-      toast.error('Please select a valid audio file');
-    }
-  }
-};
-  
-  
+      const file = Array.from(e.dataTransfer.files)[0];
+      if (file) {
+        if (file.type.startsWith('audio/')) {
+          handleFileChange({ target: { files: [file] } }, 'audio');
+        } else {
+          setFileErrors((prev) => ({ ...prev, audio: 'Please select a valid audio file' }));
+          toast.error('Please select a valid audio file');
+        }
+      }
+    };
 
-const formatAudioFileName = () => {
-  if (!files.audio || !formData.name || !formData.releaseDate) return files.audio.name;
-
-  // Remove invalid characters from the track name
-  const sanitizedName = formData.name.replace(/[<>:"/\\|?*]/g, '_');
-  
-  // Format the release date
-  const releaseDate = new Date(formData.releaseDate);
-  const formattedDate = releaseDate.toISOString().split('T')[0]; // YYYY-MM-DD format
-
-  // Get the original file extension
-  const fileExtension = files.audio.name.split('.').pop();
-
-  // Create new filename
-  const newFileName = `${sanitizedName}_${formattedDate}.${fileExtension}`;
-
-  return newFileName;
-};
-
-
+    const formatAudioFileName = () => {
+      if (!files.audio || !formData.name || !formData.releaseDate) return files.audio.name;
+      const sanitizedName = formData.name.replace(/[<>:"/\\|?*]/g, '_');
+      const releaseDate = new Date(formData.releaseDate);
+      const formattedDate = releaseDate.toISOString().split('T')[0];
+      const fileExtension = files.audio.name.split('.').pop();
+      return `${sanitizedName}_${formattedDate}.${fileExtension}`;
+    };
 
     const getAudioDuration = (file) => {
       return new Promise((resolve) => {
@@ -498,7 +412,6 @@ const formatAudioFileName = () => {
       });
     };
   
-
     const handleSubmit = async (e) => {
       e.preventDefault();
       setError(null);
@@ -509,7 +422,7 @@ const formatAudioFileName = () => {
       }
     
       setIsLoading(true);
-      const toastId = toast.loading('Uploading track...'); // Show loading toast
+      const toastId = toast.loading('Uploading track...');
     
       try {
         const formDataToSubmit = new FormData();
@@ -520,9 +433,7 @@ const formatAudioFileName = () => {
           const minutes = Math.floor((audioDuration % 3600) / 60);
           const seconds = Math.floor(audioDuration % 60);
           const milliseconds = Math.round((audioDuration % 1) * 1000000);
-    
           const durationString = `P0DT${hours}H${minutes}M${seconds}.${milliseconds}S`;
-
           formDataToSubmit.append('duration', durationString);
         }
     
@@ -589,9 +500,6 @@ const formatAudioFileName = () => {
       }
     };
   
-
-  
-    // For the image preview CSP issue, use data URLs instead of blob URLs
     const getImagePreview = (file) => {
       if (!file) return null;
       return new Promise((resolve) => {
@@ -601,8 +509,6 @@ const formatAudioFileName = () => {
       });
     };
   
-    // Update the cover photo preview section
-  
     useEffect(() => {
       if (files.cover) {
         getImagePreview(files.cover).then(setCoverPreview);
@@ -610,11 +516,11 @@ const formatAudioFileName = () => {
         setCoverPreview(null);
       }
     }, [files.cover]);
+
     const isFormValid = () => {
       const isAlbumValid = selectedAlbum ? !!trackNumber : true;
       return (
         files.audio && 
-        // !fileErrors.audio &&
         files.cover && 
         !fileErrors.cover &&
         formData.name && 
@@ -630,8 +536,6 @@ const formatAudioFileName = () => {
       );
     };
 
-
-    // Enhanced keyboard navigation for genre dropdown
     const handleKeyDown = (e) => {
       if (!isGenreDropdownOpen) return;
   
@@ -641,9 +545,7 @@ const formatAudioFileName = () => {
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          setFocusedGenreIndex(prev => 
-            prev < genresLength - 1 ? prev + 1 : prev
-          );
+          setFocusedGenreIndex(prev => prev < genresLength - 1 ? prev + 1 : prev);
           break;
         case 'ArrowUp':
           e.preventDefault();
@@ -664,7 +566,6 @@ const formatAudioFileName = () => {
       }
     };
   
-    // Get filtered and sorted genres
     const getFilteredGenres = () => {
       return genres
         .filter(genre => 
@@ -681,7 +582,6 @@ const formatAudioFileName = () => {
       setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
     };
   
-    // Effect for dropdown focus management
     useEffect(() => {
       if (!isGenreDropdownOpen) {
         setFocusedGenreIndex(-1);
@@ -691,7 +591,6 @@ const formatAudioFileName = () => {
       }
     }, [isGenreDropdownOpen]);
   
-    // Click outside listener
     useEffect(() => {
       const handleClickOutside = (event) => {
         if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
@@ -703,29 +602,15 @@ const formatAudioFileName = () => {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
-    
-    // Removed conditional hooks related to rendering errors;
-    // Handled in regular render pipeline
-    // Show error message if there is one
-    if (error) {
-      return (
-        <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-          <strong className="font-bold">Error: </strong>
-          <span className="block sm:inline">{error}</span>
-        </div>
-      );
-    }
 
     
   return (
     <div className="max-w-5xl mx-auto p-5">
       <div className="mb-8">
         <h2 className="text-2xl p-2 font-bold mb-1 text-white">Upload New Track</h2>
-      <div className="p-1 border-b border-gray-700 "></div>
-      <p className="text-white p-1 ">Share your music with the world</p>
-
+        <div className="p-1 border-b border-gray-700"></div>
+        <p className="text-white p-1">Share your music with the world</p>
       </div>
-
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Audio Upload */}
@@ -761,21 +646,18 @@ const formatAudioFileName = () => {
         </div>
 
         {/* Audio Player */}
-{files.audio && (
-  <div className="mt-4">
-    <audio controls className="w-full">
-      <source src={URL.createObjectURL(files.audio)} type={files.audio.type} />
-      Your browser does not support the audio element.
-    </audio>
-  </div>
-)}
-
-
-
+        {files.audio && (
+          <div className="mt-4">
+            <audio controls className="w-full">
+              <source src={URL.createObjectURL(files.audio)} type={files.audio.type} />
+              Your browser does not support the audio element.
+            </audio>
+          </div>
+        )}
 
         {/* Track Name */}
         <div>
-        <label htmlFor="name" className="block text-sm font-medium text-white mb-1">
+          <label htmlFor="name" className="block text-sm font-medium text-white mb-1">
             Track Name
           </label>
           <div className="relative">
@@ -798,9 +680,7 @@ const formatAudioFileName = () => {
             )}
           </div>
           {nameValidation.error && (
-            <p className="mt-1 text-sm text-red-500">
-              {nameValidation.error}
-            </p>
+            <p className="mt-1 text-sm text-red-500">{nameValidation.error}</p>
           )}
         </div>
 
@@ -810,7 +690,6 @@ const formatAudioFileName = () => {
             Select Genres
           </label>
           
-          {/* Selected Genres Display */}
           <div className="flex flex-wrap gap-2 mb-2">
             {formData.selectedGenres.map(genreId => (
               <span
@@ -829,7 +708,6 @@ const formatAudioFileName = () => {
             ))}
           </div>
 
-          {/* Genre Dropdown */}
           <div className="relative" ref={dropdownRef}>
             <button
               type="button"
@@ -845,7 +723,6 @@ const formatAudioFileName = () => {
 
             {isGenreDropdownOpen && (
               <div className="absolute z-10 w-full mt-1 bg-gray-800 border border-gray-700 rounded-md shadow-lg">
-                {/* Search and Sort Controls */}
                 <div className="p-2 border-b border-gray-700">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -868,7 +745,6 @@ const formatAudioFileName = () => {
                   </button>
                 </div>
 
-                {/* Genres List */}
                 <div className="max-h-48 overflow-y-auto">
                   {getFilteredGenres().map((genre, index) => (
                     <button
@@ -898,85 +774,77 @@ const formatAudioFileName = () => {
           </div>
         </div>
 
-
         {/* Release Date */}
-{/* Release Date */}
-<div>
-  <label htmlFor="releaseDate" className="block text-sm font-medium text-white mb-1">
-    Release Date
-  </label>
-  <input
-    id="releaseDate"
-    type="datetime-local"
-    name="releaseDate"
-    value={formData.releaseDate}
-    onChange={handleInputChange}
-    className="w-full p-2 border rounded-md text-white bg-gray-700"
-    max={new Date().toISOString().slice(0, 16)} // Restrict to current date and time
-  />
-</div>
-
-
-
-
-
-
-{/* Cover Photo Section */}
-<div>
-  <label className="block text-sm font-medium text-white mb-1">
-    Cover Photo (JPG/PNG only)
-  </label>
-  <div className="flex items-center space-x-4">
-    <div className="relative w-32 h-32 border rounded-lg overflow-hidden bg-gray-700">
-      {coverPreview ? (
-        <div className="relative group">
-          <img
-            src={coverPreview}
-            alt="Cover preview"
-            className="w-full h-full object-cover"
+        <div>
+          <label htmlFor="releaseDate" className="block text-sm font-medium text-white mb-1">
+            Release Date
+          </label>
+          <input
+            id="releaseDate"
+            type="datetime-local"
+            name="releaseDate"
+            value={formData.releaseDate}
+            onChange={handleInputChange}
+            className="w-full p-2 border rounded-md text-white bg-gray-700"
+            max={new Date().toISOString().slice(0, 16)}
           />
         </div>
-      ) : (
-        <div className="w-full h-full flex items-center justify-center">
-          <ImageIcon className="h-8 w-8 text-gray-400" />
+
+        {/* Cover Photo Section */}
+        <div>
+          <label className="block text-sm font-medium text-white mb-1">
+            Cover Photo (JPG/PNG only)
+          </label>
+          <div className="flex items-center space-x-4">
+            <div className="relative w-32 h-32 border rounded-lg overflow-hidden bg-gray-700">
+              {coverPreview ? (
+                <div className="relative group">
+                  <img
+                    src={coverPreview}
+                    alt="Cover preview"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <ImageIcon className="h-8 w-8 text-gray-400" />
+                </div>
+              )}
+            </div>
+
+            <div className="flex-1 space-y-2">
+              <input
+                key={imageInputKey}
+                type="file"
+                accept=".jpg,.jpeg,.png"
+                onChange={(e) => handleFileChange(e, 'cover')}
+                className={`text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 
+                  file:rounded-full file:border-0 file:text-sm file:font-semibold
+                  file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100
+                  ${coverPreview ? 'file:bg-green-50 file:text-green-700 hover:file:bg-green-100' : ''}`}
+                title={coverPreview ? 'Change file' : 'Upload image'}
+              />
+              {fileErrors.cover ? (
+                <p className="text-red-400 text-sm">{fileErrors.cover}</p>
+              ) : (
+                <p className="text-gray-400 text-sm">
+                  {coverPreview ? 'Change image - ' : 'Upload image - '}
+                  Accepted formats: JPG, PNG, JPEG (max 5MB)
+                </p>
+              )}
+            </div>
+          </div>
         </div>
-      )}
-    </div>
 
-    <div className="flex-1 space-y-2">
-      <input
-        key={imageInputKey}
-        type="file"
-        accept=".jpg,.jpeg,.png"
-        onChange={(e) => handleFileChange(e, 'cover')}
-        className={`text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 
-          file:rounded-full file:border-0 file:text-sm file:font-semibold
-          file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100
-          ${coverPreview ? 'file:bg-green-50 file:text-green-700 hover:file:bg-green-100' : ''}`}
-  title={coverPreview ? 'Change file' : 'Upload image'}
-/>
-      {fileErrors.cover ? (
-        <p className="text-red-400 text-sm">{fileErrors.cover}</p>
-      ) : (
-        <p className="text-gray-400 text-sm">
-          {coverPreview ? 'Change image - ' : 'Upload image - '}
-          Accepted formats: JPG, PNG, JPEG (max 5MB)
-        </p>
-      )}
-    </div>
-  </div>
-</div>
-
-      {/* Image Cropper Modal */}
-      {showCropper && originalImage && (
-      <ImageCropper
-        image={originalImage}
-        onCropComplete={setCroppedAreaPixels}
-        onCropSave={handleCropSave}
-        onClose={() => setShowCropper(false)}
-      />
-    )}
-        
+        {/* Image Cropper Modal */}
+        {showCropper && originalImage && (
+          <ImageCropper
+            image={originalImage}
+            onCropComplete={setCroppedAreaPixels}
+            onCropSave={handleCropSave}
+            onClose={() => setShowCropper(false)}
+          />
+        )}
 
         {/* Video Upload */}
         <div>
@@ -1003,33 +871,34 @@ const formatAudioFileName = () => {
           </div>
         )}
 
+        <AlbumSelector 
+          selectedAlbum={selectedAlbum}
+          setSelectedAlbum={setSelectedAlbum}
+          trackNumber={trackNumber}
+          setTrackNumber={setTrackNumber}
+        />
 
-<AlbumSelector 
-  selectedAlbum={selectedAlbum}
-  setSelectedAlbum={setSelectedAlbum}
-  trackNumber={trackNumber}
-  setTrackNumber={setTrackNumber}
-/>
-
-
+        {error && (
+          <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <strong className="font-bold">Error: </strong>
+            <span className="block sm:inline">{error}</span>
+          </div>
+        )}
 
         {/* Submit Button */}
         <button
-  type="submit"
-  className={`w-full py-2 px-4 rounded-md transition-colors ${
-    !isFormValid()
-      ? 'bg-gray-400 cursor-not-allowed' 
-      : 'bg-blue-600 hover:bg-blue-700 text-white'
-  }`}
-  disabled={!isFormValid()}
->
-  {isLoading ? 'Uploading...' : 'Upload Track'}
-</button>
+          type="submit"
+          className={`w-full py-2 px-4 rounded-md transition-colors ${
+            !isFormValid()
+              ? 'bg-gray-400 cursor-not-allowed' 
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }`}
+          disabled={!isFormValid()}
+        >
+          {isLoading ? 'Uploading...' : 'Upload Track'}
+        </button>
       </form>
     </div>
-    // </div>
-    // </div>
-
   );
 };
 
