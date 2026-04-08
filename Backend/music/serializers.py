@@ -32,6 +32,7 @@ class MusicSerializer(serializers.ModelSerializer):
     album_id = serializers.IntegerField(required=False, write_only=True)
     track_number = serializers.IntegerField(required=False, write_only=True)
     duration = serializers.DurationField(required=False)
+    hls_processing_complete = serializers.SerializerMethodField()
 
     class Meta:
         model = Music
@@ -39,8 +40,11 @@ class MusicSerializer(serializers.ModelSerializer):
             'id', 'name', 'cover_photo', 'audio_file', 
             'video_file', 'genres', 'release_date',
             'approval_status', 'duration', 'artist', 'is_public',
-            'album_id', 'track_number'
+            'album_id', 'track_number', 'hls_processing_complete'
         ]
+
+    def get_hls_processing_complete(self, obj):
+        return obj.streaming_files.exists()
 
     def to_representation(self, instance):
         """

@@ -48,9 +48,6 @@ def enforce_approval_visibility(sender, instance, **kwargs):
 def auto_convert_to_hls(sender, instance, created, **kwargs):
     """
     Queue HLS conversion for new uploads or tracks without streaming files.
-
-    Uses ``transaction.on_commit`` to avoid Celery processing before the
-    DB commit completes.
     """
     def _queue():
         from .services import MusicService
@@ -59,26 +56,7 @@ def auto_convert_to_hls(sender, instance, created, **kwargs):
     transaction.on_commit(_queue)
 
 
-@receiver(post_save, sender=Music)
-def handle_approval_hls_check(sender, instance, created, **kwargs):
-    """
-    When a track is approved, ensure HLS files exist.
 
-    If no ``StreamingFile`` records exist, queue a conversion.
-    """
-    if created:
-        return
-
-    if (
-        instance.approval_status == MusicApprovalStatus.APPROVED
-        and instance.audio_file
-        and not StreamingFile.objects.filter(music=instance).exists()
-    ):
-        logger.info(
-            "Approved track missing HLS files — triggering conversion music_id=%s",
-            instance.id,
-        )
-        convert_audio_to_hls.delay(instance.id)
 
 
 @receiver(post_delete, sender=Music)

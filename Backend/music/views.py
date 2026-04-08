@@ -204,6 +204,14 @@ class MusicViewSet(ModelViewSet):
     def toggle_visibility(self, request, pk=None):
         """Toggle the is_public flag on a track."""
         music = self.get_object()
+        
+        # Prevent making a track public if HLS processing isn't finished
+        if not music.is_public and not music.streaming_files.exists():
+            return Response(
+                {"error": "Cannot make track public until HLS processing is complete."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+            
         music.is_public = not music.is_public
         music.save(update_fields=["is_public", "updated_at"])
         return Response({"is_public": music.is_public})

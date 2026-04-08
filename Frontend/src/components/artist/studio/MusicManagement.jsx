@@ -117,6 +117,31 @@ const MusicManagement = () => {
     }
   }, [currentPage, debouncedSearchTerm, fetchTracks]);
 
+  // Polling for HLS processing status
+  useEffect(() => {
+    const hasProcessingTracks = tracks.some(
+      (track) => track.approval_status === "approved" && !track.hls_processing_complete
+    );
+
+    if (hasProcessingTracks) {
+      const interval = setInterval(() => {
+        // We bypass the cache to get fresh status
+        const params = { 
+          search: debouncedSearchTerm, 
+          page_size: 8,
+          page: currentPage
+        };
+        api.get('/api/v1/music/music/', { params }).then(response => {
+           const musicData = Array.isArray(response.data) ? response.data : response.data.results || [];
+           setTracks(musicData);
+           updateCache(debouncedSearchTerm, currentPage, response.data);
+        }).catch(err => console.error("Polling error:", err));
+      }, 5000);
+
+      return () => clearInterval(interval);
+    }
+  }, [tracks, debouncedSearchTerm, currentPage]);
+
   const updateTrackInCache = (trackId, updateFn) => {
     setCache(prevCache => {
       const newCache = { ...prevCache };
@@ -267,6 +292,14 @@ const MusicManagement = () => {
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => {
+                          if (!track.hls_processing_complete) {
+                            toast.error('The track audio is still processing. Please wait until it is ready.', {
+                              position: 'top-right',
+                              autoClose: 3000,
+                              theme: 'dark',
+                            });
+                            return;
+                          }
                           if (track.approval_status === 'pending' || track.approval_status === 'rejected') {
                             toast.error('The track needs to be approved by the admin before changing its status to public.', {
                               position: 'top-right',
@@ -277,15 +310,43 @@ const MusicManagement = () => {
                           }
                           toggleVisibility(track.id);
                         }}
-                        className={`p-2 rounded-lg ${track.is_public ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}
+                        className={`p-2 rounded-lg ${
+                          !track.hls_processing_complete
+                            ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+                            : track.is_public
+                            ? 'bg-green-500/20 text-green-400'
+                            : 'bg-gray-500/20 text-gray-400 shadow-[0_0_10px_rgba(255,255,255,0.1)]'
+                        } transition-all`}
+                        title={!track.hls_processing_complete ? "Processing audio..." : "Toggle visibility"}
                       >
                         {track.is_public ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                       </button>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[track.approval_status?.toLowerCase() || 'pending']}`}>
-                        {track.approval_status || 'Pending'}
-                      </span>
+                      <div className="flex flex-col items-center justify-center gap-1.5">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                          statusColors[track.approval_status?.toLowerCase() || 'pending']
+                        } ${
+                          track.approval_status === 'pending' ? 'border-yellow-500/30' :
+                          track.approval_status === 'approved' ? 'border-green-500/30' :
+                          'border-red-500/30'
+                        }`}>
+                          {track.approval_status || 'Pending'}
+                        </span>
+                        
+                        {/* HLS Processing Indicator */}
+                        {track.approval_status === 'approved' && track.hls_processing_complete === false && (
+                          <span className="text-[10px] text-blue-400 font-medium px-2 py-0.5 bg-blue-500/10 rounded-full border border-blue-500/20 animate-pulse flex items-center gap-1 whitespace-nowrap">
+                            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping mr-0.5"></span>
+                            Processing Audio
+                          </span>
+                        )}
+                        {track.approval_status === 'approved' && track.hls_processing_complete === true && (
+                           <span className="text-[10px] text-green-400/70 font-medium px-2 py-0.5 whitespace-nowrap">
+                             Ready for Release
+                           </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button
