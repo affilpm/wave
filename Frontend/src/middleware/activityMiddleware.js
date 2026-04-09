@@ -1,6 +1,6 @@
 import api from "../api";
 import { LISTENING } from "../constants/apiEndpoints";
-import { fetchRecentlyPlayed, fetchJumpBackIn } from "../slices/user/listeningHistorySlice";
+import { fetchRecentlyPlayed } from "../slices/user/listeningHistorySlice";
 
 const devLog = import.meta.env.DEV ? (...args) => console.warn('[activityMiddleware]', ...args) : () => {};
 
@@ -17,7 +17,6 @@ const recordActivity = async (store, musicId, activityType, sourceType = null, s
     // Refresh recently played & jump-back-in so the UI updates live
     // Force immediate refresh
     store.dispatch(fetchRecentlyPlayed());
-    store.dispatch(fetchJumpBackIn());
   } catch (err) {
     devLog("Activity recording failed:", err.message);
   }

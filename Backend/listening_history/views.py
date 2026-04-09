@@ -51,19 +51,18 @@ def recently_played(request):
 @permission_classes([IsAuthenticated])
 def jump_back_in(request):
     """
-    Returns unique albums and grouped singles from recent history.
+    Returns unique albums and individual tracks (singles) from recent history.
     """
-    # 1. Get unique albums sorted by most recent play
-    recent_history = ListeningHistory.objects.filter(
+    # 1. Get unique albums where the user actually played the album as an album
+    recent_album_history = ListeningHistory.objects.filter(
         user=request.user, 
-        album__is_public=True
-    ).exclude(
-        album__isnull=True
+        album__is_public=True,
+        source_type=ListeningHistory.SourceType.ALBUM
     ).values('album').annotate(
         recent_play=Max('last_played_at')
     ).order_by('-recent_play')[:10]
     
-    album_ids = [item['album'] for item in recent_history]
+    album_ids = [item['album'] for item in recent_album_history]
     
     albums = []
     if album_ids:
@@ -73,17 +72,27 @@ def jump_back_in(request):
             if aid in album_objs:
                 albums.append(album_objs[aid])
                 
-    # 2. Check for singles
-    has_singles = ListeningHistory.objects.filter(
-        user=request.user,
-        album__isnull=True
-    ).exists()
+    # 2. Get individual tracks played as singles (not via album context)
+    # We want recently played tracks where the source was NOT album
+    recent_singles_history = ListeningHistory.objects.filter(
+        user=request.user
+    ).exclude(
+        source_type=ListeningHistory.SourceType.ALBUM
+    ).select_related(
+        'track', 'track__artist', 'track__artist__user'
+    ).order_by('-last_played_at')[:10]
     
+    singles = [item.track for item in recent_singles_history]
+    
+    # Serialize data
+    from music.serializers import MusicDataSerializer
     serialized_albums = AlbumSerializer(albums, many=True, context={'request': request}).data
+    serialized_singles = MusicDataSerializer(singles, many=True, context={'request': request}).data
     
     response_data = {
         "albums": serialized_albums,
-        "has_singles": has_singles
+        "singles": serialized_singles,
+        "has_singles": len(serialized_singles) > 0
     }
     
     return Response(response_data)

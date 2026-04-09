@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { 
   Search, ChevronLeft, ChevronRight, Home, X, 
-  Menu, Bell, Headphones, Settings, UserCircle
+  Menu, Bell, Headphones, Settings, UserCircle, Compass
 } from 'lucide-react';
 import { useArtistStatus } from '../../../../hooks/useArtistStatus';
 import api from '../../../../api';
@@ -201,7 +201,7 @@ const Header = ({ toggleMobileSidebar }) => {
             className={`flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors ${location.pathname === '/discover' ? 'text-white' : 'text-gray-400'}`}
             onClick={() => handleNavigation('/discover')}
           >
-            <Search className="h-5 w-5 lg:h-6 lg:w-6" />
+            <Compass className="h-5 w-5 lg:h-6 lg:w-6" />
             <span className="text-sm lg:text-base font-medium">Discover</span>
           </button>
           
@@ -231,14 +231,13 @@ const Header = ({ toggleMobileSidebar }) => {
               {showMobileSearch ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
             </button>
             
-            {/* More actions button on mobile */}
+            {/* Discover button on mobile */}
             <button
-              className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-900 hover:bg-gray-800 relative"
-              onClick={toggleMobileActions}
+              className={`w-8 h-8 flex items-center justify-center rounded-full bg-gray-900 hover:bg-gray-800 ${location.pathname === '/discover' ? 'text-green-500' : 'text-white'}`}
+              onClick={() => handleNavigation('/discover')}
+              aria-label="Discover"
             >
-              <Bell className="h-4 w-4" />
-              {/* Notification dot */}
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              <Compass className="h-4 w-4" />
             </button>
           </div>
 

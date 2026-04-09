@@ -1,22 +1,32 @@
 import { useEffect, useRef } from 'react';
-import { useSelector } from 'react-redux';
-import { PlayerState } from '../types/player';
+import { useSelector, shallowEqual } from 'react-redux';
+import { PlayerState, PlayerContext } from '../types/player';
 import api from '../api';
 
 export const usePlayTracking = () => {
-  const currentTrack = useSelector((state: { player: PlayerState }) => state.player.currentTrack);
-  const status = useSelector((state: { player: PlayerState }) => state.player.status);
-  const currentTime = useSelector((state: { player: PlayerState }) => state.player.currentTime);
-  const duration = useSelector((state: { player: PlayerState }) => state.player.duration);
+  const { currentTrack, status, currentTime, currentContext } = useSelector((state: { player: PlayerState }) => ({
+    currentTrack: state.player.currentTrack,
+    status: state.player.status,
+    currentTime: state.player.currentTime,
+    currentContext: state.player.currentContext || null,
+  }), shallowEqual);
 
   const playedSecondsRef = useRef<Set<number>>(new Set());
   const lastTrackIdRef = useRef<string | number | null>(null);
+  const lastContextRef = useRef<PlayerContext | null>(null);
+
+  // Update context ref whenever it changes
+  useEffect(() => {
+    lastContextRef.current = currentContext;
+  }, [currentContext]);
 
   // Helper to record activity
-  const recordActivity = async (trackId: string | number, activityType: 'play' | 'complete') => {
+  const recordActivity = async (trackId: string | number, activityType: 'play' | 'complete', context: PlayerContext | null) => {
     try {
       await api.post(`/api/v1/listening-history/record-activity/${trackId}/`, {
-        activity_type: activityType
+        activity_type: activityType,
+        source_type: context?.type || 'single',
+        source_id: context?.id || null
       });
     } catch (error) {
       console.warn(`[Tracking] Failed to record ${activityType}:`, error);
@@ -24,10 +34,14 @@ export const usePlayTracking = () => {
   };
 
   // Helper for final recording (sendBeacon fallback for unmounts/skips)
-  const recordActivityBeacon = (trackId: string | number, activityType: 'play' | 'complete') => {
+  const recordActivityBeacon = (trackId: string | number, activityType: 'play' | 'complete', context: PlayerContext | null) => {
     const baseURL = api.defaults.baseURL || '';
     const endpoint = `${baseURL}/api/v1/listening-history/record-activity/${trackId}/`;
-    const data = JSON.stringify({ activity_type: activityType });
+    const data = JSON.stringify({ 
+      activity_type: activityType,
+      source_type: context?.type || 'single',
+      source_id: context?.id || null
+    });
     const blob = new Blob([data], { type: 'application/json' });
     
     try {
@@ -56,11 +70,8 @@ export const usePlayTracking = () => {
     // 1. If we had a previous track, check if it was "completed"
     if (lastTrackIdRef.current && lastTrackIdRef.current !== currentTrack?.id) {
       const totalSeconds = playedSecondsRef.current.size;
-      // Consider "complete" if played more than 30 seconds or 80% of duration
-      // We don't have the old duration easily here unless we ref it, so let's just 
-      // trigger 'complete' if they played a decent chunk.
       if (totalSeconds > 10) {
-        recordActivityBeacon(lastTrackIdRef.current, 'complete');
+        recordActivityBeacon(lastTrackIdRef.current, 'complete', lastContextRef.current);
       }
     }
 
@@ -68,13 +79,13 @@ export const usePlayTracking = () => {
     if (currentTrack) {
       lastTrackIdRef.current = currentTrack.id;
       playedSecondsRef.current = new Set();
-      recordActivity(currentTrack.id, 'play');
+      recordActivity(currentTrack.id, 'play', currentContext);
     }
 
     // 3. Cleanup on unmount
     return () => {
       if (lastTrackIdRef.current && playedSecondsRef.current.size > 10) {
-        recordActivityBeacon(lastTrackIdRef.current, 'complete');
+        recordActivityBeacon(lastTrackIdRef.current, 'complete', lastContextRef.current);
       }
     };
   }, [currentTrack?.id]); // Only run when track ID actually changes

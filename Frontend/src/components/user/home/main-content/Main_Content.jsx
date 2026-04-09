@@ -3,10 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import api from "../../../../api";
 import Section from "./Section";
-import JumpBackInSection from "./JumpBackInSection";
 import { Play, Pause, Plus, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { fetchRecentlyPlayed, fetchJumpBackIn } from "../../../../slices/user/listeningHistorySlice";
+import { fetchRecentlyPlayed } from "../../../../slices/user/listeningHistorySlice";
 import { setIsPlaying, setQueue } from "../../../../slices/user/playerSlice";
 import { 
   selectIsLiked, 
@@ -186,7 +185,7 @@ const Main_Content = () => {
 
   // Redux state for listening history
   const dispatch = useDispatch();
-  const { recentlyPlayed, jumpBackIn } = useSelector((state) => state.listeningHistory);
+  const { recentlyPlayed } = useSelector((state) => state.listeningHistory);
 
   const navigate = useNavigate();
 
@@ -199,7 +198,6 @@ const Main_Content = () => {
       try {
         // Fire Redux thunks for listening history
         dispatch(fetchRecentlyPlayed());
-        dispatch(fetchJumpBackIn());
 
         const [musicRes, playlistRes, albumRes, artistRes] = await Promise.allSettled([
           api.get("/api/v1/home/musiclist/?top10=true"),
@@ -302,11 +300,7 @@ const Main_Content = () => {
         </div>
       </section>
 
-      {/* Jump Back In */}
-      <JumpBackInSection
-        albums={jumpBackIn.albums}
-        hasSingles={jumpBackIn.hasSingles}
-      />
+
 
       {/* Main Sections */}
       {recentTracks.length > 0 && (

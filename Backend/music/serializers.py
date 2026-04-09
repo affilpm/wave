@@ -109,7 +109,9 @@ class ArtistSerializer(serializers.ModelSerializer):
 
 
 class MusicDataSerializer(serializers.ModelSerializer):
-    artist = ArtistSerializer()  
+    artist_email = serializers.SerializerMethodField()
+    artist_username = serializers.SerializerMethodField()
+    artist_id = serializers.SerializerMethodField()
     duration = serializers.DurationField(required=False)
     album_name = serializers.SerializerMethodField()
     album_id = serializers.SerializerMethodField()
@@ -118,7 +120,8 @@ class MusicDataSerializer(serializers.ModelSerializer):
         model = Music
         fields = [
             'id', 'name', 'cover_photo', 'audio_file', 'release_date',
-            'duration', 'artist', 'album_name', 'album_id'
+            'duration', 'artist_email', 'artist_username', 'artist_id', 
+            'album_name', 'album_id'
         ]
 
     def get_album_name(self, obj):
@@ -128,6 +131,15 @@ class MusicDataSerializer(serializers.ModelSerializer):
     def get_album_id(self, obj):
         album = obj.albums.first()
         return album.id if album else None
+    
+    def get_artist_email(self, obj):
+        return obj.artist.user.email if obj.artist and obj.artist.user else None
+
+    def get_artist_username(self, obj):
+        return obj.artist.user.username if obj.artist and obj.artist.user else None
+
+    def get_artist_id(self, obj):
+        return obj.artist.id if obj.artist else None
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)

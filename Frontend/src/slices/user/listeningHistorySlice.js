@@ -14,26 +14,13 @@ export const fetchRecentlyPlayed = createAsyncThunk(
     }
 );
 
-export const fetchJumpBackIn = createAsyncThunk(
-    'listeningHistory/fetchJumpBackIn',
-    async (_, { rejectWithValue }) => {
-        try {
-            const response = await api.get(LISTENING.JUMP_BACK_IN);
-            return response.data;
-        } catch (error) {
-            return rejectWithValue(error.response?.data || error.message);
-        }
-    }
-);
+
 
 const listeningHistorySlice = createSlice({
     name: 'listeningHistory',
     initialState: {
         recentlyPlayed: [],
-        jumpBackIn: {
-            albums: [],
-            hasSingles: false,
-        },
+
         loading: false,
         error: null,
     },
@@ -56,13 +43,7 @@ const listeningHistorySlice = createSlice({
                 state.loading = false;
                 state.error = action.payload;
             })
-            // Jump Back In
-            .addCase(fetchJumpBackIn.fulfilled, (state, action) => {
-                state.jumpBackIn = {
-                    albums: action.payload.albums,
-                    hasSingles: action.payload.has_singles,
-                };
-            });
+
     },
 });
 
