@@ -333,28 +333,48 @@ const Settings = () => {
 
             {/* Equalizer Section */}
             <div
-              className="p-4 flex items-center justify-between hover:bg-gray-700 cursor-pointer transition-colors"
-              onClick={toggleEqualizer}
+              className={`p-4 flex items-center justify-between transition-colors ${
+                !isPremium ? 'cursor-not-allowed opacity-70' : 'hover:bg-gray-700 cursor-pointer'
+              }`}
+              onClick={() => {
+                if (!isPremium) {
+                  setQualityError('The equalizer is a premium feature. Please upgrade to customize your audio settings.');
+                  setTimeout(() => setQualityError(''), 5000);
+                  return;
+                }
+                toggleEqualizer();
+              }}
             >
               <div className="flex items-center gap-4">
                 <Sliders className="h-6 w-6 text-gray-400" />
                 <div>
-                  <div className="font-semibold">Equalizer</div>
-                  <div className="text-sm text-gray-400">Customize audio frequency settings</div>
+                  <div className="flex items-center gap-2">
+                    <div className="font-semibold">Equalizer</div>
+                    {!isPremium && <Star className="h-3 w-3 text-yellow-500" />}
+                  </div>
+                  <div className="text-sm text-gray-400">
+                    {!isPremium ? 'Premium feature' : 'Customize audio frequency settings'}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                {showEqualizer && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>}
-                <ChevronRight
-                  className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${
-                    showEqualizer ? "rotate-90" : ""
-                  }`}
-                />
+                {!isPremium ? (
+                  <Lock className="h-4 w-4 text-gray-500" />
+                ) : (
+                  <>
+                    {showEqualizer && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>}
+                    <ChevronRight
+                      className={`h-5 w-5 text-gray-400 transition-transform duration-200 ${
+                        showEqualizer ? "rotate-90" : ""
+                      }`}
+                    />
+                  </>
+                )}
               </div>
             </div>
 
             {/* Collapsible Equalizer Component */}
-            {showEqualizer && (
+            {showEqualizer && isPremium && (
               <div className="border-t border-gray-700 p-4 bg-gray-750 animate-in slide-in-from-top-2 duration-300">
                 <EqualizerControl />
               </div>

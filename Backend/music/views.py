@@ -260,15 +260,34 @@ def get_equalizer_presets(request) -> Response:
     return Response(list(presets))
 
 
+def _is_user_premium(user) -> bool:
+    """Helper to check if a user has an active premium subscription."""
+    try:
+        return user.subscription.status == "active"
+    except UserSubscription.DoesNotExist:
+        return False
+
+
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def user_equalizer_preset(request) -> Response:
     """Get or set the user's preferred equalizer preset."""
     cache_key = f"user_eq_preset:{request.user.id}"
+    is_premium = _is_user_premium(request.user)
 
     if request.method == "GET":
-        preset_id = cache.get(cache_key, 1)
+        # Even non-premium can GET (defaults to normal), but they can't change it.
+        # However, for consistency with the "Premium Only" requirement, 
+        # let's return a default if not premium.
+        preset_id = cache.get(cache_key, 1) if is_premium else 1
         return Response({"preset_id": preset_id})
+
+    # POST - Set preset (Premium Only)
+    if not is_premium:
+        return Response(
+            {"error": "Premium subscription required to use the equalizer."},
+            status=status.HTTP_403_FORBIDDEN
+        )
 
     preset_id = request.data.get("preset_id")
     if not preset_id:
@@ -397,7 +416,7 @@ class UserQualityPreferenceView(APIView):
             user=user, defaults={"preferred_quality": HLSQuality.LOW}
         )
 
-        is_premium = self._check_premium(user)
+        is_premium = _is_user_premium(user)
 
         # Force low quality for non-premium users
         if not is_premium and pref.preferred_quality != HLSQuality.LOW:
@@ -409,12 +428,7 @@ class UserQualityPreferenceView(APIView):
             "is_premium": is_premium,
         })
 
-    @staticmethod
-    def _check_premium(user) -> bool:
-        try:
-            return user.subscription.status == "active"
-        except UserSubscription.DoesNotExist:
-            return False
+
 
 
 class UpdateUserPreferenceView(UpdateAPIView):
@@ -431,7 +445,7 @@ class UpdateUserPreferenceView(UpdateAPIView):
         return pref
 
     def update(self, request, *args, **kwargs):
-        is_premium = UserQualityPreferenceView._check_premium(request.user)
+        is_premium = _is_user_premium(request.user)
         requested_quality = request.data.get("preferred_quality")
 
         if not is_premium and requested_quality != HLSQuality.LOW:
