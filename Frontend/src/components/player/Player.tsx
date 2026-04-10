@@ -21,6 +21,7 @@ import { useAudioPlayer } from '../../hooks/useAudioPlayer';
 import { useDominantColor } from '../../hooks/useDominantColor';
 import { usePlayTracking } from '../../hooks/usePlayTracking';
 import { useMediaSession } from '../../hooks/useMediaSession';
+import { useEqualizer } from '../../hooks/useEqualizer';
 import { MiniPlayer } from './MiniPlayer';
 import { FullPlayer } from './FullPlayer';
 import { QueueSheet } from './QueueSheet';
@@ -51,10 +52,11 @@ export const Player: React.FC = () => {
   const isLoading = status === 'loading' || status === 'buffering';
 
   // Instantiate hooks
-  const { seek } = useAudioPlayer();
+  const { audioRef, seek } = useAudioPlayer();
   useDominantColor();
   usePlayTracking();
   useMediaSession(seek);
+  useEqualizer(audioRef);
 
   // Fallback cleanup or global styles if needed
   useEffect(() => {

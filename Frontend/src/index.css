@@ -139,5 +139,364 @@ html, body {
       background-color: #f9f9f9;
     }
   }
-   */
    
+/* Equalizer Professional UI Styles */
+.eq-container {
+  background-color: #121212;
+  border-radius: 12px;
+  padding: 24px;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  user-select: none;
+}
+
+.eq-header {
+  margin-bottom: 24px;
+}
+
+.eq-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.eq-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+}
+
+.eq-subtitle {
+  font-size: 0.875rem;
+  color: #b3b3b3;
+  margin: 0;
+}
+
+/* Toggle Switch */
+.eq-toggle {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 24px;
+}
+
+.eq-toggle input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.eq-toggle-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #333;
+  transition: .3s;
+  border-radius: 24px;
+}
+
+.eq-toggle-slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+
+input:checked + .eq-toggle-slider {
+  background-color: #1db954;
+}
+
+input:checked + .eq-toggle-slider:before {
+  transform: translateX(24px);
+}
+
+/* Preset Button */
+.eq-preset-row {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.eq-preset-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background-color: #282828;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 20px;
+  color: #ffffff;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  width: fit-content;
+}
+
+.eq-preset-btn:hover:not(.disabled) {
+  background-color: #3e3e3e;
+}
+
+.eq-preset-btn.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.eq-preset-label {
+  color: #b3b3b3;
+  font-weight: 400;
+}
+
+.eq-chevron {
+  transition: transform 0.2s;
+}
+
+.eq-chevron.open {
+  transform: rotate(180deg);
+}
+
+/* Preset Dropdown */
+.eq-preset-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  background-color: #282828;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  padding: 8px;
+  min-width: 220px;
+  z-index: 50;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.eq-preset-option {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 10px 16px;
+  border: none;
+  background: transparent;
+  color: #ffffff;
+  text-align: left;
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.2s;
+}
+
+.eq-preset-option:hover {
+  background-color: #3e3e3e;
+}
+
+.eq-preset-option.active {
+  color: #1db954;
+}
+
+.eq-preset-option-name {
+  font-weight: 600;
+  font-size: 0.9375rem;
+  margin-bottom: 2px;
+}
+
+.eq-preset-option-desc {
+  font-size: 0.75rem;
+  color: #b3b3b3;
+}
+
+.eq-check {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #1db954;
+}
+
+.eq-preset-divider {
+  height: 1px;
+  background-color: rgba(255,255,255,0.1);
+  margin: 4px 8px;
+}
+
+.eq-preset-option.reset {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  color: #b3b3b3;
+}
+
+.eq-preset-option.reset:hover {
+  color: #ffffff;
+}
+
+/* Curve Container */
+.eq-curve-container {
+  background-color: #090909;
+  border-radius: 8px;
+  margin-bottom: 32px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+
+/* Sliders Row */
+.eq-sliders-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  height: 240px;
+  padding: 0 10px;
+  margin-bottom: 8px;
+}
+
+.eq-slider-column {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 32px;
+  height: 100%;
+}
+
+.eq-db-label {
+  font-size: 0.6875rem;
+  color: #b3b3b3;
+  margin-bottom: 12px;
+  height: 14px;
+}
+
+.eq-db-label.disabled {
+  opacity: 0.3;
+}
+
+.eq-slider-track {
+  position: relative;
+  flex: 1;
+  width: 6px;
+  background-color: #333;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.eq-slider-track.disabled {
+  cursor: not-allowed;
+  background-color: #222;
+}
+
+.eq-slider-center {
+  position: absolute;
+  top: 50%;
+  left: -4px;
+  right: -4px;
+  height: 1px;
+  background-color: rgba(255,255,255,0.1);
+  z-index: 1;
+}
+
+.eq-slider-fill {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  background-color: #1ed760;
+  border-radius: 3px;
+  z-index: 2;
+}
+
+.disabled .eq-slider-fill {
+  background-color: #444;
+}
+
+.eq-slider-thumb {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 16px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  z-index: 3;
+  pointer-events: none;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.eq-slider-thumb.active {
+  transform: translateX(-50%) scale(1.2);
+  box-shadow: 0 0 12px rgba(30, 215, 96, 0.4);
+}
+
+.disabled .eq-slider-thumb {
+  background-color: #888;
+  box-shadow: none;
+}
+
+.eq-freq-label {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #b3b3b3;
+  margin-top: 16px;
+}
+
+.eq-freq-label.disabled {
+  opacity: 0.3;
+}
+
+/* DB Scale */
+.eq-db-scale {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  position: absolute;
+  right: 12px;
+  top: 180px;
+  height: 200px;
+  font-size: 0.625rem;
+  color: #555;
+  pointer-events: none;
+  display: none; /* Hide by default in contained view */
+}
+
+/* Loading & Spinner */
+.eq-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: #b3b3b3;
+}
+
+.eq-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(29, 185, 84, 0.1);
+  border-top-color: #1db954;
+  border-radius: 50%;
+  animation: eq-spin 0.8s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes eq-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Error */
+.eq-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding: 12px;
+  background-color: rgba(233, 73, 73, 0.1);
+  border-radius: 6px;
+  color: #e94949;
+  font-size: 0.8125rem;
+}

@@ -15,6 +15,7 @@ const initialState = {
     band_16k: 0,
   },
   presetId: null,
+  presetName: 'Manual',  // track active preset name
   isLoading: false,
   error: null,
 };
@@ -29,10 +30,14 @@ const equalizerSlice = createSlice({
     setPreset(state, action) {
       state.preset = action.payload.preset;
       state.presetId = action.payload.presetId || null;
+      state.presetName = action.payload.presetName || 'Manual';
     },
     updateBand(state, action) {
       const { band, value } = action.payload;
       state.preset[band] = value;
+      // When a user manually adjusts a band, switch to "Custom"
+      state.presetId = null;
+      state.presetName = 'Custom';
     },
     setLoading(state, action) {
       state.isLoading = action.payload;
@@ -43,6 +48,7 @@ const equalizerSlice = createSlice({
     resetEqualizer(state) {
       state.preset = initialState.preset;
       state.presetId = null;
+      state.presetName = 'Flat';
       state.isLoading = false;
       state.error = null;
     },
