@@ -136,16 +136,6 @@ const Settings = () => {
         <section className="mb-8">
           <h2 className="text-xl font-bold mb-4">Account</h2>
           <div className="bg-gray-800 rounded-lg overflow-hidden">
-            {/* <div className="p-4 flex items-center justify-between hover:bg-gray-700 cursor-pointer">
-              <div className="flex items-center gap-4">
-                <User className="h-6 w-6 text-gray-400" />
-                <div>
-                  <div className="font-semibold">Profile</div>
-                  <div className="text-sm text-gray-400">Edit your profile</div>
-                </div>
-              </div>
-              <ChevronRight className="h-5 w-5 text-gray-400" />
-            </div> */}
             
             
             {/* Transactions Button */}
@@ -165,38 +155,6 @@ const Settings = () => {
           </div>
         </section>
 
-        {/* App Settings */}
-        {/* <section className="mb-8">
-          <h2 className="text-xl font-bold mb-4">App Settings</h2>
-          <div className="bg-gray-800 rounded-lg overflow-hidden">
-            <div className="p-4 flex items-center justify-between hover:bg-gray-700 cursor-pointer">
-              <div className="flex items-center gap-4">
-                <Globe className="h-6 w-6 text-gray-400" />
-                <div>
-                  <div className="font-semibold">Language</div>
-                  <div className="text-sm text-gray-400">Choose your preferred language</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-400">English</span>
-                <ChevronRight className="h-5 w-5 text-gray-400" />
-              </div>
-            </div>
-            
-            <div className="border-t border-gray-700"></div>
-            
-            <div className="p-4 flex items-center justify-between hover:bg-gray-700 cursor-pointer">
-              <div className="flex items-center gap-4">
-                <Download className="h-6 w-6 text-gray-400" />
-                <div>
-                  <div className="font-semibold">Offline storage</div>
-                  <div className="text-sm text-gray-400">Control where your music is stored</div>
-                </div>
-              </div>
-              <ChevronRight className="h-5 w-5 text-gray-400" />
-            </div>
-          </div>
-        </section> */}
 
         {/* Playback Settings */}
         <section className="mb-8">
