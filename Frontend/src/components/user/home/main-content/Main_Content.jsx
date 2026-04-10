@@ -315,7 +315,7 @@ const Main_Content = () => {
         title="Music" 
         items={trendingMusic} 
         type="music"
-        onShowAll={() => navigate("/musiclist")}
+        onShowAll={() => navigate("/music-show-more", { state: { title: "Music" } })}
       />
       
       {topMixes.length > 0 && (

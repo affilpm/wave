@@ -1,61 +1,49 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useLocation } from "react-router-dom";
+import React, { useState, useEffect, useMemo } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
-import { Play, Pause } from "lucide-react";
-import { createSelector } from '@reduxjs/toolkit';
+import { Play, Pause, Shuffle, ChevronLeft, ChevronRight } from "lucide-react";
+import { motion } from "framer-motion";
 import api from "../../../../../api";
-import {
-  setCurrentMusic,
-  setIsPlaying,
-  setQueue,
-  clearQueue,
-  togglePlay,
-} from "../../../../../slices/user/playerSlice";
 import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
-
-// Define the same selector as in MusicSection
-const selectPlayerState = createSelector(
-  [(state) => state.player],
-  (player) => ({
-    currentTrack: player.currentTrack,
-    status: player.status,
-    queue: player.queue,
-    queueIndex: player.queueIndex,
-    currentContext: player.currentContext,
-  })
-);
+import { usePlayCollection } from "../../../../../hooks/usePlayCollection";
+import TrackCard from "../TrackCard";
 
 const MusicShowMorePage = () => {
   const location = useLocation();
-  const { title } = location.state || {};
+  const navigate = useNavigate();
+  const { title } = location.state || { title: "Discover Music" };
   const dispatch = useDispatch();
-  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
-    selectPlayerState,
-    shallowEqual
-  );
-  
-  const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
 
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [totalPages, setTotalPages] = useState(0);
 
-  // Memoize the items to prevent unnecessary re-renders
-  const musiclistData = useMemo(() => items || [], [items]);
+  const { currentTrack, status, currentContext: playerContext } = useSelector(
+    (state) => state.player,
+    shallowEqual
+  );
+  
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
 
   const context = useMemo(() => ({
     type: 'section_show_more',
     id: title
   }), [title]);
 
-  // Check if the current track is from this page's tracks AND context matches
-  const isCurrentTrackFromSectionTracks = useMemo(() => {
-    const isSameContext = currentContext?.type === context.type && currentContext?.id === context.id;
-    return isSameContext && Number(currentMusicId) === Number(queue[queueIndex]?.id);
-  }, [currentMusicId, queue, queueIndex, currentContext, context]);
+  const formattedTracks = useMemo(() => 
+    items.length ? prepareTracksForPlayer(items) : [],
+    [items]
+  );
+
+  const {
+    handlePlayCollection,
+    handlePlayTrackAtIndex,
+    handleShufflePlay,
+    isCollectionPlaying,
+    isCollectionActive
+  } = usePlayCollection({ tracks: formattedTracks, context });
 
   // Fetch data for the current page
   useEffect(() => {
@@ -80,118 +68,99 @@ const MusicShowMorePage = () => {
     fetchData();
   }, [page]);
 
-
-  // Handle play/pause, matching MusicSection's logic
-  const handlePlay = useCallback(
-    (item, index, e) => {
-      e.stopPropagation();
-      const formattedTracks = prepareTracksForPlayer(musiclistData);
-      const formattedTrack = formattedTracks[index];
-
-      const isSameSong = Number(currentMusicId) === Number(formattedTrack.id);
-      const isSameContext = currentContext?.type === context.type && currentContext?.id === context.id;
-
-      if (isSameSong && isSameContext) {
-        dispatch(togglePlay());
-        return;
-      }
-
-      dispatch(clearQueue());
-      dispatch(setQueue({ 
-        tracks: formattedTracks, 
-        startIndex: index,
-        context: context
-      }));
-      dispatch(setIsPlaying(true));
-    },
-    [
-      currentMusicId,
-      currentContext,
-      context,
-      isPlaying,
-      musiclistData,
-      dispatch,
-    ]
-  );
-
-  // Check if an item is currently playing
-  const isItemPlaying = useCallback(
-    (item) => {
-      const isSameSong = Number(currentMusicId) === Number(item.id);
-      const isSameContext = currentContext?.type === context.type && currentContext?.id === context.id;
-      return isSameSong && isSameContext && isPlaying;
-    },
-    [currentMusicId, isPlaying, currentContext, context]
-  );
-
-  // Handle pagination
   const handleNextPage = () => setPage((prev) => prev + 1);
   const handlePrevPage = () => setPage((prev) => Math.max(prev - 1, 1));
 
-  if (loading) {
-    return <div>Loading...</div>;
+  if (loading && page === 1) {
+    return (
+      <div className="flex-1 p-6 space-y-8 h-full overflow-y-auto">
+        <div className="h-10 w-64 bg-gray-800 animate-pulse rounded-md mb-8" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+          {[...Array(12)].map((_, i) => (
+            <div key={i} className="aspect-square bg-gray-800 animate-pulse rounded-lg shadow-lg" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="flex-1 p-2">
-      <section className="mb-8 relative">
-        <h2 className="text-2xl p-2 font-bold mb-4">{title}</h2>
-        <div className="p-2">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-            {musiclistData.map((item, index) => (
-              <div
-                key={index}
-                className="bg-gray-800/30 rounded-lg p-4 hover:bg-gray-800/60 transition-all cursor-pointer group w-full"
-              >
-                <div className="relative">
-                  <img
-                    src={item.cover_photo}
-                    alt={item.name}
-                    className="w-full aspect-square object-cover rounded-md shadow-lg mb-4"
-                  />
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
-                    <button
-                      className={`absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center ${
-                        isItemPlaying(item) ? 'flex' : 'hidden group-hover:flex'
-                      } shadow-xl hover:scale-105 transition-all`}
-                      onClick={(e) => handlePlay(item, index, e)}
-                      aria-label={isItemPlaying(item) ? "Pause" : "Play"}
-                    >
-                      {isItemPlaying(item) ? (
-                        <Pause className="w-6 h-6 text-black" />
-                      ) : (
-                        <Play className="w-6 h-6 text-black" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-                <h3 className="font-bold mb-1 truncate">{item.name}</h3>
-                {item.artist && (
-                  <p className="text-sm text-gray-400 truncate">{item.artist}</p>
-                )}
-              </div>
-            ))}
+    <div className="flex-1 p-4 md:p-6 overflow-y-auto h-full scrollbar-hide">
+      <motion.section 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl md:text-4xl font-black text-white">{title}</h1>
+            <p className="text-gray-400">Discover your next favorite track</p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleShufflePlay}
+              className="flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all group font-medium"
+            >
+              <Shuffle className="w-5 h-5 text-green-500 group-hover:scale-110 transition-transform" />
+              <span>Shuffle Play</span>
+            </button>
+            
+            <button
+              onClick={handlePlayCollection}
+              className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all group"
+            >
+              {isCollectionPlaying ? (
+                <Pause className="w-7 h-7 text-black fill-black" />
+              ) : (
+                <Play className="w-7 h-7 text-black fill-black ml-1" />
+              )}
+            </button>
           </div>
         </div>
-        <div className="flex justify-between mt-4 items-center">
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-4 justify-items-center">
+          {items.map((item, index) => (
+            <TrackCard
+              key={item.id}
+              item={item}
+              index={index}
+              type="music"
+              isPlaying={Number(currentTrack?.id) === Number(item.id) && isPlaying}
+              onPlayPlayable={() => handlePlayTrackAtIndex(index)}
+            />
+          ))}
+        </div>
+
+        {/* Improved Pagination Controls */}
+        <div className="flex items-center justify-between mt-12 mb-8 px-4">
           <button
-            className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-white/5"
             onClick={handlePrevPage}
             disabled={page === 1}
           >
-            Previous
+            <ChevronLeft className="w-5 h-5" />
+            <span>Previous</span>
           </button>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 text-sm font-medium">
+              Page <span className="text-white">{page}</span> of <span className="text-white">{totalPages || 1}</span>
+            </span>
+          </div>
+          
           <button
-            className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-white/5"
             onClick={handleNextPage}
             disabled={!hasNextPage}
           >
-            Next
+            <span>Next</span>
+            <ChevronRight className="w-5 h-5" />
           </button>
         </div>
-      </section>
+      </motion.section>
     </div>
   );
 };
 
-export default MusicShowMorePage;
+export default React.memo(MusicShowMorePage);

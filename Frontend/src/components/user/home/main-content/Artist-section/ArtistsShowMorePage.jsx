@@ -1,73 +1,38 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { createSelector } from "@reduxjs/toolkit";
 import { useLocation, useNavigate } from "react-router-dom";
-import { useDispatch, useSelector } from "react-redux";
-import { Play, Pause } from "lucide-react";
+import { useDispatch, useSelector, shallowEqual } from "react-redux";
+import { createSelector } from "@reduxjs/toolkit";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { motion } from "framer-motion";
 import api from "../../../../../api";
-import {
-  setCurrentMusic,
-  setQueue,
-  clearQueue,
-  setIsPlaying,
-  togglePlay
-} from "../../../../../slices/user/playerSlice";
+import { setQueue, setIsPlaying, clearQueue } from "../../../../../slices/user/playerSlice";
 import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
+import TrackCard from "../TrackCard";
+
+const selectPlayerState = createSelector(
+  [(state) => state.player],
+  (player) => ({
+    currentTrack: player.currentTrack,
+    status: player.status,
+    currentContext: player.currentContext,
+  })
+);
 
 const ArtistsShowMorePage = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { title } = location.state || {};
+  const { title } = location.state || { title: "Artists" };
   const dispatch = useDispatch();
-
-  // Define selector for player state
-  const selectPlayerState = createSelector(
-    [(state) => state.player],
-    (player) => ({
-      currentTrack: player.currentTrack,
-      status: player.status,
-      queue: player.queue,
-      queueIndex: player.queueIndex,
-      currentContext: player.currentContext,
-    })
-  );
-
-  // Use the selector
-  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(selectPlayerState);
-  const currentMusicId = currentTrack?.id;
-  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
   const currentUserId = useSelector((state) => state.user_id);
 
+  const { status, currentContext } = useSelector(selectPlayerState, shallowEqual);
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
+
   const [artists, setArtists] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [totalPages, setTotalPages] = useState(0);
-
-  const colors = [
-    "bg-red-500",
-    "bg-blue-500",
-    "bg-green-500",
-    "bg-yellow-500",
-    "bg-purple-500",
-    "bg-pink-500",
-    "bg-indigo-500",
-    "bg-teal-500",
-  ];
-
-  const getColor = (username) => {
-    const index = username ? username.charCodeAt(0) % colors.length : 0;
-    return colors[index];
-  };
-
-
-  const isCurrentTrackFromArtist = useCallback(
-    (artistId) => {
-      if (!currentTrack || !currentMusicId) return false;
-      const isSameContext = currentContext?.type === 'artist' && String(currentContext?.id) === String(artistId);
-      return isSameContext && Number(currentTrack.artist_id) === Number(artistId);
-    },
-    [currentTrack, currentMusicId, currentContext]
-  );
 
   useEffect(() => {
     const fetchArtists = async () => {
@@ -91,21 +56,15 @@ const ArtistsShowMorePage = () => {
     fetchArtists();
   }, [page]);
 
-  const handlePlayArtist = async (artist, e) => {
+  const handlePlayArtist = async (item, index, e) => {
     e.stopPropagation();
     try {
-      if (isCurrentTrackFromArtist(artist.id)) {
-        dispatch(togglePlay());
-        return;
-      }
-
-      const context = { type: 'artist', id: artist.id };
-      const songsResponse = await api.get(`/api/v1/music/artist/${artist.id}/`);
+      const context = { type: 'artist', id: item.id };
+      const songsResponse = await api.get(`/api/v1/music/artist/${item.id}/`);
       const songs = songsResponse.data.results || songsResponse.data;
 
       if (songs && songs.length > 0) {
-        const formattedTracks = prepareTracksForPlayer(songs, artist, currentUserId);
-
+        const formattedTracks = prepareTracksForPlayer(songs, item, currentUserId);
         dispatch(clearQueue());
         dispatch(setQueue({
           tracks: formattedTracks,
@@ -119,94 +78,74 @@ const ArtistsShowMorePage = () => {
     }
   };
 
-  const handleArtistClick = (artistId) => {
-    navigate(`/artist/${artistId}`);
-  };
-
   const handleNextPage = () => setPage((prev) => prev + 1);
   const handlePrevPage = () => setPage((prev) => Math.max(prev - 1, 1));
 
-  if (loading) {
-    return <div>Loading...</div>;
+  if (loading && page === 1) {
+    return (
+      <div className="flex-1 p-6 space-y-8 h-full overflow-y-auto">
+        <div className="h-10 w-64 bg-gray-800 animate-pulse rounded-md mb-8" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+          {[...Array(12)].map((_, i) => (
+            <div key={i} className="aspect-square bg-gray-800 animate-pulse rounded-full shadow-lg" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="flex-1 p-2">
-      <section className="mb-8 relative">
-        <h2 className="text-2xl p-2 font-bold mb-4">{title || "Artists"}</h2>
-        <div className="p-2">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
-            {artists.map((artist) => (
-              <div
-                key={artist.id}
-                className="w-full cursor-pointer group"
-                onClick={() => handleArtistClick(artist.id)}
-              >
-                <div className="relative group">
-                  <div className="aspect-square rounded-full overflow-hidden">
-                    {artist.profile_photo ? (
-                      <img
-                        src={artist.profile_photo}
-                        alt={artist.name}
-                        className="w-full h-full object-cover transform transition-transform group-hover:scale-105"
-                      />
-                    ) : (
-                      <div
-                        className={`w-full h-full flex items-center justify-center ${getColor(
-                          artist.username
-                        )} text-xl font-bold text-white transform transition-transform group-hover:scale-105`}
-                      >
-                        {artist.username?.charAt(0).toUpperCase()}
-                        {artist.username?.charAt(artist.username.length - 1).toUpperCase()}
-                      </div>
-                    )}
-                  </div>
-                  <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-full">
-                    <button
-                      className={`absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full flex items-center justify-center ${
-                        isCurrentTrackFromArtist(artist.id) ? "flex" : "hidden group-hover:flex"
-                      } shadow-xl hover:scale-105 transition-all`}
-                      onClick={(e) => handlePlayArtist(artist, e)}
-                    >
-                      {isCurrentTrackFromArtist(artist.id) && isPlaying ? (
-                        <Pause className="w-6 h-6 text-black" />
-                      ) : (
-                        <Play className="w-6 h-6 text-black" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-                <div className="mt-4 text-center">
-                  <h3 className="font-bold text-white truncate">{artist.username}</h3>
-                  <p className="text-sm text-gray-400 truncate">Artist</p>
-                </div>
-              </div>
-            ))}
+    <div className="flex-1 p-4 md:p-6 overflow-y-auto h-full scrollbar-hide">
+      <motion.section 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-3xl md:text-4xl font-black text-white">{title}</h1>
         </div>
-      </div>
 
-      <div className="flex justify-between items-center mt-8 px-4">
-        <button
-          className="text-sm text-gray-400 hover:text-white transition-colors bg-gray-700 py-2 px-4 rounded-full disabled:opacity-50 font-medium"
-          onClick={handlePrevPage}
-          disabled={page === 1}
-        >
-          Previous
-        </button>
-        <span className="text-gray-400 text-sm">
-          Page {page} {totalPages > 0 && `of ${totalPages}`}
-        </span>
-        <button
-          className="text-sm text-gray-400 hover:text-white transition-colors bg-gray-700 py-2 px-4 rounded-full disabled:opacity-50 font-medium"
-          onClick={handleNextPage}
-          disabled={!hasNextPage}
-        >
-          Next
-        </button>
-      </div>
-      </section>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-4 justify-items-center">
+          {artists.map((item, index) => (
+            <TrackCard
+              key={item.id}
+              item={item}
+              index={index}
+              type="artist"
+              isPlaying={currentContext?.type === 'artist' && String(currentContext?.id) === String(item.id) && isPlaying}
+              onPlayPlayable={handlePlayArtist}
+            />
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between mt-12 mb-8 px-4">
+          <button
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-white/5"
+            onClick={handlePrevPage}
+            disabled={page === 1}
+          >
+            <ChevronLeft className="w-5 h-5" />
+            <span>Previous</span>
+          </button>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 text-sm font-medium">
+              Page <span className="text-white">{page}</span> of <span className="text-white">{totalPages || 1}</span>
+            </span>
+          </div>
+          
+          <button
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-white/5"
+            onClick={handleNextPage}
+            disabled={!hasNextPage}
+          >
+            <span>Next</span>
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
+      </motion.section>
     </div>
   );
 };
 
-export default ArtistsShowMorePage;
+export default React.memo(ArtistsShowMorePage);
