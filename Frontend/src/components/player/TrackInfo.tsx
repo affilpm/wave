@@ -1,17 +1,14 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Heart, MoreHorizontal } from 'lucide-react';
+import { Heart } from 'lucide-react';
 import { Track } from '../../types/player';
 
 interface TrackInfoProps {
   track: Track;
   isLiked: boolean;
   onToggleLike: () => void;
-  onOptionsClick?: () => void;
-}
-
-export const TrackInfo: React.FC<TrackInfoProps> = ({ track, isLiked, onToggleLike, onOptionsClick }) => {
+export const TrackInfo: React.FC<TrackInfoProps> = ({ track, isLiked, onToggleLike }) => {
   return (
     <div className="flex items-center justify-between w-full mt-6 mb-2">
       <div className="flex flex-col overflow-hidden mr-4">
@@ -62,10 +59,6 @@ export const TrackInfo: React.FC<TrackInfoProps> = ({ track, isLiked, onToggleLi
             <Heart size={24} className={isLiked ? "text-[var(--player-accent)]" : "text-white/80"} fill={isLiked ? "currentColor" : "none"} />
           </motion.div>
         </motion.button>
-
-        <button onClick={onOptionsClick} className="text-white/80 hover:text-white transition-colors">
-          <MoreHorizontal size={24} />
-        </button>
       </div>
     </div>
   );

@@ -14,6 +14,8 @@ import {
 } from "../../../../../utils/formatters";
 import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 import { usePlayCollection } from "../../../../../hooks/usePlayCollection";
+import { toast } from "react-toastify";
+import ShareModal from "../../../../common/ShareModal";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
@@ -229,6 +231,7 @@ const SavedPlaylistPage = () => {
   const [totalDuration, setTotalDuration] = useState("");
   const [isInLibrary, setIsInLibrary] = useState(false);
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const { currentTrack, currentContext } = useSelector(
     selectPlayerState,
@@ -307,7 +310,6 @@ const SavedPlaylistPage = () => {
       created_by_username: playlist?.created_by_username,
     };
 
-    // Optimistic update — update sidebar immediately
     const wasInLibrary = isInLibrary;
     setIsInLibrary(!wasInLibrary);
     dispatch(toggleSavedPlaylistOptimistic(playlistData));
@@ -321,13 +323,16 @@ const SavedPlaylistPage = () => {
       }
     } catch (error) {
       console.error("Failed to update library:", error?.response?.data || error);
-      // Revert optimistic update on failure
       setIsInLibrary(wasInLibrary);
       dispatch(toggleSavedPlaylistOptimistic(playlistData));
     } finally {
       setIsLibraryLoading(false);
     }
   }, [isInLibrary, playlist, playlistId, dispatch]);
+
+  const handleShare = () => {
+    setIsShareModalOpen(true);
+  };
 
   // Calculate total duration
   useEffect(() => {
@@ -425,7 +430,10 @@ const SavedPlaylistPage = () => {
              )}
         </button>
 
-        <button className="p-2 text-gray-400 hover:text-white transition-colors duration-200 ease-in-out">
+        <button 
+          onClick={handleShare}
+          className="p-2 text-gray-400 hover:text-white transition-colors duration-200 ease-in-out"
+        >
           <Share2 className="h-5 w-5 md:h-6 md:w-6" />
         </button>
       </div>
@@ -481,6 +489,13 @@ const SavedPlaylistPage = () => {
           </div>
         </div>
       </div>
+
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onClose={() => setIsShareModalOpen(false)} 
+        shareUrl={window.location.href}
+        title={playlist ? `Check out the playlist ${playlist.name} created by ${playlist.created_by_username} on Wave!` : 'Check out this playlist on Wave!'}
+      />
     </div>
   );
 };

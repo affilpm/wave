@@ -15,6 +15,9 @@ import { prepareTracksForPlayer } from "../../../../utils/trackUtils";
 import { usePlayCollection } from "../../../../hooks/usePlayCollection";
 import { toggleSavedAlbumOptimistic } from "../../../../slices/user/librarySlice";
 
+import { toast } from "react-toastify";
+import ShareModal from "../../../common/ShareModal";
+
 // Memoized selector for player state
 const selectPlayerState = createSelector(
   [(state) => state.player],
@@ -210,6 +213,7 @@ const AlbumPage = () => {
   const [totalDuration, setTotalDuration] = useState("");
   const [isInLibrary, setIsInLibrary] = useState(false);
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const { currentTrack, currentContext } = useSelector(
     selectPlayerState,
@@ -272,6 +276,10 @@ const AlbumPage = () => {
       console.error("Failed to check library status:", error);
     }
   }, [albumId]);
+
+  const handleShare = () => {
+    setIsShareModalOpen(true);
+  };
 
   // Toggle album in library
   const handleToggleLibrary = useCallback(async () => {
@@ -411,7 +419,10 @@ const AlbumPage = () => {
              )}
         </button>
 
-        <button className="p-2 text-gray-400 hover:text-white transition-colors duration-200 ease-in-out">
+        <button 
+          onClick={handleShare}
+          className="p-2 text-gray-400 hover:text-white transition-colors duration-200 ease-in-out"
+        >
           <Share2 className="h-5 w-5 md:h-6 md:w-6" />
         </button>
       </div>
@@ -466,6 +477,13 @@ const AlbumPage = () => {
           </div>
         </div>
       </div>
+
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onClose={() => setIsShareModalOpen(false)} 
+        shareUrl={window.location.href}
+        title={album ? `Check out the album ${album.name} by ${album.artist_username} on Wave!` : 'Check out this album on Wave!'}
+      />
     </div>
   );
 };

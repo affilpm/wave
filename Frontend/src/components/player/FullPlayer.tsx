@@ -5,8 +5,10 @@ import { PlayerControls } from './PlayerControls';
 import { TrackInfo } from './TrackInfo';
 import { ProgressBar } from './ProgressBar';
 import { VolumeSlider } from './VolumeSlider';
-import { ListMusic, Airplay } from 'lucide-react';
+import { ListMusic, Share2 } from 'lucide-react';
 import AvatarFallback from '../common/AvatarFallback';
+import ShareModal from '../common/ShareModal';
+import { useState } from 'react';
 
 interface FullPlayerProps {
   isOpen: boolean;
@@ -57,6 +59,7 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
   onToggleLike,
   onToggleQueue
 }) => {
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const artworkUrl = currentTrack.artworkUrl || currentTrack.cover_photo || '';
   const rotationRef = useRef(0);
   const animationRef = useRef<number>();
@@ -216,14 +219,24 @@ export const FullPlayer: React.FC<FullPlayerProps> = ({
 
               {/* Bottom Row */}
               <div className="flex items-center justify-between w-full mt-8">
-                <button className="text-white/55 hover:text-white transition-colors">
-                  <Airplay size={22} />
+                <button 
+                  onClick={() => setIsShareModalOpen(true)}
+                  className="text-white/55 hover:text-white transition-colors"
+                >
+                  <Share2 size={22} />
                 </button>
                 <button onClick={onToggleQueue} className="text-white/55 hover:text-white transition-colors">
                   <ListMusic size={22} />
                 </button>
               </div>
             </div>
+
+            <ShareModal 
+              isOpen={isShareModalOpen} 
+              onClose={() => setIsShareModalOpen(false)} 
+              shareUrl={window.location.href}
+              title={`Check out "${currentTrack.name || currentTrack.title}" by ${currentTrack.artist} on Wave!`}
+            />
 
           </div>
         </motion.div>

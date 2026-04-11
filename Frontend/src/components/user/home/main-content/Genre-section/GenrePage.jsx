@@ -4,6 +4,7 @@ import { Play, Pause, Clock, Shuffle, Share2, Music, Headphones, Radio, Mic, Gui
 import { motion, AnimatePresence } from 'framer-motion';
 import { useDispatch, useSelector, shallowEqual } from 'react-redux';
 import { createSelector } from '@reduxjs/toolkit';
+import { toast } from 'react-toastify';
 import {
   setCurrentMusic,
   setIsPlaying,
@@ -16,6 +17,7 @@ import { formatDuration, convertToSeconds, convertToHrMinFormat } from '../../..
 import { prepareTracksForPlayer } from '../../../../../utils/trackUtils';
 import { getGenreStyles } from '../../../../../utils/genreUtils.jsx';
 import { usePlayCollection } from '../../../../../hooks/usePlayCollection';
+import ShareModal from "../../../../common/ShareModal";
 
 const TrackRow = ({ track, index, isPlaying, isCurrent, onPlay }) => {
   return (
@@ -134,6 +136,7 @@ const GenrePage = () => {
   const [totalDuration, setTotalDuration] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const stableTracks = useMemo(() => tracks || [], [tracks]);
 
@@ -166,6 +169,10 @@ const GenrePage = () => {
     },
     [handlePlayTrackAtIndex]
   );
+
+  const handleShare = () => {
+    setIsShareModalOpen(true);
+  };
 
   const isTrackCurrent = useCallback((track) => {
     return isCollectionActive && currentTrack && String(currentTrack.id) === String(track.id);
@@ -278,7 +285,10 @@ const GenrePage = () => {
           </AnimatePresence>
         </button>
 
-        <button className="p-2 text-gray-400 hover:text-white transition-colors duration-200 ease-in-out">
+        <button 
+          onClick={handleShare}
+          className="p-2 text-gray-400 hover:text-white transition-colors duration-200 ease-in-out"
+        >
           <Share2 className="h-5 w-5 md:h-6 md:w-6" />
         </button>
       </div>
@@ -335,6 +345,13 @@ const GenrePage = () => {
           </div>
         )}
       </div>
+
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onClose={() => setIsShareModalOpen(false)} 
+        shareUrl={window.location.href}
+        title={genreData ? `Discover the best of ${genreData.name} music on Wave!` : 'Check out this genre on Wave!'}
+      />
     </div>
   );
 };

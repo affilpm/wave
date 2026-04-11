@@ -8,6 +8,7 @@ import api from "../../../../../api";
 import PlaylistMenuModal from "./YourPlaylistMenuModal";
 import EditPlaylistModal from "./EditPlaylistModal";
 import TrackSearch from "./TrackSearch";
+import { toast } from "react-toastify";
 import {
   formatDuration,
   convertToSeconds,
@@ -21,6 +22,7 @@ import {
 } from "../../../../../slices/user/playerSlice";
 import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 import { usePlayCollection } from "../../../../../hooks/usePlayCollection";
+import ShareModal from "../../../../common/ShareModal";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
@@ -288,6 +290,7 @@ const YourPlaylistPage = () => {
   const [trackToRemove, setTrackToRemove] = useState(null);
   const [showRemoveConfirmation, setShowRemoveConfirmation] = useState(false);
   const [totalDuration, setTotalDuration] = useState("");
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const { currentTrack, currentContext } = useSelector(
     selectPlayerState,
@@ -325,6 +328,10 @@ const YourPlaylistPage = () => {
     },
     [handlePlayTrackAtIndex]
   );
+
+  const handleShare = () => {
+    setIsShareModalOpen(true);
+  };
 
   // Handle autoPlay from location state
   useEffect(() => {
@@ -477,7 +484,6 @@ const YourPlaylistPage = () => {
       try {
         let response;
         if (playlistId === 'liked-songs') {
-           // Use the dedicated "me/liked-songs" endpoint for better efficiency
            response = await api.get('/api/v1/playlist/playlists/me/liked-songs/');
         } else {
            response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
@@ -578,7 +584,10 @@ const YourPlaylistPage = () => {
           )}
         </button>
 
-        <button className="p-2 text-gray-400 hover:text-white transition-colors duration-200 ease-in-out">
+        <button 
+          onClick={handleShare}
+          className="p-2 text-gray-400 hover:text-white transition-colors duration-200 ease-in-out"
+        >
           <Share2 className="h-5 w-5 md:h-6 md:w-6" />
         </button>
         {playlist.name !== "Liked Songs" && (
@@ -688,6 +697,13 @@ const YourPlaylistPage = () => {
           </div>
         </div>
       )}
+
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onClose={() => setIsShareModalOpen(false)} 
+        shareUrl={window.location.href}
+        title={playlist ? `Check out the playlist ${playlist.name} created by ${playlist.created_by_username} on Wave!` : 'Check out this playlist on Wave!'}
+      />
     </div>
   );
 };

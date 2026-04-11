@@ -13,6 +13,8 @@ import {
 } from "../../../../../utils/formatters";
 import { usePlayCollection } from "../../../../../hooks/usePlayCollection";
 import { toggleFollowArtist, selectFollowedArtists } from "../../../../../slices/user/librarySlice";
+import { toast } from "react-toastify";
+import ShareModal from "../../../../common/ShareModal";
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
@@ -115,7 +117,7 @@ const TrackRow = React.memo(({
   prev.song.id === next.song.id && 
   prev.index === next.index && 
   prev.currentMusicId === next.currentMusicId && 
-  prev.isCollectionActive === next.isCollectionActive &&
+  prev.isCollectionActive === next.isCollectionActive && 
   prev.isCollectionPlaying === next.isCollectionPlaying
 );
 
@@ -134,6 +136,7 @@ const ArtistDetailPage = () => {
   const [totalDuration, setTotalDuration] = useState("");
   const [isMobile, setIsMobile] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const followedArtists = useSelector(selectFollowedArtists);
   const isFollowing = useMemo(() => {
@@ -165,20 +168,12 @@ const ArtistDetailPage = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-
-        // Fetch artist information
         const artistResponse = await api.get(`/api/v1/home/artistlist/${artistId}/`);
         setArtist(artistResponse.data);
-
-        // Fetch artist's public songs
         const songsResponse = await api.get(`/api/v1/music/artist/${artistId}/`);
         setPublicSongs(songsResponse.data.results || songsResponse.data);
-
-        // Fetch followers count
         const followersCountResponse = await api.get(`/api/v1/artists/${artistId}/followers-count/`);
         setFollowersCount(followersCountResponse.data.followers_count);
-
-        // Follow status is now handled by Redux selector 'isFollowing'
       } catch (err) {
         console.error("Error fetching artist data:", err);
         setError("Failed to load artist information.");
@@ -231,6 +226,10 @@ const ArtistDetailPage = () => {
     [handlePlayTrackAtIndex]
   );
 
+  const handleShare = () => {
+    setIsShareModalOpen(true);
+  };
+
   // Handle autoPlay from location state
   useEffect(() => {
     if (stableSongs.length > 0 && !autoPlayHandled.current) {
@@ -249,25 +248,15 @@ const ArtistDetailPage = () => {
   // Toggle follow
   const toggleFollow = () => {
     if (!artist) return;
-    
-    // Dispatch Redux action for global state (sidebar)
     dispatch(toggleFollowArtist(artist));
-    
-    // Update local followers count for immediate UI feedback
     setFollowersCount((prevCount) => isFollowing ? prevCount - 1 : prevCount + 1);
   };
 
   // Get color for profile placeholder
   const getColor = (username) => {
     const colors = [
-      'bg-red-500',
-      'bg-blue-500',
-      'bg-green-500',
-      'bg-yellow-500',
-      'bg-purple-500',
-      'bg-pink-500',
-      'bg-indigo-500',
-      'bg-teal-500',
+      'bg-red-500', 'bg-blue-500', 'bg-green-500', 'bg-yellow-500',
+      'bg-purple-500', 'bg-pink-500', 'bg-indigo-500', 'bg-teal-500',
     ];
     const index = username ? username.charCodeAt(0) % colors.length : 0;
     return colors[index];
@@ -362,7 +351,10 @@ const ArtistDetailPage = () => {
           </button>
         )}
 
-        <button className="p-2 text-gray-400 hover:text-white transition-colors">
+        <button 
+          onClick={handleShare}
+          className="p-2 text-gray-400 hover:text-white transition-colors"
+        >
           <Share2 className="h-5 w-5 md:h-6 md:w-6" />
         </button>
       </div>
@@ -405,6 +397,13 @@ const ArtistDetailPage = () => {
           </div>
         )}
       </div>
+
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        shareUrl={window.location.href}
+        title={artist ? `Check out the artist ${artist.username} on Wave!` : 'Check out this artist on Wave!'}
+      />
     </div>
   );
 };
