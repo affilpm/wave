@@ -248,9 +248,9 @@ def home_playlist(request) -> Response:
 @permission_classes([IsAuthenticated])
 def search_music(request) -> Response:
     """
-    Full-text search across track name, artist, and genre.
+    Full-text search across tracks (name, artist, genre) and artists (username).
 
-    Returns track data with streaming URLs attached.
+    Returns separate keys for tracks and artists.
     """
     query = request.GET.get("query", "")
     if not query:
@@ -271,11 +271,28 @@ def search_music(request) -> Response:
         .distinct()
     )
 
-    # Serialize with all data in one pass (no N+1)
-    results = Music_ListSerializer(tracks, many=True).data
-    for item, track_obj in zip(results, tracks):
+    artists = (
+        Artist.objects.filter(
+            user__username__icontains=query,
+            musical_works__is_public=True
+        )
+        .select_related("user")
+        .distinct()
+    )
+
+    # Serialize tracks
+    track_results = Music_ListSerializer(tracks, many=True).data
+    for item, track_obj in zip(track_results, tracks):
         item["video_file"] = track_obj.video_file.url if track_obj.video_file else None
         item["artist_id"] = track_obj.artist.id
         item["duration"] = str(track_obj.duration) if track_obj.duration else None
 
-    return Response({"results": results, "count": len(results)})
+    # Serialize artists
+    artist_results = ArtistSerializer(artists, many=True, context={"request": request}).data
+
+    return Response({
+        "tracks": track_results,
+        "artists": artist_results,
+        "results": track_results,  # Backwards compatibility
+        "count": len(track_results) + len(artist_results)
+    })

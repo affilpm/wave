@@ -8,6 +8,8 @@ interface TrackInfoProps {
   track: Track;
   isLiked: boolean;
   onToggleLike: () => void;
+}
+
 export const TrackInfo: React.FC<TrackInfoProps> = ({ track, isLiked, onToggleLike }) => {
   return (
     <div className="flex items-center justify-between w-full mt-6 mb-2">
