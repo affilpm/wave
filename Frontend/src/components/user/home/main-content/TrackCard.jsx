@@ -16,30 +16,31 @@ const TrackCard = ({ item, index, isPlaying, onPlayPlayable, type = 'music' }) =
   // Selectors for artist follow status
   const followedArtists = useSelector(selectFollowedArtists);
   const isFollowed = useMemo(() => {
-    if (type !== 'artist') return false;
+    if (type !== 'artist' || !item?.id) return false;
     return followedArtists.some(a => (a.artist?.id || a.id) === item.id);
-  }, [followedArtists, item.id, type]);
+  }, [followedArtists, item?.id, type]);
 
   // Use Redux selector to check if this track is liked
-  const isLiked = useSelector((state) => selectIsLiked(state, item.id));
+  const isLiked = useSelector((state) => (item?.id ? selectIsLiked(state, item.id) : false));
 
   const savedAlbums = useSelector(selectSavedAlbums);
   const savedPlaylists = useSelector(selectSavedPlaylists);
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
 
   const isSaved = useMemo(() => {
+    if (!item?.id) return false;
     if (type === 'album') {
       return savedAlbums.some(a => a.id === item.id);
     } else if (type === 'playlist') {
       return savedPlaylists.some(p => p.id === item.id);
     }
     return false;
-  }, [type, item.id, savedAlbums, savedPlaylists]);
+  }, [type, item?.id, savedAlbums, savedPlaylists]);
 
   const handleToggleLibrary = async (e) => {
     e.stopPropagation();
     if (type === 'album') {
-      const albumData = { id: item.id, name: item.name, cover_photo: item.cover_photo || item.image, artist_username: item.artist_username || item.author };
+      const albumData = { id: item.id, name: item.name, cover_photo: item.cover_photo || item.image, artist_username: item.artist_username || item.artist || item.author };
       const wasInLibrary = isSaved;
       dispatch(toggleSavedAlbumOptimistic(albumData));
       
@@ -113,13 +114,21 @@ const TrackCard = ({ item, index, isPlaying, onPlayPlayable, type = 'music' }) =
     onPlayPlayable(item, index, e);
   };
 
-  const coverSrc = item.cover_photo || item.image || item.cover || item.profile_photo;
-  const artistName = item.artist?.name || item.artist || item.author || (type === 'artist' ? 'Artist' : "Unknown Artist");
   const isArtist = type === 'artist';
+  const coverSrc = item?.cover_photo || item?.image || item?.cover || item?.profile_photo;
+  const artistName = 
+    item?.artist_username || 
+    item?.created_by_username || 
+    item?.creator_username || 
+    item?.artist?.name || 
+    item?.artist || 
+    item?.author || 
+    item?.created_by || 
+    (isArtist ? 'Artist' : "Unknown Artist");
 
   return (
     <div 
-      className="flex-none w-44 p-3 m-2 bg-neutral-900/40 hover:bg-neutral-800/60 rounded-lg group transition-all duration-300 ease-in-out cursor-pointer hover:shadow-2xl"
+      className="flex-none w-44 p-3 bg-neutral-900/40 hover:bg-neutral-800/60 rounded-lg group transition-all duration-300 ease-in-out cursor-pointer hover:shadow-2xl"
       onClick={handleCardClick}
     >
       <div className={`relative w-full aspect-square mb-4 ${isArtist ? 'px-2' : ''}`}>

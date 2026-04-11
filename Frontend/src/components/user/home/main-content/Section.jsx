@@ -146,12 +146,12 @@ const Section = ({ title, items, onShowAll, type = 'music' }) => {
 
         <div
           ref={scrollContainerRef}
-          className="flex overflow-x-auto scrollbar-hide py-2"
+          className="flex overflow-x-auto scrollbar-hide py-2 gap-4"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
-          {items.map((item, index) => (
+          {items.filter(i => i && (i.id || i.username)).map((item, index) => (
             <TrackCard 
-              key={item.id} 
+              key={item.id || item.username || index} 
               item={item} 
               index={index} 
               type={type}
