@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useSelector } from 'react-redux';
 import { motion, AnimatePresence, useAnimation } from 'framer-motion';
+import { useDispatch, useSelector } from 'react-redux';
+import { Shuffle } from 'lucide-react';
+import { toggleShuffle } from '../../slices/user/playerSlice';
 import { PlayerState, Track } from '../../types/player';
 import {
   DndContext,
@@ -21,7 +23,7 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, X } from 'lucide-react';
+import { GripVertical, X, Shuffle as ShuffleIcon } from 'lucide-react';
 // @ts-ignore
 import { List } from 'react-window';
 
@@ -174,8 +176,10 @@ export const QueueSheet: React.FC<QueueSheetProps> = ({
   onRemove,
   onPlayTrack
 }) => {
+  const dispatch = useDispatch();
   const userQueue = useSelector((state: { player: PlayerState }) => state.player.userQueue);
   const queueIndex = useSelector((state: { player: PlayerState }) => state.player.queueIndex);
+  const shuffleMode = useSelector((state: { player: PlayerState }) => state.player.shuffleMode);
   
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -285,7 +289,7 @@ export const QueueSheet: React.FC<QueueSheetProps> = ({
             <div className="w-10 h-1.5 rounded-full bg-white/10" />
           </div>
 
-          <div className="px-6 pb-6 pt-2 shrink-0">
+          <div className="px-6 pb-6 pt-2 shrink-0 flex items-center justify-between">
             <h2 className="text-[22px] font-bold text-white tracking-tight">Queue</h2>
           </div>
 

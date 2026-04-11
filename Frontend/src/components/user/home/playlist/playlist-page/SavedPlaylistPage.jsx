@@ -402,14 +402,6 @@ const SavedPlaylistPage = () => {
           )}
         </button>
 
-        <button
-          className="w-12 h-12 md:w-14 md:h-14 rounded-full border border-white/20 hover:bg-white/10 flex items-center justify-center transition-colors shadow-lg"
-          onClick={handleShufflePlay}
-          title="Shuffle Play"
-        >
-          <Shuffle className="h-5 w-5 md:h-6 md:w-6 text-white" />
-        </button>
-
         <div className="flex items-center gap-4">
           <button className="p-2 text-gray-400 hover:text-white transition-colors">
             <Share2 className="h-5 w-5 sm:h-6 sm:w-6" />

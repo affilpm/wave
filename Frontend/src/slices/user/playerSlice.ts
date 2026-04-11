@@ -257,32 +257,19 @@ const playerSlice = createSlice({
       state.userQueue = []; // Reset user manual queue when context changes
       state.currentContext = context;
       
-      if (state.shuffleMode) {
-        if (tracks.length > 0) {
-          const firstTrack = tracks[startIndex];
-          const remaining = tracks.filter((_, i) => i !== startIndex);
-          state.queue = [firstTrack, ...shuffleArray(remaining)];
-          state.queueIndex = 0;
-          state.currentTrack = firstTrack;
-          state.status = 'loading';
-          state.currentTime = 0;
-        } else {
-          state.queue = [];
-          state.queueIndex = -1;
-          state.currentTrack = null;
-        }
+      // Auto-turn off shuffle when entering a new queue/collection
+      state.shuffleMode = false;
+      
+      state.queue = [...tracks];
+      state.queueIndex = Math.max(0, Math.min(startIndex, tracks.length - 1));
+      if (tracks.length > 0) {
+        state.currentTrack = state.queue[state.queueIndex];
+        state.status = 'loading';
+        state.isLiked = !!state.likedIds[Number(state.currentTrack.id)];
+        state.currentTime = 0;
       } else {
-        state.queue = [...tracks];
-        state.queueIndex = Math.max(0, Math.min(startIndex, tracks.length - 1));
-        if (tracks.length > 0) {
-          state.currentTrack = state.queue[state.queueIndex];
-          state.status = 'loading';
-          state.isLiked = !!state.likedIds[Number(state.currentTrack.id)];
-          state.currentTime = 0;
-        } else {
-          state.currentTrack = null;
-          state.queueIndex = -1;
-        }
+        state.currentTrack = null;
+        state.queueIndex = -1;
       }
     },
     
@@ -503,7 +490,7 @@ const playerSlice = createSlice({
       state.queue = [firstTrack, ...shuffleArray(remaining)];
       state.queueIndex = 0;
       state.currentTrack = firstTrack;
-      state.status = 'loading';
+      state.status = 'paused';
       state.currentTime = 0;
     },
     

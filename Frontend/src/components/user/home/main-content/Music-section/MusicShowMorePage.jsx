@@ -40,7 +40,6 @@ const MusicShowMorePage = () => {
   const {
     handlePlayCollection,
     handlePlayTrackAtIndex,
-    handleShufflePlay,
     isCollectionPlaying,
     isCollectionActive
   } = usePlayCollection({ tracks: formattedTracks, context });
@@ -98,14 +97,6 @@ const MusicShowMorePage = () => {
           </div>
           
           <div className="flex items-center gap-3">
-            <button
-              onClick={handleShufflePlay}
-              className="flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full transition-all group font-medium"
-            >
-              <Shuffle className="w-5 h-5 text-green-500 group-hover:scale-110 transition-transform" />
-              <span>Shuffle Play</span>
-            </button>
-            
             <button
               onClick={handlePlayCollection}
               className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all group"

@@ -2,9 +2,12 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
-import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, Pause, ChevronLeft, ChevronRight, Shuffle } from "lucide-react";
 import { motion } from "framer-motion";
 import api from "../../../../../api";
+import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
+import { usePlayCollection } from "../../../../../hooks/usePlayCollection";
+import { togglePlay } from "../../../../../slices/user/playerSlice";
 import { handlePlaybackAction } from "./playlist-utils"; 
 import TrackCard from "../TrackCard";
 
@@ -58,6 +61,22 @@ const PlaylistShowMorePage = () => {
     fetchData();
   }, [page]);
 
+  const formattedTracks = useMemo(() => 
+    items.length ? prepareTracksForPlayer(items) : [],
+    [items]
+  );
+
+  const context = useMemo(() => ({
+    type: 'section_show_more',
+    id: title
+  }), [title]);
+
+  const {
+    handlePlayCollection,
+    isCollectionPlaying,
+    isCollectionActive
+  } = usePlayCollection({ tracks: formattedTracks, context });
+
   const handlePlayClick = useCallback(
     async (item, index, e) => {
       e.stopPropagation();
@@ -93,8 +112,24 @@ const PlaylistShowMorePage = () => {
         animate={{ opacity: 1, y: 0 }}
         className="mb-8"
       >
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-black text-white">{title}</h1>
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl md:text-4xl font-black text-white">{title}</h1>
+            <p className="text-gray-400">Curated collections just for you</p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handlePlayCollection}
+              className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all group"
+            >
+              {isCollectionPlaying ? (
+                <Pause className="w-7 h-7 text-black fill-black" />
+              ) : (
+                <Play className="w-7 h-7 text-black fill-black ml-1" />
+              )}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-y-10 gap-x-6 justify-items-start">

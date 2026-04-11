@@ -6,6 +6,7 @@ import {
   togglePlay,
   setIsPlaying,
   toggleShufflePlay,
+  toggleShuffle,
 } from '../slices/user/playerSlice';
 import type { Track, PlayerContext, PlayerState } from '../types/player';
 
@@ -16,6 +17,7 @@ const selectPlayerState = createSelector(
     currentTrack: player.currentTrack,
     status: player.status,
     currentContext: player.currentContext,
+    shuffleMode: player.shuffleMode,
   })
 );
 
@@ -33,10 +35,14 @@ interface UsePlayCollectionReturn {
   handlePlayTrackAtIndex: (index: number) => void;
   /** Click handler for the "Shuffle Play" button. */
   handleShufflePlay: () => void;
+  /** Click handler to toggle shuffle mode. */
+  handleToggleShuffle: () => void;
   /** `true` when THIS collection is the active context AND audio is playing. */
   isCollectionPlaying: boolean;
   /** `true` when THIS collection is the active context (playing OR paused). */
   isCollectionActive: boolean;
+  /** `true` when shuffle mode is enabled. */
+  isShuffle: boolean;
 }
 
 /**
@@ -53,8 +59,8 @@ export const usePlayCollection = ({
 }: UsePlayCollectionOptions): UsePlayCollectionReturn => {
   const dispatch = useDispatch();
 
-  const { currentTrack, status, currentContext } = useSelector(
-    selectPlayerState,
+  const { currentTrack, status, currentContext, shuffleMode } = useSelector(
+    (state: { player: PlayerState }) => state.player,
     shallowEqual
   );
 
@@ -126,11 +132,22 @@ export const usePlayCollection = ({
     dispatch(toggleShufflePlay(tracks));
   }, [dispatch, tracks]);
 
+  // ── Toggle Shuffle ────────────────────────────────────────────────────
+  const handleToggleShuffle = useCallback(() => {
+    if (isCollectionActive) {
+      dispatch(toggleShuffle());
+    } else {
+      handleShufflePlay();
+    }
+  }, [dispatch, isCollectionActive, handleShufflePlay]);
+
   return {
     handlePlayCollection,
     handlePlayTrackAtIndex,
     handleShufflePlay,
+    handleToggleShuffle,
     isCollectionPlaying,
     isCollectionActive,
+    isShuffle: shuffleMode,
   };
 };
