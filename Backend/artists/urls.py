@@ -4,6 +4,7 @@ from django.urls import path
 
 from artists.views import (
     ArtistAlbumCountView,
+    ArtistDashboardStatsView,
     ArtistFollowCountView,
     ArtistFollowersListView,
     ArtistListenersView,
@@ -26,6 +27,7 @@ urlpatterns = [
     path("check-artist-status/", check_artist_status, name="check_artist_status"),
 
     # Artist dashboard stats
+    path("dashboard-stats/", ArtistDashboardStatsView.as_view(), name="artist_dashboard_stats"),
     path("track-count/", ArtistTrackCountView.as_view(), name="artist_track_count"),
     path("album-count/", ArtistAlbumCountView.as_view(), name="artist_album_count"),
     path("listeners/", ArtistListenersView.as_view(), name="artist_listeners"),

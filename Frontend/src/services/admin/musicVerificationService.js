@@ -2,9 +2,9 @@ import api from "../../api";
 import { MUSIC } from "../../constants/apiEndpoints";
 
 export const musicVerificationService = {
-  getPendingVerifications: async () => {
-    const response = await api.get(MUSIC.VERIFICATION);
-    return response.data.results || (Array.isArray(response.data) ? response.data : []);
+  getPendingVerifications: async (page = 1) => {
+    const response = await api.get(`${MUSIC.VERIFICATION}?page=${page}`);
+    return response.data;
   },
 
   approveMusic: async (musicId) => {

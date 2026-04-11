@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Plus, BarChart, Upload, Settings, Music, Library, Menu, X } from 'lucide-react';
 import DashboardStats from './DashboardStats';
 import UploadOptions from './UploadOptions';
-import RecentActivity from './RecentActivity';
 import Modal from '../../Modal';
 import { useDispatch, useSelector } from 'react-redux';
 import { openModal, closeModal } from '../../../slices/artist/modalSlice';
@@ -60,10 +59,7 @@ const Studio = () => {
   // Content mapping object that connects views to their respective components
   const contentComponents = {
     dashboard: (
-      <>
-        <DashboardStats />
-        <RecentActivity />
-      </>
+      <DashboardStats />
     ),
     upload: <UploadOptions />,
     musicCrud: <MusicManagement />,

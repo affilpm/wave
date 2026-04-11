@@ -4,6 +4,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from admins.views import (
+    AdminDashboardStatsView,
     AdminLoginView,
     AdminTransactionViewSet,
     ArtistViewSet,
@@ -25,6 +26,7 @@ urlpatterns = [
     path("", include(router.urls)),
     path("list-artists/", ArtistViewSet.as_view({"get": "list_artists"}), name="list_artists"),
     path("<int:pk>/update-status/", ArtistViewSet.as_view({"post": "update_status"}), name="update_status"),
+    path("dashboard-stats/", AdminDashboardStatsView.as_view(), name="dashboard_stats"),
     path("transaction-stats/", TransactionStatsView.as_view(), name="transaction_stats"),
     path("monthly-stats/", TransactionMonthlyStatsView.as_view(), name="monthly_stats"),
     path("login/", AdminLoginView.as_view(), name="admin_login"),

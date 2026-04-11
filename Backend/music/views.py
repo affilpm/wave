@@ -318,6 +318,7 @@ class MusicVerificationViewSet(viewsets.ModelViewSet):
 
     serializer_class = MusicVerificationSerializer
     permission_classes = [IsAdminUser]
+    pagination_class = MusicPagination
 
     def get_queryset(self):
         return (

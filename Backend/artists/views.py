@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import logging
 
+from django.db.models import Count, Sum
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -17,8 +18,13 @@ from rest_framework.views import APIView
 
 from artists.models import Artist, ArtistVerificationStatus, Follow
 from artists.serializers import ArtistSerializer, FollowSerializer
-from listening_history.models import ArtistActivity, ArtistPlayCount, RecentlyPlayed
-from music.models import Album
+from listening_history.models import (
+    ArtistActivity,
+    ArtistPlayCount,
+    MusicPlayCount,
+    RecentlyPlayed,
+)
+from music.models import Album, Music, MusicApprovalStatus
 
 logger = logging.getLogger(__name__)
 
@@ -250,9 +256,9 @@ class ArtistTotalPlaysView(APIView):
         if not artist:
             return Response({"error": "Artist Profile not Found"}, status=status.HTTP_404_NOT_FOUND)
 
-        from listening_history.models import MusicPlayCount
-        from django.db.models import Sum
-        total = MusicPlayCount.objects.filter(music__artist=artist).aggregate(Sum('total_plays'))['total_plays__sum'] or 0
+        total = MusicPlayCount.objects.filter(
+            music__artist=artist,
+        ).aggregate(Sum("total_plays"))["total_plays__sum"] or 0
         return Response({"total_plays": total})
 
 
@@ -322,3 +328,182 @@ class HasAlbumsView(APIView):
     def get(self, request) -> Response:
         has_albums = Album.objects.filter(artist__user=request.user).exists()
         return Response({"has_albums": has_albums})
+
+
+# ---------------------------------------------------------------------------
+# Unified Artist Dashboard Stats
+# ---------------------------------------------------------------------------
+
+class ArtistDashboardStatsView(APIView):
+    """
+    Unified dashboard endpoint for the artist studio.
+
+    Returns all artist-specific metrics in a single response:
+    stats, top tracks, genre breakdown, play trend, recent plays,
+    and track approval status counts.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @staticmethod
+    def _month_range(dt):
+        """Return (start, end) datetimes for the month containing *dt*."""
+        start = dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if start.month == 12:
+            end = start.replace(year=start.year + 1, month=1) - timezone.timedelta(seconds=1)
+        else:
+            end = start.replace(month=start.month + 1) - timezone.timedelta(seconds=1)
+        return start, end
+
+    def get(self, request) -> Response:
+        artist = Artist.objects.filter(user=request.user).first()
+        if not artist:
+            return Response(
+                {"error": "Artist profile not found"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        right_now = timezone.now()
+
+        # ── KPI stats ──────────────────────────────────────────────
+        tracks_qs = Music.objects.filter(artist=artist)
+        total_tracks = tracks_qs.count()
+        total_albums = Album.objects.filter(artist=artist).count()
+        total_followers = Follow.objects.filter(artist=artist).count()
+        total_plays = (
+            MusicPlayCount.objects.filter(music__artist=artist)
+            .aggregate(total=Sum("total_plays"))["total"] or 0
+        )
+
+        first_of_month = right_now.date().replace(day=1)
+        monthly_listeners = (
+            ArtistActivity.objects.filter(
+                artist=artist, last_played__date__gte=first_of_month,
+            )
+            .exclude(user=artist.user)
+            .values("user")
+            .distinct()
+            .count()
+        )
+
+        # Track approval status breakdown
+        approved_tracks = tracks_qs.filter(
+            approval_status=MusicApprovalStatus.APPROVED,
+        ).count()
+        pending_tracks = tracks_qs.filter(
+            approval_status=MusicApprovalStatus.PENDING,
+        ).count()
+        rejected_tracks = tracks_qs.filter(
+            approval_status=MusicApprovalStatus.REJECTED,
+        ).count()
+
+        # ── Top tracks by plays ────────────────────────────────────
+        top_tracks_qs = (
+            MusicPlayCount.objects.filter(music__artist=artist)
+            .select_related("music")
+            .order_by("-total_plays")[:5]
+        )
+        top_tracks = [
+            {
+                "id": pc.music.id,
+                "name": pc.music.name,
+                "play_count": pc.total_plays,
+                "cover_photo": pc.music.cover_photo.url if pc.music.cover_photo else None,
+            }
+            for pc in top_tracks_qs
+        ]
+
+        # ── Genre distribution (artist's tracks) ──────────────────
+        genre_dist = list(
+            tracks_qs.values("genres__name")
+            .annotate(count=Count("id"))
+            .filter(genres__name__isnull=False)
+            .order_by("-count")[:8]
+        )
+        genre_distribution = [
+            {"name": g["genres__name"], "count": g["count"]}
+            for g in genre_dist
+        ]
+
+        # ── Monthly play trend (6 months) ─────────────────────────
+        play_trend = []
+        cursor = right_now
+        for _ in range(6):
+            ms, me = self._month_range(cursor)
+            month_plays = (
+                ArtistActivity.objects.filter(
+                    artist=artist,
+                    last_played__gte=ms,
+                    last_played__lte=me,
+                ).aggregate(total=Sum("total_plays"))["total"] or 0
+            )
+            month_listeners = (
+                ArtistActivity.objects.filter(
+                    artist=artist,
+                    last_played__gte=ms,
+                    last_played__lte=me,
+                )
+                .exclude(user=artist.user)
+                .values("user")
+                .distinct()
+                .count()
+            )
+            play_trend.append({
+                "month": ms.strftime("%b %Y"),
+                "plays": month_plays,
+                "listeners": month_listeners,
+            })
+            cursor = ms - timezone.timedelta(days=1)
+        play_trend.reverse()
+
+        # ── Recently played ───────────────────────────────────────
+        recent_qs = (
+            RecentlyPlayed.objects.filter(music__artist=artist)
+            .select_related("music", "user")
+            .order_by("-last_played")[:5]
+        )
+
+        def _get_plays(music):
+            try:
+                return music.play_stats.total_plays
+            except Exception:
+                return 0
+
+        recently_played = [
+            {
+                "music_id": rp.music.id,
+                "name": rp.music.name,
+                "cover_photo": rp.music.cover_photo.url if rp.music.cover_photo else None,
+                "last_played": rp.last_played,
+                "total_plays": _get_plays(rp.music),
+                "listener": rp.user.username if rp.user else None,
+            }
+            for rp in recent_qs
+        ]
+
+        # ── Recent uploads ────────────────────────────────────────
+        recent_uploads = list(
+            tracks_qs.order_by("-created_at")[:5].values(
+                "id", "name", "approval_status", "created_at",
+            )
+        )
+
+        return Response({
+            "stats": {
+                "total_tracks": total_tracks,
+                "total_albums": total_albums,
+                "total_followers": total_followers,
+                "total_plays": total_plays,
+                "monthly_listeners": monthly_listeners,
+                "approved_tracks": approved_tracks,
+                "pending_tracks": pending_tracks,
+                "rejected_tracks": rejected_tracks,
+            },
+            "top_tracks": top_tracks,
+            "charts": {
+                "genre_distribution": genre_distribution,
+                "play_trend": play_trend,
+            },
+            "recently_played": recently_played,
+            "recent_uploads": recent_uploads,
+        })
