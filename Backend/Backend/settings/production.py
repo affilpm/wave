@@ -22,13 +22,12 @@ ALLOWED_HOSTS = config("ALLOWED_HOSTS", cast=Csv())  # noqa: F405
 # ---------------------------------------------------------------------------
 # CORS — explicit allow-list only
 # ---------------------------------------------------------------------------
-CORS_ALLOW_ALL_ORIGINS = False
-
-CORS_ALLOWED_ORIGINS: list[str] = config(  # noqa: F405
+CORS_ALLOWED_ORIGINS: list[str] = config(
     "CORS_ALLOWED_ORIGINS",
     default="https://api.affils.site",
-    cast=Csv(),  # noqa: F405
+    cast=Csv(),
 )
+CORS_ALLOW_CREDENTIALS = config("CORS_ALLOW_CREDENTIALS", default=True, cast=bool)
 
 # ---------------------------------------------------------------------------
 # Security
@@ -36,9 +35,10 @@ CORS_ALLOWED_ORIGINS: list[str] = config(  # noqa: F405
 SECURE_HSTS_SECONDS = 31_536_000  # 1 year
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
-SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=True, cast=bool)  # noqa: F405
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
+# SECURE_SSL_REDIRECT should be True for the real server, but False for local Docker testing
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
+SESSION_COOKIE_SECURE = SECURE_SSL_REDIRECT
+CSRF_COOKIE_SECURE = SECURE_SSL_REDIRECT
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # ---------------------------------------------------------------------------
@@ -69,8 +69,8 @@ LOGGING["loggers"]["django"]["level"] = "WARNING"  # noqa: F405
 # ---------------------------------------------------------------------------
 # CSRF trusted origins
 # ---------------------------------------------------------------------------
-CSRF_TRUSTED_ORIGINS = config(  # noqa: F405
+CSRF_TRUSTED_ORIGINS = config(
     "CSRF_TRUSTED_ORIGINS",
     default="https://api.affils.site",
-    cast=Csv(),  # noqa: F405
+    cast=Csv(),
 )

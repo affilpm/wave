@@ -343,7 +343,7 @@ APPEND_SLASH = True
 # Security headers
 # ---------------------------------------------------------------------------
 SECURE_CONTENT_TYPE_NOSNIFF = True
-CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+CROSS_ORIGIN_OPENER_POLICY = "same-origin-allow-popups"
 
 # ---------------------------------------------------------------------------
 # CSRF
@@ -371,40 +371,29 @@ LOGGING = {
         },
     },
     "handlers": {
-        "file_info": {
-            "level": "INFO",
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": os.path.join(BASE_DIR, "info.log"),
-            "maxBytes": 5 * 1024 * 1024,  # 5 MB
-            "backupCount": 5,
-            "formatter": "verbose",
-        },
-        "file_error": {
-            "level": "ERROR",
-            "class": "logging.handlers.RotatingFileHandler",
-            "filename": os.path.join(BASE_DIR, "errors.log"),
-            "maxBytes": 5 * 1024 * 1024,
-            "backupCount": 5,
-            "formatter": "verbose",
-        },
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "simple",
+            "formatter": "verbose",
         },
     },
     "loggers": {
         "django": {
-            "handlers": ["console", "file_info", "file_error"],
+            "handlers": ["console"],
             "level": "INFO",
             "propagate": True,
         },
         "music": {
-            "handlers": ["console", "file_info", "file_error"],
+            "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
         },
         "celery": {
-            "handlers": ["console", "file_info", "file_error"],
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "common": {
+            "handlers": ["console"],
             "level": "INFO",
             "propagate": False,
         },

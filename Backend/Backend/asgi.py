@@ -1,27 +1,18 @@
 import os
+import django
 from django.core.asgi import get_asgi_application
 from channels.routing import ProtocolTypeRouter, URLRouter
 from channels.auth import AuthMiddlewareStack
-import django
 
-# Set up Django environment and initialize
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Backend.settings.development')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Backend.settings.production')
 django.setup()
 
-# Import the routing module after Django setup
-# Gracefully handle missing agora module
-try:
-    from agora import routing
-    websocket_routes = routing.websocket_urlpatterns
-except (ImportError, ModuleNotFoundError):
-    websocket_routes = []
+# Extracting the application object into the global scope
+django_asgi_app = get_asgi_application()
 
-# Define the application with ProtocolTypeRouter for HTTP and WebSocket handling
 application = ProtocolTypeRouter({
-    "http": get_asgi_application(),  # Django's default ASGI application for handling HTTP
-    "websocket": AuthMiddlewareStack(  # WebSocket configuration
-        URLRouter(
-            websocket_routes
-        )
+    "http": django_asgi_app,
+    "websocket": AuthMiddlewareStack(
+        URLRouter([])
     ),
 })

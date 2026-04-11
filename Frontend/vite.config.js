@@ -18,17 +18,12 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
-        '/ws/webrtc': {
-          target: API_W || 'ws://localhost:8000',
-          ws: true,
-          changeOrigin: true,
-        },
         '/api/v1': {
-          target: API_URL || 'http://localhost:8000',
+          target: API_URL || 'http://localhost',
           changeOrigin: true,
         },
         '/media': {
-          target: API_URL || 'http://localhost:8000',
+          target: API_URL || 'http://localhost',
           changeOrigin: true,
         },
       },
@@ -41,18 +36,14 @@ export default defineConfig(({ mode }) => {
           frame-src 'self' https://accounts.google.com https://*.gstatic.com https://*.razorpay.com;
           frame-ancestors 'self' https://accounts.google.com https://*.gstatic.com;
           connect-src 'self'
-            ${API_URL}
-            ${API_W}
-            ws://localhost:* wss://localhost:* http://localhost:* https://localhost:* http://127.0.0.1:* ws://127.0.0.1:*
+            http://localhost:*
+            http://127.0.0.1:*
+            ws://localhost:*
+            ws://127.0.0.1:*
             https://*.cloudfront.net
-            wss://*.razorpay.com
-            wss://*.agora.io wss://*.sd-rtn.com
-            wss://*.edge.agora.io wss://*.edge.sd-rtn.com
-            https://*.agora.io https://*.sd-rtn.com
-            https://web-2.statscollector.sd-rtn.com 
-            https://statscollector-1.agora.io;
-          img-src 'self' https: data: blob: http://localhost:8000 http://127.0.0.1:8000 https://wavebuckt12.s3.amazonaws.com https://*.cloudfront.net;
-          media-src 'self' blob: data: ${API_URL} https://wavebuckt12.s3.amazonaws.com https://*.cloudfront.net;
+            https://*.razorpay.com;
+          img-src 'self' https: data: blob: http://localhost:* http://127.0.0.1:* https://*.s3.amazonaws.com https://*.cloudfront.net;
+          media-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://*.s3.amazonaws.com https://*.cloudfront.net;
           font-src 'self' data:;
           worker-src 'self' blob:;
         `.replace(/\s+/g, ' ').trim(),
