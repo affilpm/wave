@@ -53,12 +53,16 @@ logger = logging.getLogger(__name__)
 # Genre views
 # ---------------------------------------------------------------------------
 
-class GenreViewSet(viewsets.ReadOnlyModelViewSet):
-    """List all genres (authenticated users)."""
+class GenreViewSet(viewsets.ModelViewSet):
+    """List genres (authenticated users) + CRUD (admin only)."""
 
     queryset = Genre.objects.all()
     serializer_class = GenreSerializer
-    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ["list", "retrieve"]:
+            return [IsAuthenticated()]
+        return [IsAdminUser()]
 
 
 class PublicGenresViewSet(viewsets.ReadOnlyModelViewSet):

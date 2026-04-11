@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, CheckCircle, Music, LayoutDashboard, IndianRupee, CreditCard } from 'lucide-react';
+import { Users, CheckCircle, Music, LayoutDashboard, IndianRupee, CreditCard, Tag } from 'lucide-react';
 
 export const NavTabs = ({ activeTab, setActiveTab }) => {
   const tabs = [
@@ -32,6 +32,11 @@ export const NavTabs = ({ activeTab, setActiveTab }) => {
       id: 'transactions',
       label: 'Transactions',
       icon: IndianRupee,
+    },
+    {
+      id: 'genres',
+      label: 'Genres',
+      icon: Tag,
     },
   ];
 

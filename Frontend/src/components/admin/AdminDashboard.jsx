@@ -9,6 +9,7 @@ import MusicVerification from './music_section/MusicVerification';
 import Dashboard from './Dashboard';
 import TransactionSession from './TransactionSession';
 import PremiumPlansManagement from './PremiumPlansManagement';
+import GenreManagement from './music_section/GenreManagement';
 
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -33,6 +34,7 @@ const AdminDashboard = () => {
         {activeTab === 'music-verification' && <MusicVerification />}
         {activeTab === 'transactions' && <TransactionSession />}
         {activeTab === 'plans' && <PremiumPlansManagement />}
+        {activeTab === 'genres' && <GenreManagement />}
       </div>
     </div>
   );
