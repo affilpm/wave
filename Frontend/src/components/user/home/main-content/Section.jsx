@@ -117,7 +117,7 @@ const Section = ({ title, items, onShowAll, type = 'music' }) => {
         {onShowAll && (
           <button
             onClick={onShowAll}
-            className="text-sm font-bold text-neutral-400 hover:text-white uppercase tracking-wider transition-colors opacity-100 md:opacity-0 md:group-hover/header:opacity-100"
+            className="text-sm font-bold text-neutral-400 hover:text-white uppercase tracking-wider transition-colors"
           >
             Show all
           </button>
