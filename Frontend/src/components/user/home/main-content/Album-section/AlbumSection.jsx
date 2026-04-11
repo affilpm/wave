@@ -1,31 +1,52 @@
-import React, { useRef, useState, useCallback, memo } from "react";
+import React, { useRef, useState, useCallback, memo, useEffect } from "react";
 import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
-import { handleAlbumPlaybackAction } from "./album-utils";
+import { togglePlay } from "../../../../../slices/user/playerSlice";
+import api from "../../../../../api";
+import { Shuffle } from "lucide-react";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue,
-    currentIndex: player.currentIndex,
+    queueIndex: player.queueIndex,
+    currentContext: player.currentContext,
   })
 );
 
-const AlbumSection = memo(({ title, items }) => {
+const AlbumSection = memo(({ title }) => {
   const scrollContainerRef = useRef(null);
-  const [showControls, setShowControls] = useState(false);
-  const [isLoading, setIsLoading] = useState({}); 
+  const [showControls, setShowControls] = useState(false); 
+  const [loading, setLoading] = useState(true);
+  const [albumlistData, setAlbumlistData] = useState([]);
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
+  const currentIndex = queueIndex;
+
+  useEffect(() => {
+    const fetchAlbums = async () => {
+      try {
+        const response = await api.get(`/api/v1/home/albumlist/?top10=true`);
+        setAlbumlistData(response.data.results || response.data || []);
+      } catch (error) {
+        console.error("Error fetching album items:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAlbums();
+  }, []);
 
   const handleScroll = useCallback((direction) => {
     const container = scrollContainerRef.current;
@@ -39,40 +60,33 @@ const AlbumSection = memo(({ title, items }) => {
   }, []);
 
   const handlePlay = useCallback(
-    async (item, e) => {
+    (item, e) => {
       e.stopPropagation();
-      setIsLoading((prev) => ({ ...prev, [item.id]: true }));
-      try {
-        await handleAlbumPlaybackAction({
-          albumId: item.id,
-          dispatch,
-          currentState: {
-            currentMusicId,
-            isPlaying,
-            queue,
-            currentIndex,
-          },
-        });
-      } catch (error) {
-        console.error("Playback error:", error);
-      } finally {
-        setIsLoading((prev) => ({ ...prev, [item.id]: false }));
+      const isSameContext = currentContext?.type === 'album' && String(currentContext?.id) === String(item.id);
+      
+      if (isSameContext) {
+        dispatch(togglePlay());
+      } else {
+        navigate(`/album/${item.id}`, { state: { autoPlay: true } });
       }
     },
-    [dispatch, currentMusicId, isPlaying, queue, currentIndex]
+    [dispatch, currentContext, navigate]
+  );
+
+  const handleShufflePlay = useCallback(
+    (item, e) => {
+      e.stopPropagation();
+      navigate(`/album/${item.id}`, { state: { autoPlay: true, autoShuffle: true } });
+    },
+    [navigate]
   );
 
   const isItemPlaying = useCallback(
     (item) => {
-      const currentTrack = queue[currentIndex];
-      return (
-        currentTrack &&
-        currentTrack.id === currentMusicId &&
-        currentTrack.album === Number(item.id) && // Ensure Number comparison
-        isPlaying
-      );
+      const isSameContext = currentContext?.type === 'album' && String(currentContext?.id) === String(item.id);
+      return isSameContext && isPlaying;
     },
-    [currentMusicId, isPlaying, queue, currentIndex]
+    [currentContext, isPlaying]
   );
 
   const handleAlbumClick = useCallback((albumId) => {
@@ -82,6 +96,21 @@ const AlbumSection = memo(({ title, items }) => {
   const handleShowMore = useCallback(() => {
     navigate("/albums-show-more", { state: { title } });
   }, [navigate, title]);
+
+  if (loading) {
+    return (
+      <section className="mb-8 px-4">
+        <h2 className="text-2xl font-bold mb-4">{title}</h2>
+        <div className="flex gap-4 overflow-hidden">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex-none w-40 h-40 bg-gray-800 animate-pulse rounded-md" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (!albumlistData.length) return null;
 
   return (
     <section className="mb-8 relative" aria-label={`Album section: ${title}`}>
@@ -126,7 +155,7 @@ const AlbumSection = memo(({ title, items }) => {
           aria-label="Album list"
         >
           <div className="flex gap-4 px-4">
-            {items.map((item) => (
+            {albumlistData.map((item) => (
               <div
                 key={item.id} // Use item.id for uniqueness
                 className="flex-none w-40 cursor-pointer"
@@ -138,46 +167,34 @@ const AlbumSection = memo(({ title, items }) => {
               >
                 <div className="relative group">
                   <img
-                    src={item.cover_photo || "/api/placeholder/192/192"} // Fallback image
+                    src={item.cover_photo || "/api/v1/placeholder/192/192"} // Fallback image
                     alt={item.name || "Unknown Album"}
                     className="w-40 h-40 object-cover rounded-md"
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
-                    <button
-                      className={`absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center ${
-                        isItemPlaying(item) ? "flex" : "hidden group-hover:flex"
-                      } shadow-xl hover:scale-105 transition-all focus:outline-none focus:ring-2 focus:ring-green-500`}
-                      onClick={(e) => handlePlay(item, e)}
-                      aria-label={isItemPlaying(item) ? `Pause ${item.name || "album"}` : `Play ${item.name || "album"}`}
-                      disabled={isLoading[item.id]}
-                    >
-                      {isLoading[item.id] ? (
-                        <svg
-                          className="w-6 h-6 animate-spin text-black"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          />
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8v8z"
-                          />
-                        </svg>
-                      ) : isItemPlaying(item) ? (
-                        <Pause className="w-6 h-6 text-black" />
-                      ) : (
-                        <Play className="w-6 h-6 text-black" />
-                      )}
-                    </button>
+                    <div className="absolute bottom-2 right-2 flex gap-2">
+                       <button
+                        className={`w-10 h-10 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full items-center justify-center hidden group-hover:flex shadow-xl transition-all`}
+                        onClick={(e) => handleShufflePlay(item, e)}
+                        title="Shuffle Play"
+                      >
+                        <Shuffle className="w-5 h-5 text-white" />
+                      </button>
+                      <button
+                        className={`w-12 h-12 bg-green-500 rounded-full items-center justify-center ${
+                          isItemPlaying(item) ? "flex" : "hidden group-hover:flex"
+                        } shadow-xl hover:scale-105 transition-all focus:outline-none focus:ring-2 focus:ring-green-500`}
+                        onClick={(e) => handlePlay(item, e)}
+                        aria-label={isItemPlaying(item) ? `Pause ${item.name || "album"}` : `Play ${item.name || "album"}`}
+                      >
+                        {isItemPlaying(item) ? (
+                          <Pause className="w-6 h-6 text-black" />
+                        ) : (
+                          <Play className="w-6 h-6 text-black" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="mt-2">
@@ -202,4 +219,5 @@ const AlbumSection = memo(({ title, items }) => {
   );
 });
 
+AlbumSection.displayName = 'AlbumSection';
 export default AlbumSection;

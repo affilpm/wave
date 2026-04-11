@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, Music, Download, Calendar } from 'lucide-react';
+import { CheckCircle2, Sliders, Headphones, Calendar } from 'lucide-react';
 import api from '../../../../api';
 import { useNavigate } from 'react-router-dom';
 
@@ -15,8 +15,9 @@ const Premium = () => {
     const fetchPlans = async () => {
       try {
         setLoading(true);
-        const response = await api.get('/api/premium/plans/');
-        setPlans(response.data);
+        const response = await api.get('/api/v1/premium/plans/');
+        const plansData = response.data.results || (Array.isArray(response.data) ? response.data : []);
+        setPlans(plansData);
         setError(null);
       } catch (err) {
         setError('Failed to load premium plans. Please try again later.');
@@ -58,7 +59,7 @@ const Premium = () => {
     }
 
     try {
-      const orderResponse = await api.post('/api/premium/create-order/', { 
+      const orderResponse = await api.post('/api/v1/premium/create-order/', { 
         plan_id: plan.id 
       });
       
@@ -68,12 +69,13 @@ const Premium = () => {
         key: key_id,
         amount: amount * 100,
         currency: 'INR',
-        name: 'Your App Name',
+        name: 'Wave',
         description: `${plan.name} (${plan.duration_label}) Premium Subscription`,
+        image: '/shape.png',
         order_id: order_id,
         handler: async (response) => {
           try {
-            const verifyResponse = await api.post('/api/premium/verify-payment/', {
+            const verifyResponse = await api.post('/api/v1/premium/verify-payment/', {
               payment_id: response.razorpay_payment_id,
               order_id: response.razorpay_order_id,
               signature: response.razorpay_signature
@@ -198,14 +200,14 @@ const Premium = () => {
           <h2 className="text-3xl font-bold mb-12">Why Go Premium?</h2>
           <div className="grid sm:grid-cols-1 md:grid-cols-3 gap-8">
             <div className="flex flex-col items-center">
-              <Music size={64} className="text-green-500 mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Music Without Limits</h3>
-              <p className="text-gray-300">Listen to any song, anytime</p>
+              <Sliders size={64} className="text-green-500 mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Professional Equalizer</h3>
+              <p className="text-gray-300">Tailor your sound with precision controls</p>
             </div>
             <div className="flex flex-col items-center">
-              <Download size={64} className="text-purple-500 mb-4" />
-              <h3 className="text-xl font-semibold mb-2">Add Free</h3>
-              <p className="text-gray-300">Offline music listening</p>
+              <Headphones size={64} className="text-purple-500 mb-4" />
+              <h3 className="text-xl font-semibold mb-2">Adjustable Audio Quality</h3>
+              <p className="text-gray-300">Stream in high-fidelity audio up to 320kbps</p>
             </div>
             <div className="flex flex-col items-center">
               <Calendar size={64} className="text-blue-500 mb-4" />

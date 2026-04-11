@@ -1,166 +1,137 @@
-import React, { useEffect } from 'react';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
-import HomePage from './pages/user/HomePage';
-import LandingPage from './components/user/LandingPage';
-import Logout from './components/user/Logout';
-import SettingsPage from './pages/user/SettingsPage';
+import React, { Suspense, lazy } from 'react';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+
+import ErrorBoundary from './components/ErrorBoundary';
 import PrivateRoute from './components/user/PrivateRoute';
 import RedirectIfLoggedIn from './components/user/RedirectIfLoggedIn';
-import { useSelector } from 'react-redux';
-import AdminLogin from './components/admin/AdminLogin';
-import AdminDashboard from './components/admin/AdminDashboard';
-import AdminLogout from './components/admin/AdminLogout';
 import ProtectedRoute from './components/admin/ProtectedRoute';
-import MusicUpload from './components/artist/studio/music_uploader/MusicUpload';
-import StudioPage from './pages/artist/StudioPage';
-import AlbumCreator from './components/artist/studio/AlbumCreator';
-import EditAlbum from './components/artist/studio/EditAlbum';
-import MultiStepRegister from './components/user/register/MultiStepRegister';
-import LoginPage from './components/user/login/Login';
-import Main_Content from './components/user/home/main-content/Main_Content';
-import YourPlaylistPage from './components/user/home/playlist/your-playlist-page/YourPlaylistPage'; 
-import Premium from './components/user/home/header/Premium';
-import MusicShowMorePage from './components/user/home/main-content/Music-section/MusicShowMorePage';
-import SavedPlaylistPage from './components/user/home/playlist/playlist-page/SavedPlaylistPage';
-import { Navigate } from 'react-router-dom';
-import AlbumPage from './components/user/home/album/AlbumPage';
-// import UsernameSelectionModal from './components/user/register/UsernameSelectionModal';
-import GenrePage from './components/user/home/main-content/Genre-section/GenrePage';
-import Profile from './components/user/home/header/profile/Profile';
-import MonetizationPage from './components/artist/studio/Monetization';
-import PlaylistShowMorePage from './components/user/home/main-content/Playlist-section/PlaylistShowMore';
-import AlbumShowMorePage from './components/user/home/main-content/Album-section/AlbumShowMore';
-import ArtistPage from './components/user/home/main-content/Artist-section/ArtistPage';
-// import LivestreamApp from './components/live';
-import { useDispatch } from 'react-redux';
-// import LivestreamViewerApp from './components/live';
-// import StreamListingPage from './components/livestream/LiveStreamViewerApp';
-import TransactionHistory from './components/user/home/header/settings/TransactionHistory';
-import ArtistsShowMorePage from './components/user/home/main-content/Artist-section/ArtistsShowMorePage';
-import NotFound from './components/NotFound';
 import ArtistRoute from './components/artist/ArtistRoute';
 
+// -- Lazy-loaded components --
 
+// Common 
+const NotFound = lazy(() => import('./components/NotFound'));
+
+// User Auth
+const LandingPage = lazy(() => import('./components/user/LandingPage'));
+const LoginPage = lazy(() => import('./components/user/login/Login'));
+const Logout = lazy(() => import('./components/user/Logout'));
+const MultiStepRegister = lazy(() => import('./components/user/register/MultiStepRegister'));
+
+// User Home / Content
+const HomePage = lazy(() => import('./pages/user/HomePage'));
+const Main_Content = lazy(() => import('./components/user/home/main-content/Main_Content'));
+const Premium = lazy(() => import('./components/user/home/header/Premium'));
+const SettingsPage = lazy(() => import('./pages/user/SettingsPage'));
+const TransactionHistory = lazy(() => import('./components/user/home/header/settings/TransactionHistory'));
+const Profile = lazy(() => import('./components/user/home/header/profile/Profile'));
+const YourPlaylistPage = lazy(() => import('./components/user/home/playlist/your-playlist-page/YourPlaylistPage'));
+const SavedPlaylistPage = lazy(() => import('./components/user/home/playlist/playlist-page/SavedPlaylistPage'));
+const MusicShowMorePage = lazy(() => import('./components/user/home/main-content/Music-section/MusicShowMorePage'));
+const PlaylistShowMorePage = lazy(() => import('./components/user/home/main-content/Playlist-section/PlaylistShowMore'));
+const AlbumShowMorePage = lazy(() => import('./components/user/home/main-content/Album-section/AlbumShowMore'));
+const ArtistsShowMorePage = lazy(() => import('./components/user/home/main-content/Artist-section/ArtistsShowMorePage'));
+const AlbumPage = lazy(() => import('./components/user/home/album/AlbumPage'));
+const GenrePage = lazy(() => import('./components/user/home/main-content/Genre-section/GenrePage'));
+const ArtistPage = lazy(() => import('./components/user/home/main-content/Artist-section/ArtistPage'));
+const DiscoverPage = lazy(() => import('./pages/user/DiscoverPage'));
+
+// Artist Studio
+const StudioPage = lazy(() => import('./pages/artist/StudioPage'));
+const MusicUpload = lazy(() => import('./components/artist/studio/music_uploader/MusicUpload'));
+const AlbumCreator = lazy(() => import('./components/artist/studio/AlbumCreator'));
+const EditAlbum = lazy(() => import('./components/artist/studio/EditAlbum'));
+const MonetizationPage = lazy(() => import('./components/artist/studio/Monetization'));
+
+// Admin
+const AdminLogin = lazy(() => import('./components/admin/AdminLogin'));
+const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'));
+const AdminLogout = lazy(() => import('./components/admin/AdminLogout'));
+
+// Loading fallback UI
+const PageLoader = () => (
+  <div className="flex h-screen w-full items-center justify-center bg-black">
+    <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-t-2 border-purple-500"></div>
+  </div>
+);
 
 function App() {
   const { isAuthenticated } = useSelector((state) => state.user);
 
   return (
     <Router>
-      <Routes>
+      <ErrorBoundary>
+        <Suspense fallback={<PageLoader />}>
+          <Routes>
+            <Route path="*" element={<NotFound />} />
 
-        <Route path="*" element={<NotFound />} />
+            {/* Public Routes (Auth) */}
+            <Route 
+              path="/landingpage" 
+              element={
+                <RedirectIfLoggedIn isAuthenticated={isAuthenticated}>
+                  <LandingPage />
+                </RedirectIfLoggedIn>
+              } 
+            />
+            <Route
+              path="/login"
+              element={
+                <RedirectIfLoggedIn isAuthenticated={isAuthenticated}>
+                  <LoginPage />
+                </RedirectIfLoggedIn>
+              }
+            />
+            <Route path="/register" element={<MultiStepRegister />} />
+            <Route path="/logout" element={<Logout />} />
 
-        <Route path="/landingpage" element={
-            <RedirectIfLoggedIn isAuthenticated={isAuthenticated}>
-              <LandingPage />
-            </RedirectIfLoggedIn>
-          } />
+            {/* Protected User Routes */}
+            <Route element={<PrivateRoute isAuthenticated={isAuthenticated} />}>
+              <Route path="/premium" element={<Premium />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/transactions" element={<TransactionHistory />} />
+              
+              <Route path="/" element={<HomePage />}>
+                <Route index element={<Navigate to="/home" replace />} />
+                <Route path="/home" element={<Main_Content />} />
+                <Route path="/discover" element={<DiscoverPage />} />
+                <Route path="/playlist/:playlistId" element={<YourPlaylistPage />} />
+                <Route path="/saved-playlist/:playlistId" element={<SavedPlaylistPage />} />
+                <Route path="/music-show-more" element={<MusicShowMorePage />} />
+                <Route path="/playlist-show-more" element={<PlaylistShowMorePage />} />
+                <Route path="/albums-show-more" element={<AlbumShowMorePage />} />
+                <Route path="/artists-show-more" element={<ArtistsShowMorePage />} />
+                <Route path="/album/:albumId" element={<AlbumPage />} />
+                <Route path="/genres/:genreId" element={<GenrePage />} />
+                <Route path="/profile" element={<Profile />} />
+                <Route path="/monetization" element={<MonetizationPage />} />
+                <Route path="/artist/:artistId" element={<ArtistPage />} />
+              </Route>
 
+              {/* Protected Artist Studio Routes */}
+              <Route element={<ArtistRoute />}>
+                <Route path="/studio" element={<StudioPage />} />
+                <Route path="/musicupload" element={<MusicUpload />} />
+                <Route path="/albumcreator" element={<AlbumCreator />} />
+                <Route path="/editalbum/:id" element={<EditAlbum />} />
+              </Route>
+            </Route>
 
-
-        <Route
-          path="/login"
-          element={
-            <RedirectIfLoggedIn isAuthenticated={isAuthenticated}>
-              <LoginPage/>
-            </RedirectIfLoggedIn>
-          }
-        />
-
-        <Route path="/logout" element={<Logout/>} />
-
-
-
-        <Route path="/register" element={<MultiStepRegister/>} />
-
-
-
-        {/* <Route path="select-username" element={<UsernameSelectionModal/>} /> */}
-
-
-
-
-
-         {/* <Route path="/stream/:streamId" element={<VideoStreamingPage/>} /> */}
-
-
-
-         {/* <Route path="/streams" element={<StreamsList/>} />
-         <Route path="/streams/:streamId" element={<LiveStreamPage/>} /> */}
-         {/* <Route path="/stream/:streamId" element={<VideoStreamingPage/>} /> */}
-
-
-
-
-
-        <Route element={<PrivateRoute isAuthenticated={isAuthenticated} />}>
-
-          <Route path="/premium" element={<Premium/>} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/transactions" element={<TransactionHistory />} />
-          {/* <Route path="/livestreams" element={<StreamListingPage/>} /> */}
-
-          <Route path="/" element={<HomePage />}>
-              <Route index element={<Navigate to="/home" replace />} />
-              <Route path="/home" element={<Main_Content />} />
-              <Route path="/playlist/:playlistId" element={<YourPlaylistPage/>} />
-              <Route path="/saved-playlist/:playlistId" element={<SavedPlaylistPage />} />
-              <Route path="/music-show-more" element={<MusicShowMorePage/>} />
-              <Route path="/album/:albumId" element={<AlbumPage/>} />
-              <Route path="/genres/:genreId" element={<GenrePage/>} />
-              <Route path="/profile" element={<Profile/>} />
-              <Route path="/monetization" element={<MonetizationPage/>} />
-              <Route path="/playlist-show-more" element={<PlaylistShowMorePage/>} />
-              <Route path="/albums-show-more" element={<AlbumShowMorePage/>} />
-              <Route path="/artist/:artistId" element={<ArtistPage />} />
-              <Route path="/artists-show-more" element={<ArtistsShowMorePage/>} />
-
-
-              {/* <LivestreamViewerApp/> */}
-          </Route>
-
-          <Route element={<ArtistRoute />}>
-
-            <Route path="/studio" element={<StudioPage/>} />
-            <Route path="/musicupload" element={<MusicUpload/>} />
-            <Route path="/albumcreator" element={<AlbumCreator/>} />
-            <Route path="/editalbum/:id" element={<EditAlbum/>} />
-
-          </Route>
-
-
-
-
-        </Route>
-
-
-
-
-
-
-
-
-        {/* Admin side */}
-        
-
-
-        <Route path="/adminlogin" element={<AdminLogin/>} /> 
-         
-
-
-
-        <Route path="/admindashboard" element={
-                  <ProtectedRoute> 
-                    <AdminDashboard />
-                  </ProtectedRoute>
-        }/>
-
-
-        <Route path="/adminlogout" element={<AdminLogout/>} />
-
-
-      </Routes>
+            {/* Admin Routes */}
+            <Route path="/adminlogin" element={<AdminLogin />} />
+            <Route path="/adminlogout" element={<AdminLogout />} />
+            <Route 
+              path="/admindashboard" 
+              element={
+                <ProtectedRoute> 
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
     </Router>
   );
 }

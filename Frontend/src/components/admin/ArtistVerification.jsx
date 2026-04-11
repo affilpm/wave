@@ -39,11 +39,15 @@ const ArtistVerification = () => {
   });
   const [pageSize, setPageSize] = useState(8);
 
-  const fetchArtists = async (url = `api/admins/list-artists?page=1&page_size=${pageSize}`) => {
+  const fetchArtists = async (url = `/api/v1/admins/list-artists?page=1&page_size=${pageSize}`) => {
     try {
       setLoading(true);
       const response = await api.get(url);
-      const { results, count, next, previous } = response.data;
+      const data = response.data;
+      const results = data.results || (Array.isArray(data) ? data : []);
+      const count = data.count || results.length;
+      const next = data.next || null;
+      const previous = data.previous || null;
       
       setArtists(results);
       setFilteredArtists(results);
@@ -98,21 +102,21 @@ const ArtistVerification = () => {
     if (!url) return;
     
     // Extract the relative URL from the full URL
-    const relativeUrl = url.split('/api/')[1];
-    fetchArtists(`api/${relativeUrl}`);
+    const relativeUrl = url.split('/api/v1/')[1];
+    fetchArtists(`/api/v1/${relativeUrl}`);
   };
 
 
   const handleStatusChange = async (artistId, newStatus) => {
     try {
-      await api.post(`api/admins/${artistId}/update-status/`, { status: newStatus });
+      await api.post(`/api/v1/admins/${artistId}/update-status/`, { status: newStatus });
       setArtists((prevArtists) =>
         prevArtists.map((artist) =>
           artist.id === artistId ? { ...artist, status: newStatus } : artist
         )
       );
       // Refresh the current page after status update
-      const currentUrl = `api/admins/list-artists?page=${pagination.current}&page_size=${pageSize}`;
+      const currentUrl = `/api/v1/admins/list-artists?page=${pagination.current}&page_size=${pageSize}`;
       fetchArtists(currentUrl);
     } catch (err) {
       setError('Failed to update artist status');
@@ -378,7 +382,7 @@ const ArtistVerification = () => {
                   <button
                     key={`page-${page}`}
                     onClick={() => 
-                      fetchArtists(`api/artists/list_artists?page=${page}&page_size=${pageSize}`)
+                      fetchArtists(`/api/v1/artists/list_artists?page=${page}&page_size=${pageSize}`)
                     }
                     className={`h-8 w-8 rounded-lg flex items-center justify-center transition-colors ${
                       page === pagination.current

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
-import { apiInstance } from '../../api';
-import { formatDistanceToNow } from 'date-fns';
 import api from '../../api';
+import { formatDistanceToNow } from 'date-fns';
+
 
 
 
@@ -27,7 +27,7 @@ const TransactionSession = () => {
   const fetchTransactions = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/admins/transactions/', {
+      const response = await api.get('/api/v1/admins/transactions/', {
         params: {
           page: currentPage,
           status: filterStatus !== 'all' ? filterStatus : undefined,
@@ -61,7 +61,7 @@ const TransactionSession = () => {
     if (!window.confirm('Are you sure you want to process this refund?')) return;
     
     try {
-      await apiInstance.post(`/api/admin/transactions/${transactionId}/refund/`);
+      await api.post(`/api/v1/admin/transactions/${transactionId}/refund/`);
       // Refresh transactions
       fetchTransactions();
       alert('Refund processed successfully');

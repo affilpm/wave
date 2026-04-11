@@ -12,16 +12,19 @@ import {
   clearQueue,
 } from '../../../../../slices/user/playerSlice';
 import { convertToSeconds } from '../../../../../utils/formatters';
+import { prepareTracksForPlayer } from '../../../../../utils/trackUtils';
 import ProfileEditModal from './ProfileEditModal';
+import { ARTISTS, USERS, PLAYLISTS, MUSIC } from '../../../../../constants/apiEndpoints';
 
 // Memoized selector for player state 
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue,
-    currentIndex: player.currentIndex,
+    queueIndex: player.queueIndex,
+    currentContext: player.currentContext,
   })
 );
 
@@ -39,182 +42,104 @@ const Profile = () => {
   const [userFollowingCount, setUserFollowingCount] = useState(0);
   const [artistId, setArtistId] = useState('');
 
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
 
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
+
   // Memoize public songs for stable props
   const stableSongs = useMemo(() => publicSongs || [], [publicSongs]);
 
-  // Check if queue is from artist's public songs
-  const isQueueFromArtistSongs = useMemo(() => {
-    if (!queue.length) return false;
-    return queue.every(
-      (track) => track.source === 'public_songs'
-    );
-  }, [queue]);
+  const songsContext = useMemo(() => ({
+    type: 'profile_songs',
+    id: username
+  }), [username]);
 
   // Memoize isCurrentTrackFromArtistSongs
   const isCurrentTrackFromArtistSongs = useMemo(() => {
-    if (!stableSongs.length || !currentMusicId || !isQueueFromArtistSongs) {
-      console.log('isCurrentTrackFromArtistSongs: Early return', {
-        hasSongs: !!stableSongs.length,
-        currentMusicId,
-        isQueueFromArtistSongs,
-        queueLength: queue.length,
-        currentIndex,
-      });
-      return false;
-    }
-    const currentTrack = queue[currentIndex];
-    const isTrackInSongs = stableSongs.some(
-      (song) => Number(song.id) === Number(currentMusicId)
-    );
-    console.log('isCurrentTrackFromArtistSongs: Result', {
-      currentTrackId: currentTrack?.id,
-      currentMusicId,
-      isTrackInSongs,
-      isPlaying,
-    });
-    return (
-      currentTrack &&
-      Number(currentTrack.id) === Number(currentMusicId) &&
-      isTrackInSongs
-    );
-  }, [stableSongs, currentMusicId, isQueueFromArtistSongs, queue, currentIndex]);
+    return stableSongs.some((song) => Number(song.id) === Number(currentMusicId));
+  }, [stableSongs, currentMusicId]);
 
-  // Memoize song preparation
-  const prepareTrackForPlayer = useCallback(
-    (song) => ({
-      id: Number(song.id), 
-      name: song.name,
-      title: song.name,
-      artist: song.artist_username || username,
-      artist_full: song.artist_full_name || username,
-      album: song.album_name || 'Single',
-      cover_photo: song.cover_photo || '/api/placeholder/48/48',
-      duration: convertToSeconds(song.duration || '00:00:00'),
-      genre: song.genre || '',
-      year: song.release_date
-        ? new Date(song.release_date).getFullYear()
-        : null,
-      release_date: song.release_date,
-      track_number: song.track_number || 0,
-      source: 'public_songs',
-    }),
-    [username]
-  );
 
-  // Handle song playback
   const handleSongPlay = useCallback(
     (song, index) => {
-      const formattedSongs = stableSongs.map(prepareTrackForPlayer);
+      const formattedSongs = prepareTracksForPlayer(stableSongs, { username });
       const formattedSong = formattedSongs[index];
 
-      console.log('handleSongPlay:', {
-        songId: song.id,
-        currentMusicId,
-        isQueueFromArtistSongs,
-        isPlaying,
-        action: Number(currentMusicId) === Number(formattedSong.id) && isQueueFromArtistSongs ? 'toggle' : 'play new',
-      });
+      const isSameSong = Number(currentMusicId) === Number(formattedSong.id);
 
-      // Check if the clicked song is already playing
-      if (
-        Number(currentMusicId) === Number(formattedSong.id) &&
-        isQueueFromArtistSongs
-      ) {
+      if (isSameSong) {
         dispatch(setIsPlaying(!isPlaying));
         return;
       }
 
-      // If playing from a different context, clear queue and set new songs
       dispatch(clearQueue());
-      dispatch(setQueue(formattedSongs));
-      dispatch(setCurrentMusic(formattedSong));
+      dispatch(setQueue({
+        tracks: formattedSongs,
+        startIndex: index,
+        context: songsContext
+      }));
       dispatch(setIsPlaying(true));
     },
-    [currentMusicId, isQueueFromArtistSongs, isPlaying, stableSongs, dispatch, prepareTrackForPlayer]
+    [currentMusicId, currentContext, songsContext, isPlaying, stableSongs, dispatch, username]
   );
 
-  // Handle playlist playback 
   const handlePlayClick = useCallback(
     async (e, playlist) => {
       e.stopPropagation();
       try {
-        const response = await api.get(`/api/playlist/playlists/${playlist.id}/`);
-        console.log(response.data)
-        const playlistData = response.data;
-        const formattedTracks = playlistData.tracks.map((track) => ({
-          id: Number(track.music_details.id),
-          name: track.music_details.name,
-          title: track.music_details.name,
-          artist: track.music_details.artist_username,
-          artist_full: track.music_details.artist_full_name,
-          album: track.music_details.album_name || playlistData.name || 'Unknown Album',
-          cover_photo: track.music_details.cover_photo,
-          duration: convertToSeconds(track.music_details.duration || '00:00:00'),
-          genre: track.music_details.genre || '',
-          year: track.music_details.release_date
-            ? new Date(track.music_details.release_date).getFullYear()
-            : null,
-          release_date: track.music_details.release_date,
-          track_number: track.track_number || 0,
-          yourplaylist_id: Number(playlistData.id),
-          yourplaylist_name: playlistData.name || 'Unknown Playlist',
-        }));
+        const context = { type: 'playlist', id: playlist.id };
+        const isSameContext = currentContext?.type === context.type && String(currentContext?.id) === String(context.id);
 
-        // Check if the current queue is from this playlist
-        const isCurrentPlaylistPlaying =
-          queue.length > 0 &&
-          Number(queue[0]?.yourplaylist_id) === Number(playlist.id);
-
-        console.log('handlePlayClick:', {
-          playlistId: playlist.id,
-          isCurrentPlaylistPlaying,
-          isPlaying,
-          queueLength: queue.length,
-        });
-
-        if (isCurrentPlaylistPlaying) {
+        if (isSameContext) {
           dispatch(setIsPlaying(!isPlaying));
           return;
         }
 
+        const response = await api.get(`/api/v1/playlist/playlists/${playlist.id}/`);
+        const playlistData = response.data;
+        const formattedTracks = prepareTracksForPlayer(playlistData.tracks);
+
         dispatch(clearQueue());
-        dispatch(setQueue(formattedTracks));
-        if (formattedTracks.length > 0) {
-          dispatch(setCurrentMusic(formattedTracks[0]));
-          dispatch(setIsPlaying(true));
-        }
+        dispatch(setQueue({
+          tracks: formattedTracks,
+          startIndex: 0,
+          context: context
+        }));
+        dispatch(setIsPlaying(true));
       } catch (error) {
         console.error('Error handling playback:', error);
       }
     },
-    [dispatch, isPlaying, queue]
+    [dispatch, isPlaying, currentContext]
   );
 
   // Fetch user data
   const fetchUserData = async () => {
     try {
-      const artistStatusResponse = await api.get('/api/artists/check-artist-status/');
+      const artistStatusResponse = await api.get(ARTISTS.CHECK_STATUS);
       setIsArtist(artistStatusResponse.data.is_artist);
       setArtistId(artistStatusResponse.data.artist_id);
-
-      const response = await api.get('/api/users/user');
+      
+      const response = await api.get(USERS.PROFILE);
       setUsername(response.data.username);
       setProfilePhoto(response.data.profile_photo);
-
-      const playlistsResponse = await api.get('/api/playlist/public_playlist_data/');
-      setPlaylists(playlistsResponse.data);
-
+      
+      const playlistsResponse = await api.get(PLAYLISTS.PUBLIC_DATA);
+      const pData = playlistsResponse.data;
+      const playlistArr = Array.isArray(pData) ? pData : Array.isArray(pData?.results) ? pData.results : [];
+      setPlaylists(playlistArr);
+      
       if (artistStatusResponse.data.is_artist) {
-        const songsResponse = await api.get('/api/music/public-songs/');
-        setPublicSongs(songsResponse.data);
+        const songsResponse = await api.get(MUSIC.PUBLIC_SONGS);
+        const sData = songsResponse.data;
+        setPublicSongs(Array.isArray(sData) ? sData : sData.results || []);
       }
-
-      const followingResponse = await api.get('/api/artists/me/following-count/');
+      
+      const followingResponse = await api.get(ARTISTS.FOLLOWING_COUNT);
       setUserFollowingCount(followingResponse.data.following_count);
 
       setLoading(false);
@@ -229,7 +154,7 @@ const Profile = () => {
     if (artistId) {
       const fetchArtistFollowerCount = async () => {
         try {
-          const artistResponse = await api.get(`/api/artists/${artistId}/followers-count/`);
+          const artistResponse = await api.get(ARTISTS.FOLLOWERS_COUNT(artistId));
           setArtistFollowerCount(artistResponse.data.followers_count);
         } catch (error) {
           console.error('Error fetching artist follower count:', error);
@@ -249,11 +174,11 @@ const Profile = () => {
     console.log('Player state changed:', {
       currentMusicId,
       isPlaying,
-      isQueueFromArtistSongs,
+      isCurrentTrackFromArtistSongs,
       queueLength: queue.length,
-      currentIndex,
+      queueIndex,
     });
-  }, [currentMusicId, isPlaying, isQueueFromArtistSongs, queue, currentIndex]);
+  }, [currentMusicId, isPlaying, isCurrentTrackFromArtistSongs, queue, queueIndex]);
 
   // Handle profile save
   const handleSaveProfile = async (newUsername, imageFile) => {
@@ -263,7 +188,7 @@ const Profile = () => {
       if (imageFile) {
         formData.append('profile_photo', imageFile);
       }
-      const response = await api.patch('/api/users/update/', formData, {
+      const response = await api.patch('/api/v1/users/update/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -279,21 +204,10 @@ const Profile = () => {
     }
   };
 
-  // Check if track is playing
-  const isTrackPlaying = (song) => {
-    const isPlayingThisSong =
-      Number(currentMusicId) === Number(song.id) &&
-      isCurrentTrackFromArtistSongs &&
-      isPlaying; // Ensure isPlaying is checked
-    console.log('isTrackPlaying:', {
-      songId: song.id,
-      currentMusicId,
-      isCurrentTrackFromArtistSongs,
-      isPlaying,
-      isPlayingThisSong,
-    });
-    return isPlayingThisSong;
-  };
+  const isTrackPlaying = useCallback((song) => {
+    const isSameSong = Number(currentMusicId) === Number(song.id);
+    return isSameSong && isPlaying;
+  }, [currentMusicId, isPlaying]);
 
   const handlePlaylistNavigate = (playlistId) => {
     navigate(`/playlist/${playlistId}`);
@@ -301,14 +215,14 @@ const Profile = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-neutral-900">
+      <div className="flex h-full items-center justify-center bg-transparent">
         <div className="text-white">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-neutral-900 to-black text-white p-4 md:p-6">
+    <div className="w-full h-full text-white p-4 md:p-6 bg-transparent">
       <div className="max-w-5xl mx-auto">
         {/* Profile Header */}
         <div className="flex items-center gap-4 mb-8">
@@ -346,7 +260,7 @@ const Profile = () => {
               {username}
             </h1>
             <div className="mt-2 flex gap-3 text-xs text-gray-100">
-              <span>{playlists.filter((p) => p.is_public).length} Public Playlists</span>•
+              <span>{(Array.isArray(playlists) ? playlists : []).filter((p) => p.is_public).length} Public Playlists</span>•
               {isArtist && (
                 <>
                   <span>{publicSongs.length} Public Songs</span>•
@@ -403,7 +317,7 @@ const Profile = () => {
           <section>
             <h2 className="text-xl font-bold mb-4">Public Playlists</h2>
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-              {playlists
+              {(Array.isArray(playlists) ? playlists : [])
                 .filter((p) => p.is_public)
                 .map((playlist) => (
                   <div
@@ -413,7 +327,7 @@ const Profile = () => {
                   >
                     <div className="aspect-square relative">
                       <img
-                        src={playlist.cover_photo || '/api/placeholder/120/120'}
+                        src={playlist.cover_photo || '/api/v1/placeholder/120/120'}
                         alt={playlist.name}
                         className="w-full h-full object-cover"
                       />
@@ -421,7 +335,7 @@ const Profile = () => {
                         onClick={(e) => handlePlayClick(e, playlist)}
                         className="absolute bottom-2 right-2 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:scale-105 hover:bg-green-400 transition-all duration-200 shadow-xl"
                       >
-                        {queue.length > 0 && Number(queue[0]?.yourplaylist_id) === Number(playlist.id) && isPlaying ? (
+                        {currentContext?.type === 'playlist' && String(currentContext?.id) === String(playlist.id) && isPlaying ? (
                           <Pause className="w-5 h-5 text-black" />
                         ) : (
                           <PlayCircle className="w-5 h-5 text-black" />

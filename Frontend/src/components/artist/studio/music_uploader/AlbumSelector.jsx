@@ -16,8 +16,9 @@ const AlbumSelector = ({ selectedAlbum, setSelectedAlbum, trackNumber, setTrackN
   useEffect(() => {
     const fetchAlbums = async () => {
       try {
-        const response = await api.get('/api/album/albums');
-        setAlbums(response.data);
+        const response = await api.get('/api/v1/album/albums');
+        const albumsData = response.data.results || (Array.isArray(response.data) ? response.data : []);
+        setAlbums(albumsData);
       } catch (err) {
         console.error('Error fetching albums:', err);
         toast.error('Failed to load albums');
@@ -112,7 +113,7 @@ const AlbumSelector = ({ selectedAlbum, setSelectedAlbum, trackNumber, setTrackN
   return (
     <div className="relative">
       <label className="block text-sm font-medium text-white mb-1">
-        Select Album *
+        Select Album (Optional)
       </label>
       
       <div className="relative" ref={dropdownRef}>
@@ -125,7 +126,23 @@ const AlbumSelector = ({ selectedAlbum, setSelectedAlbum, trackNumber, setTrackN
             <Album className="h-5 w-5 mr-2" />
             <span>{selectedAlbum ? getSelectedAlbumName() : 'Select an album...'}</span>
           </div>
-          {isDropdownOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          <div className="flex items-center">
+            {selectedAlbum && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedAlbum('');
+                  setTrackNumber('');
+                }}
+                className="mr-2 text-gray-400 hover:text-white"
+                title="Clear selection"
+              >
+                ✕
+              </button>
+            )}
+            {isDropdownOpen ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+          </div>
         </button>
 
         {isDropdownOpen && (

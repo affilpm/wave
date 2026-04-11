@@ -20,8 +20,10 @@ const AlbumManagement = () => {
     const fetchAlbums = async () => {
       try {
         setLoading(true);
-        const response = await api.get('/api/album/albums');
-        setAlbums(response.data);
+        const response = await api.get('/api/v1/album/albums');
+        const data = response.data.results || response.data || [];
+        console.log('Album list data received:', data);
+        setAlbums(data);
         setError(null);
       } catch (err) {
         setError('Failed to fetch albums');
@@ -38,7 +40,7 @@ const AlbumManagement = () => {
   
     // const handleEditAlbum = async (albumId) => {
     //   try {
-    //     const response = await api.get(`/api/album/albums/${albumId}/`);
+    //     const response = await api.get(`/api/v1/album/albums/${albumId}/`);
     //     setSelectedAlbum(response.data);
     //     setIsEditModalOpen(true);
     //   } catch (err) {
@@ -66,7 +68,7 @@ const AlbumManagement = () => {
         prevAlbums.map(a => a.id === albumId ? updatedAlbum : a)
       );
   
-      const response = await api.patch(`/api/album/albums/${albumId}/update_is_public/`, {
+      const response = await api.patch(`/api/v1/album/albums/${albumId}/update_is_public/`, {
         is_public: updatedAlbum.is_public
       });
   
@@ -91,7 +93,7 @@ const AlbumManagement = () => {
 
   const confirmDelete = async () => {
     try {
-      await api.delete(`/api/album/albums/${selectedAlbumId}/`);
+      await api.delete(`/api/v1/album/albums/${selectedAlbumId}/`);
       setAlbums(prevAlbums => prevAlbums.filter(album => album.id !== selectedAlbumId));
       
       setShowDeleteAlert(false);
@@ -155,6 +157,7 @@ const AlbumManagement = () => {
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Album Name</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Tracks</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Release Date</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Plays</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Status(Private/Public)</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Actions</th>
                 </tr>
@@ -166,6 +169,11 @@ const AlbumManagement = () => {
                     <td className="px-4 py-3 text-gray-300">{album.tracks?.length || 0}</td>
                     <td className="px-4 py-3 text-center text-gray-300">
                       {new Date(album.release_date).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-gray-300 font-medium">
+                        {(album.total_plays || 0).toLocaleString()}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button
@@ -184,9 +192,9 @@ const AlbumManagement = () => {
                             <button
                             onClick={async () => {
                                 try {
-                                const response = await api.get(`/api/album/albums/${album.id}/`);
+                                const response = await api.get(`/api/v1/album/albums/${album.id}/`);
                                 setSelectedAlbum(response.data);
-                                console.log(response.data)
+
                                 setIsEditModalOpen(true);
                                 } catch (err) {
                                 setError('Failed to fetch album details');

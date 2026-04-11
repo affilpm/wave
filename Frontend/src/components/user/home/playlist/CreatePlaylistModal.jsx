@@ -186,7 +186,7 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
       formData.append('is_public', isPublic);
       formData.append('cover_photo', coverPhoto);
 
-      const response = await api.post('/api/playlist/playlists/', formData, {
+      const response = await api.post('/api/v1/playlist/playlists/', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -199,7 +199,7 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
         is_public: response.data.is_public,
         cover_photo: response.data.cover_photo,
         icon: null,
-        image: response.data.cover_photo || "/api/placeholder/40/40",
+        image: response.data.cover_photo || "/api/v1/placeholder/40/40",
         songCount: 0,
         type: 'Playlist'
       };

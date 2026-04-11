@@ -1,200 +1,247 @@
+/**
+ * API client — Axios instance with JWT token management.
+ *
+ * Features:
+ * - Automatic access-token refresh via interceptors
+ * - Concurrent-request deduplication during refresh
+ * - Centralised logout with Redux persist cleanup
+ */
+
 import axios from 'axios';
 import jwt_decode from 'jwt-decode';
-import { persistor } from './store';
-const TOKEN_BUFFER_TIME = 30000; // 30 seconds in milliseconds
-const UNAUTHORIZED = 401;
 
-export class api {
-  constructor(config) {
-    this.config = {
-      baseURL: config.baseURL || import.meta.env.VITE_API_URL,
-      accessTokenKey: config.accessTokenKey || 'access_token',
-      refreshTokenKey: config.refreshTokenKey || 'refresh_token',
-      onLogout: config.onLogout || (() => {}),
-      tokenType: config.tokenType || 'Bearer'
-    };
+import { USERS } from './constants/apiEndpoints';
+import { ACCESS_TOKEN, REFRESH_TOKEN } from './constants/authConstants';
+import store, { persistor } from './store';
+import { clearUserData } from './slices/user/userSlice';
+import { resetAdmin } from './slices/admin/adminSlice';
 
-    this.refreshPromise = null;
-    this.api = this.setupAxiosInstance();
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+const TOKEN_BUFFER_MS = 60_000;            // refresh 60 s before expiry
+const UNAUTHORIZED    = 401;
+const BASE_URL        = import.meta.env.VITE_API_URL;
+const IS_DEV          = import.meta.env.DEV;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Dev-only logger — silenced in production builds. */
+const devLog = IS_DEV
+  ? (...args) => console.warn('[api]', ...args)
+  : () => {};
+
+const getToken  = (key) => localStorage.getItem(key);
+const setToken  = (key, value) => {
+  if (value) localStorage.setItem(key, value);
+  else       localStorage.removeItem(key);
+};
+
+/** Returns `true` when the token is missing or within the buffer window. */
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  try {
+    const { exp } = jwt_decode(token);
+    // Use a safety buffer to account for clock skew and network latency
+    return (exp * 1000) - TOKEN_BUFFER_MS <= Date.now();
+  } catch {
+    return true;
   }
-  async getUserProfile() {
-    try {
-      const response = await this.api.get('/api/users/user/');
-      return response.data;
-    } catch (error) {
-      console.error('Failed to fetch user profile:', error);
-      throw error;
-    }
+};
+
+// ---------------------------------------------------------------------------
+// Axios instances
+// ---------------------------------------------------------------------------
+
+/** Main instance used by the application with interceptors. */
+const api = axios.create({
+  baseURL: BASE_URL,
+  headers: { 'Content-Type': 'application/json' },
+});
+
+/** 
+ * Internal clean instance without interceptors.
+ * Used for token refresh and logout to avoid infinite interceptor loops.
+ */
+const authApi = axios.create({
+  baseURL: BASE_URL,
+  headers: { 'Content-Type': 'application/json' },
+});
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+let refreshPromise = null;
+
+// ---------------------------------------------------------------------------
+// Implementation
+// ---------------------------------------------------------------------------
+
+/**
+ * Fetches a new access token using the current refresh token.
+ * Singleton promise pattern prevents multiple simultaneous refresh calls.
+ */
+const refreshAccessToken = async () => {
+  const refreshToken = getToken(REFRESH_TOKEN);
+
+  // If we can't refresh, just log out.
+  if (!refreshToken || isTokenExpired(refreshToken)) {
+    devLog('Refresh token missing or expired — triggering logout.');
+    // We call logout with redirect enabled to ensure the app resets.
+    await logout({ skipApi: true }); 
+    throw new Error('Session expired');
   }
-  setupAxiosInstance() {
-    const instance = axios.create({
-      baseURL: this.config.baseURL,
-      headers: { 'Content-Type': 'application/json' }
+
+  try {
+    const { data } = await authApi.post(USERS.TOKEN_REFRESH, {
+      refresh: refreshToken,
     });
 
-    instance.interceptors.request.use(
-      (config) => this.handleRequestInterceptor(config), 
-      (error) => this.handleRequestError(error)
-    );
+    setToken(ACCESS_TOKEN, data.access);
+    if (data.refresh) setToken(REFRESH_TOKEN, data.refresh);
 
-    instance.interceptors.response.use(
-      (response) => response,
-      (error) => this.handleResponseError(error) 
-    );
-
-    return instance;
-  }
-
-  getToken(key) {
-    return localStorage.getItem(this.config[key]);
-  }
-
-  setToken(key, value) {
-    if (value) {
-      localStorage.setItem(this.config[key], value);
-    } else {
-      localStorage.removeItem(this.config[key]);
-    }
-  }
-
-  isTokenExpired(token) {
-    if (!token) return true;
-
-    try {
-      const decoded = jwt_decode(token);
-      return (decoded.exp * 1000) - TOKEN_BUFFER_TIME <= Date.now();
-    } catch (error) {
-      console.error('Token decode error:', error);
-      return true;
-    }
-  }
-
-  async refreshAccessToken() {
-    try {
-      const refreshToken = this.getToken('refreshTokenKey');
-
-      if (!refreshToken || this.isTokenExpired(refreshToken)) {
-        console.error("Refresh token expired. Logging out.");
-        this.handleLogout();
-        throw new Error('Invalid or expired refresh token');
-      }
-
-      const response = await axios.post(`${this.config.baseURL}/api/users/token/refresh/`, {
-        refresh: refreshToken
-      });
-
-      const { access, refresh } = response.data;
-
-      this.setToken('accessTokenKey', access);
-      if (refresh) {
-        this.setToken('refreshTokenKey', refresh);
-      }
-
-      const event = new CustomEvent('tokenRefreshed', { detail: { newToken: access } });
-      window.dispatchEvent(event);
+    devLog('Tokens refreshed successfully.');
     
-      return access;
-    } catch (error) {
-      console.error("Token refresh failed:", error);
-      this.handleLogout();
-      throw error;
-    }
+    // Broadcast for other listeners (optional)
+    window.dispatchEvent(
+      new CustomEvent('tokenRefreshed', { detail: { newToken: data.access } }),
+    );
+
+    return data.access;
+  } catch (err) {
+    devLog('Token refresh failed:', err.response?.data || err.message);
+    
+    // On refresh failure, logout is mandatory.
+    logout({ skipApi: true });
+
+    // Extract human-readable error if possible
+    const errorData = err.response?.data;
+    const errorMsg = (typeof errorData === 'string' ? errorData : (errorData?.detail || errorData?.error)) || err.message;
+    throw new Error(errorMsg);
+  } finally {
+    refreshPromise = null;
   }
+};
 
-  async handleRequestInterceptor(config) {
-    const token = this.getToken('accessTokenKey');
+/**
+ * Centralized logout function.
+ * Clears tokens, purges Redux state, and notifies the backend.
+ */
+export const logout = async (options = {}) => {
+  const { skipApi = false, redirectUrl = '/landingpage' } = options;
 
-    if (!token) return config;
+  try {
+    const refreshToken = getToken(REFRESH_TOKEN);
+    const accessToken  = getToken(ACCESS_TOKEN);
 
-    if (!this.isTokenExpired(token)) {
-      config.headers.Authorization = `${this.config.tokenType} ${token}`;
-      return config;
+    // Call logout API if we have tokens and haven't opted out.
+    if (!skipApi && refreshToken && accessToken) {
+      // Use authApi to bypass interceptors and avoid loops.
+      authApi.post(USERS.LOGOUT, 
+        { refresh_token: refreshToken },
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      ).catch(() => {
+        // Silently fail API call — the client-side cleanup is priority.
+      });
     }
+  } catch (err) {
+    devLog('Logout API error:', err.message);
+  } finally {
+    // 1. Clear specific tokens immediately (synchronous)
+    setToken(ACCESS_TOKEN, null);
+    setToken(REFRESH_TOKEN, null);
+    
+    // 2. Clear instance headers
+    delete api.defaults.headers.common.Authorization;
 
+    // 3. Dispatch clear actions to Redux (immediate in-memory cleanup)
+    // This breaks potential loops where Router guards might redirect back to protected routes.
     try {
-      if (!this.refreshPromise) {
-        this.refreshPromise = this.refreshAccessToken();
-      }
-
-      const newToken = await this.refreshPromise;
-      config.headers.Authorization = `${this.config.tokenType} ${newToken}`;
-      return config;
-    } catch (error) {
-      console.error('Token refresh failed in request interceptor:', error);
-      this.handleLogout();
-      throw error;
-    } finally {
-      this.refreshPromise = null;
+      store.dispatch(clearUserData());
+      store.dispatch(resetAdmin());
+    } catch (reduxErr) {
+      devLog('Redux clear error (ignoring):', reduxErr.message);
     }
+
+    // 4. Purge persisted state and then redirect
+    // We don't await the purge here to prevent potential hangs from blocking navigation.
+    persistor.purge().finally(() => {
+      if (redirectUrl) {
+         window.location.replace(redirectUrl);
+      }
+    });
+
+    // Safety fallback: Redirect after 300ms regardless of purge status.
+    setTimeout(() => {
+      if (redirectUrl && !window.location.pathname.includes(redirectUrl)) {
+        window.location.replace(redirectUrl);
+      }
+    }, 300);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// Interceptors
+// ---------------------------------------------------------------------------
+
+/** Request Interceptor: Attach Authorization header and handle preemptive refresh. */
+api.interceptors.request.use(async (config) => {
+  const token = getToken(ACCESS_TOKEN);
+  
+  // If no token, proceed (endpoint might be public)
+  if (!token) return config;
+
+  // If token is valid, just attach and go
+  if (!isTokenExpired(token)) {
+    config.headers.Authorization = `Bearer ${token}`;
+    return config;
   }
 
-  async handleResponseError(error) {
+  // If token is expired, wait for refresh
+  try {
+    refreshPromise ??= refreshAccessToken();
+    const newToken = await refreshPromise;
+    config.headers.Authorization = `Bearer ${newToken}`;
+    return config;
+  } catch (err) {
+    // refreshAccessToken handles logout on failure
+    return Promise.reject(err);
+  }
+});
+
+/** Response Interceptor: Handle unexpected 401s (e.g. blacklisted token or skew). */
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
     const originalRequest = error.config;
 
-    if (!error.response) {
-      return Promise.reject(error);
-    }
-
-    if (
-      error.response.status === UNAUTHORIZED &&
-      !originalRequest._retry &&
-      this.isTokenExpired(this.getToken('accessTokenKey'))
-    ) {
+    // If 401 and not already retrying
+    if (error.response?.status === UNAUTHORIZED && !originalRequest._retry) {
       originalRequest._retry = true;
 
-      try {
-        if (!this.refreshPromise) {
-          this.refreshPromise = this.refreshAccessToken();
+      // Only attempt refresh if we have a refresh token
+      if (getToken(REFRESH_TOKEN)) {
+        try {
+          refreshPromise ??= refreshAccessToken();
+          const newToken = await refreshPromise;
+          
+          // Update original request and retry
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          return api(originalRequest);
+        } catch (refreshErr) {
+          // Failure handled in refreshAccessToken
+          return Promise.reject(refreshErr);
         }
-
-        const newToken = await this.refreshPromise;
-        originalRequest.headers.Authorization = `${this.config.tokenType} ${newToken}`;
-        return this.api(originalRequest);
-      } catch (refreshError) {
-        console.error("Failed to refresh token:", refreshError);
-        this.handleLogout();
-        return Promise.reject(refreshError);
-      } finally {
-        this.refreshPromise = null;
       }
     }
 
     return Promise.reject(error);
   }
+);
 
+// Backward compatibility or alternative name
+export { logout as handleLogout };
 
-  handleLogout = async () => {
-    try {
-      const refreshToken = this.getToken('refreshTokenKey');
-      const accessToken = this.getToken('accessTokenKey');
-
-      // Non-blocking logout API call
-      if (refreshToken && accessToken) {
-        this.api.post('/api/users/logout/', { refresh_token: refreshToken }, {
-          headers: { Authorization: `Bearer ${accessToken}` }
-        }).catch(err => console.error('Logout API error (non-blocking):', err));
-      }
-    } catch (error) {
-      console.error('Unexpected error during logout:', error);
-    } finally {
-      this.setToken('accessTokenKey', null);
-      this.setToken('refreshTokenKey', null);
-
-      localStorage.clear();
-      delete this.api.defaults.headers.common.Authorization;
-
-      // Clear Redux state and then redirect
-      persistor.purge().finally(() => {
-        if (this.config.onLogout) {
-          this.config.onLogout();
-        }
-      });
-    }
-  };
-
-
-
-}
-
-export const apiInstance = new api({ baseURL: import.meta.env.VITE_API_URL, onLogout: () => {} });
-export default apiInstance.api; 
+export default api;

@@ -7,7 +7,7 @@ import albumService from '../../../services/artist/albumService';
 import api from '../../../api';
 import { useDispatch } from 'react-redux';
 import { openModal, closeModal } from '../../../slices/artist/modalSlice';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 import { v4 as uuidv4 } from 'uuid';  
 
 const MIN_IMAGE_SIZE = 500;

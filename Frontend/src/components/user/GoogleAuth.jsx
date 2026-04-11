@@ -77,11 +77,11 @@ const GoogleAuthButton = () => {
         throw new Error('No credential received from Google');
       }
   
-      const { data } = await api.post('/api/users/google-auth/', 
+      const { data } = await api.post('/api/v1/users/google-auth/', 
         { token: response.credential },
         { headers: { 'Content-Type': 'application/json' } }
       );
-      console.log('Google Auth Response:', data);
+
       if (!data?.tokens?.access || !data?.tokens?.refresh) {
         throw new Error('Invalid token data received from server');
       }
@@ -94,8 +94,7 @@ const GoogleAuthButton = () => {
       if (!decodedToken?.user_id || !decodedToken?.email) {
         throw new Error('Invalid user data in token');
       }
-      console.log(decodeToken)
-  
+
       dispatch(setUserData({
         email: decodedToken.email,
         username: decodedToken.username,

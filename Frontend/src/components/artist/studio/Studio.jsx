@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Plus, BarChart, Upload, Settings, Music, Library, Video, Menu, X } from 'lucide-react';
+import { ArrowLeft, Plus, BarChart, Upload, Settings, Music, Library, Menu, X } from 'lucide-react';
 import DashboardStats from './DashboardStats';
 import UploadOptions from './UploadOptions';
-import RecentActivity from './RecentActivity';
 import Modal from '../../Modal';
 import { useDispatch, useSelector } from 'react-redux';
 import { openModal, closeModal } from '../../../slices/artist/modalSlice';
@@ -11,7 +10,6 @@ import MusicUpload from './music_uploader/MusicUpload';
 import AlbumCreator from './AlbumCreator';
 import MusicManagement from './MusicManagement';
 import AlbumManagement from './AlbumManagement';
-// import ArtistLiveStream from '../../livestream/ArtistLiveStream';
 
 const Studio = () => {
   const [activeView, setActiveView] = useState('dashboard');
@@ -55,22 +53,17 @@ const Studio = () => {
     { icon: Upload, view: 'upload', label: 'Upload' },
     { icon: Music, view: 'musicCrud', label: 'Music CRUD' },
     { icon: Library, view: 'albumManagement', label: 'Albums' },
-    // { icon: Video, view: 'livestream', label: 'Livestream' },
     { icon: Settings, view: 'settings', label: 'Settings' },
   ];
 
   // Content mapping object that connects views to their respective components
   const contentComponents = {
     dashboard: (
-      <>
-        <DashboardStats />
-        <RecentActivity />
-      </>
+      <DashboardStats />
     ),
     upload: <UploadOptions />,
     musicCrud: <MusicManagement />,
     albumManagement: <AlbumManagement />,
-    // livestream: <ArtistLiveStream />,
     settings: (
       <div className="bg-gray-800 rounded-xl border border-gray-700">
         <div className="px-6 py-4 border-b border-gray-700">

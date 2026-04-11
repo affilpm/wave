@@ -45,6 +45,12 @@ class UserTableSerializer(serializers.ModelSerializer):
             'profile_photo',
         )
 
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.profile_photo:
+            representation['profile_photo'] = instance.profile_photo.url
+        return representation
+
     def get_role(self, obj):
         try:
             artist = obj.artist_profile
@@ -137,8 +143,16 @@ class MusicVerificationSerializer(serializers.ModelSerializer):
     
     def get_audio_url(self, obj):
         if obj.audio_file:
-            return self.context['request'].build_absolute_uri(obj.audio_file.url)
+            return obj.audio_file.url
         return None
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.cover_photo:
+            representation['cover_photo'] = instance.cover_photo.url
+        if instance.audio_file:
+            representation['audio_file'] = instance.audio_file.url
+        return representation
     
     # def get_video_url(self, obj):
     #     if obj.video_file:

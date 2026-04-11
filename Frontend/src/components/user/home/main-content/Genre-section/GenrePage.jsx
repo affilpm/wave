@@ -1,33 +1,134 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useParams } from 'react-router-dom';
-import { Play, Pause, Clock, Share2, Music, Headphones, Radio, Mic, Guitar, Stars } from 'lucide-react';
+import { useParams, Link } from 'react-router-dom';
+import { Play, Pause, Clock, Shuffle, Share2, Music, Headphones, Radio, Mic, Guitar, Stars } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useDispatch, useSelector, shallowEqual } from 'react-redux';
 import { createSelector } from '@reduxjs/toolkit';
+import { toast } from 'react-toastify';
 import {
   setCurrentMusic,
   setIsPlaying,
   setQueue,
   clearQueue,
+  togglePlay
 } from "../../../../../slices/user/playerSlice";
 import api from '../../../../../api';
 import { formatDuration, convertToSeconds, convertToHrMinFormat } from '../../../../../utils/formatters';
+import { prepareTracksForPlayer } from '../../../../../utils/trackUtils';
+import { getGenreStyles } from '../../../../../utils/genreUtils.jsx';
+import { usePlayCollection } from '../../../../../hooks/usePlayCollection';
+import ShareModal from "../../../../common/ShareModal";
 
-const selectPlayerState = createSelector(
-  [(state) => state.player],
-  (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
-    queue: player.queue,
-    currentIndex: player.currentIndex,
-  })
-);
+const TrackRow = ({ track, index, isPlaying, isCurrent, onPlay }) => {
+  return (
+    <tr 
+      className={`group hover:bg-white/10 transition-colors cursor-pointer ${isCurrent ? 'bg-white/5' : ''}`}
+      onClick={() => onPlay(track, index)}
+    >
+      <td className="py-3 pl-4">
+        <div className="flex items-center justify-center w-8">
+          {isCurrent && isPlaying ? (
+            <div className="flex items-center gap-0.5">
+              <span className="w-0.5 h-3 bg-green-500 rounded-full animate-pulse"></span>
+              <span className="w-0.5 h-4 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.15s' }}></span>
+              <span className="w-0.5 h-2 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.3s' }}></span>
+            </div>
+          ) : (
+            <>
+              <span className={`group-hover:hidden ${isCurrent ? 'text-green-500' : ''}`}>{index + 1}</span>
+              <button
+                className="hidden group-hover:flex p-1 hover:text-white text-gray-400 active:scale-90 transition-transform"
+                onClick={(e) => { e.stopPropagation(); onPlay(track, index); }}
+              >
+                <AnimatePresence mode="wait">
+                  {isCurrent && isPlaying ? (
+                    <motion.div
+                      key="pause-inner"
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      <Pause className="h-4 w-4 fill-current" />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="play-inner"
+                      initial={{ scale: 0.5, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.5, opacity: 0 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      <Play className="h-4 w-4 fill-current ml-0.5" />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </button>
+            </>
+          )}
+        </div>
+      </td>
+      <td className="py-3 pl-3">
+        <div className="flex items-center gap-3">
+          <img
+            src={track.cover_photo}
+            alt={track.name}
+            className="w-10 h-10 rounded-md"
+          />
+          <span className={`font-medium ${isCurrent ? 'text-green-500' : ''}`}>{track.name}</span>
+        </div>
+      </td>
+      <td className="py-3 pl-3 text-gray-400">
+        <div className="flex flex-col">
+          <span className="md:hidden text-xs text-white/60 mb-1">
+            {track.artist?.id ? (
+              <Link 
+                to={`/artist/${track.artist.id}`}
+                className="hover:underline hover:text-white transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {track.artist?.user?.username || 'Unknown Artist'}
+              </Link>
+            ) : (
+              track.artist?.user?.username || 'Unknown Artist'
+            )}
+          </span>
+          {track.album_id ? (
+            <Link 
+              to={`/album/${track.album_id}`} 
+              className="hover:underline hover:text-white transition-colors text-sm md:text-base"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {track.album_name}
+            </Link>
+          ) : (
+            <span className="text-sm md:text-base">Single</span>
+          )}
+        </div>
+      </td>
+      <td className="py-3 pl-3 hidden lg:table-cell text-gray-400">
+        {track.artist?.id ? (
+          <Link 
+            to={`/artist/${track.artist.id}`}
+            className="hover:underline hover:text-white transition-colors"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {track.artist?.user?.username || 'Unknown Artist'}
+          </Link>
+        ) : (
+          track.artist?.user?.username || 'Unknown Artist'
+        )}
+      </td>
+      <td className="py-3 text-right md:text-center text-gray-400 pr-4 w-20">
+        {formatDuration(track.duration)}
+      </td>
+    </tr>
+  );
+};
 
 const GenrePage = () => {
   const dispatch = useDispatch();
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
-    selectPlayerState,
-    shallowEqual
-  );
+  
   const [genreData, setGenreData] = useState(null);
   const [tracks, setTracks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -35,65 +136,65 @@ const GenrePage = () => {
   const [totalDuration, setTotalDuration] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-
-  const genreIcons = {
-    Pop: { icon: <Music size={36} className="text-white mb-2" />, color: 'bg-pink-500' },
-    Electronic: { icon: <Headphones size={36} className="text-white mb-2" />, color: 'bg-purple-500' },
-    Rock: { icon: <Guitar size={36} className="text-white mb-2" />, color: 'bg-red-500' },
-    'Hip Hop': { icon: <Mic size={36} className="text-white mb-2" />, color: 'bg-blue-500' },
-    Jazz: { icon: <Radio size={36} className="text-white mb-2" />, color: 'bg-yellow-500' },
-    Indie: { icon: <Stars size={36} className="text-white mb-2" />, color: 'bg-green-500' },
-  };
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
   const stableTracks = useMemo(() => tracks || [], [tracks]);
 
-  const isQueueFromGenreTracks = useMemo(() => {
-    if (!queue.length) return false;
-    return queue.every(
-      (track) => track.source === 'public_songs'
-    );
-  }, [queue]);
+  const context = useMemo(() => ({
+    type: 'genre',
+    id: genreId
+  }), [genreId]);
 
-  const isCurrentTrackFromGenreTracks = useMemo(() => {
-    if (!stableTracks.length || !currentMusicId || !isQueueFromGenreTracks) {
-      console.log('isCurrentTrackFromGenreTracks: Early return', {
-        hasTracks: !!stableTracks.length,
-        currentMusicId,
-        isQueueFromGenreTracks,
-        queueLength: queue.length,
-        currentIndex,
-      });
-      return false;
-    }
-    const currentTrack = queue[currentIndex];
-    const isTrackInTracks = stableTracks.some(
-      (track) => Number(track.id) === Number(currentMusicId)
-    );
-    console.log('isCurrentTrackFromGenreTracks: Result', {
-      currentTrackId: currentTrack?.id,
-      currentMusicId,
-      isTrackInTracks,
-      isPlaying,
-    });
-    return (
-      currentTrack &&
-      Number(currentTrack.id) === Number(currentMusicId) &&
-      isTrackInTracks
-    );
-  }, [stableTracks, currentMusicId, isQueueFromGenreTracks, queue, currentIndex]);
+  // Prepare formatted tracks for the player
+  const formattedTracks = useMemo(
+    () => prepareTracksForPlayer(stableTracks),
+    [stableTracks]
+  );
+
+  // Use the shared play collection hook for Play/Shuffle/Track-click
+  const {
+    handlePlayCollection: handlePlayGenre,
+    handlePlayTrackAtIndex,
+    handleShufflePlay,
+    isCollectionPlaying,
+    isCollectionActive,
+  } = usePlayCollection({ tracks: formattedTracks, context });
+
+  // Get current track info for highlighting
+  const currentTrack = useSelector((state) => state.player.currentTrack);
+
+  const handlePlayTrack = useCallback(
+    (_track, index) => {
+      handlePlayTrackAtIndex(index);
+    },
+    [handlePlayTrackAtIndex]
+  );
+
+  const handleShare = () => {
+    setIsShareModalOpen(true);
+  };
+
+  const isTrackCurrent = useCallback((track) => {
+    return isCollectionActive && currentTrack && String(currentTrack.id) === String(track.id);
+  }, [isCollectionActive, currentTrack]);
 
   useEffect(() => {
     const fetchGenreData = async () => {
       try {
         const [genreResponse, tracksResponse] = await Promise.all([
-          api.get(`/api/home/public-genres/${genreId}/`),
-          api.get(`/api/home/by-genre/${genreId}/?page=${currentPage}`)
+          api.get(`/api/v1/home/public-genres/${genreId}/`),
+          api.get(`/api/v1/home/by-genre/${genreId}/?page=${currentPage}`)
         ]);
-        setGenreData(genreResponse.data);
-        setTracks(tracksResponse.data.results);
-        setTotalPages(Math.ceil(tracksResponse.data.count / 10));
+        const genreData = genreResponse.data;
+        const tracksData = tracksResponse.data.results || tracksResponse.data || [];
+        const count = tracksResponse.data.results ? tracksResponse.data.count : tracksData.length;
+        
+        const pageSize = tracksResponse.data.page_size || 10;
+        setGenreData(genreData);
+        setTracks(tracksData);
+        setTotalPages(Math.ceil(count / pageSize));
 
-        const seconds = tracksResponse.data.results.reduce((acc, track) =>
+        const seconds = tracksData.reduce((acc, track) =>
           acc + convertToSeconds(track.duration), 0);
         setTotalDuration(convertToHrMinFormat(seconds));
       } catch (err) {
@@ -106,61 +207,14 @@ const GenrePage = () => {
     fetchGenreData();
   }, [genreId, currentPage]);
 
-  const prepareTrackForPlayer = useCallback((track) => ({
-    id: Number(track.id),
-    name: track.name,
-    title: track.name,
-    artist: track.artist?.user?.username || 'Unknown Artist',
-    artist_full: track.artist?.full_name,
-    album: 'Single', // Added for similarity to Profile, assuming no album data
-    cover_photo: track.cover_photo || '/api/placeholder/48/48',
-    duration: convertToSeconds(track.duration || '00:00:00'),
-    genre: track.genre || '',
-    year: track.release_date ? new Date(track.release_date).getFullYear() : null,
-    release_date: track.release_date,
-    track_number: track.track_number || 0,
-    source: 'public_songs',
-  }), []);
-
-  const handlePlayTrack = useCallback(
-    (track, index) => {
-      const formattedTracks = stableTracks.map(prepareTrackForPlayer);
-      const formattedTrack = formattedTracks[index];
-
-      console.log('handlePlayTrack:', {
-        trackId: track.id,
-        currentMusicId,
-        isQueueFromGenreTracks,
-        isPlaying,
-        action: Number(currentMusicId) === Number(formattedTrack.id) && isQueueFromGenreTracks ? 'toggle' : 'play new',
-      });
-
-      if (
-        Number(currentMusicId) === Number(formattedTrack.id) &&
-        isQueueFromGenreTracks
-      ) {
-        dispatch(setIsPlaying(!isPlaying));
-        return;
-      }
-
-      dispatch(clearQueue());
-      dispatch(setQueue(formattedTracks));
-      dispatch(setCurrentMusic(formattedTrack));
-      dispatch(setIsPlaying(true));
-    },
-    [currentMusicId, isQueueFromGenreTracks, isPlaying, stableTracks, dispatch, prepareTrackForPlayer]
-  );
-
   const handlePreviousPage = () => {
     if (currentPage > 1) {
-      console.log('Navigating to previous page:', currentPage - 1);
       setCurrentPage(currentPage - 1);
     }
   };
 
   const handleNextPage = () => {
     if (currentPage < totalPages) {
-      console.log('Navigating to next page:', currentPage + 1);
       setCurrentPage(currentPage + 1);
     }
   };
@@ -174,79 +228,21 @@ const GenrePage = () => {
     );
   }
 
-  const isTrackPlaying = (track) => {
-    const isPlayingThisTrack =
-      Number(currentMusicId) === Number(track.id) &&
-      isCurrentTrackFromGenreTracks &&
-      isPlaying;
-    console.log('isTrackPlaying:', {
-      trackId: track.id,
-      currentMusicId,
-      isCurrentTrackFromGenreTracks,
-      isPlaying,
-      isPlayingThisTrack,
-    });
-    return isPlayingThisTrack;
-  };
-
-  const TrackRow = ({ track, index }) => {
-    const currentlyPlaying = isTrackPlaying(track);
-
-    return (
-      <tr className="group hover:bg-white/10 transition-colors">
-        <td className="py-3 pl-4">
-          <div className="flex items-center justify-center w-8 group">
-            <span className="group-hover:hidden">{index + 1}</span>
-            <button
-              className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
-              onClick={() => handlePlayTrack(track, index)}
-            >
-              {currentlyPlaying ? (
-                <Pause className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-        </td>
-        <td className="py-3 pl-3">
-          <div className="flex items-center gap-3">
-            <img
-              src={track.cover_photo}
-              alt={track.name}
-              className="w-10 h-10 rounded-md"
-            />
-            <span className="font-medium">{track.name}</span>
-          </div>
-        </td>
-        <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
-          {track.artist?.user?.username || 'Unknown Artist'}
-        </td>
-        <td className="py-3 pl-3 hidden md:table-cell text-gray-400">
-          {new Date(track.release_date).toLocaleDateString()}
-        </td>
-        <td className="py-3 text-center text-gray-400 w-20">
-          {formatDuration(track.duration)}
-        </td>
-      </tr>
-    );
-  };
-
-  const genreStyle = genreIcons[genreData?.name] || { icon: <Music size={48} className="text-white" />, color: 'bg-gray-700' };
+  const { color, icon } = getGenreStyles(genreData?.name);
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 via-black to-black text-white">
-      <div className="flex flex-col md:flex-row items-end gap-6 p-6">
-        <div className={`w-48 h-48 flex-shrink-0 rounded-lg ${genreStyle.color} flex flex-col items-center justify-center`}>
-          {genreStyle.icon}
+      <div className="flex flex-col md:flex-row items-center md:items-end gap-6 p-6 pb-2 md:pb-6">
+        <div className={`w-36 h-36 md:w-48 md:h-48 flex-shrink-0 rounded-lg ${color} flex flex-col items-center justify-center shadow-2xl transition-all duration-500`}>
+          {React.cloneElement(icon, { size: 48, className: "text-white mb-2" })}
           <span className="text-white text-lg font-semibold">{genreData?.name}</span>
         </div>
 
-        <div className="flex flex-col gap-4">
-          <span className="text-sm font-medium uppercase tracking-wider text-gray-400">
+        <div className="flex flex-col gap-2 md:gap-4 text-center md:text-left">
+          <span className="text-xs md:text-sm font-medium uppercase tracking-wider text-gray-400">
             Genre
           </span>
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight">
+          <h1 className="text-4xl md:text-5xl lg:text-7xl font-bold tracking-tight">
             {genreData?.name}
           </h1>
           <div className="flex items-center gap-4 text-gray-300">
@@ -257,49 +253,105 @@ const GenrePage = () => {
         </div>
       </div>
 
-      <div className="flex-1 p-6">
+      {/* Play / Shuffle / Share controls */}
+      <div className="flex items-center justify-center md:justify-start gap-4 p-4 md:px-6">
+        <button
+          className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-green-500 hover:bg-green-400 hover:scale-105 active:scale-95 flex items-center justify-center transition-all duration-200 ease-in-out shadow-lg overflow-hidden"
+          onClick={handlePlayGenre}
+          title={isCollectionPlaying ? 'Pause' : 'Play'}
+        >
+          <AnimatePresence mode="wait">
+            {isCollectionPlaying ? (
+              <motion.div
+                key="pause"
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Pause className="h-5 w-5 md:h-6 md:w-6 text-black fill-black" />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="play"
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.5, opacity: 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <Play className="h-5 w-5 md:h-6 md:w-6 text-black fill-black ml-0.5 md:ml-1" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </button>
+
+        <button 
+          onClick={handleShare}
+          className="p-2 text-gray-400 hover:text-white transition-colors duration-200 ease-in-out"
+        >
+          <Share2 className="h-5 w-5 md:h-6 md:w-6" />
+        </button>
+      </div>
+
+      <div className="flex-1 p-4 md:p-6 pb-20 md:pb-12">
         <table className="w-full border-collapse">
           <thead>
-            <tr className="text-gray-400 border-b border-gray-800">
+            <tr className="text-gray-400 border-b border-gray-800 text-xs md:text-sm">
               <th className="font-normal py-3 w-12 pl-4">#</th>
               <th className="font-normal text-left py-3 pl-3">Title</th>
-              <th className="font-normal text-left py-3 hidden md:table-cell pl-3">
+              <th className="font-normal text-left py-3 pl-3">Album</th>
+              <th className="font-normal text-left py-3 hidden lg:table-cell pl-3">
                 Artist
               </th>
-              <th className="font-normal text-left py-3 hidden md:table-cell pl-3">
-                Release Date
-              </th>
-              <th className="font-normal text-center py-3 w-20">
+              <th className="font-normal text-right md:text-center py-3 w-20 pr-4">
                 <Clock className="h-4 w-4 inline" />
               </th>
             </tr>
           </thead>
           <tbody>
             {tracks.map((track, index) => (
-              <TrackRow key={track.id} track={track} index={index} />
+              <TrackRow 
+                key={track.id} 
+                track={track} 
+                index={index} 
+                isPlaying={isCollectionPlaying}
+                isCurrent={isTrackCurrent(track)}
+                onPlay={handlePlayTrack}
+              />
             ))}
           </tbody>
         </table>
-        <div className="flex items-center justify-between p-6">
-          <button
-            onClick={handlePreviousPage}
-            disabled={currentPage === 1}
-            className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50"
-          >
-            Previous
-          </button>
-          <span>
-            Page {currentPage} of {totalPages}
-          </span>
-          <button
-            onClick={handleNextPage}
-            disabled={currentPage === totalPages}
-            className="bg-gray-700 text-white py-1 px-3 rounded disabled:opacity-50"
-          >
-            Next
-          </button>
-        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-4 p-6">
+            <button
+              onClick={handlePreviousPage}
+              disabled={currentPage === 1}
+              className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-400">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={handleNextPage}
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm font-medium disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
+
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onClose={() => setIsShareModalOpen(false)} 
+        shareUrl={window.location.href}
+        title={genreData ? `Discover the best of ${genreData.name} music on Wave!` : 'Check out this genre on Wave!'}
+      />
     </div>
   );
 };

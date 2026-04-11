@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from music.models import Album, AlbumTrack, Music, Genre
+from django.db import models
 # from music.serializers import MusicSerializer
 import os
 
@@ -8,18 +9,29 @@ import os
 class MusicSerializer(serializers.ModelSerializer):
     genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
     artist_email = serializers.SerializerMethodField()
-    artist_full_name = serializers.SerializerMethodField()
     artist_username = serializers.SerializerMethodField()
+    artist_id = serializers.SerializerMethodField()
+    album_name = serializers.SerializerMethodField()
+    album_id = serializers.SerializerMethodField()
+    total_plays = serializers.SerializerMethodField()
     
     class Meta:
         model = Music
         fields = [
-            'id', 'name', 'cover_photo', 
+            'id', 'name', 'cover_photo', 'audio_file',
              'genres', 'release_date',
             'approval_status', 'duration', 'artist', 
-            'artist_email', 'artist_full_name', 'artist_username',
-            'is_public'
+            'artist_email', 'artist_username',
+            'artist_id', 'is_public', 'album_name', 'album_id', 'total_plays',
         ]
+
+    def get_album_name(self, obj):
+        album = obj.albums.first()
+        return album.name if album else "Single"
+
+    def get_album_id(self, obj):
+        album = obj.albums.first()
+        return album.id if album else None
 
     def get_artist_email(self, obj):
         # Assuming the artist field is related to the User model
@@ -27,13 +39,16 @@ class MusicSerializer(serializers.ModelSerializer):
 
     def get_artist_username(self,obj):
         return obj.artist.user.username if obj.artist and obj.artist.user else None
+
+    def get_artist_id(self, obj):
+        return obj.artist.id if obj.artist else None
     
+    def get_total_plays(self, obj):
+        try:
+            return obj.play_stats.total_plays
+        except Exception:
+            return 0
     
-    def get_artist_full_name(self, obj):
-        # Combine first name and last name
-        if obj.artist and obj.artist.user:
-            return f"{obj.artist.user.first_name} {obj.artist.user.last_name}".strip()
-        return None
 
     def get_genres(self, obj):
         # Return a list of genre names
@@ -43,8 +58,16 @@ class MusicSerializer(serializers.ModelSerializer):
         # Check the length of the filename
         file_name, file_extension = os.path.splitext(value.name)
         if len(file_name) > 250:
-            raise serializers.ValidationError("Ensure this filename has at most 100 characters.")
+            raise serializers.ValidationError("Ensure this filename has at most 250 characters.")
         return value
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        # Remove audio_file from nested music to prioritize HLS
+        representation.pop('audio_file', None)
+        if instance.cover_photo:
+            representation['cover_photo'] = instance.cover_photo.url
+        return representation
     
     
     
@@ -63,6 +86,8 @@ class AlbumTrackSerializer(serializers.ModelSerializer):
 class AlbumSerializer(serializers.ModelSerializer):
     tracks = AlbumTrackSerializer(source='albumtrack_set', many=True, required=False)
     artist_username = serializers.SerializerMethodField()
+    artist_id = serializers.SerializerMethodField()
+    total_plays = serializers.SerializerMethodField()
     
     class Meta:
         model = Album
@@ -70,7 +95,7 @@ class AlbumSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'cover_photo', 
             'banner_img', 'release_date', 'is_public',
             'tracks', 'created_at', 'updated_at',
-            'artist_username',
+            'artist_username', 'artist_id', 'total_plays',
         ]
         read_only_fields = ['created_at', 'updated_at', 'updated_at']
         extra_kwargs = {
@@ -84,6 +109,15 @@ class AlbumSerializer(serializers.ModelSerializer):
     
     def get_artist_username(self,obj):
         return obj.artist.user.username if obj.artist and obj.artist.user else None
+
+    def get_artist_id(self, obj):
+        return obj.artist.id if obj.artist else None
+    
+    def get_total_plays(self, obj):
+        from listening_history.models import MusicPlayCount
+        track_ids = obj.tracks.values_list('id', flat=True)
+        plays = MusicPlayCount.objects.filter(music_id__in=track_ids).aggregate(models.Sum('total_plays'))['total_plays__sum']
+        return plays or 0
     
     
     def validate_is_public(self, value):
@@ -118,4 +152,11 @@ class AlbumSerializer(serializers.ModelSerializer):
             AlbumTrack.objects.create(album=instance, **track_data)
         
         return instance
-        
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.cover_photo:
+            representation['cover_photo'] = instance.cover_photo.url
+        if instance.banner_img:
+            representation['banner_img'] = instance.banner_img.url
+        return representation

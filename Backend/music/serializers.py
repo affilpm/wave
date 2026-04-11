@@ -31,7 +31,9 @@ class MusicSerializer(serializers.ModelSerializer):
     genres = serializers.PrimaryKeyRelatedField(queryset=Genre.objects.all(), many=True)
     album_id = serializers.IntegerField(required=False, write_only=True)
     track_number = serializers.IntegerField(required=False, write_only=True)
-    duration = serializers.DurationField(required=False)  
+    duration = serializers.DurationField(required=False)
+    hls_processing_complete = serializers.SerializerMethodField()
+    total_plays = serializers.SerializerMethodField()
 
     class Meta:
         model = Music
@@ -39,8 +41,37 @@ class MusicSerializer(serializers.ModelSerializer):
             'id', 'name', 'cover_photo', 'audio_file', 
             'video_file', 'genres', 'release_date',
             'approval_status', 'duration', 'artist', 'is_public',
-            'album_id', 'track_number'
+            'album_id', 'track_number', 'hls_processing_complete',
+            'total_plays'
         ]
+
+    def get_total_plays(self, obj):
+        if hasattr(obj, 'annotated_total_plays'):
+            return obj.annotated_total_plays
+        try:
+            return obj.play_stats.total_plays
+        except Exception:
+            return 0
+
+    def get_hls_processing_complete(self, obj):
+        return obj.streaming_files.exists()
+
+    def to_representation(self, instance):
+        """
+        Ensure relative URIs for file fields in the output (for Vite proxy compatibility).
+        Remove audio_file from output as requested by user.
+        """
+        representation = super().to_representation(instance)
+        
+        # Remove audio_file from public representation to prioritize HLS
+        representation.pop('audio_file', None)
+
+        if instance.cover_photo:
+            representation['cover_photo'] = instance.cover_photo.url
+        if instance.video_file:
+            representation['video_file'] = instance.video_file.url
+        
+        return representation
 
     def create(self, validated_data):
         album_id = validated_data.pop('album_id', None)
@@ -63,14 +94,12 @@ class MusicSerializer(serializers.ModelSerializer):
         return music
  
 
-    
-
 
 class UserSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = CustomUser
-        fields = ['id', 'email', 'username', 'first_name', 'last_name']
+        fields = ['id', 'email', 'username']
     
     
     
@@ -83,20 +112,59 @@ class ArtistSerializer(serializers.ModelSerializer):
         fields = ['id', 'user']
     
     
-    
 
 
 
 class MusicDataSerializer(serializers.ModelSerializer):
-    artist = ArtistSerializer()  
-    duration = serializers.DurationField(required=False)  
+    artist_email = serializers.SerializerMethodField()
+    artist_username = serializers.SerializerMethodField()
+    artist_id = serializers.SerializerMethodField()
+    duration = serializers.DurationField(required=False)
+    album_name = serializers.SerializerMethodField()
+    album_id = serializers.SerializerMethodField()
+
+    total_plays = serializers.SerializerMethodField()
 
     class Meta:
         model = Music
         fields = [
-            'id', 'name', 'cover_photo', 'release_date',
-            'duration', 'artist'
+            'id', 'name', 'cover_photo', 'audio_file', 'release_date',
+            'duration', 'artist_email', 'artist_username', 'artist_id', 
+            'album_name', 'album_id', 'total_plays'
         ]
+
+    def get_total_plays(self, obj):
+        if hasattr(obj, 'annotated_total_plays'):
+            return obj.annotated_total_plays
+        try:
+            return obj.play_stats.total_plays
+        except Exception:
+            return 0
+
+    def get_album_name(self, obj):
+        album = obj.albums.first()
+        return album.name if album else "Single"
+
+    def get_album_id(self, obj):
+        album = obj.albums.first()
+        return album.id if album else None
+    
+    def get_artist_email(self, obj):
+        return obj.artist.user.email if obj.artist and obj.artist.user else None
+
+    def get_artist_username(self, obj):
+        return obj.artist.user.username if obj.artist and obj.artist.user else None
+
+    def get_artist_id(self, obj):
+        return obj.artist.id if obj.artist else None
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        # Remove audio_file to prioritize HLS
+        representation.pop('audio_file', None)
+        if instance.cover_photo:
+            representation['cover_photo'] = instance.cover_photo.url
+        return representation
         
         
         
@@ -121,8 +189,14 @@ class MusicVerificationSerializer(serializers.ModelSerializer):
     
     def get_audio_url(self, obj):
         if obj.audio_file:
-            return self.context['request'].build_absolute_uri(obj.audio_file.url)
+            return obj.audio_file.url
         return None
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if instance.cover_photo:
+            representation['cover_photo'] = instance.cover_photo.url
+        return representation
     
     # def get_video_url(self, obj):
     #     if obj.video_file:

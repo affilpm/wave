@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import api from '../../../../api';
 
@@ -39,7 +40,7 @@ const PremiumDetailsModal = ({ isOpen, onClose }) => {
   const fetchSubscriptionDetails = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/api/premium/check-subscription-status/');
+      const { data } = await api.get('/api/v1/premium/check-subscription-status/');
       setSubscriptionDetails(data);
       setError(null);
     } catch (err) {
@@ -52,8 +53,8 @@ const PremiumDetailsModal = ({ isOpen, onClose }) => {
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 px-4">
+  const modalContent = (
+    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-[9999] px-4">
       <div 
         ref={modalRef}
         className="bg-gray-900 rounded-lg shadow-xl max-w-md w-full p-6 border border-gray-800 animate-fadeIn"
@@ -106,12 +107,6 @@ const PremiumDetailsModal = ({ isOpen, onClose }) => {
                 </span>
               </div>
             </div>
-
-            {/* <div className="mt-6 pt-4 border-t border-gray-800">
-              <button className="w-full py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium transition-colors">
-                Manage Subscription
-              </button>
-            </div> */}
           </div>
         ) : (
           <div className="py-6 text-center">
@@ -130,6 +125,8 @@ const PremiumDetailsModal = ({ isOpen, onClose }) => {
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 export default PremiumDetailsModal;

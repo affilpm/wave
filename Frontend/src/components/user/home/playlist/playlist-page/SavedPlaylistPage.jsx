@@ -1,36 +1,229 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Play, Pause, Clock, Share2, Plus, Check, Heart } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { Play, Pause, Clock, Share2, Plus, Check, Heart, Shuffle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import api from "../../../../../api";
+import { LIBRARY } from "../../../../../constants/apiEndpoints";
+import { toggleSavedPlaylistOptimistic } from "../../../../../slices/user/librarySlice";
 import {
   formatDuration,
   convertToSeconds,
   convertToHrMinFormat,
 } from "../../../../../utils/formatters";
-import {
-  setCurrentMusic,
-  setIsPlaying,
-  setQueue,
-  clearQueue,
-} from "../../../../../slices/user/playerSlice";
+import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
+import { usePlayCollection } from "../../../../../hooks/usePlayCollection";
+import { toast } from "react-toastify";
+import ShareModal from "../../../../common/ShareModal";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
-    queue: player.queue,
-    currentIndex: player.currentIndex,
+    currentTrack: player.currentTrack,
+    currentContext: player.currentContext,
   })
+);
+
+// Mobile-optimized track component
+const TrackItem = React.memo(({ 
+  track, 
+  index, 
+  currentMusicId, 
+  isCollectionActive, 
+  isCollectionPlaying, 
+  onPlayTrack 
+}) => {
+  const isThisTrackPlaying = useMemo(
+    () => Number(currentMusicId) === Number(track.music_details.id) && isCollectionActive,
+    [currentMusicId, isCollectionActive]
+  );
+
+  return (
+    <div
+      className={`flex items-center p-3 border-b border-gray-800 ${
+        isThisTrackPlaying ? "bg-white/5" : ""
+      } hover:bg-white/10 transition-colors cursor-pointer group`}
+      onClick={() => onPlayTrack(track, index)}
+    >
+      <div className="flex flex-col items-center justify-center w-6 mr-3 h-8 relative group">
+        {isThisTrackPlaying && isCollectionPlaying ? (
+          <div className="flex items-center gap-0.5 h-3 items-end">
+            <motion.span 
+              animate={{ height: ["20%", "70%", "30%", "100%", "40%"] }}
+              transition={{ repeat: Infinity, duration: 0.8, ease: "easeInOut" }}
+              className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+            />
+            <motion.span 
+              animate={{ height: ["40%", "100%", "50%", "80%", "60%"] }}
+              transition={{ repeat: Infinity, duration: 0.7, ease: "easeInOut", delay: 0.1 }}
+              className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+            />
+            <motion.span 
+              animate={{ height: ["15%", "60%", "25%", "90%", "35%"] }}
+              transition={{ repeat: Infinity, duration: 0.9, ease: "easeInOut", delay: 0.2 }}
+              className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+            />
+          </div>
+        ) : (
+          <>
+            <span className={`text-sm font-medium group-hover:hidden ${isThisTrackPlaying ? 'text-green-500' : 'text-gray-400'}`}>
+              {index + 1}
+            </span>
+            <button
+              className="hidden group-hover:flex items-center justify-center p-1 hover:text-white text-gray-400 active:scale-90 transition-transform bg-black/40 rounded-full backdrop-blur-sm shadow-lg"
+              onClick={(e) => { e.stopPropagation(); onPlayTrack(track, index); }}
+            >
+              {isThisTrackPlaying && isCollectionPlaying ? (
+                <Pause className="h-4 w-4 fill-current" />
+              ) : (
+                <Play className="h-4 w-4 fill-current ml-0.5" />
+              )}
+            </button>
+          </>
+        )}
+      </div>
+
+      <img
+        src={track.music_details.cover_photo || "/api/v1/placeholder/40/40"}
+        alt={track.music_details.name}
+        className="w-10 h-10 rounded-md"
+      />
+
+      <div className="flex-1 min-w-0 ml-3">
+        <div className={`font-medium text-sm truncate ${isThisTrackPlaying ? 'text-green-500' : ''}`}>
+          {track.music_details.name}
+        </div>
+        <div className="text-xs text-gray-400 truncate">
+          {track.music_details.artist_full_name}
+        </div>
+      </div>
+
+      <span className="text-xs text-gray-400 ml-2 w-12 text-right">
+        {formatDuration(track.music_details.duration)}
+      </span>
+    </div>
+  );
+}, (prev, next) => 
+  prev.track.id === next.track.id && 
+  prev.index === next.index && 
+  prev.currentMusicId === next.currentMusicId && 
+  prev.isCollectionActive === next.isCollectionActive &&
+  prev.isCollectionPlaying === next.isCollectionPlaying
+);
+
+// Desktop track row component
+const TrackRow = React.memo(({ 
+  track, 
+  index, 
+  currentMusicId, 
+  isCollectionActive, 
+  isCollectionPlaying, 
+  onPlayTrack 
+}) => {
+  const isThisTrackPlaying = useMemo(
+    () => Number(currentMusicId) === Number(track.music_details.id) && isCollectionActive,
+    [currentMusicId, isCollectionActive]
+  );
+
+  return (
+    <tr
+      className={`group hover:bg-white/10 transition-colors cursor-pointer ${
+        isThisTrackPlaying ? "bg-white/5" : ""
+      }`}
+      onClick={() => onPlayTrack(track, index)}
+    >
+      <td className="py-3 pl-4">
+        <div className="flex flex-col items-center justify-center w-8 h-8 relative group">
+          {isThisTrackPlaying && isCollectionPlaying ? (
+            <div className="flex items-center gap-0.5 h-3 items-end">
+              <motion.span 
+                animate={{ height: ["20%", "70%", "30%", "100%", "40%"] }}
+                transition={{ repeat: Infinity, duration: 0.8, ease: "easeInOut" }}
+                className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+              />
+              <motion.span 
+                animate={{ height: ["40%", "100%", "50%", "80%", "60%"] }}
+                transition={{ repeat: Infinity, duration: 0.7, ease: "easeInOut", delay: 0.1 }}
+                className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+              />
+              <motion.span 
+                animate={{ height: ["15%", "60%", "25%", "90%", "35%"] }}
+                transition={{ repeat: Infinity, duration: 0.9, ease: "easeInOut", delay: 0.2 }}
+                className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+              />
+            </div>
+          ) : (
+            <>
+              <span className={`text-sm font-medium group-hover:hidden ${isThisTrackPlaying ? 'text-green-500' : 'text-gray-400'}`}>
+                {index + 1}
+              </span>
+              <button
+                className="hidden group-hover:flex items-center justify-center p-1.5 hover:text-white text-gray-400 active:scale-90 transition-transform bg-black/40 rounded-full backdrop-blur-sm"
+                onClick={(e) => { e.stopPropagation(); onPlayTrack(track, index); }}
+              >
+                {isThisTrackPlaying && isCollectionPlaying ? (
+                  <Pause className="h-4 w-4 fill-current" />
+                ) : (
+                  <Play className="h-4 w-4 fill-current ml-0.5" />
+                )}
+              </button>
+            </>
+          )}
+        </div>
+      </td>
+      <td className="py-3 pl-6">
+        <div className="flex items-center gap-3">
+          <img
+            src={track.music_details.cover_photo || "/api/v1/placeholder/40/40"}
+            alt={track.music_details.name}
+            className="w-10 h-10 rounded-md"
+          />
+          <span className={`font-medium ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{track.music_details.name}</span>
+        </div>
+      </td>
+      <td className="py-3 pl-6 pr-4 text-gray-400">
+        {track.music_details.artist_id ? (
+          <Link 
+            to={`/artist/${track.music_details.artist_id}`}
+            className="hover:underline hover:text-white transition-colors"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {track.music_details.artist_username}
+          </Link>
+        ) : (
+          track.music_details.artist_username
+        )}
+      </td>
+      <td className="py-3 pl-6 pr-4 text-gray-400">
+        {track.music_details.album_id ? (
+          <Link to={`/album/${track.music_details.album_id}`} className="hover:underline hover:text-white transition-colors">
+            {track.music_details.album_name}
+          </Link>
+        ) : (
+          "Single"
+        )}
+      </td>
+      <td className="py-3 text-center text-gray-400 w-20">
+        {formatDuration(track.music_details.duration)}
+      </td>
+    </tr>
+  );
+}, (prev, next) => 
+  prev.track.id === next.track.id && 
+  prev.index === next.index && 
+  prev.currentMusicId === next.currentMusicId && 
+  prev.isCollectionActive === next.isCollectionActive &&
+  prev.isCollectionPlaying === next.isCollectionPlaying
 );
 
 const SavedPlaylistPage = () => {
   const dispatch = useDispatch();
   const { playlistId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoPlayHandled = useRef(false);
 
   const [playlist, setPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -38,113 +231,64 @@ const SavedPlaylistPage = () => {
   const [totalDuration, setTotalDuration] = useState("");
   const [isInLibrary, setIsInLibrary] = useState(false);
   const [isLibraryLoading, setIsLibraryLoading] = useState(false);
-  const [currentPlaylistId, setCurrentPlaylistId] = useState(null);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+  
+  const currentMusicId = currentTrack?.id;
 
   // Memoize tracks for stable props
   const stableTracks = useMemo(() => playlist?.tracks || [], [playlist]);
 
-  // Memoize isCurrentTrackFromPlaylist with debug logging
-  const isCurrentTrackFromPlaylist = useMemo(() => {
-    if (!playlist?.tracks || !currentMusicId || currentPlaylistId !== playlist?.id) {
-      console.log("isCurrentTrackFromPlaylist: Early return", {
-        hasTracks: !!playlist?.tracks,
-        currentMusicId,
-        currentPlaylistId,
-        playlistId: playlist?.id,
-      });
-      return false;
-    }
-    const currentTrack = queue[currentIndex];
-    const isTrackInPlaylist = playlist.tracks.some(
-      (track) => Number(track.music_details.id) === Number(currentMusicId)
-    );
-    console.log("isCurrentTrackFromPlaylist: Result", {
-      currentTrack,
-      isTrackInPlaylist,
-      currentMusicId,
-    });
-    return (
-      currentTrack &&
-      Number(currentTrack.id) === Number(currentMusicId) &&
-      isTrackInPlaylist
-    );
-  }, [playlist, currentMusicId, currentPlaylistId, queue, currentIndex]);
+  const context = useMemo(() => ({
+    type: 'playlist',
+    id: playlistId
+  }), [playlistId]);
 
-  // Memoize track preparation
-  const prepareTrackForPlayer = useCallback(
-    (track) => ({
-      id: Number(track.music_details.id), // Ensure ID is a number
-      name: track.music_details.name,
-      title: track.music_details.name,
-      artist: track.music_details.artist_username,
-      artist_full: track.music_details.artist_full_name,
-      album: track.music_details.album_name || playlist?.name || "Unknown Album",
-      cover_photo: track.music_details.cover_photo,
-      duration: convertToSeconds(track.music_details.duration || "00:00:00"),
-      genre: track.music_details.genre || "",
-      year: track.music_details.release_date
-        ? new Date(track.music_details.release_date).getFullYear()
-        : null,
-      release_date: track.music_details.release_date,
-      track_number: track.track_number || 0,
-      playlist_id: Number(playlist?.id) || null, // Ensure playlist_id is a number
-      playlist_name: playlist?.name || "Unknown Playlist",
-    }),
-    [playlist]
+  // Prepare formatted tracks for the player
+  const formattedTracks = useMemo(
+    () => prepareTracksForPlayer(stableTracks),
+    [stableTracks]
   );
 
-  // Handle play playlist
-  const handlePlayPlaylist = useCallback(() => {
-    if (!stableTracks.length) return;
+  // Hook handles all play/pause/toggle/shuffle logic
+  const {
+    handlePlayCollection: handlePlayPlaylist,
+    handlePlayTrackAtIndex,
+    handleShufflePlay,
+    isCollectionPlaying,
+    isCollectionActive: isCurrentTrackFromPlaylist,
+  } = usePlayCollection({ tracks: formattedTracks, context });
 
-    if (isCurrentTrackFromPlaylist) {
-      dispatch(setIsPlaying(!isPlaying));
-      return;
-    }
-
-    const formattedTracks = stableTracks.map(prepareTrackForPlayer);
-    dispatch(clearQueue());
-    dispatch(setQueue(formattedTracks));
-    setCurrentPlaylistId(Number(playlist.id)); // Set currentPlaylistId as number
-
-    if (formattedTracks.length > 0) {
-      dispatch(setCurrentMusic(formattedTracks[0]));
-      dispatch(setIsPlaying(true));
-    }
-  }, [dispatch, isCurrentTrackFromPlaylist, isPlaying, playlist, stableTracks, prepareTrackForPlayer]);
-
-  // Handle play track
   const handlePlayTrack = useCallback(
-    (track, index) => {
-      const formattedTracks = stableTracks.map(prepareTrackForPlayer);
-      const formattedTrack = formattedTracks[index];
-
-      if (Number(currentMusicId) === Number(formattedTrack.id) && currentPlaylistId === Number(playlist.id)) {
-        dispatch(setIsPlaying(!isPlaying));
-        return;
-      }
-
-      if (currentPlaylistId !== Number(playlist.id)) {
-        dispatch(clearQueue());
-        dispatch(setQueue(formattedTracks));
-        setCurrentPlaylistId(Number(playlist.id)); // Set currentPlaylistId as number
-      }
-
-      dispatch(setCurrentMusic(formattedTrack));
-      dispatch(setIsPlaying(true));
+    (_track, index) => {
+      handlePlayTrackAtIndex(index);
     },
-    [currentMusicId, currentPlaylistId, isPlaying, playlist, stableTracks, dispatch, prepareTrackForPlayer]
+    [handlePlayTrackAtIndex]
   );
+
+  // Handle autoPlay from location state
+  useEffect(() => {
+    if (stableTracks.length > 0 && !autoPlayHandled.current) {
+      if (location.state?.autoPlay) {
+        if (location.state?.autoShuffle) {
+          handleShufflePlay();
+        } else {
+          handlePlayPlaylist();
+        }
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+      autoPlayHandled.current = true;
+    }
+  }, [stableTracks.length, location.state, location.pathname, handlePlayPlaylist, handleShufflePlay, navigate]);
 
   // Check if playlist is in library
   const checkLibraryStatus = useCallback(async () => {
     try {
-      const response = await api.get(`/api/library/library/check-playlist/${playlistId}/`);
+      const response = await api.get(LIBRARY.CHECK_PLAYLIST(playlistId));
       setIsInLibrary(response.data.is_in_library);
     } catch (error) {
       console.error("Failed to check library status:", error);
@@ -157,21 +301,38 @@ const SavedPlaylistPage = () => {
       return;
     }
 
+    const playlistData = {
+      id: Number(playlistId),
+      name: playlist?.name,
+      image: playlist?.cover_photo,
+      cover_photo: playlist?.cover_photo,
+      songCount: playlist?.tracks?.length || 0,
+      created_by_username: playlist?.created_by_username,
+    };
+
+    const wasInLibrary = isInLibrary;
+    setIsInLibrary(!wasInLibrary);
+    dispatch(toggleSavedPlaylistOptimistic(playlistData));
+
     try {
       setIsLibraryLoading(true);
-      if (isInLibrary) {
-        await api.post('/api/library/remove-playlist/', { playlist_id: playlistId });
-        setIsInLibrary(false);
+      if (wasInLibrary) {
+        await api.post(LIBRARY.REMOVE_PLAYLIST, { playlist_id: playlistId });
       } else {
-        await api.post('/api/library/library/add-playlist/', { playlist_id: playlistId });
-        setIsInLibrary(true);
+        await api.post(LIBRARY.ADD_PLAYLIST, { playlist_id: playlistId });
       }
     } catch (error) {
-      console.error("Failed to update library:", error);
+      console.error("Failed to update library:", error?.response?.data || error);
+      setIsInLibrary(wasInLibrary);
+      dispatch(toggleSavedPlaylistOptimistic(playlistData));
     } finally {
       setIsLibraryLoading(false);
     }
-  }, [isInLibrary, playlist, playlistId]);
+  }, [isInLibrary, playlist, playlistId, dispatch]);
+
+  const handleShare = () => {
+    setIsShareModalOpen(true);
+  };
 
   // Calculate total duration
   useEffect(() => {
@@ -192,15 +353,8 @@ const SavedPlaylistPage = () => {
   useEffect(() => {
     const fetchPlaylist = async () => {
       try {
-        const response = await api.get(`/api/playlist/playlists/${playlistId}/`);
+        const response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
         setPlaylist(response.data);
-        // Initialize currentPlaylistId if queue matches this playlist
-        if (
-          queue.length > 0 &&
-          queue.some((track) => Number(track.playlist_id) === Number(response.data.id))
-        ) {
-          setCurrentPlaylistId(Number(response.data.id));
-        }
         checkLibraryStatus();
       } catch (err) {
         setError("Failed to load playlist");
@@ -210,216 +364,89 @@ const SavedPlaylistPage = () => {
     };
 
     fetchPlaylist();
-  }, [playlistId, queue, checkLibraryStatus]);
-
-
-  // Mobile-optimized track component
-  const TrackItem = React.memo(({ track, index }) => {
-    const isThisTrackPlaying = Number(currentMusicId) === Number(track.music_details.id) &&
-                              isCurrentTrackFromPlaylist;
-
-    return (
-      <div
-        className={`flex items-center p-3 border-b border-gray-800 ${
-          isThisTrackPlaying ? "bg-white/20" : ""
-        } hover:bg-white/10 transition-colors group`}
-      >
-        <div className="flex items-center justify-center w-6 text-sm text-gray-400 mr-1">
-          <span className="group-hover:hidden">{index + 1}</span>
-          <button
-            className="hidden group-hover:block"
-            onClick={() => handlePlayTrack(track, index)}
-          >
-            {isThisTrackPlaying && isPlaying ? (
-              <Pause className="h-4 w-4" />
-            ) : (
-              <Play className="h-4 w-4" />
-            )}
-          </button>
-        </div>
-
-        <img
-          src={track.music_details.cover_photo || "/api/placeholder/40/40"}
-          alt={track.music_details.name}
-          className="w-10 h-10 rounded-md"
-        />
-
-        <div className="flex-1 min-w-0 ml-3">
-          <div className="font-medium text-sm truncate">
-            {track.music_details.name}
-          </div>
-          <div className="text-xs text-gray-400 truncate">
-            {track.music_details.artist_full_name}
-          </div>
-        </div>
-
-        <span className="text-xs text-gray-400 ml-2 w-12 text-right">
-          {formatDuration(track.music_details.duration)}
-        </span>
-      </div>
-    );
-  });
-
-  // Desktop track row component
-  const TrackRow = React.memo(({ track, index }) => {
-    const isThisTrackPlaying = Number(currentMusicId) === Number(track.music_details.id) &&
-                              isCurrentTrackFromPlaylist;
-
-    return (
-      <tr
-        className={`group hover:bg-white/10 transition-colors ${
-          isThisTrackPlaying ? "bg-white/20" : ""
-        }`}
-      >
-        <td className="py-3 pl-4">
-          <div className="flex items-center justify-center w-8 group">
-            <span className="group-hover:hidden">{index + 1}</span>
-            <button
-              className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
-              onClick={() => handlePlayTrack(track, index)}
-            >
-              {isThisTrackPlaying && isPlaying ? (
-                <Pause className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-        </td>
-        <td className="py-3 pl-6">
-          <div className="flex items-center gap-3">
-            <img
-              src={track.music_details.cover_photo || "/api/placeholder/40/40"}
-              alt={track.music_details.name}
-              className="w-10 h-10 rounded-md"
-            />
-            <span className="font-medium">
-              {track.music_details.name}
-            </span>
-          </div>
-        </td>
-        <td className="py-3 pl-6 hidden md:table-cell text-gray-400">
-          {track.music_details.artist_full_name}
-        </td>
-        <td className="py-3 pl-6 hidden md:table-cell text-gray-400">
-          {new Date(track.music_details.release_date).toLocaleDateString()}
-        </td>
-        <td className="py-3 text-center text-gray-400 w-20">
-          {formatDuration(track.music_details.duration)}
-        </td>
-      </tr>
-    );
-  });
+  }, [playlistId, checkLibraryStatus]);
 
   if (isLoading) {
     return (
-      <div className="p-4 space-y-4">
-        <div className="h-36 w-36 sm:h-48 sm:w-48 bg-gray-700 animate-pulse rounded-lg mx-auto sm:mx-0"></div>
-        <div className="h-10 w-56 bg-gray-700 animate-pulse rounded mx-auto sm:mx-0"></div>
-        <div className="h-6 w-28 bg-gray-700 animate-pulse rounded mx-auto sm:mx-0"></div>
+      <div className="p-4 md:p-6 space-y-4">
+        <div className="h-36 w-36 md:h-48 md:w-48 bg-gray-700 animate-pulse rounded-lg mx-auto md:mx-0"></div>
+        <div className="h-10 w-48 md:h-12 md:w-64 bg-gray-700 animate-pulse rounded mx-auto md:mx-0"></div>
+        <div className="h-6 w-24 md:h-8 md:w-32 bg-gray-700 animate-pulse rounded mx-auto md:mx-0"></div>
       </div>
     );
   }
 
-  if (error) {
-    return (
-      <div className="p-4 sm:p-6">
-        <div className="text-red-500 text-center">{error}</div>
-      </div>
-    );
-  }
-
-  if (!playlist) {
-    return (
-      <div className="p-4 sm:p-6">
-        <div className="text-gray-400 text-center">Playlist not found</div>
-      </div>
-    );
-  }
+  if (!playlist) return null;
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 via-black to-black text-white pb-24 sm:pb-28">
-      {/* Header Section */}
-      <div className="flex flex-col sm:flex-row items-center sm:items-end gap-6 p-4 sm:p-6 pt-6">
-        <div className="w-36 h-36 sm:w-48 sm:h-48 flex-shrink-0 shadow-xl">
+    <div className="flex flex-col text-white pb-24 md:pb-28">
+      <div className="flex flex-col items-center md:items-start md:flex-row md:items-end gap-4 md:gap-6 p-4 md:p-6">
+        <div className="relative group w-36 h-36 md:w-48 md:h-48 flex-shrink-0">
           <img
-            src={playlist.cover_photo || "/api/placeholder/192/192"}
+            src={playlist.cover_photo || "/api/v1/placeholder/192/192"}
             alt={playlist.name}
             className="w-full h-full object-cover rounded-lg shadow-2xl"
           />
         </div>
-
-        <div className="flex flex-col gap-2 sm:gap-4 text-center sm:text-left">
-          <span className="text-xs sm:text-sm font-medium uppercase tracking-wider text-gray-400">
+        <div className="flex flex-col gap-2 md:gap-4 text-center md:text-left">
+          <span className="text-xs md:text-sm font-medium uppercase tracking-wider text-gray-400">
             {playlist.is_public ? "Public Playlist" : "Private Playlist"}
           </span>
-          <h1 className="text-3xl sm:text-5xl md:text-7xl font-bold tracking-tight">
+          <h1 className="text-3xl md:text-5xl lg:text-7xl font-bold tracking-tight">
             {playlist.name}
           </h1>
-          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-gray-300 text-xs sm:text-sm">
-            <span>
+          <div className="flex items-center justify-center md:justify-start gap-2 text-gray-300 flex-wrap">
+            <span className="text-xs md:text-sm">
               Created by <span className="text-white">{playlist.created_by_username}</span>
             </span>
-            <span className="hidden sm:inline">•</span>
-            <span>{playlist.tracks?.length || 0} songs</span>
-            <span className="hidden sm:inline">•</span>
-            <span>{totalDuration}</span>
+            <span className="hidden md:inline text-gray-500">•</span>
+            <span className="text-xs md:text-sm">{stableTracks.length} songs</span>
+            <span className="hidden md:inline text-gray-500">•</span>
+            <span className="text-xs md:text-sm">{totalDuration}</span>
           </div>
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex items-center justify-center sm:justify-start gap-4 p-4 sm:p-6">
+      <div className="flex items-center justify-center md:justify-start gap-6 p-4 md:p-6">
         <button
-          className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors shadow-lg"
+          className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors duration-200 ease-in-out shadow-lg"
           onClick={handlePlayPlaylist}
         >
-          {isPlaying && isCurrentTrackFromPlaylist ? (
-            <Pause className="h-5 w-5 sm:h-6 sm:w-6 text-black" />
+          {isCollectionPlaying ? (
+            <Pause className="h-5 w-5 md:h-6 md:w-6 text-black" />
           ) : (
-            <Play className="h-5 w-5 sm:h-6 sm:w-6 text-black ml-0.5 sm:ml-1" />
+            <Play className="h-5 w-5 md:h-6 md:w-6 text-black ml-0.5 md:ml-1" />
           )}
         </button>
 
-        <div className="flex items-center gap-4">
-          <button className="p-2 text-gray-400 hover:text-white transition-colors">
-            <Share2 className="h-5 w-5 sm:h-6 sm:w-6" />
-          </button>
-            <button
-              className={`group p-1 border-2 rounded-full w-8 h-8 flex items-center justify-center 
-                transition-all duration-200 transform hover:scale-105
-                ${isInLibrary
-                  ? "border-green-500 bg-green-500/20 hover:bg-green-500/30"
-                  : "border-gray-400 hover:border-gray-100 hover:bg-transparent"}`}
-              onClick={handleToggleLibrary}
-              disabled={isLibraryLoading}
-            >
-              {isLibraryLoading ? (
-                <div className="h-4 w-4 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
-              ) : isInLibrary ? (
-                <Check className="h-5 w-5 text-green-500" />
-              ) : (
-                <Plus className="h-5 w-5 text-gray-400 group-hover:text-white transition-colors" />
-              )}
-            </button>
-        </div>
+        <button 
+           onClick={handleToggleLibrary}
+           disabled={isLibraryLoading}
+           className={`p-2 transition-all duration-200 hover:scale-105 active:scale-95 ${isInLibrary ? 'text-green-500' : 'text-gray-400 hover:text-white'}`}>
+             {isInLibrary ? (
+               <Check className="h-6 w-6 md:h-8 md:w-8" />
+             ) : (
+               <Plus className="h-6 w-6 md:h-8 md:w-8" />
+             )}
+        </button>
+
+        <button 
+          onClick={handleShare}
+          className="p-2 text-gray-400 hover:text-white transition-colors duration-200 ease-in-out"
+        >
+          <Share2 className="h-5 w-5 md:h-6 md:w-6" />
+        </button>
       </div>
 
-      {/* Track List */}
-      <div className="flex-1 p-4 sm:p-6 pb-20 sm:pb-12">
-        {/* Desktop view - table */}
-        <div className="hidden sm:block w-full">
+      <div className="flex-1 p-4 md:p-6 pb-20 md:pb-12">
+        <div className="hidden md:block w-full">
           <table className="w-full border-collapse">
             <thead>
               <tr className="text-gray-400 border-b border-gray-800">
                 <th className="font-normal py-3 w-12 pl-4">#</th>
                 <th className="font-normal text-left py-3 pl-6">Title</th>
-                <th className="font-normal text-left py-3 pl-6 hidden md:table-cell">
-                  Artist
-                </th>
-                <th className="font-normal text-left py-3 pl-6 hidden md:table-cell">
-                  Release Date
-                </th>
+                <th className="font-normal text-left py-3 pl-6 pr-4 text-sm uppercase tracking-wider">Artist</th>
+                <th className="font-normal text-left py-3 pl-6 pr-4 text-sm uppercase tracking-wider">Album</th>
                 <th className="font-normal text-center py-3 w-20">
                   <Clock className="h-4 w-4 inline" />
                 </th>
@@ -427,14 +454,20 @@ const SavedPlaylistPage = () => {
             </thead>
             <tbody>
               {stableTracks.map((track, index) => (
-                <TrackRow key={track.music_details.id} track={track} index={index} />
+                <TrackRow 
+                  key={track.music_details.id} 
+                  track={track} 
+                  index={index}
+                  currentMusicId={currentMusicId}
+                  isCollectionActive={isCurrentTrackFromPlaylist}
+                  isCollectionPlaying={isCollectionPlaying}
+                  onPlayTrack={handlePlayTrack}
+                />
               ))}
             </tbody>
           </table>
         </div>
-
-        {/* Mobile view - card list */}
-        <div className="sm:hidden">
+        <div className="md:hidden">
           <div className="flex justify-between items-center mb-2 px-2 text-gray-400 text-sm font-medium">
             <div>#</div>
             <div className="flex items-center">
@@ -443,13 +476,29 @@ const SavedPlaylistPage = () => {
           </div>
           <div className="rounded-lg overflow-hidden">
             {stableTracks.map((track, index) => (
-              <TrackItem key={track.music_details.id} track={track} index={index} />
+              <TrackItem 
+                key={track.music_details.id} 
+                track={track} 
+                index={index}
+                currentMusicId={currentMusicId}
+                isCollectionActive={isCurrentTrackFromPlaylist}
+                isCollectionPlaying={isCollectionPlaying}
+                onPlayTrack={handlePlayTrack}
+              />
             ))}
           </div>
         </div>
       </div>
+
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onClose={() => setIsShareModalOpen(false)} 
+        shareUrl={window.location.href}
+        title={playlist ? `Check out the playlist ${playlist.name} created by ${playlist.created_by_username} on Wave!` : 'Check out this playlist on Wave!'}
+      />
     </div>
   );
 };
 
+SavedPlaylistPage.displayName = 'SavedPlaylistPage';
 export default SavedPlaylistPage;

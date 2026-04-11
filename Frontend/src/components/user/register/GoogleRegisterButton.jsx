@@ -24,7 +24,7 @@ const GoogleRegisterButton = () => {
         throw new Error('No credential received from Google');
       }
   
-      const { data } = await api.post('/api/users/google-pre-register/', 
+      const { data } = await api.post('/api/v1/users/google-pre-register/', 
         { token: response.credential },
         { headers: { 'Content-Type': 'application/json' } }
       );

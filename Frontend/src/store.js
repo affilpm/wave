@@ -1,6 +1,6 @@
 // store.js
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
-import { persistStore, persistReducer, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER } from 'redux-persist';
+import { persistStore, persistReducer, createTransform, FLUSH, REHYDRATE, PAUSE, PERSIST, PURGE, REGISTER } from 'redux-persist';
 import storage from 'redux-persist/lib/storage';
 import userReducer from './slices/user/userSlice';
 import adminReducer from './slices/admin/adminSlice';
@@ -11,6 +11,34 @@ import playerReducer from './slices/user/playerSlice';
 import playerMiddleware from './middleware/playerMiddleware';
 import { activityMiddleware } from './middleware/activityMiddleware';
 import equalizerReducer from './slices/user/equalizerSlice';
+import libraryReducer from './slices/user/librarySlice';
+import listeningHistoryReducer from './slices/user/listeningHistorySlice';
+
+const playerFilter = createTransform(
+  // transform state on its way to being serialized and persisted.
+  (inboundState, key) => {
+    if (key === 'player') {
+      return {
+        ...inboundState,
+        currentTrack: inboundState.currentTrack ? {
+          ...inboundState.currentTrack,
+          hlsUrl: null,
+          audio_file: null,
+        } : null,
+      };
+    }
+    return inboundState;
+  },
+  // transform state being rehydrated
+  (outboundState, key) => outboundState,
+);
+
+const playerPersistConfig = {
+  key: 'player',
+  storage,
+  blacklist: ['currentTime', 'status'], // Don't persist time (handled manually) or transient status
+  transforms: [playerFilter],
+};
 
 const rootReducer = combineReducers({
   user: userReducer,
@@ -18,15 +46,16 @@ const rootReducer = combineReducers({
   modal: modalReducer,
   playlists: playlistReducer,
   album: albumReducer,
-  player: playerReducer,   
+  player: persistReducer(playerPersistConfig, playerReducer),   
   equalizer: equalizerReducer,
+  library: libraryReducer,
+  listeningHistory: listeningHistoryReducer,
 });
 
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['user', 'admin', 'album', 'player', 'equalizer'], 
-
+  whitelist: ['user', 'admin', 'album', 'equalizer', 'library', 'listeningHistory'], // 'player' is now handled by its own persistReducer
 };
 
 const persistedReducer = persistReducer(persistConfig, rootReducer);

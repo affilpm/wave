@@ -1,0 +1,270 @@
+import React, { useMemo, useState } from "react";
+import { Play, Pause, Heart, Plus, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useDispatch, useSelector } from "react-redux";
+import { useNavigate, Link } from "react-router-dom";
+import { selectIsLiked, toggleLike, selectFollowedArtists, toggleFollowArtist, selectSavedAlbums, selectSavedPlaylists, toggleSavedAlbumOptimistic, toggleSavedPlaylistOptimistic } from "../../../../slices/user/librarySlice";
+import AvatarFallback from "../../../common/AvatarFallback";
+import api from "../../../../api";
+import { LIBRARY } from "../../../../constants/apiEndpoints";
+
+const TrackCard = ({ item, index, isPlaying, onPlayPlayable, type = 'music' }) => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const username = useSelector((state) => state.user.username);
+  
+  // Selectors for artist follow status
+  const followedArtists = useSelector(selectFollowedArtists);
+  const isFollowed = useMemo(() => {
+    if (type !== 'artist' || !item?.id) return false;
+    return followedArtists.some(a => (a.artist?.id || a.id) === item.id);
+  }, [followedArtists, item?.id, type]);
+
+  // Use Redux selector to check if this track is liked
+  const isLiked = useSelector((state) => (item?.id ? selectIsLiked(state, item.id) : false));
+
+  const savedAlbums = useSelector(selectSavedAlbums);
+  const savedPlaylists = useSelector(selectSavedPlaylists);
+  const [isLibraryLoading, setIsLibraryLoading] = useState(false);
+
+  const isSaved = useMemo(() => {
+    if (!item?.id) return false;
+    if (type === 'album') {
+      return savedAlbums.some(a => a.id === item.id);
+    } else if (type === 'playlist') {
+      return savedPlaylists.some(p => p.id === item.id);
+    }
+    return false;
+  }, [type, item?.id, savedAlbums, savedPlaylists]);
+
+  const handleToggleLibrary = async (e) => {
+    e.stopPropagation();
+    if (type === 'album') {
+      const albumData = { id: item.id, name: item.name, cover_photo: item.cover_photo || item.image, artist_username: item.artist_username || item.artist || item.author };
+      const wasInLibrary = isSaved;
+      dispatch(toggleSavedAlbumOptimistic(albumData));
+      
+      try {
+        setIsLibraryLoading(true);
+        if (wasInLibrary) {
+          await api.post(LIBRARY.REMOVE_ALBUM, { album_id: item.id });
+        } else {
+          await api.post(LIBRARY.ADD_ALBUM, { album_id: item.id });
+        }
+      } catch (error) {
+        console.error("Failed to update library:", error);
+        dispatch(toggleSavedAlbumOptimistic(albumData));
+      } finally {
+        setIsLibraryLoading(false);
+      }
+    } else if (type === 'playlist') {
+      if (item.created_by === username) return;
+      const playlistData = {
+        id: item.id,
+        name: item.name,
+        cover_photo: item.cover_photo || item.image,
+        created_by_username: item.created_by_username || item.creator_username || item.created_by,
+        songCount: item.tracks?.length || 0
+      };
+      const wasInLibrary = isSaved;
+      dispatch(toggleSavedPlaylistOptimistic(playlistData));
+      
+      try {
+        setIsLibraryLoading(true);
+        if (wasInLibrary) {
+          await api.post(LIBRARY.REMOVE_PLAYLIST, { playlist_id: item.id });
+        } else {
+          await api.post(LIBRARY.ADD_PLAYLIST, { playlist_id: item.id });
+        }
+      } catch (error) {
+        console.error("Failed to update library:", error);
+        dispatch(toggleSavedPlaylistOptimistic(playlistData));
+      } finally {
+        setIsLibraryLoading(false);
+      }
+    }
+  };
+
+  const handleLike = (e) => {
+    e.stopPropagation();
+    dispatch(toggleLike(item.id));
+  };
+
+  const handleFollow = (e) => {
+    e.stopPropagation();
+    dispatch(toggleFollowArtist(item));
+  };
+
+  const handleCardClick = () => {
+    if (type === 'album') {
+      navigate(`/album/${item.id}`);
+    } else if (type === 'playlist') {
+      const route = item.created_by === username ? `/playlist/${item.id}` : `/saved-playlist/${item.id}`;
+      navigate(route);
+    } else if (type === 'artist') {
+      navigate(`/artist/${item.id}`);
+    } else if (type === 'music') {
+      // For music, clicking the card could also play it
+      onPlayPlayable(item, index, { stopPropagation: () => {} });
+    }
+  };
+
+  const handlePlayClick = (e) => {
+    e.stopPropagation();
+    onPlayPlayable(item, index, e);
+  };
+
+  const isArtist = type === 'artist';
+  const coverSrc = item?.cover_photo || item?.image || item?.cover || item?.profile_photo;
+  const artistName = 
+    item?.artist_username || 
+    item?.created_by_username || 
+    item?.creator_username || 
+    item?.artist?.name || 
+    item?.artist || 
+    item?.author || 
+    item?.created_by || 
+    (isArtist ? 'Artist' : "Unknown Artist");
+
+  return (
+    <div 
+      className="flex-none w-44 p-3 bg-neutral-900/40 hover:bg-neutral-800/60 rounded-lg group transition-all duration-300 ease-in-out cursor-pointer hover:shadow-2xl"
+      onClick={handleCardClick}
+    >
+      <div className={`relative w-full aspect-square mb-4 ${isArtist ? 'px-2' : ''}`}>
+        {coverSrc && !coverSrc.toString().includes('default-cover.png') ? (
+          <img
+            src={coverSrc}
+            alt={item.name || item.username}
+            className={`w-full h-full object-cover shadow-lg group-hover:shadow-xl transition-all duration-300 ${isArtist ? 'rounded-full' : 'rounded-md'}`}
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'flex';
+            }}
+          />
+        ) : null}
+        <AvatarFallback 
+          name={item.name}
+          username={item.username || item.first_name}
+          className={`w-full h-full text-2xl ${isArtist ? 'rounded-full' : 'rounded-md'}`}
+          style={{ display: (coverSrc && !coverSrc.toString().includes('default-cover.png')) ? 'none' : 'flex' }}
+        />
+        {/* Play Button Overlay (Hidden for artists usually, or used to play top tracks) */}
+        {!isArtist && (
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all rounded-md flex items-end justify-end p-2 opacity-0 group-hover:opacity-100 duration-300">
+            <button
+              className={`w-12 h-12 bg-green-500 rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-90 hover:bg-green-400 transition-all duration-300 overflow-hidden ${isPlaying ? 'opacity-100 translate-y-0' : 'transform translate-y-4 group-hover:translate-y-0 opacity-0 group-hover:opacity-100'}`}
+              onClick={handlePlayClick}
+              aria-label={isPlaying ? "Pause" : "Play"}
+            >
+              <AnimatePresence mode="wait">
+                {isPlaying ? (
+                  <motion.div
+                    key="pause"
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Pause className="w-6 h-6 text-black fill-current" />
+                  </motion.div>
+                ) : (
+                  <motion.div
+                    key="play"
+                    initial={{ scale: 0.5, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0.5, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Play className="w-6 h-6 text-black fill-current ml-1" />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </button>
+          </div>
+        )}
+      </div>
+      <div className="flex flex-col min-h-[4rem]">
+        <div className="flex items-start justify-between mb-1">
+          <div className="flex-1 truncate pr-2">
+            <h3 className="font-bold text-base text-white truncate">{item.name || item.username || item.first_name}</h3>
+            {!isArtist && (
+              <p className="text-sm text-neutral-400 truncate">
+                {item.artist_id ? (
+                  <Link 
+                    to={`/artist/${item.artist_id}`}
+                    className="hover:underline hover:text-white transition-colors"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {artistName}
+                  </Link>
+                ) : (
+                  artistName
+                )}
+                {type === 'music' && item.album_name && (
+                  <>
+                    { " • " }
+                    {item.album_id ? (
+                      <Link 
+                        to={`/album/${item.album_id}`} 
+                        className="hover:underline hover:text-white transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {item.album_name}
+                      </Link>
+                    ) : (
+                      item.album_name
+                    )}
+                  </>
+                )}
+              </p>
+            )}
+            {isArtist && <p className="text-sm text-neutral-400 uppercase tracking-wider text-xs font-semibold">Artist</p>}
+          </div>
+          
+          {type === 'music' && (
+            <button 
+              onClick={handleLike}
+              className="text-neutral-400 hover:text-white mt-1 transition-colors relative z-10"
+            >
+              <Heart 
+                className={`w-5 h-5 transition-transform hover:scale-110 active:scale-90 ${isLiked ? 'fill-green-500 text-green-500' : ''}`} 
+              />
+            </button>
+          )}
+          
+          {(type === 'album' || (type === 'playlist' && item.created_by !== username)) && (
+            <button 
+              onClick={handleToggleLibrary}
+              disabled={isLibraryLoading}
+              className={`mt-1 flex items-center justify-center transition-all duration-200 transform hover:scale-105 relative z-10 ${isSaved ? "text-green-500" : "text-neutral-400 hover:text-white"}`}
+            >
+              {isLibraryLoading ? (
+                <div className="h-5 w-5 border-2 border-t-transparent border-current rounded-full animate-spin"></div>
+              ) : isSaved ? (
+                <Check className="w-5 h-5" />
+              ) : (
+                <Plus className="w-5 h-5" />
+              )}
+            </button>
+          )}
+        </div>
+
+        {isArtist && item.username !== username && (
+          <button
+            onClick={handleFollow}
+            className={`mt-2 w-full py-1.5 rounded-full text-xs font-bold transition-all duration-200 ${
+              isFollowed 
+                ? 'bg-transparent border border-neutral-500 text-white hover:border-white' 
+                : 'bg-white text-black hover:scale-105 active:scale-95'
+            }`}
+          >
+            {isFollowed ? 'Following' : 'Follow'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default TrackCard;

@@ -33,7 +33,7 @@ const CreatorStudio = () => {
       const token = localStorage.getItem('access_token');
       if (!token) return;
 
-      const response = await api.get('/api/artists/verification_status/', {
+      const response = await api.get('/api/v1/artists/verification_status/', {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -48,8 +48,9 @@ const CreatorStudio = () => {
 
   const fetchGenres = async () => {
     try {
-      const response = await api.get('/api/music/genres/');
-      setGenres(response.data);
+      const response = await api.get('/api/v1/music/genres/');
+      const data = response.data.results || response.data || [];
+      setGenres(data);
     } catch (err) {
       console.error('Failed to fetch genres:', err);
       toast.error('Failed to load music genres');
@@ -79,7 +80,7 @@ const CreatorStudio = () => {
       const token = localStorage.getItem('access_token');
       if (!token) throw new Error('Access token not found');
 
-      const endpoint = isUpdate ? '/api/artists/update_profile/' : '/api/artists/request_verification/';
+      const endpoint = isUpdate ? '/api/v1/artists/update_profile/' : '/api/v1/artists/request_verification/';
       const response = await api.post(endpoint, 
         { bio: bioToSubmit, genres: genresToSubmit }, 
         { headers: { Authorization: `Bearer ${token}` } }

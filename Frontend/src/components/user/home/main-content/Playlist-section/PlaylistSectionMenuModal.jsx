@@ -33,7 +33,7 @@ const PlaylistSectionMenuModal = ({ playlist, onSuccess }) => {
         if (!playlist?.id) return; // Guard clause to prevent unnecessary API call
 
         try {
-            const response = await api.get(`/api/library/library/check-playlist/${playlist.id}/`);
+            const response = await api.get(`/api/v1/library/library/check-playlist/${playlist.id}/`);
             if (isMounted) {
                 setIsInLibrary(response.data?.is_in_library || false);
             }
@@ -67,7 +67,7 @@ const showToast = (message) => {
       setError(null);
       setIsMenuOpen(false);
       
-      const response = await api.post('/api/library/library/add-playlist/', {
+      const response = await api.post('/api/v1/library/library/add-playlist/', {
         playlist_id: playlist.id
       });
       
@@ -96,7 +96,7 @@ const showToast = (message) => {
       setError(null);
       setIsMenuOpen(false);
 
-      await api.post('/api/library/remove_playlist/', {
+      await api.post('/api/v1/library/remove_playlist/', {
         playlist_id: playlist.id 
       });
 

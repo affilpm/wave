@@ -1,40 +1,287 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Play, Pause, Clock, Share2, X, Heart } from "lucide-react";
-import { useNavigate, useParams } from "react-router-dom";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { Play, Pause, Clock, Share2, X, Heart, Shuffle } from "lucide-react";
+import { useNavigate, useParams, useLocation, Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import api from "../../../../../api";
 import PlaylistMenuModal from "./YourPlaylistMenuModal";
 import EditPlaylistModal from "./EditPlaylistModal";
 import TrackSearch from "./TrackSearch";
+import { toast } from "react-toastify";
 import {
   formatDuration,
   convertToSeconds,
   convertToHrMinFormat,
 } from "../../../../../utils/formatters";
 import {
-  setCurrentMusic,
-  setIsPlaying,
   setQueue,
   clearQueue,
-  playNext,
+  togglePlay,
+  setIsPlaying,
 } from "../../../../../slices/user/playerSlice";
+import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
+import { usePlayCollection } from "../../../../../hooks/usePlayCollection";
+import ShareModal from "../../../../common/ShareModal";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
-    queue: player.queue,
-    currentIndex: player.currentIndex,
+    currentTrack: player.currentTrack,
+    currentContext: player.currentContext,
   })
+);
+
+// Desktop track row component
+const TrackRow = React.memo(
+  ({ 
+    track, 
+    index, 
+    currentMusicId, 
+    isCollectionActive, 
+    isCollectionPlaying, 
+    onPlayTrack, 
+    onRemoveClick,
+    isLikedSongsPlaylist 
+  }) => {
+    const isThisTrackPlaying = useMemo(
+      () => Number(currentMusicId) === Number(track.music_details.id) && isCollectionActive,
+      [currentMusicId, isCollectionActive]
+    );
+
+    return (
+      <tr
+        className={`group hover:bg-white/10 transition-colors cursor-pointer ${
+          isThisTrackPlaying ? "bg-white/5" : ""
+        }`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onPlayTrack(track, index);
+        }}
+      >
+        <td className="py-3 pl-4">
+          <div className="flex items-center justify-center w-8 h-8 group relative text-gray-400">
+            {isThisTrackPlaying && isCollectionPlaying ? (
+              <div className="flex items-center gap-0.5 h-3 items-end">
+                <motion.span 
+                  animate={{ height: ["20%", "70%", "30%", "100%", "40%"] }}
+                  transition={{ repeat: Infinity, duration: 0.8, ease: "easeInOut" }}
+                  className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+                />
+                <motion.span 
+                  animate={{ height: ["40%", "100%", "50%", "80%", "60%"] }}
+                  transition={{ repeat: Infinity, duration: 0.7, ease: "easeInOut", delay: 0.1 }}
+                  className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+                />
+                <motion.span 
+                  animate={{ height: ["15%", "60%", "25%", "90%", "35%"] }}
+                  transition={{ repeat: Infinity, duration: 0.9, ease: "easeInOut", delay: 0.2 }}
+                  className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+                />
+              </div>
+            ) : (
+              <>
+                <span className={`text-sm font-medium group-hover:hidden ${isThisTrackPlaying ? 'text-green-500' : ''}`}>
+                  {index + 1}
+                </span>
+                <button
+                  className="hidden group-hover:flex items-center justify-center p-1.5 hover:text-white text-gray-400 active:scale-90 transition-transform bg-black/40 rounded-full backdrop-blur-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPlayTrack(track, index);
+                  }}
+                >
+                  {isThisTrackPlaying && isCollectionPlaying ? (
+                    <Pause className="h-4 w-4 fill-current" />
+                  ) : (
+                    <Play className="h-4 w-4 fill-current ml-0.5" />
+                  )}
+                </button>
+              </>
+            )}
+          </div>
+        </td>
+        <td className="py-3 pl-6">
+          <div className="flex items-center gap-3">
+            <img
+              src={track.music_details.cover_photo || "/api/v1/placeholder/40/40"}
+              alt={track.music_details.name}
+              className="w-10 h-10 rounded-md shadow-lg"
+            />
+            <span className={`font-medium ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{track.music_details.name}</span>
+          </div>
+        </td>
+        <td className="py-3 pl-6 pr-4 text-gray-400">
+          {track.music_details.artist_id ? (
+            <Link 
+              to={`/artist/${track.music_details.artist_id}`}
+              className="hover:underline hover:text-white transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {track.music_details.artist_username}
+            </Link>
+          ) : (
+            track.music_details.artist_username
+          )}
+        </td>
+        <td className="py-3 pl-6 pr-4 text-gray-400">
+          {track.music_details.album_id ? (
+            <Link to={`/album/${track.music_details.album_id}`} className="hover:underline hover:text-white transition-colors">
+              {track.music_details.album_name}
+            </Link>
+          ) : (
+            "Single"
+          )}
+        </td>
+        <td className="py-3 text-center text-gray-400 w-20">
+          {formatDuration(track.music_details.duration)}
+        </td>
+        <td className="py-3 pr-6 text-right">
+          <button
+            className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-opacity duration-200 ease-in-out"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemoveClick(track.music_details.id, track.music_details.name);
+            }}
+          >
+            {isLikedSongsPlaylist ? (
+              <Heart className="h-4 w-4" fill="currentColor" />
+            ) : (
+              <X className="h-4 w-4" />
+            )}
+          </button>
+        </td>
+      </tr>
+    );
+  },
+  (prevProps, nextProps) =>
+    prevProps.track.music_details.id === nextProps.track.music_details.id &&
+    prevProps.index === nextProps.index &&
+    prevProps.currentMusicId === nextProps.currentMusicId &&
+    prevProps.isCollectionActive === nextProps.isCollectionActive &&
+    prevProps.isCollectionPlaying === nextProps.isCollectionPlaying
+);
+
+// Mobile track card component
+const TrackCard = React.memo(
+  ({ 
+    track, 
+    index, 
+    currentMusicId, 
+    isCollectionActive, 
+    isCollectionPlaying, 
+    onPlayTrack, 
+    onRemoveClick,
+    isLikedSongsPlaylist 
+  }) => {
+    const isThisTrackPlaying = useMemo(
+      () => Number(currentMusicId) === Number(track.music_details.id) && isCollectionActive,
+      [currentMusicId, isCollectionActive]
+    );
+
+    return (
+      <div
+        className={`group flex items-center p-3 border-b border-gray-800 gap-3 cursor-pointer ${
+          isThisTrackPlaying ? "bg-white/5" : ""
+        } hover:bg-white/10 transition-colors duration-200 ease-in-out`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onPlayTrack(track, index);
+        }}
+      >
+        <div className="w-6 text-center text-sm text-gray-400 h-8 relative flex items-center justify-center">
+          {isThisTrackPlaying && isCollectionPlaying ? (
+            <div className="flex items-center gap-0.5 justify-center h-3 items-end">
+              <motion.span 
+                animate={{ height: ["20%", "70%", "30%", "100%", "40%"] }}
+                transition={{ repeat: Infinity, duration: 0.8, ease: "easeInOut" }}
+                className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+              />
+              <motion.span 
+                animate={{ height: ["40%", "100%", "50%", "80%", "60%"] }}
+                transition={{ repeat: Infinity, duration: 0.7, ease: "easeInOut", delay: 0.1 }}
+                className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+              />
+              <motion.span 
+                animate={{ height: ["15%", "60%", "25%", "90%", "35%"] }}
+                transition={{ repeat: Infinity, duration: 0.9, ease: "easeInOut", delay: 0.2 }}
+                className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+              />
+            </div>
+          ) : (
+            <>
+              <span className={`group-hover:hidden ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{index + 1}</span>
+              <button
+                className="hidden group-hover:flex items-center justify-center p-1.5 hover:text-white text-gray-400 active:scale-90 transition-transform bg-black/40 rounded-full backdrop-blur-sm mx-auto"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPlayTrack(track, index);
+                }}
+              >
+                {isThisTrackPlaying && isCollectionPlaying ? (
+                  <Pause className="h-4 w-4 fill-current" />
+                ) : (
+                  <Play className="h-4 w-4 fill-current ml-0.5" />
+                )}
+              </button>
+            </>
+          )}
+        </div>
+        <img
+          src={track.music_details.cover_photo || "/api/v1/placeholder/40/40"}
+          alt={track.music_details.name}
+          className="w-10 h-10 rounded-md shadow-md"
+        />
+        <div className="flex-1 min-w-0">
+          <div className={`font-medium truncate ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{track.music_details.name}</div>
+          <div className="text-sm text-gray-400 truncate">
+            {track.music_details.artist_id ? (
+              <Link 
+                to={`/artist/${track.music_details.artist_id}`}
+                className="hover:underline hover:text-white transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {track.music_details.artist_username}
+              </Link>
+            ) : (
+              track.music_details.artist_username
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">{formatDuration(track.music_details.duration)}</span>
+          <button
+            className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-opacity duration-200 ease-in-out"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemoveClick(track.music_details.id, track.music_details.name);
+            }}
+          >
+            {isLikedSongsPlaylist ? (
+              <Heart className="h-4 w-4" fill="currentColor" />
+            ) : (
+              <X className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  },
+  (prevProps, nextProps) =>
+    prevProps.track.music_details.id === nextProps.track.music_details.id &&
+    prevProps.index === nextProps.index &&
+    prevProps.currentMusicId === nextProps.currentMusicId &&
+    prevProps.isCollectionActive === nextProps.isCollectionActive &&
+    prevProps.isCollectionPlaying === nextProps.isCollectionPlaying
 );
 
 const YourPlaylistPage = () => {
   const dispatch = useDispatch();
   const { playlistId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const autoPlayHandled = useRef(false);
 
   const [playlist, setPlaylist] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -42,109 +289,64 @@ const YourPlaylistPage = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [trackToRemove, setTrackToRemove] = useState(null);
   const [showRemoveConfirmation, setShowRemoveConfirmation] = useState(false);
-  const [currentPlaylistId, setCurrentPlaylistId] = useState(null);
   const [totalDuration, setTotalDuration] = useState("");
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
 
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
 
+  const currentMusicId = currentTrack?.id;
+
   // Memoize tracks for stable props
   const stableTracks = useMemo(() => playlist?.tracks || [], [playlist]);
 
-  // Memoize isCurrentTrackFromPlaylist with debug logging
-  const isCurrentTrackFromPlaylist = useMemo(() => {
-    if (!playlist?.tracks || !currentMusicId || currentPlaylistId !== playlist?.id) {
-      console.log("isCurrentTrackFromPlaylist: Early return", {
-        hasTracks: !!playlist?.tracks,
-        currentMusicId,
-        currentPlaylistId,
-        playlistId: playlist?.id,
-      });
-      return false;
-    }
-    const currentTrack = queue[currentIndex];
-    const isTrackInPlaylist = playlist.tracks.some(
-      (track) => track.music_details.id === currentMusicId
-    );
-    console.log("isCurrentTrackFromPlaylist: Result", {
-      currentTrack,
-      isTrackInPlaylist,
-      currentMusicId,
-    });
-    return (
-      currentTrack &&
-      currentTrack.id === currentMusicId &&
-      isTrackInPlaylist
-    );
-  }, [playlist, currentMusicId, currentPlaylistId, queue, currentIndex]);
+  const context = useMemo(() => ({
+    type: 'playlist',
+    id: playlistId
+  }), [playlistId]);
 
-  // Memoize track preparation
-  const prepareTrackForPlayer = useCallback(
-    (track) => ({
-      id: track.music_details.id,
-      name: track.music_details.name,
-      title: track.music_details.name,
-      artist: track.music_details.artist_username,
-      artist_full: track.music_details.artist_full_name,
-      album: track.music_details.album_name || playlist?.name || "Unknown Album",
-      cover_photo: track.music_details.cover_photo,
-      duration: convertToSeconds(track.music_details.duration || "00:00:00"),
-      genre: track.music_details.genre || "",
-      year: track.music_details.release_date
-        ? new Date(track.music_details.release_date).getFullYear()
-        : null,
-      release_date: track.music_details.release_date,
-      track_number: track.track_number || 0,
-      yourplaylist_id: playlist?.id || null,
-      yourplaylist_name: playlist?.name || "Unknown Playlist",
-    }),
-    [playlist]
+  // Prepare formatted tracks for the player
+  const formattedTracks = useMemo(
+    () => prepareTracksForPlayer(stableTracks),
+    [stableTracks]
   );
 
-  // Handle play playlist
-  const handlePlayPlaylist = useCallback(() => {
-    if (!stableTracks.length) return;
+  // Hook handles all play/pause/toggle/shuffle logic
+  const {
+    handlePlayCollection: handlePlayPlaylist,
+    handlePlayTrackAtIndex,
+    handleShufflePlay,
+    isCollectionPlaying,
+    isCollectionActive: isCurrentTrackFromPlaylist,
+  } = usePlayCollection({ tracks: formattedTracks, context });
 
-    if (isCurrentTrackFromPlaylist) {
-      dispatch(setIsPlaying(!isPlaying));
-      return;
-    }
-
-    const formattedTracks = stableTracks.map(prepareTrackForPlayer);
-    dispatch(clearQueue());
-    dispatch(setQueue(formattedTracks));
-    setCurrentPlaylistId(playlist.id); // Set currentPlaylistId
-
-    if (formattedTracks.length > 0) {
-      dispatch(setCurrentMusic(formattedTracks[0]));
-      dispatch(setIsPlaying(true));
-    }
-  }, [dispatch, isCurrentTrackFromPlaylist, isPlaying, playlist, stableTracks, prepareTrackForPlayer]);
-
-  // Handle play track
   const handlePlayTrack = useCallback(
-    (track, index) => {
-      const formattedTracks = stableTracks.map(prepareTrackForPlayer);
-      const formattedTrack = formattedTracks[index];
-
-      if (currentMusicId === formattedTrack.id && currentPlaylistId === playlist.id) {
-        dispatch(setIsPlaying(!isPlaying));
-        return;
-      }
-
-      if (currentPlaylistId !== playlist.id) {
-        dispatch(clearQueue());
-        dispatch(setQueue(formattedTracks));
-        setCurrentPlaylistId(playlist.id); // Set currentPlaylistId
-      }
-
-      dispatch(setCurrentMusic(formattedTrack));
-      dispatch(setIsPlaying(true));
+    (_track, index) => {
+      handlePlayTrackAtIndex(index);
     },
-    [currentMusicId, currentPlaylistId, isPlaying, playlist, stableTracks, dispatch, prepareTrackForPlayer]
+    [handlePlayTrackAtIndex]
   );
+
+  const handleShare = () => {
+    setIsShareModalOpen(true);
+  };
+
+  // Handle autoPlay from location state
+  useEffect(() => {
+    if (stableTracks.length > 0 && !autoPlayHandled.current) {
+      if (location.state?.autoPlay) {
+        if (location.state?.autoShuffle) {
+          handleShufflePlay();
+        } else {
+          handlePlayPlaylist();
+        }
+        navigate(location.pathname, { replace: true, state: {} });
+      }
+      autoPlayHandled.current = true;
+    }
+  }, [stableTracks.length, location.state, location.pathname, handlePlayPlaylist, handleShufflePlay, navigate]);
 
   // Handle edit playlist
   const handleEdit = useCallback(() => setIsEditModalOpen(true), []);
@@ -152,18 +354,21 @@ const YourPlaylistPage = () => {
   const handleEditPlaylist = useCallback(
     (updatedPlaylist) => {
       setPlaylist(updatedPlaylist);
-      if (currentPlaylistId === updatedPlaylist.id && updatedPlaylist.tracks) {
-        const formattedTracks = updatedPlaylist.tracks.map(prepareTrackForPlayer);
-        dispatch(setQueue(formattedTracks));
+      if (isCurrentTrackFromPlaylist && updatedPlaylist.tracks) {
+        const updatedFormatted = prepareTracksForPlayer(updatedPlaylist.tracks);
+        dispatch(setQueue({
+          tracks: updatedFormatted,
+          context: { type: 'playlist', id: updatedPlaylist.id }
+        }));
       }
     },
-    [currentPlaylistId, dispatch, prepareTrackForPlayer]
+    [currentContext, dispatch]
   );
 
   // Handle toggle privacy
   const handleTogglePrivacy = useCallback(async () => {
     try {
-      await api.patch(`/api/playlist/playlists/${playlistId}/`, {
+      await api.patch(`/api/v1/playlist/playlists/${playlistId}/`, {
         is_public: !playlist.is_public,
       });
       setPlaylist((prev) => ({ ...prev, is_public: !prev.is_public }));
@@ -176,17 +381,16 @@ const YourPlaylistPage = () => {
   const handleDelete = useCallback(async () => {
     if (window.confirm("Are you sure you want to delete this playlist?")) {
       try {
-        if (currentPlaylistId === playlist.id) {
+        if (isCurrentTrackFromPlaylist) {
           dispatch(clearQueue());
-          setCurrentPlaylistId(null); // Reset currentPlaylistId
         }
-        await api.delete(`/api/playlist/playlists/${playlistId}/`);
+        await api.delete(`/api/v1/playlist/playlists/${playlistId}/`);
         navigate("/home");
       } catch (err) {
         setError("Failed to delete playlist");
       }
     }
-  }, [currentPlaylistId, dispatch, navigate, playlist, playlistId]);
+  }, [isCurrentTrackFromPlaylist, dispatch, navigate, playlistId]);
 
   // Handle remove track confirmation
   const confirmRemoveTrack = useCallback((trackId, trackName) => {
@@ -199,32 +403,25 @@ const YourPlaylistPage = () => {
     if (!trackToRemove) return;
 
     try {
-      await api.post(`/api/playlist/playlists/${playlistId}/remove-tracks/`, {
+      await api.post(`/api/v1/playlist/playlists/${playlistId}/remove-tracks/`, {
         track_ids: [trackToRemove.id],
       });
 
       await handleTracksUpdate();
 
-      if (currentPlaylistId === playlist.id) {
-        if (currentMusicId === trackToRemove.id) {
-          const updatedTracks = stableTracks.filter(
-            (track) => track.music_details.id !== trackToRemove.id
-          );
-          if (updatedTracks.length > 0) {
-            const formattedTracks = updatedTracks.map(prepareTrackForPlayer);
-            dispatch(setQueue(formattedTracks));
-            dispatch(playNext());
-          } else {
-            dispatch(clearQueue());
-            dispatch(setIsPlaying(false));
-            setCurrentPlaylistId(null); // Reset currentPlaylistId
-          }
+      if (isCurrentTrackFromPlaylist) {
+        const updatedTracks = stableTracks.filter(
+          (track) => track.music_details.id !== trackToRemove.id
+        );
+        const updatedFormatted = prepareTracksForPlayer(updatedTracks);
+
+        if (updatedFormatted.length > 0) {
+          dispatch(setQueue({
+            tracks: updatedFormatted,
+            context: { type: 'playlist', id: playlist.id }
+          }));
         } else {
-          const updatedTracks = stableTracks.filter(
-            (track) => track.music_details.id !== trackToRemove.id
-          );
-          const formattedTracks = updatedTracks.map(prepareTrackForPlayer);
-          dispatch(setQueue(formattedTracks));
+          dispatch(clearQueue());
         }
       }
 
@@ -236,13 +433,12 @@ const YourPlaylistPage = () => {
     }
   }, [
     trackToRemove,
-    currentPlaylistId,
+    isCurrentTrackFromPlaylist,
     currentMusicId,
     playlist,
     stableTracks,
     dispatch,
     playlistId,
-    prepareTrackForPlayer,
   ]);
 
   // Cancel remove track
@@ -251,19 +447,21 @@ const YourPlaylistPage = () => {
     setTrackToRemove(null);
   }, []);
 
-  // Handle tracks update
   const handleTracksUpdate = useCallback(async () => {
     try {
-      const response = await api.get(`/api/playlist/playlists/${playlistId}/`);
+      const response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
       setPlaylist(response.data);
-      if (currentPlaylistId === response.data.id && response.data.tracks) {
-        const formattedTracks = response.data.tracks.map(prepareTrackForPlayer);
-        dispatch(setQueue(formattedTracks));
+      if (isCurrentTrackFromPlaylist && response.data.tracks) {
+        const updatedFormatted = prepareTracksForPlayer(response.data.tracks);
+        dispatch(setQueue({
+          tracks: updatedFormatted,
+          context: { type: 'playlist', id: response.data.id }
+        }));
       }
     } catch (err) {
       setError("Failed to refresh playlist");
     }
-  }, [currentPlaylistId, dispatch, playlistId, prepareTrackForPlayer]);
+  }, [isCurrentTrackFromPlaylist, playlistId, dispatch]);
 
   // Calculate total duration
   useEffect(() => {
@@ -284,15 +482,13 @@ const YourPlaylistPage = () => {
   useEffect(() => {
     const fetchPlaylist = async () => {
       try {
-        const response = await api.get(`/api/playlist/playlists/${playlistId}/`);
-        setPlaylist(response.data);
-        // Initialize currentPlaylistId if the queue matches this playlist
-        if (
-          queue.length > 0 &&
-          queue.some((track) => track.yourplaylist_id === response.data.id)
-        ) {
-          setCurrentPlaylistId(response.data.id);
+        let response;
+        if (playlistId === 'liked-songs') {
+           response = await api.get('/api/v1/playlist/playlists/me/liked-songs/');
+        } else {
+           response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
         }
+        setPlaylist(response.data);
       } catch (err) {
         setError("Failed to load playlist");
       } finally {
@@ -301,140 +497,7 @@ const YourPlaylistPage = () => {
     };
 
     fetchPlaylist();
-  }, [playlistId, queue]);
-
-  // TrackRow component
-  const TrackRow = React.memo(
-    ({ track, index }) => {
-      const isThisTrackPlaying = useMemo(
-        () => currentMusicId === track.music_details.id && isCurrentTrackFromPlaylist,
-        [currentMusicId, isCurrentTrackFromPlaylist]
-      );
-
-      return (
-        <tr
-          className={`group hover:bg-white/10 transition-colors duration-200 ease-in-out ${
-            isThisTrackPlaying ? "bg-white/20" : ""
-          }`}
-        >
-          <td className="py-3 pl-4">
-            <div className="flex items-center justify-center w-8">
-              <span className="group-hover:hidden">{index + 1}</span>
-              <button
-                className="hidden group-hover:flex p-1 hover:text-white text-gray-400"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handlePlayTrack(track, index);
-                }}
-              >
-                {isThisTrackPlaying && isPlaying ? (
-                  <Pause className="h-4 w-4" />
-                ) : (
-                  <Play className="h-4 w-4" />
-                )}
-              </button>
-            </div>
-          </td>
-          <td className="py-3 pl-6">
-            <div className="flex items-center gap-3">
-              <img
-                src={track.music_details.cover_photo || "/api/placeholder/40/40"}
-                alt={track.music_details.name}
-                className="w-10 h-10 rounded-md"
-              />
-              <span className="font-medium">{track.music_details.name}</span>
-            </div>
-          </td>
-          <td className="py-3 pl-6 pr-4 text-gray-400">{track.music_details.artist_username}</td>
-          <td className="py-3 pl-6 pr-4 text-gray-400">{track.music_details.release_date}</td>
-          <td className="py-3 text-center text-gray-400 w-20">
-            {formatDuration(track.music_details.duration)}
-          </td>
-          <td className="py-3 pr-6 text-right">
-            <button
-              className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-opacity duration-200 ease-in-out"
-              onClick={(e) => {
-                e.stopPropagation();
-                confirmRemoveTrack(track.music_details.id, track.music_details.name);
-              }}
-            >
-              {playlist?.name === "Liked Songs" ? (
-                <Heart className="h-4 w-4" fill="currentColor" />
-              ) : (
-                <X className="h-4 w-4" />
-              )}
-            </button>
-          </td>
-        </tr>
-      );
-    },
-    (prevProps, nextProps) =>
-      prevProps.track === nextProps.track && prevProps.index === nextProps.index
-  );
-
-  // TrackCard component
-  const TrackCard = React.memo(
-    ({ track, index }) => {
-      const isThisTrackPlaying = useMemo(
-        () => currentMusicId === track.music_details.id && isCurrentTrackFromPlaylist,
-        [currentMusicId, isCurrentTrackFromPlaylist]
-      );
-
-      return (
-        <div
-          className={`group flex items-center p-3 border-b border-gray-800 gap-3 ${
-            isThisTrackPlaying ? "bg-white/20" : ""
-          } hover:bg-white/10 transition-colors duration-200 ease-in-out`}
-        >
-          <div className="w-6 text-center text-sm text-gray-400">
-            <span className="group-hover:hidden">{index + 1}</span>
-            <button
-              className="hidden group-hover:block"
-              onClick={(e) => {
-                e.stopPropagation();
-                handlePlayTrack(track, index);
-              }}
-            >
-              {isThisTrackPlaying && isPlaying ? (
-                <Pause className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-          <img
-            src={track.music_details.cover_photo || "/api/placeholder/40/40"}
-            alt={track.music_details.name}
-            className="w-10 h-10 rounded-md"
-          />
-          <div className="flex-1 min-w-0">
-            <div className="font-medium truncate">{track.music_details.name}</div>
-            <div className="text-sm text-gray-400 truncate">
-              {track.music_details.artist_username}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">{formatDuration(track.music_details.duration)}</span>
-            <button
-              className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-opacity duration-200 ease-in-out"
-              onClick={(e) => {
-                e.stopPropagation();
-                confirmRemoveTrack(track.music_details.id, track.music_details.name);
-              }}
-            >
-              {playlist?.name === "Liked Songs" ? (
-                <Heart className="h-4 w-4" fill="currentColor" />
-              ) : (
-                <X className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-        </div>
-      );
-    },
-    (prevProps, nextProps) =>
-      prevProps.track === nextProps.track && prevProps.index === nextProps.index
-  );
+  }, [playlistId]);
 
   if (isLoading) {
     return (
@@ -463,7 +526,7 @@ const YourPlaylistPage = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-b from-gray-900 via-black to-black text-white pb-24 md:pb-28">
+    <div className="flex flex-col text-white pb-24 md:pb-28">
       <div className="flex flex-col items-center md:items-start md:flex-row md:items-end gap-4 md:gap-6 p-4 md:p-6">
         <div className="relative group w-36 h-36 md:w-48 md:h-48 flex-shrink-0">
           {playlist.name === "Liked Songs" ? (
@@ -474,7 +537,7 @@ const YourPlaylistPage = () => {
             </div>
           ) : (
             <img
-              src={playlist.cover_photo || "/api/placeholder/192/192"}
+              src={playlist.cover_photo || "/api/v1/placeholder/192/192"}
               alt={playlist.name}
               className="w-full h-full object-cover rounded-lg shadow-2xl transition-opacity duration-200 ease-in-out group-hover:opacity-75"
             />
@@ -514,13 +577,17 @@ const YourPlaylistPage = () => {
           className="w-12 h-12 md:w-14 md:h-14 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center transition-colors duration-200 ease-in-out shadow-lg"
           onClick={handlePlayPlaylist}
         >
-          {isPlaying && isCurrentTrackFromPlaylist ? (
+          {isCollectionPlaying ? (
             <Pause className="h-5 w-5 md:h-6 md:w-6 text-black" />
           ) : (
             <Play className="h-5 w-5 md:h-6 md:w-6 text-black ml-0.5 md:ml-1" />
           )}
         </button>
-        <button className="p-2 text-gray-400 hover:text-white transition-colors duration-200 ease-in-out">
+
+        <button 
+          onClick={handleShare}
+          className="p-2 text-gray-400 hover:text-white transition-colors duration-200 ease-in-out"
+        >
           <Share2 className="h-5 w-5 md:h-6 md:w-6" />
         </button>
         {playlist.name !== "Liked Songs" && (
@@ -541,7 +608,7 @@ const YourPlaylistPage = () => {
                 <th className="font-normal py-3 w-12 pl-4">#</th>
                 <th className="font-normal text-left py-3 pl-6">Title</th>
                 <th className="font-normal text-left py-3 pl-6 pr-4">Artist</th>
-                <th className="font-normal text-left py-3 pl-6 pr-4">Added</th>
+                <th className="font-normal text-left py-3 pl-6 pr-4">Album</th>
                 <th className="font-normal text-center py-3 w-20">
                   <Clock className="h-4 w-4 inline" />
                 </th>
@@ -550,7 +617,17 @@ const YourPlaylistPage = () => {
             </thead>
             <tbody>
               {stableTracks.map((track, index) => (
-                <TrackRow key={track.music_details.id} track={track} index={index} />
+                <TrackRow 
+                  key={track.music_details.id} 
+                  track={track} 
+                  index={index}
+                  currentMusicId={currentMusicId}
+                  isCollectionActive={isCurrentTrackFromPlaylist}
+                  isCollectionPlaying={isCollectionPlaying}
+                  onPlayTrack={handlePlayTrack}
+                  onRemoveClick={confirmRemoveTrack}
+                  isLikedSongsPlaylist={playlist?.name === "Liked Songs"}
+                />
               ))}
             </tbody>
           </table>
@@ -564,7 +641,17 @@ const YourPlaylistPage = () => {
           </div>
           <div className="rounded-lg overflow-hidden">
             {stableTracks.map((track, index) => (
-              <TrackCard key={track.music_details.id} track={track} index={index} />
+              <TrackCard 
+                key={track.music_details.id} 
+                track={track} 
+                index={index}
+                currentMusicId={currentMusicId}
+                isCollectionActive={isCurrentTrackFromPlaylist}
+                isCollectionPlaying={isCollectionPlaying}
+                onPlayTrack={handlePlayTrack}
+                onRemoveClick={confirmRemoveTrack}
+                isLikedSongsPlaylist={playlist?.name === "Liked Songs"}
+              />
             ))}
           </div>
         </div>
@@ -610,8 +697,16 @@ const YourPlaylistPage = () => {
           </div>
         </div>
       )}
+
+      <ShareModal 
+        isOpen={isShareModalOpen} 
+        onClose={() => setIsShareModalOpen(false)} 
+        shareUrl={window.location.href}
+        title={playlist ? `Check out the playlist ${playlist.name} created by ${playlist.created_by_username} on Wave!` : 'Check out this playlist on Wave!'}
+      />
     </div>
   );
 };
 
+YourPlaylistPage.displayName = 'YourPlaylistPage';
 export default YourPlaylistPage;

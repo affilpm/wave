@@ -3,7 +3,7 @@ import { Trash2, Eye, EyeOff, Search, AlertCircle, Tag } from 'lucide-react';
 import api from '../../../api';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 
 const MusicManagement = () => {
   const [tracks, setTracks] = useState([]);
@@ -45,7 +45,7 @@ const MusicManagement = () => {
       ...prevCache,
       [key]: {
         data: data.results || data,
-        totalPages: Math.ceil(data.count / 8),
+        totalPages: data.results ? Math.ceil(data.count / 8) : Math.ceil((data.length || 0) / 8),
         timestamp: Date.now()
       }
     }));
@@ -89,13 +89,15 @@ const MusicManagement = () => {
         page: currentPage
       };
 
-      const response = await api.get('/api/music/music/', { params });
+      const response = await api.get('/api/v1/music/music/', { params });
       
       updateCache(debouncedSearchTerm, currentPage, response.data);
       
       const musicData = Array.isArray(response.data) ? response.data : response.data.results || [];
+      const count = response.data.results ? response.data.count : musicData.length;
+      console.log('Music list data received:', musicData);
       setTracks(musicData);
-      setTotalPages(Math.ceil(response.data.count / 8));
+      setTotalPages(Math.ceil(count / 8));
       
     } catch (err) {
       setError('Failed to load tracks');
@@ -115,6 +117,31 @@ const MusicManagement = () => {
       setTotalPages(cachedData.totalPages);
     }
   }, [currentPage, debouncedSearchTerm, fetchTracks]);
+
+  // Polling for HLS processing status
+  useEffect(() => {
+    const hasProcessingTracks = tracks.some(
+      (track) => track.approval_status === "approved" && !track.hls_processing_complete
+    );
+
+    if (hasProcessingTracks) {
+      const interval = setInterval(() => {
+        // We bypass the cache to get fresh status
+        const params = { 
+          search: debouncedSearchTerm, 
+          page_size: 8,
+          page: currentPage
+        };
+        api.get('/api/v1/music/music/', { params }).then(response => {
+           const musicData = Array.isArray(response.data) ? response.data : response.data.results || [];
+           setTracks(musicData);
+           updateCache(debouncedSearchTerm, currentPage, response.data);
+        }).catch(err => console.error("Polling error:", err));
+      }, 5000);
+
+      return () => clearInterval(interval);
+    }
+  }, [tracks, debouncedSearchTerm, currentPage]);
 
   const updateTrackInCache = (trackId, updateFn) => {
     setCache(prevCache => {
@@ -153,7 +180,7 @@ const MusicManagement = () => {
 
   const confirmDelete = async () => {
     try {
-      await api.delete(`/api/music/music/${selectedTrackId}/`);
+      await api.delete(`/api/v1/music/music/${selectedTrackId}/`);
       
       setTracks(tracks.filter((track) => track.id !== selectedTrackId));
       setCache(prevCache => {
@@ -186,7 +213,7 @@ const MusicManagement = () => {
 
   const toggleVisibility = async (trackId) => {
     try {
-      const response = await api.post(`/api/music/music/${trackId}/toggle_visibility/`);
+      const response = await api.post(`/api/v1/music/music/${trackId}/toggle_visibility/`);
       
       setTracks(tracks.map((track) =>
         track.id === trackId ? { ...track, is_public: response.data.is_public } : track
@@ -242,6 +269,7 @@ const MusicManagement = () => {
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Title</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Genres</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Status</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Plays</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Admin Approval Status</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Actions</th>
                 </tr>
@@ -266,6 +294,14 @@ const MusicManagement = () => {
                     <td className="px-4 py-3 text-center">
                       <button
                         onClick={() => {
+                          if (!track.hls_processing_complete) {
+                            toast.error('The track audio is still processing. Please wait until it is ready.', {
+                              position: 'top-right',
+                              autoClose: 3000,
+                              theme: 'dark',
+                            });
+                            return;
+                          }
                           if (track.approval_status === 'pending' || track.approval_status === 'rejected') {
                             toast.error('The track needs to be approved by the admin before changing its status to public.', {
                               position: 'top-right',
@@ -276,15 +312,48 @@ const MusicManagement = () => {
                           }
                           toggleVisibility(track.id);
                         }}
-                        className={`p-2 rounded-lg ${track.is_public ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}
+                        className={`p-2 rounded-lg ${
+                          !track.hls_processing_complete
+                            ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
+                            : track.is_public
+                            ? 'bg-green-500/20 text-green-400'
+                            : 'bg-gray-500/20 text-gray-400 shadow-[0_0_10px_rgba(255,255,255,0.1)]'
+                        } transition-all`}
+                        title={!track.hls_processing_complete ? "Processing audio..." : "Toggle visibility"}
                       >
                         {track.is_public ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                       </button>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[track.approval_status?.toLowerCase() || 'pending']}`}>
-                        {track.approval_status || 'Pending'}
+                      <span className="text-gray-300 font-medium">
+                        {(track.total_plays || 0).toLocaleString()}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex flex-col items-center justify-center gap-1.5">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                          statusColors[track.approval_status?.toLowerCase() || 'pending']
+                        } ${
+                          track.approval_status === 'pending' ? 'border-yellow-500/30' :
+                          track.approval_status === 'approved' ? 'border-green-500/30' :
+                          'border-red-500/30'
+                        }`}>
+                          {track.approval_status || 'Pending'}
+                        </span>
+                        
+                        {/* HLS Processing Indicator */}
+                        {track.approval_status === 'approved' && track.hls_processing_complete === false && (
+                          <span className="text-[10px] text-blue-400 font-medium px-2 py-0.5 bg-blue-500/10 rounded-full border border-blue-500/20 animate-pulse flex items-center gap-1 whitespace-nowrap">
+                            <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping mr-0.5"></span>
+                            Processing Audio
+                          </span>
+                        )}
+                        {track.approval_status === 'approved' && track.hls_processing_complete === true && (
+                           <span className="text-[10px] text-green-400/70 font-medium px-2 py-0.5 whitespace-nowrap">
+                             Ready for Release
+                           </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button

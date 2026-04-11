@@ -270,7 +270,7 @@ class AlbumViewSet(viewsets.ModelViewSet):
 
 
 
-class MusicViewSet(ModelViewSet):
+class AlbumTrackSelectorViewSet(ModelViewSet):
     queryset = Music.objects.all()
     serializer_class = MusicSerializer
 

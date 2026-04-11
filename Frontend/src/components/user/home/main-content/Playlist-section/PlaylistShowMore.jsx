@@ -1,37 +1,40 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
-import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
-import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
-import { handlePlaybackAction } from "./playlist-utils";
+import { Play, Pause, ChevronLeft, ChevronRight, Shuffle } from "lucide-react";
+import { motion } from "framer-motion";
 import api from "../../../../../api";
+import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
+import { usePlayCollection } from "../../../../../hooks/usePlayCollection";
+import { togglePlay } from "../../../../../slices/user/playerSlice";
+import { handlePlaybackAction } from "./playlist-utils"; 
+import TrackCard from "../TrackCard";
 
 const selectPlayerState = createSelector(
   [(state) => state.player], 
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue || [],
-    currentIndex: player.currentIndex || 0,
-    currentPlaylistId: player.currentPlaylistId,
+    queueIndex: player.queueIndex || 0,
+    currentContext: player.currentContext,
   })
 );
 
 const PlaylistShowMorePage = () => {
   const location = useLocation();
-  const { title } = location.state || {};
+  const { title } = location.state || { title: "Playlists" };
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const username = useSelector((state) => state.user.username);
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
-  const scrollContainerRef = useRef(null);
-  const [showControls, setShowControls] = useState(false);
+  
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
   const [items, setItems] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [totalPages, setTotalPages] = useState(0);
@@ -40,10 +43,14 @@ const PlaylistShowMorePage = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const musiclistResponse = await api.get(`/api/home/playlist/?all_songs&page=${page}`);
-        setItems(musiclistResponse.data.results);
-        setHasNextPage(!!musiclistResponse.data.next);
-        setTotalPages(Math.ceil(musiclistResponse.data.count / musiclistResponse.data.page_size));
+        const response = await api.get(`/api/v1/home/playlist/?all_songs&page=${page}`);
+        const data = response.data.results || response.data || [];
+        const count = response.data.results ? response.data.count : data.length;
+        const pageSize = response.data.results ? (response.data.page_size || 10) : 10;
+
+        setItems(data);
+        setHasNextPage(!!response.data.next);
+        setTotalPages(Math.ceil(count / pageSize));
       } catch (error) {
         console.error("Error fetching playlist data:", error);
       } finally {
@@ -54,154 +61,117 @@ const PlaylistShowMorePage = () => {
     fetchData();
   }, [page]);
 
-  const handlePlaylistClick = useCallback(
-    (playlistId) => {
-      const playlist = items.find((item) => item.id === playlistId);
-      if (playlist && playlist.created_by === username) {
-        navigate(`/playlist/${playlistId}`);
-      } else {
-        navigate(`/saved-playlist/${playlistId}`);
-      }
-    },
-    [items, navigate, username]
+  const formattedTracks = useMemo(() => 
+    items.length ? prepareTracksForPlayer(items) : [],
+    [items]
   );
 
+  const context = useMemo(() => ({
+    type: 'section_show_more',
+    id: title
+  }), [title]);
+
+  const {
+    handlePlayCollection,
+    isCollectionPlaying,
+    isCollectionActive
+  } = usePlayCollection({ tracks: formattedTracks, context });
+
   const handlePlayClick = useCallback(
-    async (e, item) => {
+    async (item, index, e) => {
       e.stopPropagation();
       await handlePlaybackAction({
         playlistId: item.id,
         dispatch,
-        currentState: { currentMusicId, isPlaying, queue, currentIndex },
+        currentState: { currentMusicId: currentTrack?.id, isPlaying, queue: [], currentIndex: 0 },
       });
     },
-    [dispatch, currentMusicId, isPlaying, queue, currentIndex]
+    [dispatch, currentTrack, isPlaying]
   );
-
-  const handleScroll = (direction) => {
-    const container = scrollContainerRef.current;
-    if (container) {
-      const scrollAmount = 300;
-      container.scrollBy({
-        left: direction === "left" ? -scrollAmount : scrollAmount,
-        behavior: "smooth",
-      });
-    }
-  };
-
-  const memoizedItems = useMemo(() => items, [items]);
 
   const handleNextPage = () => setPage((prev) => prev + 1);
   const handlePrevPage = () => setPage((prev) => Math.max(prev - 1, 1));
 
-  if (loading) {
-    return <div className="p-4 text-white">Loading...</div>;
+  if (loading && page === 1) {
+    return (
+      <div className="flex-1 p-6 space-y-8 h-full overflow-y-auto">
+        <div className="h-10 w-64 bg-gray-800 animate-pulse rounded-md mb-8" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6">
+          {[...Array(12)].map((_, i) => (
+            <div key={i} className="aspect-square bg-gray-800 animate-pulse rounded-lg shadow-lg" />
+          ))}
+        </div>
+      </div>
+    );
   }
 
-  if (!memoizedItems.length) return null;
-
   return (
-    <section className="mb-8 relative p-4">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">{title}</h2>
-        <div className="flex gap-2">
+    <div className="flex-1 p-4 md:p-6 overflow-y-auto h-full scrollbar-hide">
+      <motion.section 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mb-8"
+      >
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-3xl md:text-4xl font-black text-white">{title}</h1>
+            <p className="text-gray-400">Curated collections just for you</p>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handlePlayCollection}
+              className="w-14 h-14 bg-green-500 rounded-full flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition-all group"
+            >
+              {isCollectionPlaying ? (
+                <Pause className="w-7 h-7 text-black fill-black" />
+              ) : (
+                <Play className="w-7 h-7 text-black fill-black ml-1" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-y-10 gap-x-6 justify-items-start">
+          {items.map((item, index) => (
+            <TrackCard
+              key={item.id}
+              item={item}
+              index={index}
+              type="playlist"
+              isPlaying={currentContext?.type === 'playlist' && String(currentContext?.id) === String(item.id) && isPlaying}
+              onPlayPlayable={handlePlayClick}
+            />
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between mt-12 mb-8 px-4">
           <button
-            className="text-sm text-gray-400 hover:text-white transition-colors bg-gray-700 py-1 px-3 rounded disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-white/5"
             onClick={handlePrevPage}
             disabled={page === 1}
           >
-            Previous
+            <ChevronLeft className="w-5 h-5" />
+            <span>Previous</span>
           </button>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-gray-400 text-sm font-medium">
+              Page <span className="text-white">{page}</span> of <span className="text-white">{totalPages || 1}</span>
+            </span>
+          </div>
+          
           <button
-            className="text-sm text-gray-400 hover:text-white transition-colors bg-gray-700 py-1 px-3 rounded disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-full transition-all disabled:opacity-50 disabled:cursor-not-allowed border border-white/5"
             onClick={handleNextPage}
             disabled={!hasNextPage}
           >
-            Next
+            <span>Next</span>
+            <ChevronRight className="w-5 h-5" />
           </button>
         </div>
-      </div>
-      <div
-        className="relative"
-        onMouseEnter={() => setShowControls(true)}
-        onMouseLeave={() => setShowControls(false)}
-      >
-        {showControls && (
-          <>
-            <button
-              onClick={() => handleScroll("left")}
-              className="absolute left-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2 transition-transform hover:scale-110"
-            >
-              <ChevronLeft className="h-6 w-6" />
-            </button>
-            <button
-              onClick={() => handleScroll("right")}
-              className="absolute right-0 top-1/2 z-10 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transform -translate-y-1/2 transition-transform hover:scale-110"
-            >
-              <ChevronRight className="h-6 w-6" />
-            </button>
-          </>
-        )}
-        <div
-          ref={scrollContainerRef}
-          className="overflow-x-auto scrollbar-hide"
-          style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-        >
-          <div className="flex gap-4 px-4">
-            {memoizedItems.map((item) => {
-              const isCurrentPlaylist = queue.some(
-                (track) => track.playlist_id === item.id
-              );
-              const showPauseButton = isCurrentPlaylist && isPlaying && currentMusicId;
-              return (
-                <div
-                  key={item.id}
-                  className="flex-none w-40"
-                  onClick={() => handlePlaylistClick(item.id)}
-                >
-                  <div className="relative group">
-                    <img
-                      src={item.cover_photo}
-                      alt={item.name}
-                      className="w-40 h-40 object-cover rounded-md shadow-lg"
-                    />
-                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
-                      <button
-                        className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
-                        onClick={(e) => handlePlayClick(e, item)}
-                      >
-                        {showPauseButton ? (
-                          <Pause className="w-6 h-6 text-black" />
-                        ) : (
-                          <Play className="w-6 h-6 text-black" />
-                        )}
-                      </button>
-                    </div>
-                    <div className="absolute top-2 right-2">
-                      <PlaylistSectionMenuModal
-                        playlist={{
-                          id: item.id,
-                          name: item.name,
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div className="mt-2">
-                    <h3 className="font-bold text-white truncate">{item.name}</h3>
-                    {item.description && (
-                      <p className="text-sm text-gray-400 truncate">{item.description}</p>
-                    )}
-                    {item.created_by && (
-                      <p className="text-sm text-gray-400 truncate">By {item.created_by}</p>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </section>
+      </motion.section>
+    </div>
   );
 };
 

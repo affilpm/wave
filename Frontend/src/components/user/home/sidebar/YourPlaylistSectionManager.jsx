@@ -9,10 +9,10 @@ const YourPlaylistSectionManager = ({ playlist, onPlaylistUpdate, onPlaylistDele
   const handleTogglePrivacy = async () => {
     try {
       // Log the current state for debugging
-      console.log(`Current is_public: ${playlist.is_public}`);
-      console.log('Playlist passed to YourPlaylistSectionManager:', playlist);
+
+
       // Toggle the privacy state based on the current value
-      const response = await api.patch(`/api/playlist/playlists/${playlist.id}/`, {
+      const response = await api.patch(`/api/v1/playlist/playlists/${playlist.id}/`, {
         is_public: !playlist.is_public,
       });
   
@@ -21,8 +21,7 @@ const YourPlaylistSectionManager = ({ playlist, onPlaylistUpdate, onPlaylistDele
         ...playlist,
         is_public: response.data.is_public,
       });
-  
-      console.log(`Playlist is now ${response.data.is_public ? 'Public' : 'Private'}`);
+
     } catch (error) {
       console.error('Error toggling playlist privacy:', error);
       alert('Failed to update playlist privacy. Please try again.');
@@ -32,7 +31,7 @@ const YourPlaylistSectionManager = ({ playlist, onPlaylistUpdate, onPlaylistDele
   const handleDelete = async () => {
     if (window.confirm('Are you sure you want to delete this playlist?')) {
       try {
-        await api.delete(`/api/playlist/playlists/${playlist.id}/`);
+        await api.delete(`/api/v1/playlist/playlists/${playlist.id}/`);
         onPlaylistDelete(playlist.id);
       } catch (error) {
         console.error('Error deleting playlist:', error);

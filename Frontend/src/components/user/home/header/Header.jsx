@@ -2,8 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { 
-  Search, ChevronLeft, ChevronRight, Home, Video, X, 
-  Menu, Bell, Headphones, Settings, UserCircle
+  Search, ChevronLeft, ChevronRight, Home, X, 
+  Menu, Bell, Headphones, Settings, UserCircle, Compass
 } from 'lucide-react';
 import { useArtistStatus } from '../../../../hooks/useArtistStatus';
 import api from '../../../../api';
@@ -99,7 +99,7 @@ const Header = ({ toggleMobileSidebar }) => {
   useEffect(() => {
     const fetchPremiumStatus = async () => {
       try {
-        const { data } = await api.get('/api/premium/check-subscription-status/');
+        const { data } = await api.get('/api/v1/premium/check-subscription-status/');
         setIsPremium(data.status === 'success');
       } catch (error) {
         setIsPremium(false);
@@ -190,20 +190,20 @@ const Header = ({ toggleMobileSidebar }) => {
         {/* Center Section - Home & Livestream - Hidden on mobile */}
         <div className="hidden md:flex items-center justify-center gap-4 lg:gap-8 max-w-3xl flex-1">
           <button 
-            className="flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors"
+            className={`flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors ${location.pathname === '/home' ? 'text-white' : 'text-gray-400'}`}
             onClick={() => handleNavigation('/home')}
           >
             <Home className="h-5 w-5 lg:h-6 lg:w-6" />
             <span className="text-sm lg:text-base font-medium">Home</span>
           </button>
-          
-          {/* <button 
-            className="flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors"
-            onClick={() => handleNavigation('/livestreams')}
+
+          <button 
+            className={`flex items-center gap-2 p-2 rounded-full hover:bg-gray-800 transition-colors ${location.pathname === '/discover' ? 'text-white' : 'text-gray-400'}`}
+            onClick={() => handleNavigation('/discover')}
           >
-            <Video className="h-5 w-5 lg:h-6 lg:w-6" />
-            <span className="text-sm lg:text-base font-medium">Livestream</span>
-          </button> */}
+            <Compass className="h-5 w-5 lg:h-6 lg:w-6" />
+            <span className="text-sm lg:text-base font-medium">Discover</span>
+          </button>
           
           {/* Desktop Search Component */}
           <div className="flex-1 mx-2 lg:mx-4 max-w-md">
@@ -215,19 +215,12 @@ const Header = ({ toggleMobileSidebar }) => {
         <div className="flex items-center gap-1 sm:gap-2">
           {/* Mobile action buttons */}
           <div className="md:hidden flex items-center gap-1">
-            {/* Home and Livestream buttons for mobile */}
+            {/* Home button for mobile */}
             <button 
               className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-900 hover:bg-gray-800"
               onClick={() => handleNavigation('/home')}
             >
               <Home className="h-4 w-4" />
-            </button>
-
-            <button 
-              className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-900 hover:bg-gray-800"
-              onClick={() => handleNavigation('/livestreams')}
-            >
-              <Video className="h-4 w-4" />
             </button>
             
             {/* Search toggle on mobile */}
@@ -238,14 +231,13 @@ const Header = ({ toggleMobileSidebar }) => {
               {showMobileSearch ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
             </button>
             
-            {/* More actions button on mobile */}
+            {/* Discover button on mobile */}
             <button
-              className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-900 hover:bg-gray-800 relative"
-              onClick={toggleMobileActions}
+              className={`w-8 h-8 flex items-center justify-center rounded-full bg-gray-900 hover:bg-gray-800 ${location.pathname === '/discover' ? 'text-green-500' : 'text-white'}`}
+              onClick={() => handleNavigation('/discover')}
+              aria-label="Discover"
             >
-              <Bell className="h-4 w-4" />
-              {/* Notification dot */}
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              <Compass className="h-4 w-4" />
             </button>
           </div>
 
@@ -330,7 +322,7 @@ const Header = ({ toggleMobileSidebar }) => {
           </div>
           {[
             { name: 'Home', icon: <Home className="h-4 w-4" />, path: '/home' },
-            { name: 'Livestream', icon: <Video className="h-4 w-4" />, path: '/livestreams' },
+            { name: 'Discover', icon: <Search className="h-4 w-4" />, path: '/discover' },
             { name: 'Now Playing', icon: <Headphones className="h-4 w-4" />, path: '/player' },
             { name: 'Profile', icon: <UserCircle className="h-4 w-4" />, path: '/profile' },
             { name: 'Settings', icon: <Settings className="h-4 w-4" />, path: '/settings' }

@@ -16,7 +16,7 @@ const UploadOptions = () => {
     if (content === 'musicUpload') {
       try {
         // Check if the artist has at least one album before opening the music upload modal
-        const response = await api.get('/api/artists/has-albums/');
+        const response = await api.get('/api/v1/artists/has-albums/');
         
         if (response.data.has_albums) {
           // If albums exist, open the music upload modal

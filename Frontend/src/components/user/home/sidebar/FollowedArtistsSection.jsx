@@ -1,8 +1,8 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Music } from 'lucide-react';
+import { Music, Check } from 'lucide-react';
 
-const FollowedArtistsSection = ({ artists, isSidebarExpanded }) => {
+const FollowedArtistsSection = ({ artists, isSidebarExpanded, onToggleFollow }) => {
   const navigate = useNavigate();
 
   // Function to handle navigation to artist page
@@ -24,6 +24,7 @@ const FollowedArtistsSection = ({ artists, isSidebarExpanded }) => {
   
   const getColor = (username) => {
     // Generate a consistent color index based on the username
+    if (!username) return 'bg-gray-500';
     const index = username.charCodeAt(0) % colors.length;
     return colors[index];
   };
@@ -31,48 +32,65 @@ const FollowedArtistsSection = ({ artists, isSidebarExpanded }) => {
   return (
     <>
       {isSidebarExpanded && (
-        <h3 className="px-2 py-3 text-sm font-semibold text-gray-400">Followed Artists</h3>
+        <h3 className="px-2 py-3 text-sm font-semibold text-gray-400">Artists</h3>
       )}
       <div className={`space-y-1 ${isSidebarExpanded ? 'text-base' : 'text-xs'}`}>
-        {artists.map((artist) => (
-          <div
-            key={artist.id}
-            onClick={() => handleArtistClick(artist.id)}
-            className="group"
-          >
-            <div className={`
-              flex items-center gap-3 p-2 cursor-pointer rounded-md 
-              hover:bg-white/10 transition-colors
-              ${isSidebarExpanded ? 'text-gray-400 hover:text-white' : 'text-gray-500 justify-center'}
-            `}>
-              {artist.profile_photo ? (
-                <img
-                  src={`${artist.profile_photo}`}
-                  alt={artist.username}
-                  className={`rounded-full object-cover ${
-                    isSidebarExpanded ? 'w-12 h-12' : 'w-10 h-10'
-                  }`}
-                />
-              ) : (
-                <div
-                  className={`flex items-center justify-center rounded-full ${getColor(artist.username)} ${
-                    isSidebarExpanded ? 'w-12 h-12' : 'w-10 h-10'
-                  }`}
-                >
-                  {artist.username.charAt(0).toUpperCase()}
-                </div>
-              )}
-              {isSidebarExpanded && (
-                <div className="flex flex-col min-w-0 flex-1">
-                  <span className="truncate font-medium text-white">{artist.username}</span>
-                  <span className="text-sm text-gray-400 truncate">
-                    Artist
-                  </span>
-                </div>
-              )}
+        {artists.map((artist) => {
+          if (!artist) return null;
+          const username = artist.username || 'User';
+          
+          return (
+            <div
+              key={artist.id}
+              onClick={() => handleArtistClick(artist.id)}
+              className="group"
+            >
+              <div className={`
+                flex items-center gap-3 p-2 cursor-pointer rounded-md 
+                hover:bg-white/10 transition-colors
+                ${isSidebarExpanded ? 'text-gray-400 hover:text-white' : 'text-gray-500 justify-center'}
+              `}>
+                {artist.profile_photo ? (
+                  <img
+                    src={`${artist.profile_photo}`}
+                    alt={username}
+                    className={`rounded-full object-cover ${
+                      isSidebarExpanded ? 'w-12 h-12' : 'w-10 h-10'
+                    }`}
+                  />
+                ) : (
+                  <div
+                    className={`flex items-center justify-center rounded-full ${getColor(username)} ${
+                      isSidebarExpanded ? 'w-12 h-12' : 'w-10 h-10'
+                    }`}
+                  >
+                    {username.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                {isSidebarExpanded && (
+                  <>
+                    <div className="flex flex-col min-w-0 flex-1">
+                      <span className="truncate font-medium text-white">{username}</span>
+                      <span className="text-sm text-gray-400 truncate">
+                        Artist
+                      </span>
+                    </div>
+                    <button 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onToggleFollow(artist);
+                      }}
+                      className="p-1.5 opacity-0 group-hover:opacity-100 text-green-500 hover:scale-110 active:scale-95 transition-all rounded-full flex items-center justify-center"
+                      title="Unfollow Artist"
+                    >
+                      <Check className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );

@@ -1,70 +1,65 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
+import { Play, Pause, ChevronLeft, ChevronRight, Shuffle } from "lucide-react";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { createSelector } from '@reduxjs/toolkit';
-import {
-  setCurrentMusic,
-  setIsPlaying,
-  setQueue,
-  clearQueue,
-} from "../../../../../slices/user/playerSlice";
+import { prepareTrackForPlayer, prepareTracksForPlayer } from "../../../../../utils/trackUtils";
+import { usePlayCollection } from "../../../../../hooks/usePlayCollection";
+import api from "../../../../../api";
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue,
-    currentIndex: player.currentIndex,
+    queueIndex: player.queueIndex,
   })
 );
 
-const MusicSection = ({ title, items }) => {
+const MusicSection = ({ title }) => {
   const dispatch = useDispatch();
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [musiclistData, setMusiclistData] = useState([]);
   const navigate = useNavigate();
 
-  const musiclistData = useMemo(() => items || [], [items]);
+  const context = useMemo(() => ({
+    type: 'section',
+    id: title
+  }), [title]);
 
-  const isQueueFromSectionTracks = useMemo(() => {
-    if (!queue.length) return false;
-    return queue.every((track) => track.source === 'public_songs');
-  }, [queue, title]);
+  const formattedTracks = useMemo(() => 
+    musiclistData.length ? prepareTracksForPlayer(musiclistData) : [],
+    [musiclistData]
+  );
 
-  const isCurrentTrackFromSectionTracks = useMemo(() => {
-    if (!musiclistData.length || !currentMusicId || !isQueueFromSectionTracks) {
-      console.log('isCurrentTrackFromSectionTracks: Early return', {
-        hasTracks: !!musiclistData.length,
-        currentMusicId,
-        isQueueFromSectionTracks,
-        queueLength: queue.length,
-        currentIndex,
-      });
-      return false;
-    }
-    const currentTrack = queue[currentIndex];
-    const isTrackInTracks = musiclistData.some(
-      (track) => Number(track.id) === Number(currentMusicId)
-    );
-    console.log('isCurrentTrackFromSectionTracks: Result', {
-      currentTrackId: currentTrack?.id,
-      currentMusicId,
-      isTrackInTracks,
-      isPlaying,
-    });
-    return (
-      currentTrack &&
-      Number(currentTrack.id) === Number(currentMusicId) &&
-      isTrackInTracks
-    );
-  }, [musiclistData, currentMusicId, isQueueFromSectionTracks, queue, currentIndex]);
+  const {
+    handlePlayTrackAtIndex,
+    handleShufflePlay: handleSectionShufflePlay,
+    isCollectionActive
+  } = usePlayCollection({ tracks: formattedTracks, context });
+
+  useEffect(() => {
+    const fetchMusic = async () => {
+      try {
+        const response = await api.get(`/api/v1/home/musiclist/?top10=true`);
+        setMusiclistData(response.data.results || response.data || []);
+      } catch (error) {
+        console.error("Error fetching music items:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMusic();
+  }, []);
 
   const handleScroll = useCallback((direction) => {
     const container = scrollContainerRef.current;
@@ -77,81 +72,21 @@ const MusicSection = ({ title, items }) => {
     }
   }, []);
 
-  const prepareTrackForPlayer = useCallback(
-    (track) => ({
-      id: Number(track.id),
-      name: track.name,
-      title: track.name,
-      artist: track.artist?.user?.username || track.artist || 'Unknown Artist',
-      artist_full: track.artist_full || track.artist,
-      album: 'Single',
-      cover_photo: track.cover_photo || '/api/placeholder/48/48',
-      duration: track.duration || 0, // Assuming duration is in seconds or can be converted
-      genre: track.genre || '',
-      year: track.release_date ? new Date(track.release_date).getFullYear() : null,
-      release_date: track.release_date,
-      track_number: track.track_number || 0,
-      source: 'public_songs',
-    }),
-    [title]
-  );
+  const handlePlay = (item, index, e) => {
+    e.stopPropagation();
+    handlePlayTrackAtIndex(index);
+  };
 
-  const handlePlay = useCallback(
-    (item, index, e) => {
-      e.stopPropagation();
-      const formattedTracks = musiclistData.map(prepareTrackForPlayer);
-      const formattedTrack = formattedTracks[index];
-
-      console.log('handlePlay:', {
-        trackId: item.id,
-        currentMusicId,
-        isQueueFromSectionTracks,
-        isPlaying,
-        action:
-          Number(currentMusicId) === Number(formattedTrack.id) && isQueueFromSectionTracks
-            ? 'toggle'
-            : 'play new',
-      });
-
-      if (
-        Number(currentMusicId) === Number(formattedTrack.id) &&
-        isQueueFromSectionTracks
-      ) {
-        dispatch(setIsPlaying(!isPlaying));
-        return;
-      }
-
-      dispatch(clearQueue());
-      dispatch(setQueue(formattedTrack));
-      dispatch(setCurrentMusic(formattedTrack));
-      dispatch(setIsPlaying(true));
-    },
-    [
-      currentMusicId,
-      isQueueFromSectionTracks,
-      isPlaying,
-      musiclistData,
-      dispatch,
-      prepareTrackForPlayer,
-    ]
-  );
+  const handleShufflePlay = () => {
+    handleSectionShufflePlay();
+  };
 
   const isItemPlaying = useCallback(
     (item) => {
-      const isPlayingThisItem =
-        Number(currentMusicId) === Number(item.id) &&
-        isCurrentTrackFromSectionTracks &&
-        isPlaying;
-      console.log('isItemPlaying:', {
-        itemId: item.id,
-        currentMusicId,
-        isCurrentTrackFromSectionTracks,
-        isPlaying,
-        isPlayingThisItem,
-      });
-      return isPlayingThisItem;
+      // It is playing if it is the current track, audio is playing, AND we are playing from this section context
+      return Number(currentMusicId) === Number(item.id) && isPlaying && isCollectionActive;
     },
-    [currentMusicId, isCurrentTrackFromSectionTracks, isPlaying]
+    [currentMusicId, isPlaying, isCollectionActive]
   );
 
   const handleShowMore = useCallback(() => {
@@ -159,13 +94,33 @@ const MusicSection = ({ title, items }) => {
   }, [navigate, title]);
 
   if (loading) {
-    return <div>Loading...</div>;
+    return (
+      <section className="mb-8 px-4">
+        <h2 className="text-2xl font-bold mb-4">{title}</h2>
+        <div className="flex gap-4 overflow-hidden">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex-none w-40 h-40 bg-gray-800 animate-pulse rounded-md" />
+          ))}
+        </div>
+      </section>
+    );
   }
+
+  if (!musiclistData.length) return null;
 
   return (
     <section className="mb-8 relative">
       <div className="flex justify-between items-center mb-4 px-4">
-        <h2 className="text-2xl font-bold">{title}</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-2xl font-bold">{title}</h2>
+          <button
+            onClick={handleShufflePlay}
+            className="p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors group"
+            title="Shuffle Play"
+          >
+            <Shuffle className="w-5 h-5 text-gray-400 group-hover:text-white" />
+          </button>
+        </div>
         <button
           onClick={handleShowMore}
           className="text-sm text-gray-400 hover:text-white transition-colors"
@@ -205,7 +160,7 @@ const MusicSection = ({ title, items }) => {
         >
           <div className="flex gap-4 px-4">
             {musiclistData.map((item, index) => (
-              <div key={index} className="flex-none w-40">
+              <div key={item.id} className="flex-none w-40">
                 <div className="relative group">
                   <img
                     src={item.cover_photo}

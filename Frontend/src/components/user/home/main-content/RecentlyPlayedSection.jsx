@@ -23,7 +23,7 @@
 //   const fetchRecentlyPlayed = useCallback(async () => {
 //     try {
 //       setLoading(true);
-//       const response = await api.get("/api/listening_history/recently-played/");
+//       const response = await api.get("/api/v1/listening_history/recently-played/");
 //       setRecentTracks(response.data);
 //     } catch (error) {
 //       console.error("Error fetching recently played tracks:", error);
@@ -108,7 +108,7 @@
 //       >
 //         <div className="relative group">
 //           <img
-//             src={track.cover_photo || `/api/placeholder/160/160`}
+//             src={track.cover_photo || `/api/v1/placeholder/160/160`}
 //             alt={track.title}
 //             className="w-40 h-40 object-cover rounded-md"
 //           />

@@ -53,7 +53,7 @@ const UsersTable = () => {
   const handleStatusChange = async (userId, newStatus) => {
     setActionLoading(userId);
     try {
-      await api.patch(`/api/admins/user-table/${userId}/`, {
+      await api.patch(`/api/v1/admins/user-table/${userId}/`, {
         is_active: newStatus
       });
       setUsers(users.map(user => 
@@ -68,11 +68,11 @@ const UsersTable = () => {
     }
   };
 
-  const fetchUsers = async (url = `/api/admins/user-table/?page=1&page_size=${pageSize}`) => {
+  const fetchUsers = async (url = `/api/v1/admins/user-table/?page=1&page_size=${pageSize}`) => {
     setLoading(true);
     try {
       const response = await api.get(url);
-      const userData = response.data.results || [];
+      const userData = response.data.results || (Array.isArray(response.data) ? response.data : []);
       
       // Update pagination info
       setPagination({
@@ -166,9 +166,9 @@ const UsersTable = () => {
   // Handle search with server-side filtering
   const handleSearch = () => {
     if (searchQuery) {
-      fetchUsers(`/api/admins/user-table/?search=${searchQuery}&page=1&page_size=${pageSize}`);
+      fetchUsers(`/api/v1/admins/user-table/?search=${searchQuery}&page=1&page_size=${pageSize}`);
     } else {
-      fetchUsers(`/api/admins/user-table/?page=1&page_size=${pageSize}`);
+      fetchUsers(`/api/v1/admins/user-table/?page=1&page_size=${pageSize}`);
     }
   };
 
@@ -420,7 +420,7 @@ const UsersTable = () => {
                   <button
                     key={`page-${page}`}
                     onClick={() => 
-                      fetchUsers(`/api/admins/user-table/?page=${page}&page_size=${pageSize}${searchQuery ? `&search=${searchQuery}` : ''}`)
+                      fetchUsers(`/api/v1/admins/user-table/?page=${page}&page_size=${pageSize}${searchQuery ? `&search=${searchQuery}` : ''}`)
                     }
                     className={`h-8 w-8 rounded-lg flex items-center justify-center transition-colors ${
                       page === pagination.current

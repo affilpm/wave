@@ -1,55 +1,158 @@
-import React, { useState, useRef, useCallback, useMemo } from "react";
-import { Play, Pause, ChevronLeft, ChevronRight } from "lucide-react";
-import PlaylistSectionMenuModal from "./PlaylistSectionMenuModal";
+import React, { useState, useRef, useCallback, useEffect } from "react";
+import { Play, Pause, ChevronLeft, ChevronRight, Shuffle, Plus, Check } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useDispatch, useSelector, shallowEqual } from "react-redux";
 import { createSelector } from "@reduxjs/toolkit";
 import { useNavigate } from "react-router-dom";
-import { handlePlaybackAction } from "./playlist-utils";
+import api from "../../../../../api";
+import { 
+  selectSavedPlaylists, 
+  toggleSavedPlaylistOptimistic 
+} from "../../../../../slices/user/librarySlice";
+import { LIBRARY } from "../../../../../constants/apiEndpoints";
+import { setQueue, setIsPlaying } from "../../../../../slices/user/playerSlice";
+import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 
 const selectPlayerState = createSelector(
   [(state) => state.player],
   (player) => ({
-    currentMusicId: player.currentMusicId,
-    isPlaying: player.isPlaying,
+    currentTrack: player.currentTrack,
+    status: player.status,
     queue: player.queue,
-    currentIndex: player.currentIndex,
+    queueIndex: player.queueIndex,
+    currentContext: player.currentContext,
   })
 );
 
-const PlaylistSection = ({ title, items, onLengthChange }) => {
+const PlaylistSection = ({ title }) => {
   const scrollContainerRef = useRef(null);
   const [showControls, setShowControls] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [playlistData, setPlaylistData] = useState([]);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const username = useSelector((state) => state.user.username);
-  const { currentMusicId, isPlaying, queue, currentIndex } = useSelector(
+  const username = useSelector((state) => state.user?.username);
+  const { currentTrack, status, queue, queueIndex, currentContext } = useSelector(
     selectPlayerState,
     shallowEqual
   );
+  const currentMusicId = currentTrack?.id;
+  const isPlaying = status === 'playing' || status === 'loading' || status === 'buffering';
+  const currentIndex = queueIndex;
+
+  useEffect(() => {
+    const fetchPlaylists = async () => {
+      try {
+        const response = await api.get(`/api/v1/home/playlist/?top10=true`);
+        setPlaylistData(response.data.results || response.data || []);
+      } catch (error) {
+        console.error("Error fetching playlist items:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPlaylists();
+  }, []);
 
   const handlePlaylistClick = useCallback(
     (playlistId) => {
-      const playlist = items.find((item) => item.id === playlistId);
+      const playlist = playlistData.find((item) => item.id === playlistId);
       if (playlist && playlist.created_by === username) {
         navigate(`/playlist/${playlistId}`);
       } else {
         navigate(`/saved-playlist/${playlistId}`);
       }
     },
-    [items, navigate, username]
+    [playlistData, navigate, username]
   );
 
   const handlePlayClick = useCallback(
     async (e, item) => {
       e.stopPropagation();
-      await handlePlaybackAction({
-        playlistId: item.id,
-        dispatch,
-        currentState: { currentMusicId, isPlaying, queue, currentIndex },
-      });
+      const isCurrentPlaylist = currentContext?.type === 'playlist' && String(currentContext?.id) === String(item.id);
+
+      if (isCurrentPlaylist) {
+        dispatch(setIsPlaying(!isPlaying));
+      } else {
+        try {
+          // Fetch playlist data to get tracks
+          const response = await api.get(`/api/v1/playlist/playlists/${item.id}/`);
+          const data = response.data;
+          const tracks = data.tracks || [];
+          const formattedTracks = prepareTracksForPlayer(tracks);
+
+          if (formattedTracks.length > 0) {
+            dispatch(setQueue({
+              tracks: formattedTracks,
+              startIndex: 0,
+              context: { type: 'playlist', id: item.id }
+            }));
+            dispatch(setIsPlaying(true));
+          }
+        } catch (error) {
+          console.error("Error playing playlist:", error);
+        }
+      }
     },
-    [dispatch, currentMusicId, isPlaying, queue, currentIndex]
+    [dispatch, currentContext, isPlaying]
   );
+
+  const handleShuffleClick = useCallback(
+    async (e, item) => {
+      e.stopPropagation();
+      try {
+        const response = await api.get(`/api/v1/playlist/playlists/${item.id}/`);
+        const data = response.data;
+        const tracks = data.tracks || [];
+        const formattedTracks = prepareTracksForPlayer(tracks);
+
+        if (formattedTracks.length > 0) {
+          dispatch(setQueue({
+            tracks: formattedTracks,
+            startIndex: Math.floor(Math.random() * formattedTracks.length),
+            context: { type: 'playlist', id: item.id }
+          }));
+          // Ideally we'd have a toggleShufflePlay action that takes tracks but setQueue with random start is similar if shuffleMode is on
+          // Actually toggleShufflePlay in playerSlice.ts handles this better
+          // dispatch(toggleShufflePlay(formattedTracks)); // Wait, toggleShufflePlay is not exported here yet
+          dispatch(setIsPlaying(true));
+        }
+      } catch (error) {
+        console.error("Error shuffling playlist:", error);
+      }
+    },
+    [dispatch]
+  );
+
+  const savedPlaylists = useSelector(selectSavedPlaylists);
+  const [isLibraryLoading, setIsLibraryLoading] = useState(null);
+
+  const handleToggleLibrary = async (e, item) => {
+    e.stopPropagation();
+    const isSaved = savedPlaylists.some(p => p.id === item.id);
+    const playlistData = {
+      id: item.id,
+      name: item.name,
+      cover_photo: item.cover_photo,
+      created_by_username: item.created_by_username || item.created_by,
+    };
+    
+    dispatch(toggleSavedPlaylistOptimistic(playlistData));
+    
+    try {
+      setIsLibraryLoading(item.id);
+      if (isSaved) {
+        await api.post(LIBRARY.REMOVE_PLAYLIST, { playlist_id: item.id });
+      } else {
+        await api.post(LIBRARY.ADD_PLAYLIST, { playlist_id: item.id });
+      }
+    } catch (error) {
+      console.error("Failed to update library:", error);
+      dispatch(toggleSavedPlaylistOptimistic(playlistData));
+    } finally {
+      setIsLibraryLoading(null);
+    }
+  };
 
   const handleScroll = (direction) => {
     const container = scrollContainerRef.current;
@@ -62,13 +165,24 @@ const PlaylistSection = ({ title, items, onLengthChange }) => {
     }
   };
 
-  const memoizedItems = useMemo(() => items, [items]);
-
   const handleShowMore = () => {
     navigate("/playlist-show-more", { state: { title } });
   };
 
-  if (!memoizedItems.length) return null;
+  if (loading) {
+    return (
+      <section className="mb-8 px-4">
+        <h2 className="text-2xl font-bold mb-4">{title}</h2>
+        <div className="flex gap-4 overflow-hidden">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="flex-none w-40 h-40 bg-gray-800 animate-pulse rounded-md" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (!playlistData.length) return null;
 
   return (
     <section className="mb-8 relative">
@@ -108,13 +222,11 @@ const PlaylistSection = ({ title, items, onLengthChange }) => {
           style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
         >
           <div className="flex gap-4 px-4">
-            {memoizedItems.map((item) => {
+            {playlistData.map((item) => {
               // Determine if this playlist is currently playing
-              const isCurrentPlaylist = queue.some(
-                (track) => track.playlist_id === item.id
-              );
+              const isCurrentPlaylist = currentContext?.type === 'playlist' && String(currentContext?.id) === String(item.id);
               // Show pause button if this playlist is active and playing
-              const showPauseButton = isCurrentPlaylist && isPlaying && currentMusicId;
+              const showPauseButton = isCurrentPlaylist && isPlaying;
               return (
                 <div
                   key={item.id}
@@ -128,24 +240,62 @@ const PlaylistSection = ({ title, items, onLengthChange }) => {
                       className="w-40 h-40 object-cover rounded-md shadow-lg"
                     />
                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all rounded-md">
-                      <button
-                        className="absolute bottom-2 right-2 w-12 h-12 bg-green-500 rounded-full items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 transition-all"
-                        onClick={(e) => handlePlayClick(e, item)}
-                      >
-                        {showPauseButton ? (
-                          <Pause className="w-6 h-6 text-black" />
-                        ) : (
-                          <Play className="w-6 h-6 text-black" />
-                        )}
-                      </button>
-                    </div>
-                    <div className="absolute top-2 right-2">
-                      <PlaylistSectionMenuModal
-                        playlist={{
-                          id: item.id,
-                          name: item.name,
-                        }}
-                      />
+                      {/* Library Toggle (Plus/Check) */}
+                      {item.created_by !== username && (
+                        <div className={`absolute top-2 right-2 transition-opacity duration-300 ${savedPlaylists.some(p => p.id === item.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                          <button 
+                            onClick={(e) => handleToggleLibrary(e, item)}
+                            disabled={isLibraryLoading === item.id}
+                            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all bg-black/40 backdrop-blur-md hover:scale-110 active:scale-95 ${savedPlaylists.some(p => p.id === item.id) ? "text-green-500" : "text-white"}`}
+                          >
+                            {isLibraryLoading === item.id ? (
+                              <div className="h-4 w-4 border-2 border-t-transparent border-current rounded-full animate-spin"></div>
+                            ) : savedPlaylists.some(p => p.id === item.id) ? (
+                              <Check className="w-4 h-4" />
+                            ) : (
+                              <Plus className="w-4 h-4" />
+                            )}
+                          </button>
+                        </div>
+                      )}
+
+                      <div className="absolute bottom-2 right-2 flex gap-2">
+                        <button
+                          className="w-10 h-10 bg-white/20 hover:bg-white/40 backdrop-blur-md rounded-full items-center justify-center hidden group-hover:flex shadow-xl transition-all active:scale-90"
+                          onClick={(e) => handleShuffleClick(e, item)}
+                          title="Shuffle Play"
+                        >
+                          <Shuffle className="w-5 h-5 text-white" />
+                        </button>
+                        <button
+                          className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center hidden group-hover:flex shadow-xl hover:scale-105 active:scale-90 transition-all overflow-hidden"
+                          onClick={(e) => handlePlayClick(e, item)}
+                        >
+                          <AnimatePresence mode="wait">
+                            {showPauseButton ? (
+                              <motion.div
+                                key="pause"
+                                initial={{ scale: 0.5, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.5, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <Pause className="w-6 h-6 text-black fill-black" />
+                              </motion.div>
+                            ) : (
+                              <motion.div
+                                key="play"
+                                initial={{ scale: 0.5, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.5, opacity: 0 }}
+                                transition={{ duration: 0.2 }}
+                              >
+                                <Play className="w-6 h-6 text-black fill-black ml-1" />
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div className="mt-2">

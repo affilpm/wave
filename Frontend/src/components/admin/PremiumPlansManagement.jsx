@@ -65,7 +65,7 @@ const PremiumPlansManagement = () => {
   const fetchPlans = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/premium/plans/');
+      const response = await api.get('/api/v1/premium/plans/');
       // Ensure we're handling both array responses and paginated responses
       const plansData = Array.isArray(response.data) ? response.data : 
                         response.data.results ? response.data.results : [];
@@ -110,21 +110,16 @@ const PremiumPlansManagement = () => {
       } else {
         formattedData.features = '';
       }
-      
 
-      
-      console.log('Sending data to server:', formattedData);
-      
       let response;
       if (editingPlan) {
-        response = await api.put(`/api/premium/plans/${editingPlan.id}/`, formattedData);
+        response = await api.put(`/api/v1/premium/plans/${editingPlan.id}/`, formattedData);
         toast.success('Plan updated successfully!');
       } else {
-        response = await api.post('/api/premium/plans/', formattedData);
+        response = await api.post('/api/v1/premium/plans/', formattedData);
         toast.success('Plan created successfully!');
       }
-      
-      console.log('Success response:', response.data);
+
       fetchPlans();
       setShowForm(false);
       resetForm();
@@ -174,7 +169,7 @@ const PremiumPlansManagement = () => {
   const handleDelete = async (planId) => {
     if (window.confirm('Are you sure you want to delete this plan?')) {
       try {
-        await api.delete(`/api/premium/plans/${planId}/`);
+        await api.delete(`/api/v1/premium/plans/${planId}/`);
         toast.success('Plan deleted successfully');
         fetchPlans();
       } catch (error) {
@@ -186,7 +181,7 @@ const PremiumPlansManagement = () => {
 
   const togglePlanStatus = async (plan) => {
     try {
-      await api.patch(`/api/premium/plans/${plan.id}/`, {
+      await api.patch(`/api/v1/premium/plans/${plan.id}/`, {
         is_active: !plan.is_active
       });
       toast.success(`Plan ${plan.is_active ? 'deactivated' : 'activated'} successfully`);

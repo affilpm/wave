@@ -24,7 +24,7 @@ const AdminLogin = () => {
         setError(null);
     
         try {
-            const response = await api.post('/api/admins/login/', {
+            const response = await api.post('/api/v1/admins/login/', {
                 email,
                 password,
             });

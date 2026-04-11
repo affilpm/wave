@@ -50,12 +50,13 @@ class PlayerMiddlewareState {
   shouldFetch(playerState, musicId) {
     if (!musicId || !this.isRehydrated) return false;
     
-    if (playerState.streamUrl && playerState.currentMusicId === musicId) {
+    if (playerState.currentTrack?.hlsUrl && playerState.currentTrack?.id === musicId) {
       return false;
     }
     
-    if (playerState.isLoading && playerState.currentMusicId === musicId) {
-      return false;
+    if (playerState.status === 'loading' && playerState.currentTrack?.id === musicId) {
+      // Actually we might want to fetch if it's loading and we don't have the URL...
+      // Let's rely on requestQueue to prevent duplicates
     }
     
     if (this.requestQueue.has(musicId) || this.lastFetchedMusicId === musicId) {
@@ -107,7 +108,7 @@ const createFetchScheduler = (store) => {
       const currentPlayerState = currentState?.player;
       
       if (!currentPlayerState || 
-          currentPlayerState.currentMusicId !== musicId ||
+          currentPlayerState.currentTrack?.id !== musicId ||
           !middlewareState.canMakeRequest(musicId)) {
         return;
       }
@@ -141,10 +142,14 @@ const createRetryHandler = (store, scheduleFetch) => {
     if (!error || !musicId) return;
 
     const shouldRetry = [
-      'TOKEN_EXPIRED',
       'NETWORK_ERROR', 
       'SERVER_ERROR'
     ].includes(error.type);
+
+    // Explicitly do not retry on rate limits or auth failures
+    if (error.type === 'RATE_LIMITED' || error.type === 'UNAUTHORIZED' || error.type === 'API_ERROR') {
+      return;
+    }
 
     if (!shouldRetry) return;
 
@@ -159,7 +164,7 @@ const createRetryHandler = (store, scheduleFetch) => {
     
     setTimeout(() => {
       const currentState = store.getState();
-      if (currentState?.player?.currentMusicId === musicId) {
+      if (currentState?.player?.currentTrack?.id === musicId) {
         middlewareState.lastFetchedMusicId = null;
         scheduleFetch(musicId, true);
       }
@@ -168,16 +173,27 @@ const createRetryHandler = (store, scheduleFetch) => {
 };
 
 const createActionHandlers = (scheduleFetch, handleRetry) => ({
-  'persist/REHYDRATE': () => {
+  'persist/REHYDRATE': (action, playerState) => {
     middlewareState.isRehydrated = true;
+    const musicId = playerState.currentTrack?.id;
+    if (musicId) {
+      // Re-fetch URL on reload as it might be expired
+      middlewareState.lastFetchedMusicId = null;
+      scheduleFetch(musicId, true);
+    }
+  },
+
+  'player/playTrack': (action, playerState) => {
+    const musicId = action.payload?.id;
+    if (musicId) {
+      middlewareState.resetRetryCount(musicId);
+      middlewareState.lastFetchedMusicId = null;
+      scheduleFetch(musicId, true);
+    }
   },
 
   'player/setCurrentMusic': (action, playerState) => {
-    const musicData = action.payload;
-    const musicId = typeof musicData === 'object' && musicData !== null 
-      ? musicData.id 
-      : musicData;
-    
+    const musicId = action.payload?.id;
     if (musicId) {
       middlewareState.resetRetryCount(musicId);
       middlewareState.lastFetchedMusicId = null;
@@ -185,8 +201,8 @@ const createActionHandlers = (scheduleFetch, handleRetry) => ({
     }
   },
 
-  'player/refreshStream': (action, playerState) => {
-    const musicId = playerState.currentMusicId;
+  'player/playTrackAtIndex': (action, playerState) => {
+    const musicId = playerState.currentTrack?.id;
     if (musicId) {
       middlewareState.resetRetryCount(musicId);
       middlewareState.lastFetchedMusicId = null;
@@ -194,8 +210,8 @@ const createActionHandlers = (scheduleFetch, handleRetry) => ({
     }
   },
 
-  'player/playNext': (action, playerState) => {
-    const musicId = playerState.currentMusicId;
+  'player/skipNext': (action, playerState) => {
+    const musicId = playerState.currentTrack?.id;
     if (musicId) {
       middlewareState.resetRetryCount(musicId);
       if (musicId !== middlewareState.lastFetchedMusicId) {
@@ -205,14 +221,23 @@ const createActionHandlers = (scheduleFetch, handleRetry) => ({
     }
   },
 
-  'player/playPrevious': (action, playerState) => {
-    const musicId = playerState.currentMusicId;
+  'player/skipPrevious': (action, playerState) => {
+    const musicId = playerState.currentTrack?.id;
     if (musicId) {
       middlewareState.resetRetryCount(musicId);
       if (musicId !== middlewareState.lastFetchedMusicId) {
         middlewareState.lastFetchedMusicId = null;
       }
-      scheduleFetch(musicId);
+      scheduleFetch(musicId, true);
+    }
+  },
+
+  'player/setQueue': (action, playerState) => {
+    const musicId = playerState.currentTrack?.id;
+    if (musicId) {
+      middlewareState.resetRetryCount(musicId);
+      middlewareState.lastFetchedMusicId = null;
+      scheduleFetch(musicId, true);
     }
   },
 
@@ -225,7 +250,7 @@ const createActionHandlers = (scheduleFetch, handleRetry) => ({
     const musicId = action.meta.arg;
     const error = action.payload;
     
-    if (playerState.currentMusicId === musicId) {
+    if (playerState.currentTrack?.id === musicId) {
       handleRetry(musicId, error);
     }
   },
@@ -246,11 +271,22 @@ export const playerMiddleware = (store) => {
     const state = store.getState();
     const playerState = state?.player;
 
+    // Proactive check: If we have a track but no URL, schedule a fetch
+    if (playerState?.currentTrack && 
+        !playerState.currentTrack.hlsUrl && 
+        !playerState.currentTrack.hlsFailed && 
+        middlewareState.isRehydrated) {
+      scheduleFetch(playerState.currentTrack.id);
+    }
+
     const handler = actionHandlers[action.type];
     if (handler && playerState) {
       try {
         handler(action, playerState);
       } catch (error) {
+        if (import.meta.env.DEV) {
+          console.warn('[playerMiddleware] handler error:', error);
+        }
       }
     }
 
