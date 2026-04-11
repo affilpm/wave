@@ -33,6 +33,7 @@ class MusicSerializer(serializers.ModelSerializer):
     track_number = serializers.IntegerField(required=False, write_only=True)
     duration = serializers.DurationField(required=False)
     hls_processing_complete = serializers.SerializerMethodField()
+    total_plays = serializers.SerializerMethodField()
 
     class Meta:
         model = Music
@@ -40,8 +41,17 @@ class MusicSerializer(serializers.ModelSerializer):
             'id', 'name', 'cover_photo', 'audio_file', 
             'video_file', 'genres', 'release_date',
             'approval_status', 'duration', 'artist', 'is_public',
-            'album_id', 'track_number', 'hls_processing_complete'
+            'album_id', 'track_number', 'hls_processing_complete',
+            'total_plays'
         ]
+
+    def get_total_plays(self, obj):
+        if hasattr(obj, 'annotated_total_plays'):
+            return obj.annotated_total_plays
+        try:
+            return obj.play_stats.total_plays
+        except Exception:
+            return 0
 
     def get_hls_processing_complete(self, obj):
         return obj.streaming_files.exists()
@@ -84,8 +94,6 @@ class MusicSerializer(serializers.ModelSerializer):
         return music
  
 
-    
-
 
 class UserSerializer(serializers.ModelSerializer):
     
@@ -104,7 +112,6 @@ class ArtistSerializer(serializers.ModelSerializer):
         fields = ['id', 'user']
     
     
-    
 
 
 
@@ -116,13 +123,23 @@ class MusicDataSerializer(serializers.ModelSerializer):
     album_name = serializers.SerializerMethodField()
     album_id = serializers.SerializerMethodField()
 
+    total_plays = serializers.SerializerMethodField()
+
     class Meta:
         model = Music
         fields = [
             'id', 'name', 'cover_photo', 'audio_file', 'release_date',
             'duration', 'artist_email', 'artist_username', 'artist_id', 
-            'album_name', 'album_id'
+            'album_name', 'album_id', 'total_plays'
         ]
+
+    def get_total_plays(self, obj):
+        if hasattr(obj, 'annotated_total_plays'):
+            return obj.annotated_total_plays
+        try:
+            return obj.play_stats.total_plays
+        except Exception:
+            return 0
 
     def get_album_name(self, obj):
         album = obj.albums.first()

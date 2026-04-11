@@ -20,6 +20,8 @@ export const usePlayTracking = () => {
     lastContextRef.current = currentContext;
   }, [currentContext]);
 
+  const hasSentCompleteRef = useRef<boolean>(false);
+
   // Helper to record activity
   const recordActivity = async (trackId: string | number, activityType: 'play' | 'complete', context: PlayerContext | null) => {
     try {
@@ -61,16 +63,23 @@ export const usePlayTracking = () => {
       const sec = Math.floor(currentTime);
       if (sec >= 0) {
         playedSecondsRef.current.add(sec);
+        
+        // NEW: Trigger completion immediately when threshold is reached
+        if (!hasSentCompleteRef.current && playedSecondsRef.current.size >= 30) {
+          hasSentCompleteRef.current = true;
+          recordActivity(currentTrack.id, 'complete', currentContext);
+        }
       }
     }
-  }, [currentTime, status, currentTrack]);
+  }, [currentTime, status, currentTrack, currentContext]);
 
   // Effect to handle track changes and recording
   useEffect(() => {
-    // 1. If we had a previous track, check if it was "completed"
+    // 1. If we had a previous track, check if it was "completed" but NOT yet sent
     if (lastTrackIdRef.current && lastTrackIdRef.current !== currentTrack?.id) {
       const totalSeconds = playedSecondsRef.current.size;
-      if (totalSeconds > 10) {
+      // Fallback for short tracks or cases where the above effect didn't fire
+      if (!hasSentCompleteRef.current && totalSeconds >= 30) {
         recordActivityBeacon(lastTrackIdRef.current, 'complete', lastContextRef.current);
       }
     }
@@ -79,12 +88,13 @@ export const usePlayTracking = () => {
     if (currentTrack) {
       lastTrackIdRef.current = currentTrack.id;
       playedSecondsRef.current = new Set();
+      hasSentCompleteRef.current = false; // Reset for new track
       recordActivity(currentTrack.id, 'play', currentContext);
     }
 
     // 3. Cleanup on unmount
     return () => {
-      if (lastTrackIdRef.current && playedSecondsRef.current.size > 10) {
+      if (lastTrackIdRef.current && !hasSentCompleteRef.current && playedSecondsRef.current.size >= 30) {
         recordActivityBeacon(lastTrackIdRef.current, 'complete', lastContextRef.current);
       }
     };

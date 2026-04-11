@@ -10,8 +10,9 @@ import logging
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.db import transaction
-from django.db.models import Q
+from django.db import models, transaction
+from django.db.models import Q, Value, Sum
+from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
@@ -133,8 +134,11 @@ class MusicViewSet(ModelViewSet):
     def get_queryset(self):
         queryset = (
             Music.objects.filter(artist__user=self.request.user)
-            .select_related("artist", "artist__user")
+            .select_related("artist", "artist__user", "play_stats")
             .prefetch_related("genres")
+            .annotate(
+                annotated_total_plays=Coalesce("play_stats__total_plays", Value(0))
+            )
             .order_by("-created_at")
         )
         search_term = self.request.query_params.get("search", "")

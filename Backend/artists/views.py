@@ -250,8 +250,9 @@ class ArtistTotalPlaysView(APIView):
         if not artist:
             return Response({"error": "Artist Profile not Found"}, status=status.HTTP_404_NOT_FOUND)
 
-        play_count = ArtistPlayCount.objects.filter(artist=artist).first()
-        total = play_count.total_plays if play_count else 0
+        from listening_history.models import MusicPlayCount
+        from django.db.models import Sum
+        total = MusicPlayCount.objects.filter(music__artist=artist).aggregate(Sum('total_plays'))['total_plays__sum'] or 0
         return Response({"total_plays": total})
 
 
@@ -294,13 +295,19 @@ class ArtistRecentPlaysView(APIView):
             .order_by("-last_played")[:3]
         )
 
+        def get_plays(music):
+            try:
+                return music.play_stats.total_plays
+            except Exception:
+                return 0
+
         data = [
             {
                 "music_id": rp.music.id,
                 "name": rp.music.name,
                 "cover_photo": rp.music.cover_photo.url if rp.music.cover_photo else None,
                 "last_played": rp.last_played,
-                "total_plays": getattr(rp.music.play_stats, "total_plays", 0),
+                "total_plays": get_plays(rp.music),
             }
             for rp in recent
         ]

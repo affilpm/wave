@@ -22,6 +22,7 @@ const AlbumManagement = () => {
         setLoading(true);
         const response = await api.get('/api/v1/album/albums');
         const data = response.data.results || response.data || [];
+        console.log('Album list data received:', data);
         setAlbums(data);
         setError(null);
       } catch (err) {
@@ -156,6 +157,7 @@ const AlbumManagement = () => {
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Album Name</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Tracks</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Release Date</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Plays</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Status(Private/Public)</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Actions</th>
                 </tr>
@@ -167,6 +169,11 @@ const AlbumManagement = () => {
                     <td className="px-4 py-3 text-gray-300">{album.tracks?.length || 0}</td>
                     <td className="px-4 py-3 text-center text-gray-300">
                       {new Date(album.release_date).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-gray-300 font-medium">
+                        {(album.total_plays || 0).toLocaleString()}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <button

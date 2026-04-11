@@ -59,8 +59,14 @@ def record_activity(user, music, activity_type=MusicActivityType.PLAY, source_ty
             history.save(update_fields=["play_count", "last_played_at", "source_type", "source_id"])
 
         # 3. Aggregated counts (Only on COMPLETE or optionally on PLAY)
-        # Standard behavior: increment totals on PLAY or COMPLETE? 
-        # Requirement says: "When a user listens to a track" -> increment.
+        
+        # Recently played (cache/v1) -> Update on every activity (PLAY/COMPLETE)
+        RecentlyPlayed.objects.update_or_create(
+            user=user,
+            music=music,
+            defaults={"last_played": now()},
+        )
+
         if activity_type == MusicActivityType.COMPLETE:
             # Music-level play count
             play_count, _ = MusicPlayCount.objects.get_or_create(music=music)
@@ -79,10 +85,3 @@ def record_activity(user, music, activity_type=MusicActivityType.PLAY, source_ty
             artist_activity.total_plays = F("total_plays") + 1
             artist_activity.last_played = now()
             artist_activity.save(update_fields=["total_plays", "last_played"])
-
-            # Recently played (cache/v1)
-            RecentlyPlayed.objects.update_or_create(
-                user=user,
-                music=music,
-                defaults={"last_played": now()},
-            )

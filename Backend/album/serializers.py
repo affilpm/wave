@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from music.models import Album, AlbumTrack, Music, Genre
+from django.db import models
 # from music.serializers import MusicSerializer
 import os
 
@@ -12,6 +13,7 @@ class MusicSerializer(serializers.ModelSerializer):
     artist_id = serializers.SerializerMethodField()
     album_name = serializers.SerializerMethodField()
     album_id = serializers.SerializerMethodField()
+    total_plays = serializers.SerializerMethodField()
     
     class Meta:
         model = Music
@@ -20,7 +22,7 @@ class MusicSerializer(serializers.ModelSerializer):
              'genres', 'release_date',
             'approval_status', 'duration', 'artist', 
             'artist_email', 'artist_username',
-            'artist_id', 'is_public', 'album_name', 'album_id',
+            'artist_id', 'is_public', 'album_name', 'album_id', 'total_plays',
         ]
 
     def get_album_name(self, obj):
@@ -41,8 +43,12 @@ class MusicSerializer(serializers.ModelSerializer):
     def get_artist_id(self, obj):
         return obj.artist.id if obj.artist else None
     
+    def get_total_plays(self, obj):
+        try:
+            return obj.play_stats.total_plays
+        except Exception:
+            return 0
     
-
 
     def get_genres(self, obj):
         # Return a list of genre names
@@ -81,6 +87,7 @@ class AlbumSerializer(serializers.ModelSerializer):
     tracks = AlbumTrackSerializer(source='albumtrack_set', many=True, required=False)
     artist_username = serializers.SerializerMethodField()
     artist_id = serializers.SerializerMethodField()
+    total_plays = serializers.SerializerMethodField()
     
     class Meta:
         model = Album
@@ -88,7 +95,7 @@ class AlbumSerializer(serializers.ModelSerializer):
             'id', 'name', 'description', 'cover_photo', 
             'banner_img', 'release_date', 'is_public',
             'tracks', 'created_at', 'updated_at',
-            'artist_username', 'artist_id',
+            'artist_username', 'artist_id', 'total_plays',
         ]
         read_only_fields = ['created_at', 'updated_at', 'updated_at']
         extra_kwargs = {
@@ -105,6 +112,12 @@ class AlbumSerializer(serializers.ModelSerializer):
 
     def get_artist_id(self, obj):
         return obj.artist.id if obj.artist else None
+    
+    def get_total_plays(self, obj):
+        from listening_history.models import MusicPlayCount
+        track_ids = obj.tracks.values_list('id', flat=True)
+        plays = MusicPlayCount.objects.filter(music_id__in=track_ids).aggregate(models.Sum('total_plays'))['total_plays__sum']
+        return plays or 0
     
     
     def validate_is_public(self, value):
@@ -147,4 +160,3 @@ class AlbumSerializer(serializers.ModelSerializer):
         if instance.banner_img:
             representation['banner_img'] = instance.banner_img.url
         return representation
-        

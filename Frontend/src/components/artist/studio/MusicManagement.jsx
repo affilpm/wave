@@ -95,6 +95,7 @@ const MusicManagement = () => {
       
       const musicData = Array.isArray(response.data) ? response.data : response.data.results || [];
       const count = response.data.results ? response.data.count : musicData.length;
+      console.log('Music list data received:', musicData);
       setTracks(musicData);
       setTotalPages(Math.ceil(count / 8));
       
@@ -268,6 +269,7 @@ const MusicManagement = () => {
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Title</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Genres</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Status</th>
+                  <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Plays</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Admin Approval Status</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Actions</th>
                 </tr>
@@ -321,6 +323,11 @@ const MusicManagement = () => {
                       >
                         {track.is_public ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
                       </button>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <span className="text-gray-300 font-medium">
+                        {(track.total_plays || 0).toLocaleString()}
+                      </span>
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex flex-col items-center justify-center gap-1.5">
