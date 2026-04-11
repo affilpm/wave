@@ -257,8 +257,9 @@ const playerSlice = createSlice({
       state.userQueue = []; // Reset user manual queue when context changes
       state.currentContext = context;
       
-      // Auto-turn off shuffle when entering a new queue/collection
+      // Auto-turn off shuffle and repeat when entering a new queue/collection
       state.shuffleMode = false;
+      state.repeatMode = 'off';
       
       state.queue = [...tracks];
       state.queueIndex = Math.max(0, Math.min(startIndex, tracks.length - 1));
@@ -394,6 +395,11 @@ const playerSlice = createSlice({
       
       const isLastTrack = state.queueIndex === state.queue.length - 1;
       
+      // If we skip while in Repeat One, we move to Repeat All to continue the queue
+      if (state.repeatMode === 'one') {
+        state.repeatMode = 'all';
+      }
+
       if (isLastTrack) {
         if (state.repeatMode === 'all') {
           state.queueIndex = 0;
@@ -426,6 +432,11 @@ const playerSlice = createSlice({
         // Restart current track
         state.currentTime = 0;
       } else {
+        // If we skip while in Repeat One, we move to Repeat All to continue the queue
+        if (state.repeatMode === 'one') {
+          state.repeatMode = 'all';
+        }
+
         // Go back
         if (state.queueIndex > 0) {
           state.queueIndex -= 1;
@@ -495,7 +506,7 @@ const playerSlice = createSlice({
     },
     
     cycleRepeat: (state) => {
-      const order: RepeatMode[] = ['off', 'one', 'all'];
+      const order: RepeatMode[] = ['off', 'all', 'one'];
       const currentIndex = order.indexOf(state.repeatMode);
       state.repeatMode = order[(currentIndex + 1) % order.length];
     },

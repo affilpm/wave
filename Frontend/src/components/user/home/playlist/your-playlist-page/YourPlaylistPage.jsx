@@ -31,6 +31,249 @@ const selectPlayerState = createSelector(
   })
 );
 
+// Desktop track row component
+const TrackRow = React.memo(
+  ({ 
+    track, 
+    index, 
+    currentMusicId, 
+    isCollectionActive, 
+    isCollectionPlaying, 
+    onPlayTrack, 
+    onRemoveClick,
+    isLikedSongsPlaylist 
+  }) => {
+    const isThisTrackPlaying = useMemo(
+      () => Number(currentMusicId) === Number(track.music_details.id) && isCollectionActive,
+      [currentMusicId, isCollectionActive]
+    );
+
+    return (
+      <tr
+        className={`group hover:bg-white/10 transition-colors cursor-pointer ${
+          isThisTrackPlaying ? "bg-white/5" : ""
+        }`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onPlayTrack(track, index);
+        }}
+      >
+        <td className="py-3 pl-4">
+          <div className="flex items-center justify-center w-8 h-8 group relative text-gray-400">
+            {isThisTrackPlaying && isCollectionPlaying ? (
+              <div className="flex items-center gap-0.5 h-3 items-end">
+                <motion.span 
+                  animate={{ height: ["20%", "70%", "30%", "100%", "40%"] }}
+                  transition={{ repeat: Infinity, duration: 0.8, ease: "easeInOut" }}
+                  className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+                />
+                <motion.span 
+                  animate={{ height: ["40%", "100%", "50%", "80%", "60%"] }}
+                  transition={{ repeat: Infinity, duration: 0.7, ease: "easeInOut", delay: 0.1 }}
+                  className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+                />
+                <motion.span 
+                  animate={{ height: ["15%", "60%", "25%", "90%", "35%"] }}
+                  transition={{ repeat: Infinity, duration: 0.9, ease: "easeInOut", delay: 0.2 }}
+                  className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+                />
+              </div>
+            ) : (
+              <>
+                <span className={`text-sm font-medium group-hover:hidden ${isThisTrackPlaying ? 'text-green-500' : ''}`}>
+                  {index + 1}
+                </span>
+                <button
+                  className="hidden group-hover:flex items-center justify-center p-1.5 hover:text-white text-gray-400 active:scale-90 transition-transform bg-black/40 rounded-full backdrop-blur-sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onPlayTrack(track, index);
+                  }}
+                >
+                  {isThisTrackPlaying && isCollectionPlaying ? (
+                    <Pause className="h-4 w-4 fill-current" />
+                  ) : (
+                    <Play className="h-4 w-4 fill-current ml-0.5" />
+                  )}
+                </button>
+              </>
+            )}
+          </div>
+        </td>
+        <td className="py-3 pl-6">
+          <div className="flex items-center gap-3">
+            <img
+              src={track.music_details.cover_photo || "/api/v1/placeholder/40/40"}
+              alt={track.music_details.name}
+              className="w-10 h-10 rounded-md shadow-lg"
+            />
+            <span className={`font-medium ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{track.music_details.name}</span>
+          </div>
+        </td>
+        <td className="py-3 pl-6 pr-4 text-gray-400">
+          {track.music_details.artist_id ? (
+            <Link 
+              to={`/artist/${track.music_details.artist_id}`}
+              className="hover:underline hover:text-white transition-colors"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {track.music_details.artist_username}
+            </Link>
+          ) : (
+            track.music_details.artist_username
+          )}
+        </td>
+        <td className="py-3 pl-6 pr-4 text-gray-400">
+          {track.music_details.album_id ? (
+            <Link to={`/album/${track.music_details.album_id}`} className="hover:underline hover:text-white transition-colors">
+              {track.music_details.album_name}
+            </Link>
+          ) : (
+            "Single"
+          )}
+        </td>
+        <td className="py-3 text-center text-gray-400 w-20">
+          {formatDuration(track.music_details.duration)}
+        </td>
+        <td className="py-3 pr-6 text-right">
+          <button
+            className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-opacity duration-200 ease-in-out"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemoveClick(track.music_details.id, track.music_details.name);
+            }}
+          >
+            {isLikedSongsPlaylist ? (
+              <Heart className="h-4 w-4" fill="currentColor" />
+            ) : (
+              <X className="h-4 w-4" />
+            )}
+          </button>
+        </td>
+      </tr>
+    );
+  },
+  (prevProps, nextProps) =>
+    prevProps.track.music_details.id === nextProps.track.music_details.id &&
+    prevProps.index === nextProps.index &&
+    prevProps.currentMusicId === nextProps.currentMusicId &&
+    prevProps.isCollectionActive === nextProps.isCollectionActive &&
+    prevProps.isCollectionPlaying === nextProps.isCollectionPlaying
+);
+
+// Mobile track card component
+const TrackCard = React.memo(
+  ({ 
+    track, 
+    index, 
+    currentMusicId, 
+    isCollectionActive, 
+    isCollectionPlaying, 
+    onPlayTrack, 
+    onRemoveClick,
+    isLikedSongsPlaylist 
+  }) => {
+    const isThisTrackPlaying = useMemo(
+      () => Number(currentMusicId) === Number(track.music_details.id) && isCollectionActive,
+      [currentMusicId, isCollectionActive]
+    );
+
+    return (
+      <div
+        className={`group flex items-center p-3 border-b border-gray-800 gap-3 cursor-pointer ${
+          isThisTrackPlaying ? "bg-white/5" : ""
+        } hover:bg-white/10 transition-colors duration-200 ease-in-out`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onPlayTrack(track, index);
+        }}
+      >
+        <div className="w-6 text-center text-sm text-gray-400 h-8 relative flex items-center justify-center">
+          {isThisTrackPlaying && isCollectionPlaying ? (
+            <div className="flex items-center gap-0.5 justify-center h-3 items-end">
+              <motion.span 
+                animate={{ height: ["20%", "70%", "30%", "100%", "40%"] }}
+                transition={{ repeat: Infinity, duration: 0.8, ease: "easeInOut" }}
+                className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+              />
+              <motion.span 
+                animate={{ height: ["40%", "100%", "50%", "80%", "60%"] }}
+                transition={{ repeat: Infinity, duration: 0.7, ease: "easeInOut", delay: 0.1 }}
+                className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+              />
+              <motion.span 
+                animate={{ height: ["15%", "60%", "25%", "90%", "35%"] }}
+                transition={{ repeat: Infinity, duration: 0.9, ease: "easeInOut", delay: 0.2 }}
+                className="w-0.5 min-h-[3px] bg-green-500 rounded-full"
+              />
+            </div>
+          ) : (
+            <>
+              <span className={`group-hover:hidden ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{index + 1}</span>
+              <button
+                className="hidden group-hover:flex items-center justify-center p-1.5 hover:text-white text-gray-400 active:scale-90 transition-transform bg-black/40 rounded-full backdrop-blur-sm mx-auto"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPlayTrack(track, index);
+                }}
+              >
+                {isThisTrackPlaying && isCollectionPlaying ? (
+                  <Pause className="h-4 w-4 fill-current" />
+                ) : (
+                  <Play className="h-4 w-4 fill-current ml-0.5" />
+                )}
+              </button>
+            </>
+          )}
+        </div>
+        <img
+          src={track.music_details.cover_photo || "/api/v1/placeholder/40/40"}
+          alt={track.music_details.name}
+          className="w-10 h-10 rounded-md shadow-md"
+        />
+        <div className="flex-1 min-w-0">
+          <div className={`font-medium truncate ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{track.music_details.name}</div>
+          <div className="text-sm text-gray-400 truncate">
+            {track.music_details.artist_id ? (
+              <Link 
+                to={`/artist/${track.music_details.artist_id}`}
+                className="hover:underline hover:text-white transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {track.music_details.artist_username}
+              </Link>
+            ) : (
+              track.music_details.artist_username
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-400">{formatDuration(track.music_details.duration)}</span>
+          <button
+            className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-opacity duration-200 ease-in-out"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemoveClick(track.music_details.id, track.music_details.name);
+            }}
+          >
+            {isLikedSongsPlaylist ? (
+              <Heart className="h-4 w-4" fill="currentColor" />
+            ) : (
+              <X className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  },
+  (prevProps, nextProps) =>
+    prevProps.track.music_details.id === nextProps.track.music_details.id &&
+    prevProps.index === nextProps.index &&
+    prevProps.currentMusicId === nextProps.currentMusicId &&
+    prevProps.isCollectionActive === nextProps.isCollectionActive &&
+    prevProps.isCollectionPlaying === nextProps.isCollectionPlaying
+);
+
 const YourPlaylistPage = () => {
   const dispatch = useDispatch();
   const { playlistId } = useParams();
@@ -250,233 +493,6 @@ const YourPlaylistPage = () => {
     fetchPlaylist();
   }, [playlistId]);
 
-  // TrackRow component
-  const TrackRow = React.memo(
-    ({ track, index }) => {
-      const isThisTrackPlaying = useMemo(
-        () => Number(currentMusicId) === Number(track.music_details.id) && isCurrentTrackFromPlaylist,
-        [currentMusicId, isCurrentTrackFromPlaylist]
-      );
-
-      return (
-        <tr
-          className={`group hover:bg-white/10 transition-colors duration-200 ease-in-out cursor-pointer ${
-            isThisTrackPlaying ? "bg-white/5" : ""
-          }`}
-          onClick={(e) => {
-            e.stopPropagation();
-            handlePlayTrack(track, index);
-          }}
-        >
-          <td className="py-3 pl-4">
-            <div className="flex items-center justify-center w-8">
-              {isThisTrackPlaying && isCollectionPlaying ? (
-                <div className="flex items-center gap-0.5">
-                  <span className="w-0.5 h-3 bg-green-500 rounded-full animate-pulse"></span>
-                  <span className="w-0.5 h-4 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.15s' }}></span>
-                  <span className="w-0.5 h-2 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.3s' }}></span>
-                </div>
-              ) : (
-                <>
-                  <span className={`group-hover:hidden ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{index + 1}</span>
-                  <button
-                    className="hidden group-hover:flex p-1 hover:text-white text-gray-400 active:scale-90 transition-transform"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handlePlayTrack(track, index);
-                    }}
-                  >
-                    <AnimatePresence mode="wait">
-                      {isThisTrackPlaying && isCollectionPlaying ? (
-                        <motion.div
-                          key="pause-inner"
-                          initial={{ scale: 0.5, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.5, opacity: 0 }}
-                          transition={{ duration: 0.15 }}
-                        >
-                          <Pause className="h-4 w-4 fill-current" />
-                        </motion.div>
-                      ) : (
-                        <motion.div
-                          key="play-inner"
-                          initial={{ scale: 0.5, opacity: 0 }}
-                          animate={{ scale: 1, opacity: 1 }}
-                          exit={{ scale: 0.5, opacity: 0 }}
-                          transition={{ duration: 0.15 }}
-                        >
-                          <Play className="h-4 w-4 fill-current ml-0.5" />
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </button>
-                </>
-              )}
-            </div>
-          </td>
-          <td className="py-3 pl-6">
-            <div className="flex items-center gap-3">
-              <img
-                src={track.music_details.cover_photo || "/api/v1/placeholder/40/40"}
-                alt={track.music_details.name}
-                className="w-10 h-10 rounded-md"
-              />
-              <span className={`font-medium ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{track.music_details.name}</span>
-            </div>
-          </td>
-          <td className="py-3 pl-6 pr-4 text-gray-400">
-            {track.music_details.artist_id ? (
-              <Link 
-                to={`/artist/${track.music_details.artist_id}`}
-                className="hover:underline hover:text-white transition-colors"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {track.music_details.artist_username}
-              </Link>
-            ) : (
-              track.music_details.artist_username
-            )}
-          </td>
-          <td className="py-3 pl-6 pr-4 text-gray-400">
-            {track.music_details.album_id ? (
-              <Link to={`/album/${track.music_details.album_id}`} className="hover:underline hover:text-white transition-colors">
-                {track.music_details.album_name}
-              </Link>
-            ) : (
-              "Single"
-            )}
-          </td>
-          <td className="py-3 text-center text-gray-400 w-20">
-            {formatDuration(track.music_details.duration)}
-          </td>
-          <td className="py-3 pr-6 text-right">
-            <button
-              className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-opacity duration-200 ease-in-out"
-              onClick={(e) => {
-                e.stopPropagation();
-                confirmRemoveTrack(track.music_details.id, track.music_details.name);
-              }}
-            >
-              {playlist?.name === "Liked Songs" ? (
-                <Heart className="h-4 w-4" fill="currentColor" />
-              ) : (
-                <X className="h-4 w-4" />
-              )}
-            </button>
-          </td>
-        </tr>
-      );
-    },
-    (prevProps, nextProps) =>
-      prevProps.track === nextProps.track && prevProps.index === nextProps.index
-  );
-
-  // TrackCard component
-  const TrackCard = React.memo(
-    ({ track, index }) => {
-      const isThisTrackPlaying = useMemo(
-        () => Number(currentMusicId) === Number(track.music_details.id) && isCurrentTrackFromPlaylist,
-        [currentMusicId, isCurrentTrackFromPlaylist]
-      );
-
-      return (
-        <div
-          className={`group flex items-center p-3 border-b border-gray-800 gap-3 cursor-pointer ${
-            isThisTrackPlaying ? "bg-white/5" : ""
-          } hover:bg-white/10 transition-colors duration-200 ease-in-out`}
-          onClick={(e) => {
-            e.stopPropagation();
-            handlePlayTrack(track, index);
-          }}
-        >
-          <div className="w-6 text-center text-sm text-gray-400">
-            {isThisTrackPlaying && isCollectionPlaying ? (
-              <div className="flex items-center gap-0.5 justify-center">
-                <span className="w-0.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
-                <span className="w-0.5 h-3.5 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.15s' }}></span>
-                <span className="w-0.5 h-1.5 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.3s' }}></span>
-              </div>
-            ) : (
-              <>
-                <span className={`group-hover:hidden ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{index + 1}</span>
-                <button
-                  className="hidden group-hover:block p-1 hover:text-white text-gray-400 active:scale-90 transition-transform mx-auto"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handlePlayTrack(track, index);
-                  }}
-                >
-                  <AnimatePresence mode="wait">
-                    {isThisTrackPlaying && isCollectionPlaying ? (
-                      <motion.div
-                        key="pause-mobile"
-                        initial={{ scale: 0.5, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.5, opacity: 0 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        <Pause className="h-4 w-4 fill-current" />
-                      </motion.div>
-                    ) : (
-                      <motion.div
-                        key="play-mobile"
-                        initial={{ scale: 0.5, opacity: 0 }}
-                        animate={{ scale: 1, opacity: 1 }}
-                        exit={{ scale: 0.5, opacity: 0 }}
-                        transition={{ duration: 0.15 }}
-                      >
-                        <Play className="h-4 w-4 fill-current ml-0.5" />
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </button>
-              </>
-            )}
-          </div>
-          <img
-            src={track.music_details.cover_photo || "/api/v1/placeholder/40/40"}
-            alt={track.music_details.name}
-            className="w-10 h-10 rounded-md"
-          />
-          <div className="flex-1 min-w-0">
-            <div className={`font-medium truncate ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{track.music_details.name}</div>
-            <div className="text-sm text-gray-400 truncate">
-              {track.music_details.artist_id ? (
-                <Link 
-                  to={`/artist/${track.music_details.artist_id}`}
-                  className="hover:underline hover:text-white transition-colors"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {track.music_details.artist_username}
-                </Link>
-              ) : (
-                track.music_details.artist_username
-              )}
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400">{formatDuration(track.music_details.duration)}</span>
-            <button
-              className="opacity-0 group-hover:opacity-100 p-1 text-red-500 hover:text-red-400 transition-opacity duration-200 ease-in-out"
-              onClick={(e) => {
-                e.stopPropagation();
-                confirmRemoveTrack(track.music_details.id, track.music_details.name);
-              }}
-            >
-              {playlist?.name === "Liked Songs" ? (
-                <Heart className="h-4 w-4" fill="currentColor" />
-              ) : (
-                <X className="h-4 w-4" />
-              )}
-            </button>
-          </div>
-        </div>
-      );
-    },
-    (prevProps, nextProps) =>
-      prevProps.track === nextProps.track && prevProps.index === nextProps.index
-  );
-
   if (isLoading) {
     return (
       <div className="p-4 md:p-6 space-y-4">
@@ -592,7 +608,17 @@ const YourPlaylistPage = () => {
             </thead>
             <tbody>
               {stableTracks.map((track, index) => (
-                <TrackRow key={track.music_details.id} track={track} index={index} />
+                <TrackRow 
+                  key={track.music_details.id} 
+                  track={track} 
+                  index={index}
+                  currentMusicId={currentMusicId}
+                  isCollectionActive={isCurrentTrackFromPlaylist}
+                  isCollectionPlaying={isCollectionPlaying}
+                  onPlayTrack={handlePlayTrack}
+                  onRemoveClick={confirmRemoveTrack}
+                  isLikedSongsPlaylist={playlist?.name === "Liked Songs"}
+                />
               ))}
             </tbody>
           </table>
@@ -606,7 +632,17 @@ const YourPlaylistPage = () => {
           </div>
           <div className="rounded-lg overflow-hidden">
             {stableTracks.map((track, index) => (
-              <TrackCard key={track.music_details.id} track={track} index={index} />
+              <TrackCard 
+                key={track.music_details.id} 
+                track={track} 
+                index={index}
+                currentMusicId={currentMusicId}
+                isCollectionActive={isCurrentTrackFromPlaylist}
+                isCollectionPlaying={isCollectionPlaying}
+                onPlayTrack={handlePlayTrack}
+                onRemoveClick={confirmRemoveTrack}
+                isLikedSongsPlaylist={playlist?.name === "Liked Songs"}
+              />
             ))}
           </div>
         </div>

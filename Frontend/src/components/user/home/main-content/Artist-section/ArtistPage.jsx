@@ -22,6 +22,103 @@ const selectPlayerState = createSelector(
   })
 );
 
+// Memoized TrackRow component for stability and performance
+const TrackRow = React.memo(({ 
+  song, 
+  index, 
+  currentMusicId, 
+  isCollectionActive, 
+  isCollectionPlaying, 
+  onPlaySong 
+}) => {
+  const isThisTrackPlaying = useMemo(
+    () => Number(currentMusicId) === Number(song.id) && isCollectionActive,
+    [currentMusicId, isCollectionActive]
+  );
+
+  return (
+    <tr
+      className={`group hover:bg-white/10 transition-colors cursor-pointer ${
+        isThisTrackPlaying ? "bg-white/5" : ""
+      }`}
+      onClick={() => onPlaySong(song, index)}
+    >
+      <td className="py-2 md:py-3 pl-2 md:pl-4">
+        <div className="flex items-center justify-center w-6 md:w-8 h-8 group relative">
+          {isThisTrackPlaying && isCollectionPlaying ? (
+            <div className="flex items-center gap-0.5 h-4 items-end">
+              <motion.span 
+                animate={{ height: ["20%", "60%", "30%", "80%", "40%"] }}
+                transition={{ repeat: Infinity, duration: 0.8, ease: "easeInOut" }}
+                className="w-0.5 min-h-[4px] bg-green-500 rounded-full"
+              />
+              <motion.span 
+                animate={{ height: ["40%", "90%", "50%", "100%", "60%"] }}
+                transition={{ repeat: Infinity, duration: 0.7, ease: "easeInOut", delay: 0.1 }}
+                className="w-0.5 min-h-[4px] bg-green-500 rounded-full"
+              />
+              <motion.span 
+                animate={{ height: ["15%", "50%", "25%", "70%", "35%"] }}
+                transition={{ repeat: Infinity, duration: 0.9, ease: "easeInOut", delay: 0.2 }}
+                className="w-0.5 min-h-[4px] bg-green-500 rounded-full"
+              />
+            </div>
+          ) : (
+            <>
+              <span className={`group-hover:hidden text-xs md:text-sm font-medium ${isThisTrackPlaying ? 'text-green-500' : 'text-gray-400'}`}>
+                {index + 1}
+              </span>
+              <button
+                className="hidden group-hover:flex items-center justify-center p-1.5 hover:text-white text-gray-400 active:scale-90 transition-transform bg-black/40 rounded-full backdrop-blur-sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPlaySong(song, index);
+                }}
+              >
+                {isThisTrackPlaying && isCollectionPlaying ? (
+                  <Pause className="h-3 w-3 md:h-4 md:w-4 fill-current" />
+                ) : (
+                  <Play className="h-3 w-3 md:h-4 md:w-4 fill-current ml-0.5" />
+                )}
+              </button>
+            </>
+          )}
+        </div>
+      </td>
+      <td className="py-2 md:py-3 pl-2 md:pl-3">
+        <div className="flex items-center gap-2 md:gap-3">
+          <img
+            src={song.cover_photo || "/api/v1/placeholder/40/40"}
+            alt={song.name}
+            className="w-8 h-8 md:w-10 md:h-10 rounded-md shadow-md"
+          />
+          <span className={`text-sm md:text-base font-medium truncate ${isThisTrackPlaying ? 'text-green-500' : ''}`}>
+            {song.name}
+          </span>
+        </div>
+      </td>
+      <td className="py-2 md:py-3 hidden md:table-cell pl-3 text-sm text-gray-400">
+        {song.album_name ? (
+          <Link to={`/album/${song.album_id}`} className="hover:underline hover:text-white transition-colors">
+            {song.album_name}
+          </Link>
+        ) : (
+          "Single"
+        )}
+      </td>
+      <td className="py-2 md:py-3 text-center text-xs md:text-sm text-gray-400">
+        {formatDuration(song.duration)}
+      </td>
+    </tr>
+  );
+}, (prev, next) => 
+  prev.song.id === next.song.id && 
+  prev.index === next.index && 
+  prev.currentMusicId === next.currentMusicId && 
+  prev.isCollectionActive === next.isCollectionActive &&
+  prev.isCollectionPlaying === next.isCollectionPlaying
+);
+
 const ArtistDetailPage = () => {
   const { artistId } = useParams();
   const navigate = useNavigate();
@@ -291,105 +388,18 @@ const ArtistDetailPage = () => {
                 </tr>
               </thead>
                 <tbody>
-                  {stableSongs.map((song, index) => {
-                    const isThisTrackPlaying =
-                      Number(currentMusicId) === Number(song.id) &&
-                      isCurrentTrackFromArtist &&
-                      isCollectionPlaying;
-                    return (
-                        <tr
-                          key={song.id}
-                          className={`group hover:bg-white/10 transition-colors cursor-pointer ${
-                            isThisTrackPlaying ? "bg-white/5" : ""
-                          }`}
-                          onClick={() => handlePlaySong(song, index)}
-                        >
-                          <td className="py-2 md:py-3 pl-2 md:pl-4">
-                            <div className="flex items-center justify-center w-6 md:w-8 group">
-                              {isThisTrackPlaying ? (
-                                <div className="flex items-center gap-0.5">
-                                  <span className="w-0.5 h-2 md:h-3 bg-green-500 rounded-full animate-pulse"></span>
-                                  <span className="w-0.5 h-3 md:h-4 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.15s' }}></span>
-                                  <span className="w-0.5 h-1.5 md:h-2 bg-green-500 rounded-full animate-pulse" style={{ animationDelay: '0.3s' }}></span>
-                                </div>
-                              ) : (
-                                <>
-                                  <span className={`group-hover:hidden text-xs md:text-sm ${isThisTrackPlaying ? 'text-green-500' : ''}`}>{index + 1}</span>
-                                  <button
-                                    className="hidden group-hover:block p-1 hover:text-white text-gray-400 active:scale-90 transition-transform"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handlePlaySong(song, index);
-                                    }}
-                                  >
-                                    <AnimatePresence mode="wait">
-                                      {isThisTrackPlaying ? (
-                                        <motion.div
-                                          key="pause-inner"
-                                          initial={{ scale: 0.5, opacity: 0 }}
-                                          animate={{ scale: 1, opacity: 1 }}
-                                          exit={{ scale: 0.5, opacity: 0 }}
-                                          transition={{ duration: 0.15 }}
-                                        >
-                                          <Pause className="h-3 w-3 md:h-4 md:w-4 fill-current" />
-                                        </motion.div>
-                                      ) : (
-                                        <motion.div
-                                          key="play-inner"
-                                          initial={{ scale: 0.5, opacity: 0 }}
-                                          animate={{ scale: 1, opacity: 1 }}
-                                          exit={{ scale: 0.5, opacity: 0 }}
-                                          transition={{ duration: 0.15 }}
-                                        >
-                                          <Play className="h-3 w-3 md:h-4 md:w-4 fill-current ml-0.5" />
-                                        </motion.div>
-                                      )}
-                                    </AnimatePresence>
-                                  </button>
-                                </>
-                              )}
-                            </div>
-                          </td>
-                        <td className="py-2 md:py-3 pl-2 md:pl-3">
-                          <div className="flex items-center gap-2 md:gap-3">
-                            <img
-                              src={song.cover_photo || "/api/v1/placeholder/40/40"}
-                              alt={song.title}
-                              className="w-8 h-8 md:w-10 md:h-10 rounded-md"
-                            />
-                            <div>
-                              <div
-                                className={`text-sm md:text-base ${
-                                  isThisTrackPlaying ? "text-green-500" : "text-white"
-                                }`}
-                              >
-                                {song.title}
-                              </div>
-                              <div className="text-xs md:text-sm text-gray-400">
-                                {artist.username}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-2 md:py-3 pl-3 hidden md:table-cell text-gray-400">
-                          {song.album_id ? (
-                            <Link 
-                              to={`/album/${song.album_id}`} 
-                              className="hover:underline hover:text-white transition-colors"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {song.album_name}
-                            </Link>
-                          ) : (
-                            "Single"
-                          )}
-                        </td>
-                        <td className="py-2 md:py-3 text-center text-gray-400 text-xs md:text-sm w-16 md:w-20">
-                          {formatDuration(song.duration)}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {stableSongs.map((song, index) => (
+                    <TrackRow 
+                      key={song.id} 
+                      song={song} 
+                      index={index}
+                      currentMusicId={currentMusicId}
+                      isCollectionActive={isCurrentTrackFromArtist}
+                      isCollectionPlaying={isCollectionPlaying}
+                      onPlaySong={handlePlaySong}
+                      artistUsername={artist.username}
+                    />
+                  ))}
                 </tbody>
             </table>
           </div>
