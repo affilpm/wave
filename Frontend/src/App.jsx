@@ -36,6 +36,8 @@ const AlbumPage = lazy(() => import('./components/user/home/album/AlbumPage'));
 const GenrePage = lazy(() => import('./components/user/home/main-content/Genre-section/GenrePage'));
 const ArtistPage = lazy(() => import('./components/user/home/main-content/Artist-section/ArtistPage'));
 const DiscoverPage = lazy(() => import('./pages/user/DiscoverPage'));
+const PrivacyPolicy = lazy(() => import('./pages/user/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./pages/user/TermsOfService'));
 
 // Artist Studio
 const StudioPage = lazy(() => import('./pages/artist/StudioPage'));
@@ -89,8 +91,6 @@ function App() {
             {/* Protected User Routes */}
             <Route element={<PrivateRoute isAuthenticated={isAuthenticated} />}>
               <Route path="/premium" element={<Premium />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/transactions" element={<TransactionHistory />} />
               
               <Route path="/" element={<HomePage />}>
                 <Route index element={<Navigate to="/home" replace />} />
@@ -107,6 +107,10 @@ function App() {
                 <Route path="/profile" element={<Profile />} />
                 <Route path="/monetization" element={<MonetizationPage />} />
                 <Route path="/artist/:artistId" element={<ArtistPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/transactions" element={<TransactionHistory />} />
+                <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                <Route path="/terms-of-service" element={<TermsOfService />} />
               </Route>
 
               {/* Protected Artist Studio Routes */}

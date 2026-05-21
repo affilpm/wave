@@ -22,13 +22,13 @@ class CloudFrontMediaStorage(S3Boto3Storage):
     location: str = "media"
     file_overwrite: bool = False
     default_acl: str | None = None
-    custom_domain: str = getattr(settings, "CLOUDFRONT_DOMAIN", "")
+    custom_domain: str = getattr(settings, "MEDIA_DOMAIN", getattr(settings, "CLOUDFRONT_DOMAIN", ""))
 
     def __init__(self, **kwargs: object) -> None:
         super().__init__(**kwargs)
         # Re-read at init time in case settings changed after module import
         if not self.custom_domain:
-            self.custom_domain = getattr(settings, "CLOUDFRONT_DOMAIN", "")
+            self.custom_domain = getattr(settings, "MEDIA_DOMAIN", getattr(settings, "CLOUDFRONT_DOMAIN", ""))
 
 
 class PrivateMediaStorage(S3Boto3Storage):
@@ -51,3 +51,18 @@ class PrivateMediaStorage(S3Boto3Storage):
         self.querystring_expire = getattr(
             settings, "AWS_QUERYSTRING_EXPIRE", self.querystring_expire
         )
+
+
+class StaticStorage(S3Boto3Storage):
+    """
+    S3 storage backend for static files (CSS, JS, Images).
+    """
+
+    location: str = "static"
+    default_acl: str = "public-read"
+    custom_domain: str = getattr(settings, "STATIC_DOMAIN", getattr(settings, "CLOUDFRONT_DOMAIN", ""))
+
+    def __init__(self, **kwargs: object) -> None:
+        super().__init__(**kwargs)
+        if not self.custom_domain:
+            self.custom_domain = getattr(settings, "STATIC_DOMAIN", getattr(settings, "CLOUDFRONT_DOMAIN", ""))

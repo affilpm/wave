@@ -40,7 +40,10 @@ def recently_played(request):
     """
     Returns the user's 20 most recently played tracks with full context.
     """
-    history = ListeningHistory.objects.filter(user=request.user).select_related(
+    history = ListeningHistory.objects.filter(
+        user=request.user,
+        track__is_public=True
+    ).select_related(
         'track', 'track__artist', 'track__artist__user', 'album', 'artist', 'artist__user'
     ).order_by('-last_played_at')[:20]
     serializer = ListeningHistorySerializer(history, many=True, context={'request': request})
@@ -57,6 +60,7 @@ def jump_back_in(request):
     recent_album_history = ListeningHistory.objects.filter(
         user=request.user, 
         album__is_public=True,
+        track__is_public=True,
         source_type=ListeningHistory.SourceType.ALBUM
     ).values('album').annotate(
         recent_play=Max('last_played_at')
@@ -75,7 +79,8 @@ def jump_back_in(request):
     # 2. Get individual tracks played as singles (not via album context)
     # We want recently played tracks where the source was NOT album
     recent_singles_history = ListeningHistory.objects.filter(
-        user=request.user
+        user=request.user,
+        track__is_public=True
     ).exclude(
         source_type=ListeningHistory.SourceType.ALBUM
     ).select_related(

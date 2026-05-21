@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useDispatch } from 'react-redux';
 import { Music, Image as ImageIcon, X, ChevronDown, ChevronUp, Search,  Edit2 } from 'lucide-react';
 import api from '../../../../api';
@@ -68,32 +68,34 @@ const MusicUpload = () => {
     const [trackNumber, setTrackNumber] = useState('');
 
     
-    const checkTrackName = debounce(async (name) => {
-      if (!name) {
-        setNameValidation({ isChecking: false, error: null });
-        return;
-      }
-  
-      setNameValidation({ isChecking: true, error: null });
-  
-      try {
-        const response = await api.get(`/api/v1/music/music/check_name/?name=${encodeURIComponent(name)}`);
-        
-        if (response.data.exists) {
-          setNameValidation({
-            isChecking: false,
-            error: 'A track with this name already exists'
-          });
-        } else {
-          setNameValidation({ isChecking: false, error: null });
-        }
-      } catch (error) {
-        setNameValidation({
-          isChecking: false,
-          error: 'Error checking track name'
-        });
-      }
-    }, 500);
+    const checkTrackName = useMemo(
+      () =>
+        debounce(async (name) => {
+          if (!name) {
+            setNameValidation({ isChecking: false, error: null });
+            return;
+          }
+      
+          try {
+            const response = await api.get(`/api/v1/music/music/check_name/?name=${encodeURIComponent(name)}`);
+            
+            if (response.data.exists) {
+              setNameValidation({
+                isChecking: false,
+                error: 'A track with this name already exists'
+              });
+            } else {
+              setNameValidation({ isChecking: false, error: null });
+            }
+          } catch (error) {
+            setNameValidation({
+              isChecking: false,
+              error: 'Error checking track name'
+            });
+          }
+        }, 500),
+      []
+    );
   
     const isValidTrackName = (name) => {
       const invalidChars = /[<>:"/\\|?*]/;
@@ -134,11 +136,11 @@ const MusicUpload = () => {
             isChecking: false,
           });
         } else {
-          checkTrackName(trimmedValue);
           setNameValidation({
-            error: "",
-            isChecking: false,
+            isChecking: true,
+            error: null,
           });
+          checkTrackName(trimmedValue);
         }
       }
     };
@@ -147,7 +149,7 @@ const MusicUpload = () => {
       return () => {
         checkTrackName.cancel();
       };
-    }, []);
+    }, [checkTrackName]);
   
     useEffect(() => {
       const fetchGenres = async () => {
@@ -846,7 +848,8 @@ const MusicUpload = () => {
           />
         )}
 
-        {/* Video Upload */}
+        {/* Video Upload - Commented out as not used */}
+        {/* 
         <div>
           <label className="block text-sm font-medium text-white mb-1">
             Music Video (Optional)
@@ -860,8 +863,10 @@ const MusicUpload = () => {
                       file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
           />
         </div>
+        */}
 
-        {/* Video Player */}
+        {/* Video Player - Commented out as not used */}
+        {/* 
         {files.video && (
           <div className="mt-4">
             <video controls className="w-full">
@@ -870,6 +875,7 @@ const MusicUpload = () => {
             </video>
           </div>
         )}
+        */}
 
         <AlbumSelector 
           selectedAlbum={selectedAlbum}
@@ -889,11 +895,11 @@ const MusicUpload = () => {
         <button
           type="submit"
           className={`w-full py-2 px-4 rounded-md transition-colors ${
-            !isFormValid()
-              ? 'bg-gray-400 cursor-not-allowed' 
+            isLoading || !isFormValid()
+              ? 'bg-gray-400 cursor-not-allowed text-gray-200' 
               : 'bg-blue-600 hover:bg-blue-700 text-white'
           }`}
-          disabled={!isFormValid()}
+          disabled={isLoading || !isFormValid()}
         >
           {isLoading ? 'Uploading...' : 'Upload Track'}
         </button>

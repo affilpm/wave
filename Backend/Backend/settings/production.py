@@ -42,23 +42,52 @@ CSRF_COOKIE_SECURE = SECURE_SSL_REDIRECT
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 
 # ---------------------------------------------------------------------------
-# Media Storage — S3 + CloudFront in production
+# Media & Static Storage — R2 (S3) or Local
 # ---------------------------------------------------------------------------
-MEDIA_URL = f"https://{CLOUDFRONT_DOMAIN}/media/"  # noqa: F405
+USE_S3_MEDIA_STORAGE = config("USE_S3_MEDIA_STORAGE", default=True, cast=bool)
 
-STORAGES = {
-    "default": {
-        "BACKEND": "Backend.storage_backends.CloudFrontMediaStorage",
-        "OPTIONS": {
-            "bucket_name": AWS_STORAGE_BUCKET_NAME,  # noqa: F405
-            "location": "media",
-            "file_overwrite": False,
+if USE_S3_MEDIA_STORAGE:
+    MEDIA_DOMAIN = config("R2_CUSTOM_DOMAIN", default=config("CLOUDFRONT_DOMAIN", default=""))
+    STATIC_DOMAIN = MEDIA_DOMAIN
+    MEDIA_URL = f"https://{MEDIA_DOMAIN}/media/" if MEDIA_DOMAIN else "/media/"
+    STATIC_URL = f"https://{STATIC_DOMAIN}/static/" if STATIC_DOMAIN else "/static/"
+
+    STORAGES = {
+        "default": {
+            "BACKEND": "Backend.storage_backends.CloudFrontMediaStorage",
+            "OPTIONS": {
+                "bucket_name": AWS_STORAGE_BUCKET_NAME,
+                "endpoint_url": AWS_S3_ENDPOINT_URL,
+                "region_name": AWS_S3_REGION_NAME,
+                "addressing_style": "path",
+                "location": "media",
+                "file_overwrite": False,
+            },
         },
-    },
-    "staticfiles": {
-        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
-    },
-}
+        "staticfiles": {
+            "BACKEND": "Backend.storage_backends.StaticStorage",
+            "OPTIONS": {
+                "bucket_name": AWS_STORAGE_BUCKET_NAME,
+                "endpoint_url": AWS_S3_ENDPOINT_URL,
+                "region_name": AWS_S3_REGION_NAME,
+                "addressing_style": "path",
+                "location": "static",
+            },
+        },
+    }
+else:
+    MEDIA_URL = "/media/"
+    STATIC_URL = "/static/"
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+        },
+    }
+
+
 
 # ---------------------------------------------------------------------------
 # Logging — less verbose, no DEBUG level

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Download, Filter, Search } from 'lucide-react';
 import { format } from 'date-fns';
 import api from '../../../../../api';
 
 const TransactionHistory = () => {
+  const navigate = useNavigate();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -92,18 +94,19 @@ const TransactionHistory = () => {
   };
   
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex-col">
+    <div className="flex-col">
       {/* Header */}
-      <div className="sticky top-0 bg-gray-900/95 backdrop-blur-sm z-10 border-b border-gray-800">
-        <div className="max-w-5xl mx-auto px-8 py-6 flex items-center">
-          <button
-            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-            onClick={() => window.history.back()}
-          >
-            <ArrowLeft className="h-5 w-5" />
-            <span className="text-sm font-semibold">Back</span>
-          </button>
-          <h1 className="text-2xl font-bold ml-auto">Transaction History</h1>
+      <div className="sticky top-0 bg-black/40 backdrop-blur-xl z-10 border-b border-gray-800/50 shadow-sm">
+        <div className="max-w-5xl mx-auto px-8 py-6 flex items-center justify-between">
+          <div className="flex items-center">
+            <button
+              className="flex items-center justify-center h-10 w-10 rounded-full bg-gray-800/50 hover:bg-gray-700 text-gray-300 hover:text-white transition-all mr-4 md:hidden"
+              onClick={() => navigate(-1)}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <h1 className="text-2xl font-bold">Transaction History</h1>
+          </div>
         </div>
       </div>
 

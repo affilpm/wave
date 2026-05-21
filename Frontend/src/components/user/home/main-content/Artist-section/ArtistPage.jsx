@@ -294,7 +294,7 @@ const ArtistDetailPage = () => {
           <h1 className="text-3xl md:text-5xl lg:text-7xl font-bold tracking-tight">
             {artist.username}
           </h1>
-          {artist.bio && <p className="text-gray-300 max-w-2xl text-sm md:text-base">{artist.bio}</p>}
+          {/* {artist.bio && <p className="text-gray-300 max-w-2xl text-sm md:text-base">{artist.bio}</p>} */}
           <div className="flex flex-wrap justify-center md:justify-start items-center gap-2 md:gap-4 text-gray-300">
             <span className="text-xs md:text-sm">
               {publicSongs.length} songs

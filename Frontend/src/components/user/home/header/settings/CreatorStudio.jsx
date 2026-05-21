@@ -28,7 +28,21 @@ const CreatorStudio = () => {
     fetchGenres();
   }, []);
 
-  const checkVerificationStatus = async () => {
+  useEffect(() => {
+    let intervalId;
+    if (verificationStatus === VerificationStatus.PENDING) {
+      intervalId = setInterval(() => {
+        checkVerificationStatus(true);
+      }, 3000); // Poll every 3 seconds for prompt updates
+    }
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [verificationStatus]);
+
+  const checkVerificationStatus = async (silent = false) => {
     try {
       const token = localStorage.getItem('access_token');
       if (!token) return;
@@ -37,12 +51,21 @@ const CreatorStudio = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      setVerificationStatus(response.data.status);
+      const newStatus = response.data.status;
+      setVerificationStatus((prevStatus) => {
+        if (newStatus !== prevStatus && prevStatus !== null) {
+          // Notify other parts of the application (e.g. Header)
+          window.dispatchEvent(new CustomEvent('artistStatusUpdated', { detail: { status: newStatus } }));
+        }
+        return newStatus;
+      });
       setCurrentBio(response.data.bio || '');
       setCurrentGenres(response.data.genres || []);
     } catch (err) {
       console.error('Failed to fetch status:', err);
-      toast.error('Failed to check verification status');
+      if (!silent) {
+        toast.error('Failed to check verification status');
+      }
     }
   };
 

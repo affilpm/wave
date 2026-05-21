@@ -142,8 +142,6 @@ html, body {
    
 /* Equalizer Professional UI Styles */
 .eq-container {
-  background-color: #121212;
-  border-radius: 12px;
   padding: 24px;
   width: 100%;
   max-width: 600px;

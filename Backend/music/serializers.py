@@ -71,6 +71,11 @@ class MusicSerializer(serializers.ModelSerializer):
         if instance.video_file:
             representation['video_file'] = instance.video_file.url
         
+        # Include detailed genre objects (id and name) in response
+        representation['genres'] = [
+            {"id": g.id, "name": g.name} for g in instance.genres.all()
+        ]
+        
         return representation
 
     def create(self, validated_data):

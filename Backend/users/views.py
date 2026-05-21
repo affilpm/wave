@@ -353,3 +353,16 @@ def update_user(request) -> Response:
         serializer.save()
         return Response(serializer.data)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["POST"])
+@permission_classes([IsAuthenticated])
+def close_account(request) -> Response:
+    """Deactivate the user's account."""
+    UserService.deactivate_user(request.user)
+    
+    refresh_token = request.data.get("refresh_token")
+    if refresh_token:
+        UserService.blacklist_refresh_token(refresh_token)
+        
+    return Response({"message": "Account closed successfully"}, status=status.HTTP_200_OK)

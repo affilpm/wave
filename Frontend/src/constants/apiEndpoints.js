@@ -27,6 +27,7 @@ export const USERS = {
   PROFILE:            `${API_VERSION}/users/user/`,
   UPDATE_PROFILE:     `${API_VERSION}/users/update-profile/`,
   SETTINGS:           `${API_VERSION}/users/user-settings/`,
+  CLOSE_ACCOUNT:      `${API_VERSION}/users/close-account/`,
 };
 
 // ---------------------------------------------------------------------------

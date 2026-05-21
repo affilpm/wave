@@ -412,6 +412,13 @@ class UserService:
         cache.delete(f"{CACHE_PREFIX_REGISTRATION_OTP}_{email}")
 
     @staticmethod
+    def deactivate_user(user: CustomUser) -> bool:
+        """Deactivate a user account."""
+        user.is_active = False
+        user.save()
+        return True
+
+    @staticmethod
     def blacklist_refresh_token(refresh_token: str) -> tuple[bool, str]:
         """
         Blacklist a refresh token (logout).

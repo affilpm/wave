@@ -1,57 +1,20 @@
-import React, { useState } from 'react';
-import { Music, Disc, AlertCircle } from 'lucide-react';
+import React from 'react';
+import { Music, Disc } from 'lucide-react';
 import StudioCard from './StudioCard';
 import { useDispatch, useSelector } from 'react-redux';
 import { openModal } from '../../../slices/artist/modalSlice';
-import axios from 'axios';
-import api from '../../../api';
 
 
 const UploadOptions = () => {
   const dispatch = useDispatch();
   const { isOpen } = useSelector((state) => state.modal);
-  const [showAlert, setShowAlert] = useState(false);
 
-  const handleOpenModal = async (content) => {
-    if (content === 'musicUpload') {
-      try {
-        // Check if the artist has at least one album before opening the music upload modal
-        const response = await api.get('/api/v1/artists/has-albums/');
-        
-        if (response.data.has_albums) {
-          // If albums exist, open the music upload modal
-          dispatch(openModal(content));
-        } else {
-          // If no albums exist, show the alert
-          setShowAlert(true);
-          // Automatically hide the alert after 5 seconds
-          setTimeout(() => setShowAlert(false), 5000);
-        }
-      } catch (error) {
-        console.error('Error checking albums:', error);
-        setShowAlert(true);
-        setTimeout(() => setShowAlert(false), 5000);
-      }
-    } else {
-      // For other modals (like albumCreator), open directly without checks
-      dispatch(openModal(content));
-    }
+  const handleOpenModal = (content) => {
+    dispatch(openModal(content));
   };
 
   return (
     <>
-      {showAlert && (
-        <div className="mb-6 p-4 bg-amber-500/20 border border-amber-500 text-amber-200 rounded-md">
-          <div className="flex items-start">
-            <AlertCircle className="h-5 w-5 text-amber-500 mr-2 mt-0.5" />
-            <div>
-              <h4 className="font-semibold">Album Required</h4>
-              <p className="mt-1">You need to create at least one album before uploading music tracks.</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
         <StudioCard
           className={`cursor-pointer transform hover:scale-[1.02] transition-all ${

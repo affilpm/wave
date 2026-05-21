@@ -68,11 +68,11 @@ RUN python manage.py collectstatic --noinput 2>/dev/null || true
 USER appuser
 
 # Expose port for Daphne (WebSocket)
-EXPOSE 8000
+EXPOSE 8085
 
 # Health check for Docker Compose dependency conditions
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/home/musiclist/')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8085/api/v1/home/musiclist/')" || exit 1
 
 # Entrypoint: migrate, then serve
-CMD ["sh", "-c", "python manage.py migrate --noinput && daphne -b 0.0.0.0 -p 8000 Backend.asgi:application"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && daphne -b 0.0.0.0 -p 8085 Backend.asgi:application"]

@@ -278,6 +278,7 @@ AGORA_APP_CERTIFICATE: str = config("AGORA_APP_CERTIFICATE", default="")
 # ---------------------------------------------------------------------------
 AWS_STORAGE_BUCKET_NAME: str = config("AWS_STORAGE_BUCKET_NAME", default="")
 AWS_S3_REGION_NAME: str = config("AWS_S3_REGION_NAME", default="us-east-1")
+AWS_S3_ENDPOINT_URL: str = config("AWS_S3_ENDPOINT_URL", default="")
 AWS_ACCESS_KEY_ID: str = config("AWS_ACCESS_KEY_ID", default="")
 AWS_SECRET_ACCESS_KEY: str = config("AWS_SECRET_ACCESS_KEY", default="")
 
@@ -285,7 +286,11 @@ AWS_S3_OBJECT_PARAMETERS: dict[str, str] = {
     "CacheControl": "max-age=86400",
 }
 
+AWS_S3_SIGNATURE_VERSION = "s3v4"
+AWS_S3_ADDRESSING_STYLE = "path"
+
 AWS_QUERYSTRING_AUTH: bool = True  # Sign S3 URLs for private/DRM content
+
 
 CLOUDFRONT_DISTRIBUTION_ID: str = config("CLOUDFRONT_DISTRIBUTION_ID", default="")
 CLOUDFRONT_DOMAIN: str = config("CLOUDFRONT_DOMAIN", default="")
@@ -402,11 +407,11 @@ LOGGING = {
 # ---------------------------------------------------------------------------
 # Security headers (CSP)
 # ---------------------------------------------------------------------------
-CSP_DEFAULT_SRC = ("'self'",)
-CSP_IMG_SRC = ("'self'", "http://127.0.0.1:8000", "http://localhost:8000", "data:", "blob:", "https://*.s3.amazonaws.com", "https://*.cloudfront.net")
-CSP_MEDIA_SRC = ("'self'", "http://127.0.0.1:8000", "http://localhost:8000", "blob:", "https://*.s3.amazonaws.com", "https://*.cloudfront.net")
-CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", "'unsafe-eval'")
-CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com")
-CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com")
-CSP_CONNECT_SRC = ("'self'", "http://127.0.0.1:8000", "http://localhost:8000", "ws://127.0.0.1:8000", "ws://localhost:8000")
-CSP_FRAME_SRC = ("'self'",)
+CSP_DEFAULT_SRC = ("'self'", "https://*.affilpm.com")
+CSP_IMG_SRC = ("'self'", "data:", "blob:", "https://*.s3.amazonaws.com", "https://*.cloudfront.net", "https://*.r2.cloudflarestorage.com", "https://*.cloudflare.com", "https://*.affilpm.com")
+CSP_MEDIA_SRC = ("'self'", "blob:", "https://*.s3.amazonaws.com", "https://*.cloudfront.net", "https://*.r2.cloudflarestorage.com", "https://*.cloudflare.com", "https://*.affilpm.com")
+CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", "'unsafe-eval'", "https://*.affilpm.com", "https://static.cloudflareinsights.com")
+CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://*.affilpm.com")
+CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com", "https://*.affilpm.com")
+CSP_CONNECT_SRC = ("'self'", "https://*.affilpm.com", "wss://*.affilpm.com")
+CSP_FRAME_SRC = ("'self'", "https://*.affilpm.com")

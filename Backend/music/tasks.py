@@ -290,11 +290,13 @@ def _upload_hls_to_s3(
             logger.error("Missing AWS setting: %s", attr)
             return None
 
+    endpoint_url = getattr(settings, "AWS_S3_ENDPOINT_URL", None) or None
     s3 = boto3.client(
         "s3",
         aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
         aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
         region_name=settings.AWS_S3_REGION_NAME,
+        endpoint_url=endpoint_url,
     )
     bucket = settings.AWS_STORAGE_BUCKET_NAME
     prefix = f"media/hls/{music_id}/{quality}/"
@@ -324,12 +326,12 @@ def _upload_hls_to_s3(
         return None
 
     playlist_key = prefix + playlist_filename
-    cf_domain = getattr(settings, "CLOUDFRONT_DOMAIN", "")
-    if cf_domain:
-        url = f"https://{cf_domain}/{playlist_key}"
+    media_domain = getattr(settings, "MEDIA_DOMAIN", "") or getattr(settings, "CLOUDFRONT_DOMAIN", "")
+    if media_domain:
+        url = f"https://{media_domain}/{playlist_key}"
     else:
         url = f"https://{bucket}.s3.{settings.AWS_S3_REGION_NAME}.amazonaws.com/{playlist_key}"
-        logger.warning("CLOUDFRONT_DOMAIN not configured — using direct S3 URL")
+        logger.warning("MEDIA_DOMAIN/CLOUDFRONT_DOMAIN not configured — using direct S3 URL")
 
     logger.info("Uploaded %s HLS files quality=%s", uploaded, quality)
     return url
@@ -341,11 +343,13 @@ def _cleanup_s3_objects(music_id: int) -> None:
         return
 
     try:
+        endpoint_url = getattr(settings, "AWS_S3_ENDPOINT_URL", None) or None
         s3 = boto3.client(
             "s3",
             aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
             region_name=settings.AWS_S3_REGION_NAME,
+            endpoint_url=endpoint_url,
         )
         bucket = settings.AWS_STORAGE_BUCKET_NAME
         prefix = f"media/hls/{music_id}/"

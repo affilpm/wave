@@ -36,20 +36,34 @@ CORS_ALLOWED_ORIGINS = [
 USE_S3_MEDIA_STORAGE: bool = config("USE_S3_MEDIA_STORAGE", default=False, cast=bool)  # noqa: F405
 
 if USE_S3_MEDIA_STORAGE and AWS_STORAGE_BUCKET_NAME:  # noqa: F405
-    MEDIA_URL = f"https://{CLOUDFRONT_DOMAIN}/media/"  # noqa: F405
+    MEDIA_DOMAIN = config("R2_CUSTOM_DOMAIN", default=config("CLOUDFRONT_DOMAIN", default=""))
+    MEDIA_URL = f"https://{MEDIA_DOMAIN}/media/"
+    STATIC_URL = f"https://{MEDIA_DOMAIN}/static/"
+
     STORAGES = {
         "default": {
             "BACKEND": "Backend.storage_backends.CloudFrontMediaStorage",
             "OPTIONS": {
                 "bucket_name": AWS_STORAGE_BUCKET_NAME,  # noqa: F405
+                "endpoint_url": AWS_S3_ENDPOINT_URL,  # noqa: F405
+                "region_name": AWS_S3_REGION_NAME,  # noqa: F405
+                "addressing_style": "path",
                 "location": "media",
                 "file_overwrite": False,
             },
         },
         "staticfiles": {
-            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+            "BACKEND": "Backend.storage_backends.StaticStorage",
+            "OPTIONS": {
+                "bucket_name": AWS_STORAGE_BUCKET_NAME,  # noqa: F405
+                "endpoint_url": AWS_S3_ENDPOINT_URL,  # noqa: F405
+                "region_name": AWS_S3_REGION_NAME,  # noqa: F405
+                "addressing_style": "path",
+                "location": "static",
+            },
         },
     }
+
 else:
     import os
 
@@ -84,3 +98,15 @@ CSRF_TRUSTED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://127.0.0.1:8000",
 ]
+
+# ---------------------------------------------------------------------------
+# CSP local dev overrides
+# ---------------------------------------------------------------------------
+CSP_IMG_SRC += ("http://127.0.0.1:8000", "http://localhost:8000")
+CSP_MEDIA_SRC += ("http://127.0.0.1:8000", "http://localhost:8000")
+CSP_CONNECT_SRC += (
+    "http://127.0.0.1:8000",
+    "http://localhost:8000",
+    "ws://127.0.0.1:8000",
+    "ws://localhost:8000",
+)

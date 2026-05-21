@@ -38,7 +38,8 @@
 
 **Wave** is a feature-rich music streaming platform designed to provide a seamless experience for both artists and listeners. Built with a Django REST Framework backend and a modern React + Vite frontend, Wave delivers:
 
-- **Adaptive HLS Streaming** — Audio files are transcoded into multi-quality HLS streams (64kbps → 1411kbps lossless) using FFmpeg and Celery, served via AWS CloudFront CDN.
+- **Universal Portability** — Using Cloudflare Tunnel, the backend can be hosted on any machine (Local PC, Raspberry Pi, Cloud VM) without port forwarding or a public IP.
+- **Adaptive HLS Streaming** — Audio files are transcoded into multi-quality HLS streams (64kbps → 1411kbps lossless) using FFmpeg and Celery, served via Cloudflare R2.
 - **Premium Subscription System** — Integrated Razorpay payment gateway with plan management, subscription tracking, and transaction history.
 - **Professional Audio Controls** — 10-band equalizer with built-in presets, adaptive quality selection, and Web Audio API integration.
 - **Artist Studio** — A dedicated creative workspace for artists to upload music, create albums, manage tracks, and view analytics.
@@ -110,8 +111,8 @@
   <img src="https://img.shields.io/badge/Channels-092E20?style=for-the-badge&logo=django&logoColor=white" alt="Channels" />
   <img src="https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=json-web-tokens&logoColor=white" alt="JWT" />
   <img src="https://img.shields.io/badge/Razorpay-3395FF?style=for-the-badge&logo=razorpay&logoColor=white" alt="Razorpay" />
-  <img src="https://img.shields.io/badge/AWS_S3-FF9900?style=for-the-badge&logo=amazon-s3&logoColor=white" alt="AWS S3" />
-  <img src="https://img.shields.io/badge/CloudFront-232F3E?style=for-the-badge&logo=amazon-aws&logoColor=white" alt="CloudFront" />
+  <img src="https://img.shields.io/badge/Cloudflare_R2-F38020?style=for-the-badge&logo=cloudflare&logoColor=white" alt="Cloudflare R2" />
+  <img src="https://img.shields.io/badge/Cloudflare_CDN-F38020?style=for-the-badge&logo=cloudflare&logoColor=white" alt="Cloudflare CDN" />
   <img src="https://img.shields.io/badge/FFmpeg-007808?style=for-the-badge&logo=ffmpeg&logoColor=white" alt="FFmpeg" />
   <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
 </div>
@@ -140,39 +141,39 @@
 
 ```mermaid
 graph TD
-    Client[Browser / Mobile] -->|HTTP/HTTPS| Nginx[Nginx Reverse Proxy]
+    Client[Browser / Mobile] -->|HTTPS| CF[Cloudflare Edge]
+    CF -->|Tunnel| CFT[Cloudflare Tunnel Container]
+    CFT -->|Internal Proxy| Nginx[Nginx Reverse Proxy]
     Nginx -->|WSGI| Django[Django REST API]
     Nginx -->|ASGI| Daphne[Daphne WebSocket Server]
     Django -->|ORM| PostgreSQL[(PostgreSQL)]
     Django -->|Cache & Sessions| Redis[(Redis)]
-    Django -->|Payment| Razorpay[Razorpay API]
-    Django -->|Auth| Google[Google OAuth2]
     Django -->|Queue Tasks| Celery[Celery Workers]
     Celery -->|Broker| Redis
     Celery -->|FFmpeg| HLS[HLS Transcoding]
-    HLS -->|Upload| S3[AWS S3]
-    S3 -->|CDN| CloudFront[CloudFront CDN]
+    HLS -->|Upload| R2[Cloudflare R2 Storage]
+    R2 -->|Assets Domain| CF
     Daphne -->|Pub/Sub| Redis
-    Django -->|Media Storage| S3
-    CloudFront -->|Signed URLs| Client
+    Django -->|Media Storage| R2
+    CF -->|Secure Access| Client
 ```
 
 ### Audio Processing Pipeline
 
 ```mermaid
 flowchart LR
-    A[Artist Uploads Track] --> B[Django Saves to S3]
+    A[Artist Uploads Track] --> B[Django Saves to R2]
     B --> C[Admin Approves Track]
     C --> D[Celery Task Triggered]
-    D --> E[Download Original from S3]
+    D --> E[Download Original from R2]
     E --> F[FFmpeg Transcodes to HLS]
     F --> G1[Low 64kbps]
     F --> G2[Medium 128kbps]
     F --> G3[High 320kbps]
     F --> G4[Lossless 1411kbps]
-    G1 & G2 & G3 & G4 --> H[Upload .m3u8 + .ts to S3]
+    G1 & G2 & G3 & G4 --> H[Upload .m3u8 + .ts to R2]
     H --> I[Register StreamingFile in DB]
-    I --> J[CloudFront CDN Delivery]
+    I --> J[Cloudflare CDN Delivery]
 ```
 
 ### Data Model Overview
@@ -292,10 +293,15 @@ Frontend/src/
 
 ## 📥 Installation
 
+> [!TIP]
+> **Host Anywhere:** Because this project uses **Cloudflare Tunnel**, you can host it on any machine (including your home computer or a laptop behind a router) without needing to configure port forwarding or your router's firewall.
+
 ### Prerequisites
 
-- **Python** 3.12+
-- **Node.js** 18+ & npm
+- **Docker & Docker Compose** (Recommended for full stack)
+- **Cloudflare Account** (For Tunnel and R2 storage)
+- **Python** 3.12+ (For local development)
+- **Node.js** 18+ & npm (For frontend)
 - **PostgreSQL** 15+
 - **Redis** 7+
 - **FFmpeg** (for HLS transcoding)
@@ -341,16 +347,33 @@ npm install
 npm run dev
 ```
 
-### Docker Setup (Optional)
+### Docker Setup (Production-ready)
 
-```bash
-# Start backend services (Django + PostgreSQL + Redis)
-cd wave/Backend
-docker-compose up -d
+1. **Configure Environment**:
+   Ensure your `.env` file in the `Backend/` directory is fully populated (see [Environment Variables](#-environment-variables)).
 
-# Access backend at http://localhost:8000
-# Frontend runs separately with npm run dev at http://localhost:5173
-```
+2. **Cloudflare Tunnel Setup**:
+   - Create a tunnel in the Cloudflare Dashboard (**Zero Trust > Networks > Tunnels**).
+   - Set the public hostname to `api-wave.yourdomain.com` pointing to `http://nginx:80`.
+   - Copy the **Tunnel Token** and add it to your `.env` as `CLOUDFLARE_TUNNEL_TOKEN`.
+
+3. **Cloudflare R2 Setup**:
+   - Create an R2 bucket named `wave`.
+   - Add a custom domain `assets-wave.yourdomain.com` to the bucket.
+   - Generate R2 API tokens (Access Key & Secret Key).
+
+4. **Launch Services**:
+   ```bash
+   cd Backend
+   docker-compose up -d --build
+   ```
+
+5. **Collect Static Files**:
+   ```bash
+   docker exec wave-backend python manage.py collectstatic --noinput
+   ```
+
+The backend is now accessible via your Cloudflare custom domain.
 
 ---
 
@@ -362,16 +385,19 @@ Copy `Backend/.env.example` to `Backend/.env` and configure:
 |----------|-------------|----------|
 | `SECRET_KEY` | Django secret key | ✅ |
 | `DEBUG` | Debug mode (`True`/`False`) | ✅ |
-| `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` | PostgreSQL credentials | ✅ |
+| `ALLOWED_HOSTS` | Comma-separated list of domains | ✅ |
+| `CLOUDFLARE_TUNNEL_TOKEN` | Token for the wave_tunnel service | ✅ |
+| `USE_S3_MEDIA_STORAGE` | Enable R2/S3 storage (`True`/`False`) | ✅ |
+| `AWS_S3_ENDPOINT_URL` | Cloudflare R2 S3 API URL | ⚡ Production |
+| `R2_CUSTOM_DOMAIN` | Domain for assets (e.g. `assets-wave.yourdomain.com`) | ⚡ Production |
+| `AWS_ACCESS_KEY_ID` | R2 API Access Key | ⚡ Production |
+| `AWS_SECRET_ACCESS_KEY` | R2 API Secret Key | ⚡ Production |
+| `AWS_STORAGE_BUCKET_NAME`| Name of your R2 bucket | ⚡ Production |
+| `DB_NAME`, `DB_USER`... | PostgreSQL credentials | ✅ |
 | `REDIS_URL` | Redis connection string | ✅ |
-| `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` | Celery broker config | ✅ |
-| `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` | SMTP credentials for OTP emails | ✅ |
-| `SOCIAL_AUTH_GOOGLE_OAUTH2_KEY/SECRET` | Google OAuth2 credentials | ✅ |
-| `RAZOR_KEY_ID`, `RAZOR_KEY_SECRET` | Razorpay payment gateway keys | ✅ |
-| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | AWS S3 credentials | ⚡ Production |
-| `AWS_STORAGE_BUCKET_NAME`, `AWS_S3_REGION_NAME` | S3 bucket config | ⚡ Production |
-| `CLOUDFRONT_DOMAIN`, `CLOUDFRONT_KEY_ID` | CDN configuration | ⚡ Production |
-| `USE_S3_MEDIA_STORAGE` | Enable S3 storage (`True`/`False`) | Optional |
+| `EMAIL_HOST_USER`... | SMTP credentials for OTP emails | ✅ |
+| `SOCIAL_AUTH_GOOGLE...` | Google OAuth2 credentials | ✅ |
+| `RAZOR_KEY_ID`... | Razorpay payment gateway keys | ✅ |
 
 ---
 
@@ -507,31 +533,32 @@ Wave exposes a comprehensive RESTful API. All endpoints are prefixed with `/api/
      └─────────────┘  └────────────┘  └─────┬─────┘
                                             │
                                       ┌─────┴─────┐
-                                      │  AWS S3    │
-                                      │  Storage   │
+                                      │ Cloudflare │
+                                      │ R2 Storage │
                                       └───────────┘
 ```
 
 ### Quick Deploy
 
 ```bash
-# Docker (Backend)
-docker-compose -f docker-compose.yml up -d
+# Production Launch
+cd Backend
+docker-compose up -d --build
 
-# Frontend (Vercel)
-cd Frontend && vercel --prod
-
-# Frontend (Netlify)
-cd Frontend && npm run build  # Deploy dist/ folder
+# Run migrations and collect static
+docker exec wave-backend python manage.py migrate
+docker exec wave-backend python manage.py collectstatic --noinput
 ```
 
 ### Production Checklist
 
 - [ ] Set `DEBUG=False` in `.env`
-- [ ] Configure `ALLOWED_HOSTS` and `CORS_ALLOWED_ORIGINS`
-- [ ] Set up SSL certificates (Let's Encrypt)
-- [ ] Configure AWS S3 + CloudFront for media storage
-- [ ] Set up Celery workers with a process manager (systemd/supervisor)
+- [ ] Configure `ALLOWED_HOSTS` with your production domains
+- [ ] Create Cloudflare Tunnel and set `CLOUDFLARE_TUNNEL_TOKEN`
+- [ ] Set up Cloudflare R2 bucket and configure `R2_CUSTOM_DOMAIN`
+- [ ] Ensure `USE_S3_MEDIA_STORAGE=True`
+- [ ] Set up Google OAuth2 for production callback URLs
+- [ ] Set up Razorpay Live keys
 - [ ] Enable PostgreSQL connection pooling
 - [ ] Configure Redis persistence
 - [ ] Set up monitoring and logging
@@ -551,7 +578,7 @@ Wave implements multiple layers of security:
 | **Content Security Policy** | CSP headers via `django-csp` to prevent XSS |
 | **Password Validation** | Enforced minimum length, complexity, and common password checks |
 | **Rate Limiting** | Throttling on auth endpoints to prevent brute force attacks |
-| **Signed URLs** | CloudFront signed URLs for media access with expiration |
+| **Signed URLs** | Cloudflare signed URLs/tokens for media access with expiration |
 | **HTTPS Enforcement** | SSL redirect in production |
 | **OTP Verification** | Email-based OTP for user registration |
 | **Input Validation** | DRF serializers with field-level validation on all endpoints |

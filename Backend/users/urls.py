@@ -28,6 +28,7 @@ urlpatterns = [
     path('resend-otp/', views.login_resend_otp, name='login_resend_otp'),
 
     path('logout/', views.logout, name='logout'),
+    path('close-account/', views.close_account, name='close_account'),
 
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 

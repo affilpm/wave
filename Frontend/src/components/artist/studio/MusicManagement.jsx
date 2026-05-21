@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Trash2, Eye, EyeOff, Search, AlertCircle, Tag } from 'lucide-react';
 import api from '../../../api';
 import { toast } from 'react-toastify';
@@ -16,6 +16,7 @@ const MusicManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [cache, setCache] = useState({});
+  const [genres, setGenres] = useState({});
 
   // Separate the search term update from the debounced API call
   const updateDebouncedSearchTerm = useCallback(
@@ -69,7 +70,23 @@ const MusicManagement = () => {
   useEffect(() => {
     const interval = setInterval(clearStaleCache, 60000);
     return () => clearInterval(interval);
-  }, [clearStaleCache]);
+  }, [clearStaleCache]);  useEffect(() => {
+    const fetchGenres = async () => {
+      try {
+        const response = await api.get('/api/v1/music/genres/');
+        const data = response.data.results || response.data || [];
+        const genreMap = {};
+        data.forEach(genre => {
+          genreMap[genre.id] = genre.name;
+        });
+        setGenres(genreMap);
+      } catch (err) {
+        console.error('Error fetching genres:', err);
+      }
+    };
+    fetchGenres();
+  }, []);
+
 
   const fetchTracks = useCallback(async () => {
     try {
@@ -118,30 +135,55 @@ const MusicManagement = () => {
     }
   }, [currentPage, debouncedSearchTerm, fetchTracks]);
 
-  // Polling for HLS processing status
+  // Smart Polling for status updates (HLS processing, pending approvals, rejected tracks)
+  const needsPollingRef = useRef(false);
+
   useEffect(() => {
-    const hasProcessingTracks = tracks.some(
-      (track) => track.approval_status === "approved" && !track.hls_processing_complete
+    needsPollingRef.current = tracks.some(
+      (track) => 
+        (track.approval_status === "approved" && !track.hls_processing_complete) ||
+        track.approval_status === "pending"
     );
+  }, [tracks]);
 
-    if (hasProcessingTracks) {
-      const interval = setInterval(() => {
-        // We bypass the cache to get fresh status
-        const params = { 
-          search: debouncedSearchTerm, 
-          page_size: 8,
-          page: currentPage
-        };
-        api.get('/api/v1/music/music/', { params }).then(response => {
-           const musicData = Array.isArray(response.data) ? response.data : response.data.results || [];
-           setTracks(musicData);
-           updateCache(debouncedSearchTerm, currentPage, response.data);
-        }).catch(err => console.error("Polling error:", err));
-      }, 5000);
+  useEffect(() => {
+    const fetchLatest = () => {
+      const params = { 
+        search: debouncedSearchTerm, 
+        page_size: 8,
+        page: currentPage
+      };
+      api.get('/api/v1/music/music/', { params }).then(response => {
+         const musicData = Array.isArray(response.data) ? response.data : response.data.results || [];
+         setTracks(musicData);
+         updateCache(debouncedSearchTerm, currentPage, response.data);
+      }).catch(err => console.error("Polling error:", err));
+    };
 
-      return () => clearInterval(interval);
-    }
-  }, [tracks, debouncedSearchTerm, currentPage]);
+    // Background polling interval only runs if we have pending/processing tracks
+    const interval = setInterval(() => {
+      if (needsPollingRef.current && document.visibilityState === 'visible') {
+        fetchLatest();
+      }
+    }, 5000);
+
+    // Fetch immediately when window regains focus (e.g. switching back from admin tab)
+    // This runs unconditionally to catch changes made in other tabs
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchLatest();
+      }
+    };
+    
+    window.addEventListener('focus', fetchLatest);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', fetchLatest);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
+  }, [debouncedSearchTerm, currentPage]);
 
   const updateTrackInCache = (trackId, updateFn) => {
     setCache(prevCache => {
@@ -280,15 +322,25 @@ const MusicManagement = () => {
                     <td className="px-4 py-3 text-white">{track.name}</td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
-                        {Array.isArray(track.genres) && track.genres.map((genre, index) => (
-                          <span
-                            key={index}
-                            className="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-full text-xs flex items-center gap-1"
-                          >
-                            <Tag className="h-3 w-3" />
-                            {genre}
-                          </span>
-                        ))}
+                        {Array.isArray(track.genres) && track.genres.map((genre, index) => {
+                          const isObject = typeof genre === 'object' && genre !== null;
+                          const genreId = isObject ? genre.id : genre;
+                          const genreName = isObject ? genre.name : (genres[genre] || `Genre ID: ${genre}`);
+                          return (
+                            <div key={index} className="relative group">
+                              <span
+                                className="px-2 py-1 bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 rounded-full text-xs flex items-center gap-1 cursor-pointer transition-colors duration-200"
+                                title={genreName}
+                              >
+                                <Tag className="h-3 w-3" />
+                                {genreId}
+                              </span>
+                              <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-1.5 px-2 py-1 bg-gray-950 border border-gray-700 text-gray-200 text-[10px] rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none whitespace-nowrap z-50">
+                                {genreName}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">

@@ -3,14 +3,16 @@ import Sidebar from '../../components/user/home/sidebar/Sidebar';
 import Header from '../../components/user/home/header/Header';
 import Player from '../../components/player/Player';
 import { useNavigate, Outlet } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 
 const HomePage = () => {
   const navigate = useNavigate();
+  const currentTrack = useSelector((state) => state.player.currentTrack);
   const [isSidebarExpanded, setSidebarExpanded] = useState(true);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [isMobileView, setIsMobileView] = useState(false);
 
-  const PLAYER_HEIGHT = '64px';
+  const PLAYER_HEIGHT = currentTrack ? '64px' : '0px';
 
   useEffect(() => {
     const access_token = localStorage.getItem("access_token");
@@ -69,7 +71,7 @@ const HomePage = () => {
     <div className="h-screen flex flex-col bg-black text-white">
       
       {/* Header */}
-      <div className="sticky top-0 z-20 bg-black/95 backdrop-blur-md">
+      <div className="sticky top-0 z-40 bg-black/95 backdrop-blur-md">
         <Header toggleMobileSidebar={toggleMobileSidebar} />
       </div>
 
@@ -120,10 +122,8 @@ const HomePage = () => {
         )}
 
         {/* Main Content Area with space for player */}
-        <main className="flex-1 overflow-y-auto scrollbar-hidden bg-gradient-to-b from-indigo-900/10 via-black to-black">
+        <main className="flex-1 overflow-y-auto scrollbar-hidden bg-gradient-to-b from-indigo-900/10 via-black to-black flex flex-col">
           <Outlet /> 
-          {/* Extra bottom padding to ensure content doesn't get hidden */}
-          <div className="h-12" />
         </main>
       </div>
 

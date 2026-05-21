@@ -3,7 +3,7 @@ import Settings from '../../components/user/home/header/settings/Settings'
 
 const SettingsPage = () => {
   return (
-    <div>
+    <div className="flex flex-col flex-1">
       <Settings/>
     </div>
   )

@@ -25,7 +25,7 @@ const Header = ({ toggleMobileSidebar }) => {
   const location = useLocation();
   const isNavigatingWithButtons = useRef(false);
   const { username, photo, image } = useSelector((state) => state.user);
-  const { isArtist } = useArtistStatus();
+  const { isArtist, checkArtistStatus } = useArtistStatus();
   
   const mobileMenuRef = useRef(null);
   const profileButtonRef = useRef(null);
@@ -131,9 +131,18 @@ const Header = ({ toggleMobileSidebar }) => {
 
   // Toggle functions
   const toggleMobileSearch = () => setShowMobileSearch(!showMobileSearch);
-  const toggleMobileActions = () => setShowMobileActions(!showMobileActions);
+  const toggleMobileActions = () => {
+    if (!showMobileActions) {
+      checkArtistStatus();
+    }
+    setShowMobileActions(!showMobileActions);
+  };
+
   const toggleProfileMenu = (e) => {
     e.stopPropagation();
+    if (!showProfileMenu) {
+      checkArtistStatus();
+    }
     setShowProfileMenu(!showProfileMenu);
   };
 
@@ -281,9 +290,9 @@ const Header = ({ toggleMobileSidebar }) => {
                 ref={profileMenuRef}
                 className="absolute right-0 mt-2 w-40 sm:w-48 bg-gray-800 rounded-md shadow-lg py-1 z-50"
               >
-                {['Profile', 'Settings', isArtist && 'Studio', 'Log out'].map(
-                  (item, idx) =>
-                    item && (
+                {['Profile', 'Settings', isArtist && 'Studio', 'Log out']
+                  .filter(Boolean)
+                  .map((item, idx) => (
                       <button
                         key={idx}
                         onClick={() => {
@@ -325,8 +334,9 @@ const Header = ({ toggleMobileSidebar }) => {
             { name: 'Discover', icon: <Search className="h-4 w-4" />, path: '/discover' },
             { name: 'Now Playing', icon: <Headphones className="h-4 w-4" />, path: '/player' },
             { name: 'Profile', icon: <UserCircle className="h-4 w-4" />, path: '/profile' },
+            isArtist && { name: 'Studio', icon: <Headphones className="h-4 w-4" />, path: '/studio' },
             { name: 'Settings', icon: <Settings className="h-4 w-4" />, path: '/settings' }
-          ].map((item, idx) => (
+          ].filter(Boolean).map((item, idx) => (
             <button
               key={idx}
               className="flex items-center w-full text-left px-4 py-2 text-sm hover:bg-gray-700"

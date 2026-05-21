@@ -18,11 +18,17 @@ export const useArtistStatus = () => {
 
   useEffect(() => {
     checkArtistStatus();
-    // Check status every 5 minutes
-    // const interval = setInterval(checkArtistStatus, 5 * 60 * 1000);
-    // return () => clearInterval(interval);
+
+    const handleStatusUpdate = () => {
+      checkArtistStatus();
+    };
+
+    window.addEventListener('artistStatusUpdated', handleStatusUpdate);
+    return () => {
+      window.removeEventListener('artistStatusUpdated', handleStatusUpdate);
+    };
   }, []);
 
-  return { isArtist, isLoading };
+  return { isArtist, isLoading, checkArtistStatus };
 };
 

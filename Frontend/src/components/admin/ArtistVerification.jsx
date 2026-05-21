@@ -139,9 +139,16 @@ const ArtistVerification = () => {
         <div className="flex justify-between items-start">
           <div className="space-y-1 min-w-0 flex-1">
             <p className="text-gray-300 break-all pr-2">{artist.email}</p>
-            <span className="inline-block px-3 py-1 bg-violet-500/20 text-violet-400 rounded-full text-xs">
-              {artist.genre}
-            </span>
+            <div className="mb-2">
+              <span className="inline-block px-3 py-1 bg-violet-500/20 text-violet-400 rounded-full text-xs">
+                {artist.genre}
+              </span>
+            </div>
+            {artist.bio && (
+              <p className="text-sm text-gray-400 line-clamp-2 mt-2" title={artist.bio}>
+                {artist.bio}
+              </p>
+            )}
           </div>
           <div className="flex gap-1 ml-2 shrink-0">
             {artist.status !== 'approved' && (
@@ -278,6 +285,7 @@ const ArtistVerification = () => {
                 <tr className="border-b border-gray-700/50">
                   <th className="text-left py-4 px-6 font-medium text-gray-400">Artist Email</th>
                   <th className="text-left py-4 px-6 font-medium text-gray-400">Genre</th>
+                  <th className="text-left py-4 px-6 font-medium text-gray-400">About</th>
                   <th className="text-left py-4 px-6 font-medium text-gray-400">Submitted</th>
                   <th className="text-left py-4 px-6 font-medium text-gray-400">Status</th>
                   <th className="text-left py-4 px-6 font-medium text-gray-400">Actions</th>
@@ -291,6 +299,11 @@ const ArtistVerification = () => {
                       <span className="px-3 py-1 bg-violet-500/20 text-violet-400 rounded-full text-xs">
                         {artist.genre}
                       </span>
+                    </td>
+                    <td className="py-4 px-6">
+                      <div className="max-w-xs text-sm text-gray-400 truncate" title={artist.bio}>
+                        {artist.bio || "-"}
+                      </div>
                     </td>
                     <td className="py-4 px-6">
                       <div className="flex flex-col">

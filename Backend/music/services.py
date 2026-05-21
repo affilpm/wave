@@ -77,6 +77,10 @@ class MusicService:
             if not instance.audio_file:
                 return
 
+            # Only trigger HLS conversion for approved tracks
+            if instance.approval_status != MusicApprovalStatus.APPROVED:
+                return
+
             # Trigger conversion if it's a new track or if no streaming files exist yet
             should_convert = created or not StreamingFile.objects.filter(music=instance).exists()
 

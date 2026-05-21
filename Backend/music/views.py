@@ -202,10 +202,9 @@ class MusicViewSet(ModelViewSet):
 
     @action(detail=False, methods=["get"])
     def check_name(self, request):
-        """Check if a track name already exists for this artist."""
+        """Check if a track name already exists globally."""
         name = request.query_params.get("name", "").strip()
-        artist = request.user.artist_profile
-        exists = Music.objects.filter(name__iexact=name, artist=artist).exists()
+        exists = Music.objects.filter(name__iexact=name).exists()
         return Response({"exists": exists})
 
     @action(detail=True, methods=["post"])
