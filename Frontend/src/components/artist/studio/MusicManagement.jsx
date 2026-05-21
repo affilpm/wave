@@ -55,7 +55,7 @@ const MusicManagement = () => {
   const clearStaleCache = useCallback(() => {
     const now = Date.now();
     const CACHE_DURATION = 5 * 60 * 1000;
-    
+
     setCache(prevCache => {
       const newCache = {};
       Object.entries(prevCache).forEach(([key, value]) => {
@@ -70,7 +70,7 @@ const MusicManagement = () => {
   useEffect(() => {
     const interval = setInterval(clearStaleCache, 60000);
     return () => clearInterval(interval);
-  }, [clearStaleCache]);  useEffect(() => {
+  }, [clearStaleCache]); useEffect(() => {
     const fetchGenres = async () => {
       try {
         const response = await api.get('/api/v1/music/genres/');
@@ -91,7 +91,7 @@ const MusicManagement = () => {
   const fetchTracks = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       const cachedData = checkCache(debouncedSearchTerm, currentPage);
       if (cachedData) {
         setTracks(cachedData.data);
@@ -100,22 +100,21 @@ const MusicManagement = () => {
         return;
       }
 
-      const params = { 
-        search: debouncedSearchTerm, 
+      const params = {
+        search: debouncedSearchTerm,
         page_size: 8,
         page: currentPage
       };
 
       const response = await api.get('/api/v1/music/music/', { params });
-      
+
       updateCache(debouncedSearchTerm, currentPage, response.data);
-      
+
       const musicData = Array.isArray(response.data) ? response.data : response.data.results || [];
       const count = response.data.results ? response.data.count : musicData.length;
-      console.log('Music list data received:', musicData);
       setTracks(musicData);
       setTotalPages(Math.ceil(count / 8));
-      
+
     } catch (err) {
       setError('Failed to load tracks');
       console.error('API Error:', err);
@@ -140,7 +139,7 @@ const MusicManagement = () => {
 
   useEffect(() => {
     needsPollingRef.current = tracks.some(
-      (track) => 
+      (track) =>
         (track.approval_status === "approved" && !track.hls_processing_complete) ||
         track.approval_status === "pending"
     );
@@ -148,15 +147,15 @@ const MusicManagement = () => {
 
   useEffect(() => {
     const fetchLatest = () => {
-      const params = { 
-        search: debouncedSearchTerm, 
+      const params = {
+        search: debouncedSearchTerm,
         page_size: 8,
         page: currentPage
       };
       api.get('/api/v1/music/music/', { params }).then(response => {
-         const musicData = Array.isArray(response.data) ? response.data : response.data.results || [];
-         setTracks(musicData);
-         updateCache(debouncedSearchTerm, currentPage, response.data);
+        const musicData = Array.isArray(response.data) ? response.data : response.data.results || [];
+        setTracks(musicData);
+        updateCache(debouncedSearchTerm, currentPage, response.data);
       }).catch(err => console.error("Polling error:", err));
     };
 
@@ -174,7 +173,7 @@ const MusicManagement = () => {
         fetchLatest();
       }
     };
-    
+
     window.addEventListener('focus', fetchLatest);
     document.addEventListener('visibilitychange', onVisibilityChange);
 
@@ -190,7 +189,7 @@ const MusicManagement = () => {
       const newCache = { ...prevCache };
       Object.keys(newCache).forEach(key => {
         if (newCache[key].data) {
-          newCache[key].data = newCache[key].data.map(track => 
+          newCache[key].data = newCache[key].data.map(track =>
             track.id === trackId ? updateFn(track) : track
           );
         }
@@ -223,7 +222,7 @@ const MusicManagement = () => {
   const confirmDelete = async () => {
     try {
       await api.delete(`/api/v1/music/music/${selectedTrackId}/`);
-      
+
       setTracks(tracks.filter((track) => track.id !== selectedTrackId));
       setCache(prevCache => {
         const newCache = { ...prevCache };
@@ -236,7 +235,7 @@ const MusicManagement = () => {
         });
         return newCache;
       });
-      
+
       setShowDeleteAlert(false);
       toast.success('Track deleted successfully!', {
         autoClose: 5000,
@@ -256,16 +255,16 @@ const MusicManagement = () => {
   const toggleVisibility = async (trackId) => {
     try {
       const response = await api.post(`/api/v1/music/music/${trackId}/toggle_visibility/`);
-      
+
       setTracks(tracks.map((track) =>
         track.id === trackId ? { ...track, is_public: response.data.is_public } : track
       ));
-      
+
       updateTrackInCache(trackId, track => ({
         ...track,
         is_public: response.data.is_public
       }));
-      
+
     } catch (err) {
       setError('Failed to update track visibility');
       console.error('Visibility Toggle Error:', err);
@@ -364,13 +363,12 @@ const MusicManagement = () => {
                           }
                           toggleVisibility(track.id);
                         }}
-                        className={`p-2 rounded-lg ${
-                          !track.hls_processing_complete
+                        className={`p-2 rounded-lg ${!track.hls_processing_complete
                             ? 'bg-gray-700/50 text-gray-500 cursor-not-allowed'
                             : track.is_public
-                            ? 'bg-green-500/20 text-green-400'
-                            : 'bg-gray-500/20 text-gray-400 shadow-[0_0_10px_rgba(255,255,255,0.1)]'
-                        } transition-all`}
+                              ? 'bg-green-500/20 text-green-400'
+                              : 'bg-gray-500/20 text-gray-400 shadow-[0_0_10px_rgba(255,255,255,0.1)]'
+                          } transition-all`}
                         title={!track.hls_processing_complete ? "Processing audio..." : "Toggle visibility"}
                       >
                         {track.is_public ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
@@ -383,16 +381,14 @@ const MusicManagement = () => {
                     </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex flex-col items-center justify-center gap-1.5">
-                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                          statusColors[track.approval_status?.toLowerCase() || 'pending']
-                        } ${
-                          track.approval_status === 'pending' ? 'border-yellow-500/30' :
-                          track.approval_status === 'approved' ? 'border-green-500/30' :
-                          'border-red-500/30'
-                        }`}>
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusColors[track.approval_status?.toLowerCase() || 'pending']
+                          } ${track.approval_status === 'pending' ? 'border-yellow-500/30' :
+                            track.approval_status === 'approved' ? 'border-green-500/30' :
+                              'border-red-500/30'
+                          }`}>
                           {track.approval_status || 'Pending'}
                         </span>
-                        
+
                         {/* HLS Processing Indicator */}
                         {track.approval_status === 'approved' && track.hls_processing_complete === false && (
                           <span className="text-[10px] text-blue-400 font-medium px-2 py-0.5 bg-blue-500/10 rounded-full border border-blue-500/20 animate-pulse flex items-center gap-1 whitespace-nowrap">
@@ -401,9 +397,9 @@ const MusicManagement = () => {
                           </span>
                         )}
                         {track.approval_status === 'approved' && track.hls_processing_complete === true && (
-                           <span className="text-[10px] text-green-400/70 font-medium px-2 py-0.5 whitespace-nowrap">
-                             Ready for Release
-                           </span>
+                          <span className="text-[10px] text-green-400/70 font-medium px-2 py-0.5 whitespace-nowrap">
+                            Ready for Release
+                          </span>
                         )}
                       </div>
                     </td>

@@ -22,7 +22,6 @@ const AlbumManagement = () => {
         setLoading(true);
         const response = await api.get('/api/v1/album/albums');
         const data = response.data.results || response.data || [];
-        console.log('Album list data received:', data);
         setAlbums(data);
         setError(null);
       } catch (err) {
