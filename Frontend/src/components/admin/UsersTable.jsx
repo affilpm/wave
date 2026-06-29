@@ -39,6 +39,16 @@ const UsersTable = () => {
     joinedPeriod: ''
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [failedAvatars, setFailedAvatars] = useState(new Set());
+
+  const getImageUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http') || url.startsWith('blob:')) return url;
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+    return `${cleanBase}${cleanUrl}`;
+  };
   
   // Pagination state
   const [pagination, setPagination] = useState({
@@ -210,11 +220,16 @@ const UsersTable = () => {
     <div className="p-3 bg-gray-800/70 rounded-lg border border-gray-700/50">
       <div className="flex flex-col space-y-3">
         <div className="flex items-start gap-3">
-          {user.profile_photo ? (
+          {user.profile_photo && !failedAvatars.has(user.id) ? (
             <img 
-              src={user.profile_photo} 
+              src={getImageUrl(user.profile_photo)} 
               alt={user.username}
               className="w-12 h-12 rounded-lg object-cover ring-2 ring-gray-700 shrink-0"
+              onError={() => setFailedAvatars(prev => {
+                const next = new Set(prev);
+                next.add(user.id);
+                return next;
+              })}
             />
           ) : (
             <div className={`w-12 h-12 rounded-lg ring-2 ring-gray-700 flex items-center justify-center ${getRandomColor(user.email)} shrink-0`}>
@@ -334,11 +349,16 @@ const UsersTable = () => {
                 <tr key={user.id} className="hover:bg-gray-700/30 transition-colors">
                   <td className="py-4 px-6">
                     <div className="flex items-center gap-3">
-                      {user.profile_photo ? (
+                      {user.profile_photo && !failedAvatars.has(user.id) ? (
                         <img 
-                          src={user.profile_photo} 
+                          src={getImageUrl(user.profile_photo)} 
                           alt={user.username}
                           className="w-10 h-10 rounded-lg object-cover ring-2 ring-gray-700"
+                          onError={() => setFailedAvatars(prev => {
+                            const next = new Set(prev);
+                            next.add(user.id);
+                            return next;
+                          })}
                         />
                       ) : (
                         <div className={`w-10 h-10 rounded-lg ring-2 ring-gray-700 flex items-center justify-center ${getRandomColor(user.email)}`}>

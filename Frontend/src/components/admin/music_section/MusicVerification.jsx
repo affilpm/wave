@@ -62,6 +62,7 @@ const timeAgo = (dateStr) => {
 // ─── Verification Card ──────────────────────────────────────────────────────
 const MusicVerificationCard = ({ music, onApprove, onReject, isPlaying, onPlayToggle, disabled }) => {
   const [showPlayer, setShowPlayer] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   useEffect(() => {
     if (isPlaying) setShowPlayer(true);
@@ -76,6 +77,15 @@ const MusicVerificationCard = ({ music, onApprove, onReject, isPlaying, onPlayTo
     }
   };
 
+  const getImageUrl = (url) => {
+    if (!url) return '';
+    if (url.startsWith('http') || url.startsWith('blob:')) return url;
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    const cleanBase = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
+    const cleanUrl = url.startsWith('/') ? url : `/${url}`;
+    return `${cleanBase}${cleanUrl}`;
+  };
+
   return (
     <div className={`rounded-xl border transition-all duration-200 ${
       isPlaying
@@ -88,13 +98,12 @@ const MusicVerificationCard = ({ music, onApprove, onReject, isPlaying, onPlayTo
           <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-gray-700/50 flex-shrink-0 group cursor-pointer"
             onClick={music.audio_url ? handlePlayClick : undefined}
           >
-            {music.cover_photo ? (
+            {music.cover_photo && !imageError ? (
               <img
-                src={music.cover_photo}
+                src={getImageUrl(music.cover_photo)}
                 alt={music.name}
                 className="w-full h-full object-cover"
-                onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
-                crossOrigin="anonymous"
+                onError={() => setImageError(true)}
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center">
