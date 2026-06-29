@@ -18,7 +18,7 @@ from rest_framework import generics, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.generics import UpdateAPIView
 from rest_framework.pagination import PageNumberPagination
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import FormParser, MultiPartParser, JSONParser
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -132,14 +132,14 @@ class MusicViewSet(ModelViewSet):
 
     queryset = Music.objects.all()
     serializer_class = MusicSerializer
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     pagination_class = MusicPagination
 
     def get_queryset(self):
         queryset = (
             Music.objects.filter(artist__user=self.request.user)
             .select_related("artist", "artist__user", "play_stats")
-            .prefetch_related("genres")
+            .prefetch_related("genres", "albums")
             .annotate(
                 annotated_total_plays=Coalesce("play_stats__total_plays", Value(0))
             )
@@ -222,6 +222,51 @@ class MusicViewSet(ModelViewSet):
         music.is_public = not music.is_public
         music.save(update_fields=["is_public", "updated_at"])
         return Response({"is_public": music.is_public})
+
+    @action(detail=True, methods=["post"])
+    @transaction.atomic
+    def update_album(self, request, pk=None):
+        """Change or remove the album assignment of a track."""
+        music = self.get_object()
+        album_id = request.data.get("album_id")
+
+        # Remove existing album assignments for this track
+        AlbumTrack.objects.filter(track=music).delete()
+
+        if album_id:
+            # Validate the album belongs to the same artist
+            try:
+                album = Album.objects.get(id=album_id, artist=music.artist)
+            except Album.DoesNotExist:
+                return Response(
+                    {"error": "Album not found or does not belong to you."},
+                    status=status.HTTP_404_NOT_FOUND,
+                )
+
+            # Auto-assign the next available track number
+            max_track_number = (
+                AlbumTrack.objects.filter(album=album)
+                .aggregate(max_num=models.Max("track_number"))
+                .get("max_num")
+                or 0
+            )
+            track_number = request.data.get("track_number", max_track_number + 1)
+
+            # Check for track_number conflicts
+            if AlbumTrack.objects.filter(album=album, track_number=track_number).exists():
+                return Response(
+                    {"error": f"Track number {track_number} already exists in this album."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            AlbumTrack.objects.create(
+                album=album, track=music, track_number=int(track_number)
+            )
+
+        # Fetch a fresh instance to clear prefetched relationships and get the correct album details
+        fresh_music = Music.objects.get(pk=music.pk)
+        serializer = self.get_serializer(fresh_music)
+        return Response(serializer.data)
 
     # --- Helpers ---
 

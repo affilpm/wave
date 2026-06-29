@@ -34,6 +34,8 @@ class MusicSerializer(serializers.ModelSerializer):
     duration = serializers.DurationField(required=False)
     hls_processing_complete = serializers.SerializerMethodField()
     total_plays = serializers.SerializerMethodField()
+    album_name = serializers.SerializerMethodField()
+    current_album_id = serializers.SerializerMethodField()
 
     class Meta:
         model = Music
@@ -42,7 +44,7 @@ class MusicSerializer(serializers.ModelSerializer):
             'video_file', 'genres', 'release_date',
             'approval_status', 'duration', 'artist', 'is_public',
             'album_id', 'track_number', 'hls_processing_complete',
-            'total_plays'
+            'total_plays', 'album_name', 'current_album_id'
         ]
 
     def get_total_plays(self, obj):
@@ -52,6 +54,14 @@ class MusicSerializer(serializers.ModelSerializer):
             return obj.play_stats.total_plays
         except Exception:
             return 0
+
+    def get_album_name(self, obj):
+        album = obj.albums.first()
+        return album.name if album else None
+
+    def get_current_album_id(self, obj):
+        album = obj.albums.first()
+        return album.id if album else None
 
     def get_hls_processing_complete(self, obj):
         return obj.streaming_files.exists()

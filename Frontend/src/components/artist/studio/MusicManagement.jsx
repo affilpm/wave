@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Trash2, Eye, EyeOff, Search, AlertCircle, Tag } from 'lucide-react';
+import { Trash2, Eye, EyeOff, Search, AlertCircle, Tag, PenSquare, Disc3 } from 'lucide-react';
 import api from '../../../api';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import debounce from 'lodash/debounce';
+import Modal from '../../Modal';
+import EditSong from './EditSong';
 
 const MusicManagement = () => {
   const [tracks, setTracks] = useState([]);
@@ -17,6 +19,8 @@ const MusicManagement = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [cache, setCache] = useState({});
   const [genres, setGenres] = useState({});
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [selectedTrackForEdit, setSelectedTrackForEdit] = useState(null);
 
   // Separate the search term update from the debounced API call
   const updateDebouncedSearchTerm = useCallback(
@@ -308,6 +312,7 @@ const MusicManagement = () => {
               <thead className="bg-gray-800">
                 <tr>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Title</th>
+                  <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Album</th>
                   <th className="px-4 py-3 text-left text-sm font-medium text-gray-400">Genres</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Status</th>
                   <th className="px-4 py-3 text-center text-sm font-medium text-gray-400">Plays</th>
@@ -319,6 +324,16 @@ const MusicManagement = () => {
                 {tracks.map((track) => (
                   <tr key={track.id} className="hover:bg-gray-800/50">
                     <td className="px-4 py-3 text-white">{track.name}</td>
+                    <td className="px-4 py-3">
+                      {track.album_name ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-blue-500/10 text-blue-400 rounded-full text-xs font-medium border border-blue-500/20">
+                          <Disc3 className="h-3 w-3" />
+                          {track.album_name}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500 text-xs italic">Single</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
                         {Array.isArray(track.genres) && track.genres.map((genre, index) => {
@@ -404,12 +419,25 @@ const MusicManagement = () => {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <button
-                        onClick={() => handleDelete(track.id)}
-                        className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex justify-center gap-1">
+                        <button
+                          onClick={() => {
+                            setSelectedTrackForEdit(track);
+                            setIsEditModalOpen(true);
+                          }}
+                          className="p-2 text-gray-400 hover:bg-gray-700 hover:text-white rounded-lg transition-colors"
+                          title="Edit song"
+                        >
+                          <PenSquare className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(track.id)}
+                          className="p-2 text-red-400 hover:bg-red-500/20 rounded-lg transition-colors"
+                          title="Delete song"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -471,6 +499,35 @@ const MusicManagement = () => {
           </button>
         </div>
       )}
+
+      {/* Edit Song Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+      >
+        {selectedTrackForEdit && (
+          <div className="max-h-[80vh]">
+            <div className="top-0 bg-gray-900 p-6 border-b border-gray-700">
+              <h1 className="text-xl font-semibold text-white">Edit Song</h1>
+            </div>
+            <EditSong
+              track={selectedTrackForEdit}
+              onClose={() => setIsEditModalOpen(false)}
+              onSave={(updatedTrack) => {
+                // Update the track in local state
+                setTracks(prevTracks =>
+                  prevTracks.map(t =>
+                    t.id === updatedTrack.id ? { ...t, ...updatedTrack } : t
+                  )
+                );
+                // Update cache
+                updateTrackInCache(updatedTrack.id, (t) => ({ ...t, ...updatedTrack }));
+                setIsEditModalOpen(false);
+              }}
+            />
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
