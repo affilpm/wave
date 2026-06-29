@@ -107,7 +107,7 @@ const MusicUpload = () => {
 
     const handleInputChange = (e) => {
       const { name, value } = e.target;
-      const trimmedValue = value.replace(/\s/g, '');
+      const trimmedValue = value.replace(/^\s+/, '');
       
       setFormData((prev) => ({ ...prev, [name]: trimmedValue }));
     

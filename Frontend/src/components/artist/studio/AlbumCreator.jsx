@@ -75,8 +75,8 @@ const AlbumCreator = () => {
     const { name, value } = e.target;
   
     if (name === 'name') {
-      // Remove spaces from the album name
-      const trimmedValue = value.replace(/\s/g, ''); // This removes any spaces
+      // Remove leading spaces from the album name
+      const trimmedValue = value.replace(/^\s+/, ''); // This removes leading spaces
   
       // Validation logic for album name
       if (!trimmedValue) {

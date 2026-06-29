@@ -24,8 +24,8 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
 
-  const handleChange = (e) => {
-    const value = e.target.value.replace(/\s/g, ''); // Remove spaces dynamically
+  const handleNameChange = (e) => {
+    const value = e.target.value.replace(/^\s+/, ''); // Remove leading spaces
     setNewPlaylistName(value);
   
     if (value.length < 3 || value.length > 30) {
@@ -342,7 +342,7 @@ const CreatePlaylistModal = ({ isOpen, onClose, onCreatePlaylist }) => {
                     type="text"
                     placeholder="My Awesome Playlist"
                     value={newPlaylistName}
-                    onChange={handleChange}
+                    onChange={handleNameChange}
                     disabled={isLoading}
                     className={`w-full bg-gray-800 text-white px-4 py-2 rounded-md placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/20 ${
                       isLoading ? 'opacity-70 cursor-not-allowed' : ''

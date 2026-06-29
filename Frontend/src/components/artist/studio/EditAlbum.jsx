@@ -82,8 +82,8 @@ const EditAlbum = ({ album: initialAlbum, onClose, onSave }) => {
     const { name, value } = e.target;
   
     if (name === 'name') {
-      // Remove spaces and trim the value
-      const trimmedValue = value.replace(/\s/g, '');
+      // Remove leading spaces
+      const trimmedValue = value.replace(/^\s+/, '');
   
       // Validate the album name
       if (!trimmedValue) {
