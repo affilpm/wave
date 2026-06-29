@@ -256,14 +256,16 @@ const Sidebar = ({ isSidebarExpanded, toggleSidebar, isMobile = false }) => {
             )}
 
             {/* Section for user-created playlists */}
-            <YourPlaylistSection 
-              title="Playlists" 
-              playlists={filteredOwnPlaylists}
-              isSidebarExpanded={isSidebarExpanded || isMobile}
-              onPlaylistClick={handlePlaylistClick}
-              onPlaylistUpdate={handlePlaylistUpdate}
-              onPlaylistDelete={handlePlaylistDelete}
-            />
+            {filteredOwnPlaylists.length > 0 && (
+              <YourPlaylistSection 
+                title="Playlists" 
+                playlists={filteredOwnPlaylists}
+                isSidebarExpanded={isSidebarExpanded || isMobile}
+                onPlaylistClick={handlePlaylistClick}
+                onPlaylistUpdate={handlePlaylistUpdate}
+                onPlaylistDelete={handlePlaylistDelete}
+              />
+            )}
             
             {/* Section for followed artists */}
             {filteredFollowedArtists.length > 0 && (
