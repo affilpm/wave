@@ -22,7 +22,7 @@ const EditPlaylistModal = ({ isOpen, onClose, onEditPlaylist, playlist }) => {
     if (playlist) {
       setPlaylistName(playlist.name || '');
       setDescription(playlist.description || '');
-      setPreviewUrl(playlist.cover_photo || null);
+      setPreviewUrl(playlist.cover_photo || playlist.image || null);
       setFormChanged(false); // Reset form changed status when playlist data is loaded
     }
   }, [playlist]);
@@ -119,7 +119,7 @@ const EditPlaylistModal = ({ isOpen, onClose, onEditPlaylist, playlist }) => {
     setPlaylistName(playlist?.name || '');
     setDescription(playlist?.description || '');
     setCoverPhoto(null);
-    setPreviewUrl(playlist?.cover_photo || null);
+    setPreviewUrl(playlist?.cover_photo || playlist?.image || null);
     setError('');
     setShowCropper(false);
     setOriginalImage(null);

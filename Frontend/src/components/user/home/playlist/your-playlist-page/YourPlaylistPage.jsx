@@ -23,6 +23,7 @@ import {
 import { prepareTracksForPlayer } from "../../../../../utils/trackUtils";
 import { usePlayCollection } from "../../../../../hooks/usePlayCollection";
 import ShareModal from "../../../../common/ShareModal";
+import { updateOwnPlaylist, removeOwnPlaylist } from "../../../../../slices/user/librarySlice";
 
 // Memoized selector for player state
 const selectPlayerState = createSelector(
@@ -354,6 +355,7 @@ const YourPlaylistPage = () => {
   const handleEditPlaylist = useCallback(
     (updatedPlaylist) => {
       setPlaylist(updatedPlaylist);
+      dispatch(updateOwnPlaylist(updatedPlaylist));
       if (isCurrentTrackFromPlaylist && updatedPlaylist.tracks) {
         const updatedFormatted = prepareTracksForPlayer(updatedPlaylist.tracks);
         dispatch(setQueue({
@@ -362,7 +364,7 @@ const YourPlaylistPage = () => {
         }));
       }
     },
-    [currentContext, dispatch]
+    [isCurrentTrackFromPlaylist, currentContext, dispatch]
   );
 
   // Handle toggle privacy
@@ -371,7 +373,9 @@ const YourPlaylistPage = () => {
       await api.patch(`/api/v1/playlist/playlists/${playlistId}/`, {
         is_public: !playlist.is_public,
       });
-      setPlaylist((prev) => ({ ...prev, is_public: !prev.is_public }));
+      const updatedPlaylist = { ...playlist, is_public: !playlist.is_public };
+      setPlaylist(updatedPlaylist);
+      dispatch(updateOwnPlaylist(updatedPlaylist));
     } catch (err) {
       setError("Failed to update playlist privacy");
     }
@@ -385,6 +389,7 @@ const YourPlaylistPage = () => {
           dispatch(clearQueue());
         }
         await api.delete(`/api/v1/playlist/playlists/${playlistId}/`);
+        dispatch(removeOwnPlaylist(playlistId));
         navigate("/home");
       } catch (err) {
         setError("Failed to delete playlist");
@@ -451,6 +456,7 @@ const YourPlaylistPage = () => {
     try {
       const response = await api.get(`/api/v1/playlist/playlists/${playlistId}/`);
       setPlaylist(response.data);
+      dispatch(updateOwnPlaylist(response.data));
       if (isCurrentTrackFromPlaylist && response.data.tracks) {
         const updatedFormatted = prepareTracksForPlayer(response.data.tracks);
         dispatch(setQueue({
