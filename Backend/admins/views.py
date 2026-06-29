@@ -145,6 +145,7 @@ class ArtistViewSet(viewsets.ModelViewSet):
             {
                 "id": a.id,
                 "email": a.user.email,
+                "username": a.user.username,
                 "bio": a.bio,
                 "status": a.status,
                 "genre": ", ".join(g.name for g in a.genres.all()),

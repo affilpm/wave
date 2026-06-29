@@ -90,6 +90,7 @@ const ArtistVerification = () => {
     if (searchQuery) {
       const filtered = artists.filter(artist => 
         artist.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (artist.username && artist.username.toLowerCase().includes(searchQuery.toLowerCase())) ||
         artist.genre.toLowerCase().includes(searchQuery.toLowerCase())
       );
       setFilteredArtists(filtered);
@@ -138,7 +139,8 @@ const ArtistVerification = () => {
       <div className="flex flex-col space-y-3">
         <div className="flex justify-between items-start">
           <div className="space-y-1 min-w-0 flex-1">
-            <p className="text-gray-300 break-all pr-2">{artist.email}</p>
+            <p className="text-gray-200 font-medium truncate">@{artist.username || 'unknown'}</p>
+            <p className="text-gray-400 text-sm break-all pr-2">{artist.email}</p>
             <div className="mb-2">
               <span className="inline-block px-3 py-1 bg-violet-500/20 text-violet-400 rounded-full text-xs">
                 {artist.genre}
@@ -283,7 +285,7 @@ const ArtistVerification = () => {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-700/50">
-                  <th className="text-left py-4 px-6 font-medium text-gray-400">Artist Email</th>
+                  <th className="text-left py-4 px-6 font-medium text-gray-400">Artist</th>
                   <th className="text-left py-4 px-6 font-medium text-gray-400">Genre</th>
                   <th className="text-left py-4 px-6 font-medium text-gray-400">About</th>
                   <th className="text-left py-4 px-6 font-medium text-gray-400">Submitted</th>
@@ -294,7 +296,10 @@ const ArtistVerification = () => {
               <tbody className="divide-y divide-gray-700/50">
                 {filteredArtists.map((artist) => (
                   <tr key={artist.id} className="hover:bg-gray-700/30 transition-colors">
-                    <td className="py-4 px-6 text-gray-300">{artist.email}</td>
+                    <td className="py-4 px-6">
+                      <div className="font-medium text-gray-200">@{artist.username || 'unknown'}</div>
+                      <div className="text-sm text-gray-400">{artist.email}</div>
+                    </td>
                     <td className="py-4 px-6">
                       <span className="px-3 py-1 bg-violet-500/20 text-violet-400 rounded-full text-xs">
                         {artist.genre}
