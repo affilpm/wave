@@ -90,6 +90,7 @@
 |---------|-------------|
 | **User Management** | View, search, block/unblock user accounts with real-time status |
 | **Artist Verification** | Review and approve/reject artist applications |
+| **Genre Management** | Create, edit, delete, and list music genres for platform categorization |
 | **Music Moderation** | Approve, reject, or block music submissions with paginated verification queue |
 | **Premium Plan Management** | Create, edit, and manage subscription plans and pricing |
 | **Transaction Monitoring** | Full Razorpay transaction history with status tracking |
@@ -459,9 +460,10 @@ Wave exposes a comprehensive RESTful API. All endpoints are prefixed with `/api/
 | `GET` | `/music/music/` | List approved tracks (paginated) |
 | `POST` | `/music/music/` | Upload new track (artists only) |
 | `GET` | `/music/music/{id}/stream/` | Get HLS streaming URLs (signed) |
+| `POST` | `/music/music/{id}/update_album/` | Change or remove album assignment |
 | `GET` | `/music/albums/` | List published albums |
 | `POST` | `/music/albums/` | Create album with tracks |
-| `GET` | `/music/genres/` | List all genres |
+| `GET/POST/PUT/DELETE` | `/music/genres/` | List all genres (CRUD for admins) |
 | `GET/PUT` | `/music/user-preference/` | Get/set streaming quality |
 
 ### 📋 Playlists & Library
@@ -539,6 +541,9 @@ Wave exposes a comprehensive RESTful API. All endpoints are prefixed with `/api/
 ```
 
 ### Quick Deploy
+
+> [!TIP]
+> **Resource Efficient:** The production Docker setup is optimized to run smoothly even on low-resource (1GB RAM) environments, featuring an Nginx reverse proxy serving static/media files, Redis memory tuning, and constrained Celery workers.
 
 ```bash
 # Production Launch
