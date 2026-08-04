@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, MutableRefObject } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import Hls from 'hls.js';
 import {
@@ -23,6 +23,9 @@ export const useAudioPlayer = () => {
   const hlsRef = useRef<Hls | null>(null);
   const isInitialLoadRef = useRef(true);
   const rehydratedTrackIdRef = useRef<string | number | null>(null);
+  // Track whether playback was active before iOS suspended it in the background
+  const wasPlayingBeforeHiddenRef = useRef(false);
+  const isPageHiddenRef = useRef(false);
 
   // Mark the initial track as rehydrated on mount
   useEffect(() => {
@@ -47,8 +50,22 @@ export const useAudioPlayer = () => {
     const onDurationChange = () => dispatch(setDuration(audio.duration));
     const onEnded = () => dispatch(handleTrackEnd());
     const onWaiting = () => dispatch(setStatus('buffering'));
-    const onPlaying = () => dispatch(setStatus('playing'));
-    const onPause = () => dispatch(setStatus('paused'));
+    const onPlaying = () => {
+      dispatch(setStatus('playing'));
+      // If we just recovered from background, clear the flag
+      wasPlayingBeforeHiddenRef.current = false;
+    };
+    const onPause = () => {
+      // On iOS, the browser fires 'pause' when the tab/app goes to background.
+      // We don't want to set Redux status to 'paused' in that case because
+      // we need to know we should resume when the user comes back.
+      if (isPageHiddenRef.current) {
+        // iOS forced this pause — remember we were playing
+        wasPlayingBeforeHiddenRef.current = true;
+        return; // Don't update Redux status
+      }
+      dispatch(setStatus('paused'));
+    };
     const onError = (e: any) => {
       // Ignore errors if they are caused by empty src (intentional during loading/reset)
       if (!audio.src || audio.src === window.location.href || (status === 'loading' && audio.error?.code === 4)) {
@@ -281,6 +298,11 @@ export const useAudioPlayer = () => {
       const audio = audioRef.current;
       if (!audio || !currentTrack) return;
 
+      // Don't try to force-play while page is hidden (iOS background).
+      // iOS suspends the audio element — attempting to play will just fail
+      // and incorrectly set status to 'paused', defeating recovery logic.
+      if (isPageHiddenRef.current) return;
+
       // If status says playing but audio is stalled/paused without intention
       if (status === 'playing' && audio.paused && !audio.seeking && audio.readyState >= 2) {
         attemptPlay();
@@ -294,6 +316,82 @@ export const useAudioPlayer = () => {
 
     return () => clearInterval(interval);
   }, [status, currentTrack, attemptPlay]);
+
+  // ─── iOS Background/Foreground Recovery ───────────────────────────────
+  // When iOS Chrome (or Safari) sends the app to the background, it suspends
+  // the audio element and Web Audio context. When the user returns, the HLS
+  // stream fragments may have expired and the AudioContext stays suspended.
+  // This listener detects the return and recovers playback.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Page is going to background
+        isPageHiddenRef.current = true;
+      } else {
+        // Page is becoming visible again
+        isPageHiddenRef.current = false;
+        const audio = audioRef.current;
+        if (!audio) return;
+
+        // 1. Resume Web Audio context if it was suspended (equalizer uses this)
+        //    The AudioContext is a singleton in useEqualizer, but we can access
+        //    it indirectly via the audio element's context. Instead, we dispatch
+        //    a user-gesture-driven resume via a synthetic interaction.
+        //    The equalizer hook handles its own resume, but we trigger it here.
+        try {
+          // Access the global audioCtx from useEqualizer — it listens for clicks
+          // to resume. We'll fire a programmatic event after a small delay.
+          document.dispatchEvent(new Event('click'));
+        } catch (_) {}
+
+        // 2. Check if we need to recover playback
+        const shouldRecover = wasPlayingBeforeHiddenRef.current || status === 'buffering' || status === 'loading';
+        
+        if (!shouldRecover) return;
+
+        wasPlayingBeforeHiddenRef.current = false;
+
+        // 3. Recover HLS stream
+        const hls = hlsRef.current;
+        if (hls && currentTrack?.hlsUrl) {
+          // Check if HLS is in an error state or stalled
+          try {
+            // Force HLS to recover by triggering a level switch or re-starting
+            hls.startLoad(-1);
+          } catch (_) {
+            // If startLoad fails, destroy and let the track effect re-create
+            try {
+              hls.destroy();
+              hlsRef.current = null;
+            } catch (__) {}
+          }
+        } else if (!hls && currentTrack?.hlsUrl && audio.canPlayType('application/vnd.apple.mpegurl')) {
+          // Native HLS (Safari/iOS) — reload the source if stalled
+          if (audio.readyState < 2 || audio.error) {
+            const currentPos = audio.currentTime;
+            audio.src = currentTrack.hlsUrl;
+            audio.load();
+            audio.currentTime = currentPos;
+          }
+        }
+
+        // 4. Attempt to resume playback after a short delay
+        //    (gives HLS time to reconnect and AudioContext to resume)
+        setTimeout(() => {
+          if (audioRef.current && currentTrack) {
+            dispatch(setStatus('playing'));
+            attemptPlay(2);
+          }
+        }, 300);
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [status, currentTrack, dispatch, attemptPlay]);
 
   // Handle Volume and Mute
   useEffect(() => {

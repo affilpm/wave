@@ -108,12 +108,35 @@ export const useEqualizer = (audioRef: React.RefObject<HTMLAudioElement | null>)
   // Resume AudioContext if it was suspended (browser autoplay policy)
   useEffect(() => {
     if (audioCtx && audioCtx.state === 'suspended') {
-      const resume = () => {
+      const resumeCtx = () => {
         audioCtx?.resume();
-        document.removeEventListener('click', resume);
+        document.removeEventListener('click', resumeCtx);
       };
-      document.addEventListener('click', resume, { once: true });
+      document.addEventListener('click', resumeCtx, { once: true });
     }
+  }, []);
+
+  // Resume AudioContext when returning from iOS background
+  // iOS suspends the AudioContext when the app/tab is backgrounded.
+  // We need to explicitly resume it when the user returns.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {
+          // If programmatic resume fails, wait for next user interaction
+          const resumeOnClick = () => {
+            audioCtx?.resume();
+            document.removeEventListener('click', resumeOnClick);
+          };
+          document.addEventListener('click', resumeOnClick, { once: true });
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   return { audioCtx, filterNodes, BANDS };
