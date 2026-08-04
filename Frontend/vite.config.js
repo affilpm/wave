@@ -40,13 +40,15 @@ export default defineConfig(({ mode }) => {
             http://127.0.0.1:*
             ws://localhost:*
             ws://127.0.0.1:*
+            https://wave.affilpm.com
             https://api-wave.affilpm.com
             https://assets-wave.affilpm.com
+            wss://wave.affilpm.com
             wss://api-wave.affilpm.com
             https://*.cloudfront.net
             https://*.razorpay.com;
-          img-src 'self' https: data: blob: http://localhost:* http://127.0.0.1:* https://api-wave.affilpm.com https://*.s3.amazonaws.com https://*.cloudfront.net;
-          media-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://api-wave.affilpm.com https://*.s3.amazonaws.com https://*.cloudfront.net;
+          img-src 'self' https: data: blob: http://localhost:* http://127.0.0.1:* https://api-wave.affilpm.com https://wave.affilpm.com https://assets-wave.affilpm.com https://*.s3.amazonaws.com https://*.cloudfront.net;
+          media-src 'self' blob: data: http://localhost:* http://127.0.0.1:* https://api-wave.affilpm.com https://wave.affilpm.com https://assets-wave.affilpm.com https://*.s3.amazonaws.com https://*.cloudfront.net;
           font-src 'self' data:;
           worker-src 'self' blob:;
         `.replace(/\s+/g, ' ').trim(),
