@@ -81,16 +81,16 @@ const TrackRow = ({ track, index, isPlaying, isCurrent, onPlay }) => {
       <td className="py-3 pl-3 text-gray-400">
         <div className="flex flex-col">
           <span className="md:hidden text-xs text-white/60 mb-1">
-            {track.artist?.id ? (
+            {track.artist_id ? (
               <Link 
-                to={`/artist/${track.artist.id}`}
+                to={`/artist/${track.artist_id}`}
                 className="hover:underline hover:text-white transition-colors"
                 onClick={(e) => e.stopPropagation()}
               >
-                {track.artist?.user?.username || 'Unknown Artist'}
+                {track.artist_username || 'Unknown Artist'}
               </Link>
             ) : (
-              track.artist?.user?.username || 'Unknown Artist'
+              track.artist_username || 'Unknown Artist'
             )}
           </span>
           {track.album_id ? (
@@ -107,16 +107,16 @@ const TrackRow = ({ track, index, isPlaying, isCurrent, onPlay }) => {
         </div>
       </td>
       <td className="py-3 pl-3 hidden lg:table-cell text-gray-400">
-        {track.artist?.id ? (
+        {track.artist_id ? (
           <Link 
-            to={`/artist/${track.artist.id}`}
+            to={`/artist/${track.artist_id}`}
             className="hover:underline hover:text-white transition-colors"
             onClick={(e) => e.stopPropagation()}
           >
-            {track.artist?.user?.username || 'Unknown Artist'}
+            {track.artist_username || 'Unknown Artist'}
           </Link>
         ) : (
-          track.artist?.user?.username || 'Unknown Artist'
+          track.artist_username || 'Unknown Artist'
         )}
       </td>
       <td className="py-3 text-right md:text-center text-gray-400 pr-4 w-20">
