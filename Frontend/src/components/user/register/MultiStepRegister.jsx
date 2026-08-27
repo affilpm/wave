@@ -205,8 +205,8 @@ const MultiStepRegister = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-900">
-      <div className="max-w-lg w-full bg-gray-800 min-h-[450px] rounded-lg shadow-lg p-8">  
+    <div className="flex items-center justify-center min-h-screen bg-gray-900 px-4 py-6 sm:px-6 md:px-8">
+      <div className="w-full max-w-md bg-gray-800 rounded-lg shadow-lg p-5 sm:p-6 md:p-8 min-h-[450px]">  
         {renderStepContent()}
       </div>
     </div>

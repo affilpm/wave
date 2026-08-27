@@ -21,21 +21,21 @@ export const EmailStep = ({ formData, errors, isSubmitting, handleChange, handle
   const navigate = useNavigate();
 
   return (
-    <div className="relative z-10 p-4 md:p-8 w-full">
+    <div className="w-full">
       <RegistrationLogo />
 
       <div className="text-center mb-6 md:mb-10">
-        <h2 className="text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-2 md:mb-4">
-          Sign up
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-600 mb-2 md:mb-4">
+          Sign Up
         </h2>
-        <p className="text-sm md:text-base text-gray-400 max-w-md mx-auto">
+        <p className="text-gray-400 text-xs sm:text-sm">
           Create your account with email or Google
         </p>
       </div>
 
-      <div className="space-y-4 md:space-y-6 max-w-md mx-auto">
-        <div className="flex justify-center px-2 md:px-4">
-          <div className="w-full max-w-[280px] md:max-w-[320px]">
+      <div className="space-y-6 md:space-y-8">
+        <div className="flex justify-center px-2 sm:px-4">
+          <div className="w-full max-w-[320px]">
             <GoogleRegisterButton />
           </div>
         </div>
@@ -44,15 +44,15 @@ export const EmailStep = ({ formData, errors, isSubmitting, handleChange, handle
           <div className="absolute inset-0 flex items-center">
             <div className="w-full border-t border-gray-600"></div>
           </div>
-          <div className="relative flex justify-center text-xs md:text-sm">
-            <span className="px-2 md:px-4 bg-gray-800 text-gray-400">or</span>
+          <div className="relative flex justify-center text-xs sm:text-sm">
+            <span className="px-2 sm:px-4 bg-gray-800 text-gray-400">or</span>
           </div>
         </div>
 
-        <form onSubmit={handleEmailSubmit} className="space-y-4 md:space-y-6">
+        <form onSubmit={handleEmailSubmit} className="space-y-4 w-full px-2 sm:px-0">
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Mail className="h-4 w-4 md:h-5 md:w-5 text-gray-400" />
+              <Mail className="h-5 w-5 text-gray-400" />
             </div>
             <input
               id="email"
@@ -62,24 +62,24 @@ export const EmailStep = ({ formData, errors, isSubmitting, handleChange, handle
               placeholder="Enter your email"
               value={formData.email}
               onChange={handleChange}
-              className="pl-10 w-full px-3 py-2 md:px-4 md:py-3 bg-gray-700/50 border border-gray-600/30 rounded-lg md:rounded-xl text-white text-sm md:text-base placeholder-gray-500 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition duration-300"
+              className="pl-10 w-full px-4 py-3 bg-gray-700/50 border border-gray-600/30 rounded-xl text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition duration-300"
             />
           </div>
           {errors.email && (
-            <div className="mt-1 text-xs md:text-sm text-red-400">{errors.email}</div>
+            <div className="text-sm text-red-400 text-center sm:text-left">{errors.email}</div>
           )}
 
           <button
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-3 md:py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm md:text-base rounded-lg md:rounded-xl 
+            className="w-full py-3 sm:py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl 
             hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-blue-500/50 
             transition duration-300 ease-in-out transform hover:scale-[1.02] 
-            disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm sm:text-base"
           >
             {isSubmitting ? (
               <>
-                <Loader className="animate-spin mr-2 h-4 w-4 md:mr-3 md:h-5 md:w-5" />
+                <Loader className="animate-spin mr-2 h-4 w-4 sm:h-5 sm:w-5" />
                 <span>Sending OTP...</span>
               </>
             ) : (
@@ -88,12 +88,13 @@ export const EmailStep = ({ formData, errors, isSubmitting, handleChange, handle
           </button>
         </form>
 
-        <div className="text-center text-xs md:text-sm text-gray-400 mt-4">
+        <div className="text-center text-xs sm:text-sm text-gray-400 mt-4">
           <p>
             Already have an account?{' '}
             <button
               className="text-blue-500 hover:underline"
               onClick={() => navigate('/login')}
+              type="button"
             >
               Sign In
             </button>
