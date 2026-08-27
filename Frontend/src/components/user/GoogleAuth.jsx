@@ -28,10 +28,13 @@ const GoogleAuthButton = () => {
           cancel_on_tap_outside: true,
         });
 
+        const containerWidth = buttonRef.current.offsetWidth;
+        const btnWidth = containerWidth > 0 ? Math.min(containerWidth, 320) : (window.innerWidth < 400 ? window.innerWidth - 80 : 320);
+
         window.google.accounts.id.renderButton(buttonRef.current, {
           theme: 'filled_black',
           size: 'large',
-          width: 320,
+          width: Math.max(Math.min(btnWidth, 320), 200), // Ensure within Google limits 200-400
           shape: 'rectangular',
         });
       } catch (err) {
