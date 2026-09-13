@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { Plus, Trash2, Edit2, Check, X, Tag } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
-import { ACCESS_TOKEN } from '../../../constants/authConstants';
+import api from '../../../api';
+import { MUSIC } from '../../../constants/apiEndpoints';
 
 const GenreManagement = () => {
   const [genres, setGenres] = useState([]);
@@ -16,9 +16,6 @@ const GenreManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pagination, setPagination] = useState({ count: 0, next: null, previous: null });
 
-  // Use the established BASE_URL pattern or the proxy
-  const API_BASE = '/api/v1/music/genres/';
-
   useEffect(() => {
     fetchGenres(currentPage);
   }, [currentPage]);
@@ -26,10 +23,7 @@ const GenreManagement = () => {
   const fetchGenres = async (page = 1) => {
     try {
       setLoading(true);
-      const token = localStorage.getItem(ACCESS_TOKEN);
-      const response = await axios.get(`${API_BASE}?page=${page}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await api.get(`${MUSIC.GENRES}?page=${page}`);
       
       // Handle paginated vs non-paginated data
       if (response.data.results) {
@@ -56,11 +50,7 @@ const GenreManagement = () => {
     if (!newGenre.trim()) return;
 
     try {
-      const token = localStorage.getItem(ACCESS_TOKEN);
-      const response = await axios.post(API_BASE, 
-        { name: newGenre.trim() },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await api.post(MUSIC.GENRES, { name: newGenre.trim() });
       setGenres([...genres, response.data]);
       setNewGenre('');
       toast.success('Genre created successfully');
@@ -74,11 +64,7 @@ const GenreManagement = () => {
     if (!editName.trim()) return;
 
     try {
-      const token = localStorage.getItem(ACCESS_TOKEN);
-      const response = await axios.patch(`${API_BASE}${id}/`, 
-        { name: editName.trim() },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await api.patch(`${MUSIC.GENRES}${id}/`, { name: editName.trim() });
       setGenres(genres.map(g => g.id === id ? response.data : g));
       setEditingId(null);
       toast.success('Genre updated successfully');
@@ -92,10 +78,7 @@ const GenreManagement = () => {
     if (!window.confirm('Are you sure you want to delete this genre?')) return;
 
     try {
-      const token = localStorage.getItem(ACCESS_TOKEN);
-      await axios.delete(`${API_BASE}${id}/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await api.delete(`${MUSIC.GENRES}${id}/`);
       setGenres(genres.filter(g => g.id !== id));
       toast.success('Genre deleted successfully');
     } catch (error) {
