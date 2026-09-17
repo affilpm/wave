@@ -11,3 +11,5 @@ db.sqlite3
 dist/
 build/
 pyrightconfig.json
+backups/
+

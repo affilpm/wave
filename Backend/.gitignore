@@ -17,3 +17,6 @@ settings.txt
 
 cloudfront-private-key.pem
 cloudfront-public-key.pem
+
+# Database backups
+backups/
